@@ -1,4 +1,6 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+// 백엔드 호출은 모두 상대 경로 /api/* 로 보냄.
+// Next.js의 rewrites가 BACKEND_URL로 프록시 (next.config.ts).
+// 이렇게 하면 브라우저는 항상 같은 origin → CORS / Mixed Content 문제 없음.
 
 export type User = {
   id: string;
@@ -21,7 +23,7 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(path, {
     ...init,
     headers: {
       "Content-Type": "application/json",
