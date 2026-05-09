@@ -25,7 +25,7 @@ export default function GamesPage() {
       <div className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight">게임</h1>
         <p className="mt-2 text-sm text-zinc-500">
-          GameWorld에서 즐길 수 있는 게임들
+          ALP에서 즐길 수 있는 게임들
         </p>
       </div>
 

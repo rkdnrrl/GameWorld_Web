@@ -71,7 +71,7 @@ export default function SignupPage() {
     <section className="flex flex-1 items-center justify-center px-6 py-16">
       <div className="w-full max-w-md">
         <h1 className="text-3xl font-bold tracking-tight">회원가입</h1>
-        <p className="mt-2 text-sm text-zinc-500">GameWorld에 오신 것을 환영합니다.</p>
+        <p className="mt-2 text-sm text-zinc-500">ALP에 오신 것을 환영합니다.</p>
 
         <form onSubmit={onSubmit} className="mt-8 space-y-5">
           <Field label="이메일">

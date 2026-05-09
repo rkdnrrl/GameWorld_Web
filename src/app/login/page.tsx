@@ -44,7 +44,7 @@ export default function LoginPage() {
     <section className="flex flex-1 items-center justify-center px-6 py-16">
       <div className="w-full max-w-md">
         <h1 className="text-3xl font-bold tracking-tight">로그인</h1>
-        <p className="mt-2 text-sm text-zinc-500">GameWorld 계정으로 로그인하세요.</p>
+        <p className="mt-2 text-sm text-zinc-500">ALP 계정으로 로그인하세요.</p>
 
         <form onSubmit={onSubmit} className="mt-8 space-y-5">
           <label className="block">

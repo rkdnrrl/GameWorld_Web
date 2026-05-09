@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GameWorld",
+  title: "ALP",
   description: "다양한 멀티플레이 게임을 즐길 수 있는 플랫폼",
 };
 

@@ -1,11 +1,12 @@
 import Link from "next/link";
+import Logo from "./Logo";
 
 export default function Header() {
   return (
     <header className="border-b border-zinc-200 dark:border-zinc-800">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <Link href="/" className="text-xl font-bold tracking-tight">
-          GameWorld
+        <Link href="/" aria-label="ALP 홈">
+          <Logo size={28} />
         </Link>
         <nav className="flex items-center gap-6 text-sm">
           <Link href="/games" className="hover:text-blue-600">
