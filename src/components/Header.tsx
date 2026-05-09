@@ -9,16 +9,48 @@ import { SESSION_CHANGE_EVENT, session } from "@/lib/api";
 export default function Header() {
   const router = useRouter();
   const [loggedIn, setLoggedIn] = useState(false);
+  const [coins, setCoins] = useState<number | null>(null);
+
+  const fetchCoins = useCallback(async (token: string) => {
+    try {
+      const res = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setCoins(data?.user?.coins ?? null);
+    } catch {
+      // 무시
+    }
+  }, []);
 
   const syncFromStorage = useCallback(() => {
-    setLoggedIn(!!session.getToken());
-  }, []);
+    const token = session.getToken();
+    const isLoggedIn = !!token;
+    setLoggedIn(isLoggedIn);
+    if (isLoggedIn && token) {
+      fetchCoins(token);
+    } else {
+      setCoins(null);
+    }
+  }, [fetchCoins]);
 
   useEffect(() => {
     syncFromStorage();
     window.addEventListener(SESSION_CHANGE_EVENT, syncFromStorage);
-    return () => window.removeEventListener(SESSION_CHANGE_EVENT, syncFromStorage);
-  }, [syncFromStorage]);
+
+    // 탭 포커스 시 코인 갱신
+    const onFocus = () => {
+      const token = session.getToken();
+      if (token) fetchCoins(token);
+    };
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      window.removeEventListener(SESSION_CHANGE_EVENT, syncFromStorage);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [syncFromStorage, fetchCoins]);
 
   function onLogout() {
     session.clear();
@@ -31,10 +63,15 @@ export default function Header() {
         <Link href="/" aria-label="ALP 홈">
           <Logo size={28} />
         </Link>
-        <nav className="flex items-center gap-6 text-sm">
+        <nav className="flex items-center gap-4 text-sm">
           <Link href="/games" className="hover:text-blue-600">
             게임
           </Link>
+          {loggedIn && coins !== null && (
+            <span className="flex items-center gap-1 rounded-full bg-yellow-50 px-3 py-1 text-sm font-semibold text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400">
+              🪙 {coins.toLocaleString()}
+            </span>
+          )}
           {loggedIn ? (
             <button
               type="button"
