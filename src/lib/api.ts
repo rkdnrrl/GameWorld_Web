@@ -59,11 +59,20 @@ export const api = {
 const TOKEN_KEY = "gameworld_token";
 const USER_KEY = "gameworld_user";
 
+/** 같은 탭에서 로그인/로그아웃 후 헤더 등이 갱신되도록 알림 */
+export const SESSION_CHANGE_EVENT = "gameworld-session-change";
+
+function notifySessionChange() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(SESSION_CHANGE_EVENT));
+}
+
 export const session = {
   save({ token, user }: AuthResponse) {
     if (typeof window === "undefined") return;
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
+    notifySessionChange();
   },
   getToken(): string | null {
     if (typeof window === "undefined") return null;
@@ -83,5 +92,6 @@ export const session = {
     if (typeof window === "undefined") return;
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    notifySessionChange();
   },
 };
