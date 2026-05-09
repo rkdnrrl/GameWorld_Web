@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import BackendConnectionBanner from "@/components/BackendConnectionBanner";
 import Header from "@/components/Header";
+
+/** 로컬에서 백엔드 상태 표시. 프로덕션 빌드를 로컬에서 검증하려면 NEXT_PUBLIC_BACKEND_STATUS=1 */
+const showBackendConnectionBanner =
+  process.env.NODE_ENV === "development" ||
+  process.env.NEXT_PUBLIC_BACKEND_STATUS === "1";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,6 +36,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
         <Header />
+        <BackendConnectionBanner enabled={showBackendConnectionBanner} />
         <main className="flex flex-1 flex-col">{children}</main>
       </body>
     </html>
