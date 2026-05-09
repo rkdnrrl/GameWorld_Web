@@ -21,6 +21,7 @@ async function getGames(): Promise<Game[]> {
         tags: ["멀티플레이", "실시간"],
         players: null,
         rooms: null,
+        maxPlayers: 100,
       },
     ];
   }

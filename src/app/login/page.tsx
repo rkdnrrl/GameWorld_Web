@@ -2,11 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, FormEvent } from "react";
+import { useEffect, useState, FormEvent } from "react";
 import { api, session, ApiError } from "@/lib/api";
+import { useLoggedIn } from "@/lib/useLoggedIn";
 
 export default function LoginPage() {
   const router = useRouter();
+  const loggedIn = useLoggedIn();
+
+  useEffect(() => {
+    if (loggedIn) router.replace("/");
+  }, [loggedIn, router]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -87,12 +93,14 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-zinc-500">
-          계정이 없으신가요?{" "}
-          <Link href="/signup" className="text-blue-600 hover:underline">
-            회원가입
-          </Link>
-        </p>
+        {!loggedIn && (
+          <p className="mt-6 text-center text-sm text-zinc-500">
+            계정이 없으신가요?{" "}
+            <Link href="/signup" className="text-blue-600 hover:underline">
+              회원가입
+            </Link>
+          </p>
+        )}
       </div>
     </section>
   );

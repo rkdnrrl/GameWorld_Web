@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, FormEvent } from "react";
+import { useEffect, useState, FormEvent } from "react";
 import { api, session, ApiError } from "@/lib/api";
+import { useLoggedIn } from "@/lib/useLoggedIn";
 
 type FormState = {
   email: string;
@@ -21,6 +22,12 @@ const initial: FormState = {
 
 export default function SignupPage() {
   const router = useRouter();
+  const loggedIn = useLoggedIn();
+
+  useEffect(() => {
+    if (loggedIn) router.replace("/");
+  }, [loggedIn, router]);
+
   const [form, setForm] = useState<FormState>(initial);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);

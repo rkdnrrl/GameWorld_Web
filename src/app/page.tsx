@@ -1,5 +1,5 @@
-import Link from "next/link";
 import Logo from "@/components/Logo";
+import HomeCtas from "@/components/HomeCtas";
 
 export default function Home() {
   return (
@@ -11,20 +11,7 @@ export default function Home() {
         <p className="mt-8 text-lg text-zinc-600 dark:text-zinc-400">
           친구들과 함께 즐기는 멀티플레이 게임 플랫폼
         </p>
-        <div className="mt-10 flex justify-center gap-4">
-          <Link
-            href="/games"
-            className="rounded-md bg-blue-600 px-6 py-3 text-white font-medium hover:bg-blue-700"
-          >
-            게임 둘러보기
-          </Link>
-          <Link
-            href="/signup"
-            className="rounded-md border border-zinc-300 px-6 py-3 font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
-          >
-            회원가입
-          </Link>
-        </div>
+        <HomeCtas />
       </div>
     </section>
   );
