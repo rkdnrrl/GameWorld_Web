@@ -47,10 +47,14 @@ export default function LoginPage() {
   }
 
   return (
-    <section className="flex flex-1 items-center justify-center px-6 py-16">
-      <div className="w-full max-w-md">
-        <h1 className="text-3xl font-bold tracking-tight">로그인</h1>
-        <p className="mt-2 text-sm text-zinc-500">ALP 계정으로 로그인하세요.</p>
+    <section className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6 sm:py-16">
+      <div className="w-full min-w-0 max-w-md">
+        <h1 className="break-words text-2xl font-bold tracking-tight sm:text-3xl">
+          로그인
+        </h1>
+        <p className="mt-2 break-words text-sm text-zinc-500">
+          ALP 계정으로 로그인하세요.
+        </p>
 
         <form onSubmit={onSubmit} className="mt-8 space-y-5">
           <label className="block">
@@ -79,7 +83,7 @@ export default function LoginPage() {
           </label>
 
           {error && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+            <p className="break-words rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
               {error}
             </p>
           )}

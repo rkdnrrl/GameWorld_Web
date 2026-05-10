@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import BackendConnectionBanner from "@/components/BackendConnectionBanner";
@@ -24,6 +24,11 @@ export const metadata: Metadata = {
   description: "다양한 멀티플레이 게임을 즐길 수 있는 플랫폼",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -34,10 +39,12 @@ export default function RootLayout({
       lang="ko"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+      <body className="flex min-h-full min-w-0 flex-col overflow-x-hidden bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
         <Header />
         <BackendConnectionBanner enabled={showBackendConnectionBanner} />
-        <main className="flex flex-1 flex-col">{children}</main>
+        <main className="flex w-full min-w-0 max-w-full flex-1 flex-col overflow-x-hidden">
+          {children}
+        </main>
       </body>
     </html>
   );

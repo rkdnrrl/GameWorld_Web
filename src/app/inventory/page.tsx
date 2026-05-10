@@ -154,18 +154,23 @@ export default function InventoryPage() {
   const totalValue = items.reduce((s, i) => s + coinNum(i), 0);
 
   return (
-    <section className="mx-auto w-full max-w-2xl px-6 py-12">
+    <section className="mx-auto w-full min-w-0 max-w-2xl px-4 py-10 sm:px-6 sm:py-12">
       {/* 헤더 */}
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">📦 보관함</h1>
-          <p className="mt-1 text-sm text-zinc-500">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="break-words text-2xl font-bold tracking-tight sm:text-3xl">
+            📦 보관함
+          </h1>
+          <p className="mt-1 break-words text-sm text-zinc-500">
             잡은 아이템을 팔아서 게임머니를 획득하세요
           </p>
         </div>
         {typeof coins === "number" && (
-          <span className="shrink-0 rounded-full bg-yellow-50 px-4 py-2 text-sm font-semibold text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400">
-            🪙 {coins.toLocaleString()}
+          <span className="inline-flex w-fit max-w-full shrink-0 items-center gap-1 self-start rounded-full bg-yellow-50 px-3 py-2 text-sm font-semibold text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400">
+            <span className="shrink-0">🪙</span>
+            <span className="min-w-0 truncate tabular-nums">
+              {coins.toLocaleString()}
+            </span>
           </span>
         )}
       </div>
@@ -173,7 +178,7 @@ export default function InventoryPage() {
       {/* 알림 토스트 */}
       {notice && (
         <div
-          className={`mb-4 rounded-lg px-4 py-3 text-sm font-medium ${
+          className={`mb-4 break-words rounded-lg px-4 py-3 text-sm font-medium ${
             notice.kind === "ok"
               ? "bg-green-50 text-green-800 dark:bg-green-900/30 dark:text-green-200"
               : "bg-red-50 text-red-800 dark:bg-red-900/30 dark:text-red-200"
@@ -185,8 +190,8 @@ export default function InventoryPage() {
 
       {/* 전체 팔기 바 */}
       {items.length > 0 && (
-        <div className="mb-4 flex items-center justify-between rounded-xl bg-zinc-100 px-5 py-3 dark:bg-zinc-800">
-          <span className="text-sm text-zinc-600 dark:text-zinc-300">
+        <div className="mb-4 flex flex-col gap-3 rounded-xl bg-zinc-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 dark:bg-zinc-800">
+          <span className="min-w-0 break-words text-sm text-zinc-600 dark:text-zinc-300">
             총 <strong>{items.length}</strong>개 &nbsp;·&nbsp; 합계{" "}
             <strong className="text-yellow-600 dark:text-yellow-400">
               {totalValue.toLocaleString()}🪙
@@ -195,7 +200,7 @@ export default function InventoryPage() {
           <button
             onClick={sellAll}
             disabled={sellingAll || !!sellingId}
-            className="rounded-lg bg-yellow-500 px-4 py-2 text-sm font-semibold text-white hover:bg-yellow-600 disabled:opacity-60"
+            className="w-full shrink-0 rounded-lg bg-yellow-500 px-4 py-2 text-sm font-semibold text-white hover:bg-yellow-600 disabled:opacity-60 sm:w-auto"
           >
             {sellingAll ? "판매 중…" : "전체 팔기"}
           </button>
@@ -209,7 +214,7 @@ export default function InventoryPage() {
 
       {/* 에러 */}
       {loadError && !loading && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+        <div className="mb-4 break-words rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
           {loadError}
         </div>
       )}
@@ -237,7 +242,7 @@ export default function InventoryPage() {
           {items.map((item) => (
             <div
               key={item.id}
-              className={`flex items-center gap-4 rounded-xl border border-zinc-200 border-l-4 bg-white px-5 py-3 dark:border-zinc-700 dark:border-l-4 dark:bg-zinc-900 ${RARITY_BORDER[item.rarity] ?? "border-l-zinc-400"}`}
+              className={`flex min-w-0 items-center gap-2 rounded-xl border border-zinc-200 border-l-4 bg-white px-3 py-3 sm:gap-4 sm:px-5 dark:border-zinc-700 dark:border-l-4 dark:bg-zinc-900 ${RARITY_BORDER[item.rarity] ?? "border-l-zinc-400"}`}
             >
               {isValidPixelArt(item.pixelArt) ? (
                 <CatchPixelThumb art={item.pixelArt} width={52} height={38} />
@@ -250,20 +255,21 @@ export default function InventoryPage() {
                 >
                   {RARITY_LABEL[item.rarity] ?? item.rarity}
                 </span>
-                <p className="truncate font-semibold">{item.itemName}</p>
-                <p className="text-xs text-zinc-400">
+                <p className="break-words font-semibold leading-snug">{item.itemName}</p>
+                <p className="break-words text-xs text-zinc-400">
                   {item.size != null ? `${item.size}cm · ` : ""}
                   {timeAgo(item.caughtAt)}
                 </p>
               </div>
-              <div className="shrink-0 text-right">
+              <div className="min-w-0 shrink-0 text-right">
                 <p className="font-bold tabular-nums text-yellow-500">
                   {coinNum(item).toLocaleString()}🪙
                 </p>
                 <button
+                  type="button"
                   onClick={() => sellOne(item.id)}
                   disabled={sellingId === item.id || sellingAll}
-                  className="mt-1 rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                  className="mt-1 rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60 sm:px-3"
                 >
                   {sellingId === item.id ? "판매 중…" : "팔기"}
                 </button>

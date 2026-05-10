@@ -61,24 +61,28 @@ export default function GameCard({ game }: { game: Game }) {
   return (
     <a
       href={href}
-      className="group flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white transition-all hover:-translate-y-1 hover:border-blue-500 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-blue-500"
+      className="group flex min-w-0 max-w-full flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white transition-all hover:-translate-y-1 hover:border-blue-500 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-blue-500"
     >
       <div className="relative flex h-40 items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 text-6xl">
         {game.emoji}
         {maxCap === null && (
-          <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-black/40 px-2.5 py-1 text-xs text-white backdrop-blur-sm">
+          <div className="absolute left-2 right-2 top-2 flex max-w-[calc(100%-1rem)] items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-[10px] text-white backdrop-blur-sm sm:left-auto sm:right-3 sm:top-3 sm:max-w-none sm:px-2.5 sm:text-xs">
             <span
-              className={`h-1.5 w-1.5 rounded-full ${game.players !== null ? "bg-green-400" : "bg-zinc-400"}`}
+              className={`h-1.5 w-1.5 shrink-0 rounded-full ${game.players !== null ? "bg-green-400" : "bg-zinc-400"}`}
             />
-            {game.players !== null
-              ? `${game.players}명 플레이 중`
-              : "정보 없음"}
+            <span className="min-w-0 truncate">
+              {game.players !== null
+                ? `${game.players}명 플레이 중`
+                : "정보 없음"}
+            </span>
           </div>
         )}
       </div>
-      <div className="flex flex-1 flex-col p-5">
-        <h2 className="text-lg font-semibold tracking-tight">{game.title}</h2>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+      <div className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
+        <h2 className="break-words text-base font-semibold tracking-tight sm:text-lg">
+          {game.title}
+        </h2>
+        <p className="mt-1 break-words text-sm text-zinc-600 dark:text-zinc-400">
           {game.description}
         </p>
         {maxCap !== null && (
@@ -119,7 +123,7 @@ export default function GameCard({ game }: { game: Game }) {
                 }}
               />
             </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            <p className="break-words text-xs text-zinc-500 dark:text-zinc-400">
               최대 동시 접속 {maxCap}명 · 인원이 많아질수록 게이지가 붉어집니다
             </p>
           </div>

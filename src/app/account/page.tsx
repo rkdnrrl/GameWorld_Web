@@ -166,10 +166,12 @@ export default function AccountPage() {
   }
 
   return (
-    <section className="mx-auto w-full max-w-lg px-6 py-12">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">내 정보</h1>
-        <p className="mt-2 text-sm text-zinc-500">
+    <section className="mx-auto w-full min-w-0 max-w-lg px-4 py-10 sm:px-6 sm:py-12">
+      <div className="mb-8 min-w-0">
+        <h1 className="break-words text-2xl font-bold tracking-tight sm:text-3xl">
+          내 정보
+        </h1>
+        <p className="mt-2 break-words text-sm text-zinc-500">
           계정 정보를 확인하고 닉네임을 변경할 수 있습니다.
         </p>
       </div>
@@ -180,7 +182,7 @@ export default function AccountPage() {
 
       {loadError && !loading && (
         <div className="mb-6 space-y-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
-          <p>{loadError}</p>
+          <p className="break-words">{loadError}</p>
           <button
             type="button"
             onClick={() => {
@@ -204,7 +206,7 @@ export default function AccountPage() {
               <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
                 이메일
               </dt>
-              <dd className="mt-1 text-sm font-medium">{user.email}</dd>
+              <dd className="mt-1 break-all text-sm font-medium">{user.email}</dd>
             </div>
             <div>
               <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">

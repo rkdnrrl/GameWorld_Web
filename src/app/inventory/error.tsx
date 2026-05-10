@@ -10,14 +10,14 @@ export default function InventoryError({
   reset: () => void;
 }) {
   return (
-    <section className="mx-auto w-full max-w-2xl px-6 py-16 text-center">
-      <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+    <section className="mx-auto w-full min-w-0 max-w-2xl px-4 py-12 text-center sm:px-6 sm:py-16">
+      <h1 className="break-words text-lg font-bold text-zinc-900 sm:text-xl dark:text-zinc-100">
         보관함을 표시하지 못했습니다
       </h1>
-      <p className="mt-2 text-sm text-zinc-500">
+      <p className="mt-2 break-words text-sm text-zinc-500">
         {process.env.NODE_ENV === "development" ? error.message : "일시적인 오류일 수 있습니다."}
       </p>
-      <div className="mt-8 flex justify-center gap-3">
+      <div className="mt-8 flex flex-col items-stretch justify-center gap-3 px-2 sm:flex-row sm:items-center sm:px-0">
         <button
           type="button"
           onClick={reset}
@@ -27,7 +27,7 @@ export default function InventoryError({
         </button>
         <Link
           href="/games"
-          className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium dark:border-zinc-600"
+          className="rounded-lg border border-zinc-300 px-4 py-2 text-center text-sm font-medium dark:border-zinc-600"
         >
           게임 목록
         </Link>

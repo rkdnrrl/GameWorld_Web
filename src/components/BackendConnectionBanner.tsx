@@ -48,11 +48,13 @@ export default function BackendConnectionBanner({
   return (
     <div
       role="status"
-      className="border-b border-amber-200 bg-amber-50 px-6 py-2 text-center text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/80 dark:text-amber-100"
+      className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs text-amber-950 sm:px-6 sm:text-sm dark:border-amber-900 dark:bg-amber-950/80 dark:text-amber-100"
     >
-      백엔드 서버에 연결되지 않았습니다. API 서버가 켜져 있는지 확인해 주세요.
+      <span className="break-words">
+        백엔드 서버에 연결되지 않았습니다. API 서버가 켜져 있는지 확인해 주세요.
+      </span>
       {backendUrl ? (
-        <span className="mt-1 block font-mono text-xs opacity-90">
+        <span className="mt-1 block break-all font-mono text-[10px] opacity-90 sm:text-xs">
           (설정 주소: {backendUrl})
         </span>
       ) : null}

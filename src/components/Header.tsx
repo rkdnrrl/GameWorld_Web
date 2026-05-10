@@ -60,41 +60,44 @@ export default function Header() {
 
   return (
     <header className="border-b border-zinc-200 dark:border-zinc-800">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <Link href="/" aria-label="ALP 홈">
+      <div className="mx-auto flex min-h-14 w-full max-w-6xl min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-2 px-3 py-2 sm:min-h-16 sm:flex-nowrap sm:px-6 sm:py-0">
+        <Link href="/" aria-label="ALP 홈" className="shrink-0">
           <Logo size={28} />
         </Link>
-        <nav className="flex items-center gap-4 text-sm">
-          <Link href="/games" className="hover:text-blue-600">
+        <nav className="flex min-w-0 max-w-full flex-[1_1_0%] flex-wrap items-center justify-end gap-x-2 gap-y-1.5 text-xs sm:flex-none sm:gap-x-4 sm:text-sm">
+          <Link href="/games" className="shrink-0 whitespace-nowrap hover:text-blue-600">
             게임
           </Link>
           {loggedIn && (
-            <Link href="/account" className="hover:text-blue-600">
+            <Link href="/account" className="shrink-0 whitespace-nowrap hover:text-blue-600">
               내 정보
             </Link>
           )}
           {loggedIn && (
-            <Link href="/inventory" className="hover:text-blue-600">
+            <Link href="/inventory" className="shrink-0 whitespace-nowrap hover:text-blue-600">
               보관함
             </Link>
           )}
           {loggedIn && typeof coins === "number" && (
-            <span className="flex items-center gap-1 rounded-full bg-yellow-50 px-3 py-1 text-sm font-semibold text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400">
-              🪙 {coins.toLocaleString()}
+            <span className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full bg-yellow-50 px-2 py-1 text-xs font-semibold text-yellow-600 sm:max-w-[11rem] sm:px-3 sm:text-sm dark:bg-yellow-900/30 dark:text-yellow-400">
+              <span className="shrink-0">🪙</span>
+              <span className="min-w-0 truncate tabular-nums">
+                {coins.toLocaleString()}
+              </span>
             </span>
           )}
           {loggedIn ? (
             <button
               type="button"
               onClick={onLogout}
-              className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-zinc-900 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
+              className="shrink-0 whitespace-nowrap rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-900 hover:bg-zinc-50 sm:px-3 sm:text-sm dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
             >
               로그아웃
             </button>
           ) : (
             <Link
               href="/login"
-              className="rounded-md bg-zinc-900 px-3 py-1.5 text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+              className="shrink-0 whitespace-nowrap rounded-md bg-zinc-900 px-2 py-1.5 text-xs text-white hover:bg-zinc-700 sm:px-3 sm:text-sm dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
             >
               로그인
             </Link>

@@ -49,10 +49,12 @@ export default async function GamesPage() {
   const byCat = groupGamesByCategory(games);
 
   return (
-    <section className="mx-auto w-full max-w-6xl px-6 py-16">
-      <div className="mb-10">
-        <h1 className="text-3xl font-bold tracking-tight">게임</h1>
-        <p className="mt-2 text-sm text-zinc-500">
+    <section className="mx-auto w-full max-w-6xl min-w-0 px-4 py-12 sm:px-6 sm:py-16">
+      <div className="mb-10 min-w-0">
+        <h1 className="break-words text-2xl font-bold tracking-tight sm:text-3xl">
+          게임
+        </h1>
+        <p className="mt-2 break-words text-sm text-zinc-500">
           종류별로 골라 플레이할 수 있어요
         </p>
       </div>
@@ -63,7 +65,7 @@ export default async function GamesPage() {
           if (list.length === 0) return null;
           return (
             <div key={cat}>
-              <h2 className="mb-4 text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+              <h2 className="mb-4 break-words text-lg font-semibold tracking-tight text-zinc-900 sm:text-xl dark:text-zinc-50">
                 {GAME_CATEGORY_LABEL[cat]}
               </h2>
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
