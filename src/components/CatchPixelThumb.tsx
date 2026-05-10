@@ -33,7 +33,10 @@ export default function CatchPixelThumb({
     if (!ctx) return;
 
     for (let i = 0; i < art.cells.length; i += 1) {
-      const cidx = art.cells[i];
+      const cidx = Number(art.cells[i]);
+      if (!Number.isInteger(cidx) || cidx < 0 || cidx >= art.palette.length) {
+        continue;
+      }
       const px = i % w;
       const py = Math.floor(i / w);
       ctx.fillStyle = art.palette[cidx] ?? "#000000";

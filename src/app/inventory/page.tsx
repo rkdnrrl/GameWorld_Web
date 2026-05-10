@@ -68,7 +68,8 @@ export default function InventoryPage() {
       setLoadError(null);
       try {
         const data = await api.getInventory(t);
-        setItems(data.catches);
+        const raw = data.catches;
+        setItems(Array.isArray(raw) ? raw : []);
       } catch (err) {
         if (err instanceof ApiError && err.status === 401) {
           session.clear();
@@ -141,7 +142,11 @@ export default function InventoryPage() {
     }
   }
 
-  const totalValue = items.reduce((s, i) => s + i.coinValue, 0);
+  const coinNum = (i: CatchItem) => {
+    const n = Number(i.coinValue);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const totalValue = items.reduce((s, i) => s + coinNum(i), 0);
 
   return (
     <section className="mx-auto w-full max-w-2xl px-6 py-12">
@@ -248,7 +253,7 @@ export default function InventoryPage() {
               </div>
               <div className="shrink-0 text-right">
                 <p className="font-bold tabular-nums text-yellow-500">
-                  {item.coinValue.toLocaleString()}🪙
+                  {coinNum(item).toLocaleString()}🪙
                 </p>
                 <button
                   onClick={() => sellOne(item.id)}
