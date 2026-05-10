@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { SESSION_CHANGE_EVENT, session } from "@/lib/api";
 
+/** API `games.js`의 category와 동일 */
+export type GameCategory = "earn" | "multiplay" | "decorate" | "other";
+
 export type Game = {
   id: string;
   title: string;
@@ -14,6 +17,8 @@ export type Game = {
   rooms: number | null;
   /** 동시 접속 상한 (없으면 큐브 멀티플레이만 기본 100) */
   maxPlayers?: number | null;
+  /** 없으면 UI에서 other 취급 */
+  category?: GameCategory;
 };
 
 function occupancyMeterColor(ratio: number): string {
