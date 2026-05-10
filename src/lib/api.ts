@@ -23,19 +23,82 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(path, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init.headers || {}),
-    },
-  });
+function authHeaders(token: string): HeadersInit {
+  return { Authorization: `Bearer ${token}` };
+}
 
-  const data = await res.json().catch(() => ({}));
+/** 백엔드마다 다른 JSON 오류 형식을 최대한 해석 */
+function extractApiErrorMessage(data: unknown, status: number): string {
+  if (data && typeof data === "object") {
+    const o = data as Record<string, unknown>;
+
+    const nested = o.error;
+    if (nested && typeof nested === "object" && nested !== null) {
+      const msg = (nested as { message?: unknown }).message;
+      if (typeof msg === "string" && msg.trim()) return msg.trim();
+    }
+
+    if (typeof o.message === "string" && o.message.trim()) {
+      return o.message.trim();
+    }
+    if (Array.isArray(o.message) && o.message.length > 0) {
+      const parts = o.message.filter((x) => typeof x === "string") as string[];
+      if (parts.length) return parts.join(" ");
+    }
+
+    if (typeof o.error === "string" && o.error.trim()) {
+      return o.error.trim();
+    }
+    if (typeof o.detail === "string" && o.detail.trim()) {
+      return o.detail.trim();
+    }
+  }
+
+  if (status === 401 || status === 403) {
+    return "이메일 또는 비밀번호가 올바르지 않습니다.";
+  }
+  if (status === 404) {
+    return "로그인 API를 찾을 수 없습니다. 백엔드 주소(BACKEND_URL)와 경로를 확인해 주세요.";
+  }
+  if (status === 502 || status === 503 || status === 504) {
+    return "백엔드 서버로 요청을 전달하지 못했습니다. 서버가 켜져 있는지 확인해 주세요.";
+  }
+
+  if (status > 0) {
+    return `요청 처리 중 오류가 발생했습니다. (HTTP ${status})`;
+  }
+  return "네트워크 오류입니다. 연결과 백엔드 서버 상태를 확인해 주세요.";
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const hasBody =
+    init.body !== undefined && init.body !== null && init.body !== "";
+
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      ...init,
+      headers: {
+        ...(hasBody ? { "Content-Type": "application/json" } : {}),
+        ...(init.headers || {}),
+      },
+    });
+  } catch {
+    throw new ApiError(0, extractApiErrorMessage(null, 0));
+  }
+
+  const text = await res.text();
+  let data: unknown = {};
+  if (text) {
+    try {
+      data = JSON.parse(text) as unknown;
+    } catch {
+      data = {};
+    }
+  }
 
   if (!res.ok) {
-    const message = data?.error?.message || "요청 처리 중 오류가 발생했습니다.";
+    const message = extractApiErrorMessage(data, res.status);
     throw new ApiError(res.status, message);
   }
 
@@ -53,6 +116,34 @@ export const api = {
     return request<AuthResponse>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify(input),
+    });
+  },
+  /** Bearer 필요. 백엔드가 `{ user }` 형태로 응답한다고 가정 */
+  me(token: string) {
+    return request<{ user: User }>("/api/auth/me", {
+      method: "GET",
+      headers: authHeaders(token),
+    });
+  },
+  /**
+   * 닉네임 변경. 백엔드 예: `PATCH /api/auth/me` body `{ nickname }`
+   * 응답은 `{ user }` 또는 로그인과 동일한 `{ user, token }` 모두 허용
+   */
+  updateProfile(token: string, input: { nickname: string }) {
+    return request<{ user: User; token?: string }>("/api/auth/me", {
+      method: "PATCH",
+      headers: authHeaders(token),
+      body: JSON.stringify(input),
+    });
+  },
+  /**
+   * 회원 탈퇴. 백엔드 예: `DELETE /api/auth/me`
+   * 비밀번호 확인이 필요하면 백엔드·이 호출 시그니처를 함께 맞추면 됩니다.
+   */
+  deleteAccount(token: string) {
+    return request<Record<string, unknown>>("/api/auth/me", {
+      method: "DELETE",
+      headers: authHeaders(token),
     });
   },
 };
@@ -93,6 +184,12 @@ export const session = {
     if (typeof window === "undefined") return;
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    notifySessionChange();
+  },
+  /** 서버에서 받은 최신 프로필로 로컬 사용자 정보만 갱신 (토큰 유지) */
+  updateStoredUser(user: User) {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
     notifySessionChange();
   },
 };
