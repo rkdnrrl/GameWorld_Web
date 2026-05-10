@@ -94,7 +94,9 @@ export default function InventoryPage() {
     }
     setToken(t);
     const user = session.getUser();
-    if (user) setCoins(user.coins);
+    if (user) {
+      setCoins(typeof user.coins === "number" ? user.coins : null);
+    }
     void loadInventory(t);
   }, [router, loadInventory]);
 
@@ -131,7 +133,10 @@ export default function InventoryPage() {
       setItems([]);
       setCoins(res.totalCoins);
       session.updateStoredUser({ ...session.getUser()!, coins: res.totalCoins });
-      showNotice("ok", `${res.sold}개 판매 완료! +${res.coinsEarned.toLocaleString()}🪙`);
+      showNotice(
+        "ok",
+        `${res.sold}개 판매 완료! +${Number(res.coinsEarned || 0).toLocaleString()}🪙`
+      );
     } catch (err) {
       showNotice(
         "err",
@@ -158,7 +163,7 @@ export default function InventoryPage() {
             잡은 아이템을 팔아서 게임머니를 획득하세요
           </p>
         </div>
-        {coins !== null && (
+        {typeof coins === "number" && (
           <span className="shrink-0 rounded-full bg-yellow-50 px-4 py-2 text-sm font-semibold text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400">
             🪙 {coins.toLocaleString()}
           </span>
