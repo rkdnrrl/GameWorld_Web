@@ -10,6 +10,14 @@ export type User = {
   createdAt: string;
 };
 
+/** 우주 낚시 등에서 저장하는 픽셀 스프라이트 (서버 JSONB) */
+export type CatchPixelArt = {
+  w: number;
+  h: number;
+  palette: string[];
+  cells: number[];
+};
+
 export type CatchItem = {
   id: string;
   itemName: string;
@@ -21,6 +29,7 @@ export type CatchItem = {
   sold: boolean;
   soldAt: string | null;
   caughtAt: string;
+  pixelArt?: CatchPixelArt | null;
 };
 
 export type AuthResponse = {

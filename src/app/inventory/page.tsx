@@ -4,6 +4,22 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { api, session, ApiError, type CatchItem } from "@/lib/api";
+import CatchPixelThumb from "@/components/CatchPixelThumb";
+
+function isValidPixelArt(
+  p: CatchItem["pixelArt"]
+): p is NonNullable<CatchItem["pixelArt"]> {
+  if (!p || typeof p !== "object") return false;
+  const w = Number((p as { w?: unknown }).w);
+  const h = Number((p as { h?: unknown }).h);
+  const palette = (p as { palette?: unknown }).palette;
+  const cells = (p as { cells?: unknown }).cells;
+  if (!Number.isInteger(w) || !Number.isInteger(h) || w < 1 || h < 1)
+    return false;
+  if (!Array.isArray(palette) || !Array.isArray(cells)) return false;
+  if (cells.length !== w * h) return false;
+  return true;
+}
 
 const RARITY_LABEL: Record<string, string> = {
   common: "Common",
@@ -213,7 +229,11 @@ export default function InventoryPage() {
               key={item.id}
               className={`flex items-center gap-4 rounded-xl border border-zinc-200 border-l-4 bg-white px-5 py-3 dark:border-zinc-700 dark:border-l-4 dark:bg-zinc-900 ${RARITY_BORDER[item.rarity] ?? "border-l-zinc-400"}`}
             >
-              <span className="text-3xl leading-none">{item.itemEmoji}</span>
+              {isValidPixelArt(item.pixelArt) ? (
+                <CatchPixelThumb art={item.pixelArt} width={52} height={38} />
+              ) : (
+                <span className="text-3xl leading-none">{item.itemEmoji}</span>
+              )}
               <div className="min-w-0 flex-1">
                 <span
                   className={`text-xs font-bold uppercase tracking-wide ${RARITY_TEXT[item.rarity] ?? "text-zinc-400"}`}
