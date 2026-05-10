@@ -72,6 +72,11 @@ export default function Header() {
               내 정보
             </Link>
           )}
+          {loggedIn && (
+            <Link href="/inventory" className="hover:text-blue-600">
+              보관함
+            </Link>
+          )}
           {loggedIn && coins !== null && (
             <span className="flex items-center gap-1 rounded-full bg-yellow-50 px-3 py-1 text-sm font-semibold text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400">
               🪙 {coins.toLocaleString()}

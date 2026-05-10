@@ -10,6 +10,19 @@ export type User = {
   createdAt: string;
 };
 
+export type CatchItem = {
+  id: string;
+  itemName: string;
+  itemEmoji: string;
+  itemType: string;
+  rarity: string;
+  size: number | null;
+  coinValue: number;
+  sold: boolean;
+  soldAt: string | null;
+  caughtAt: string;
+};
+
 export type AuthResponse = {
   user: User;
   token: string;
@@ -145,6 +158,30 @@ export const api = {
       method: "DELETE",
       headers: authHeaders(token),
     });
+  },
+
+  /** 보관함 (미판매 아이템) 조회 */
+  getInventory(token: string, page = 1, limit = 50) {
+    return request<{
+      catches: CatchItem[];
+      total: number;
+      page: number;
+      totalPages: number;
+    }>(`/api/catches/inventory?page=${page}&limit=${limit}`, {
+      headers: authHeaders(token),
+    });
+  },
+
+  /** 아이템 판매 — ids 배열 또는 all: true */
+  sellCatches(token: string, body: { ids?: string[]; all?: boolean }) {
+    return request<{ sold: number; coinsEarned: number; totalCoins: number }>(
+      "/api/catches/sell",
+      {
+        method: "POST",
+        headers: authHeaders(token),
+        body: JSON.stringify(body),
+      }
+    );
   },
 };
 
