@@ -28,6 +28,27 @@ function occupancyMeterColor(ratio: number): string {
   return `hsl(${hue} 78% ${42 + t * 6}%)`;
 }
 
+/**
+ * Nginx `location /게임/` + `proxy_pass .../` 와 맞추기 위해,
+ * 로그인 시 링크는 `.../게임/?token=` 형태로 만든다 (`.../게임?token` 은 location 에 안 걸릴 수 있음).
+ */
+function gameHrefWithToken(baseUrl: string, token: string): string {
+  let u = String(baseUrl || "").trim();
+  if (!u) return u;
+  const hashIdx = u.indexOf("#");
+  let hash = "";
+  if (hashIdx !== -1) {
+    hash = u.slice(hashIdx);
+    u = u.slice(0, hashIdx);
+  }
+  const qIdx = u.indexOf("?");
+  if (qIdx !== -1) {
+    return `${u}&token=${encodeURIComponent(token)}${hash}`;
+  }
+  const root = u.replace(/\/+$/, "") + "/";
+  return `${root}?token=${encodeURIComponent(token)}${hash}`;
+}
+
 export default function GameCard({ game }: { game: Game }) {
   const [token, setToken] = useState<string | null>(null);
 
@@ -38,9 +59,7 @@ export default function GameCard({ game }: { game: Game }) {
     return () => window.removeEventListener(SESSION_CHANGE_EVENT, sync);
   }, []);
 
-  const href = token
-    ? `${game.url}?token=${encodeURIComponent(token)}`
-    : game.url;
+  const href = token ? gameHrefWithToken(game.url, token) : game.url;
 
   const maxCap =
     game.maxPlayers ??
