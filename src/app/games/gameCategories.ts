@@ -9,7 +9,7 @@ export const GAME_CATEGORY_ORDER: GameCategory[] = [
 ];
 
 export const GAME_CATEGORY_LABEL: Record<GameCategory, string> = {
-  earn: "돈 버는 게임",
+  earn: "리워드 게임",
   multiplay: "멀티플레이 게임",
   decorate: "꾸미기 게임",
   other: "기타",
