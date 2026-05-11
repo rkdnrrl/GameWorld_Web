@@ -5,11 +5,20 @@ import {
   groupGamesByCategory,
 } from "./gameCategories";
 
-/** 게임 목록에서 숨길 ID (표시만 제외) */
+/** 게임 목록에서 숨김 (id·제목·URL 중 하나라도 맞으면 제외 — 배포 설정 차이 대비) */
 const HIDDEN_GAME_IDS = new Set<string>(["rock-clicker"]);
+const HIDDEN_TITLE = "돌깨기 클리커";
+const HIDDEN_URL_PATTERN = /rock-clicker/i;
+
+function isHiddenGame(g: Game): boolean {
+  if (HIDDEN_GAME_IDS.has(g.id)) return true;
+  if (g.title?.trim() === HIDDEN_TITLE) return true;
+  if (g.url && HIDDEN_URL_PATTERN.test(g.url)) return true;
+  return false;
+}
 
 function filterVisibleGames(games: Game[]): Game[] {
-  return games.filter((g) => !HIDDEN_GAME_IDS.has(g.id));
+  return games.filter((g) => !isHiddenGame(g));
 }
 
 async function getGames(): Promise<Game[]> {
