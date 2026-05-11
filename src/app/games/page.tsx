@@ -45,7 +45,7 @@ async function getGames(): Promise<Game[]> {
         maxPlayers: 100,
         category: "multiplay",
       },
-    ];
+    ]);
   }
 }
 
