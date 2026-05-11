@@ -5,6 +5,13 @@ import {
   groupGamesByCategory,
 } from "./gameCategories";
 
+/** 게임 목록에서 숨길 ID (표시만 제외) */
+const HIDDEN_GAME_IDS = new Set<string>(["rock-clicker"]);
+
+function filterVisibleGames(games: Game[]): Game[] {
+  return games.filter((g) => !HIDDEN_GAME_IDS.has(g.id));
+}
+
 async function getGames(): Promise<Game[]> {
   try {
     const backendUrl = process.env.BACKEND_URL || "http://localhost:4000";
@@ -13,21 +20,10 @@ async function getGames(): Promise<Game[]> {
     });
     if (!res.ok) throw new Error("failed");
     const data = await res.json();
-    return data.games ?? [];
+    return filterVisibleGames(data.games ?? []);
   } catch {
     // 플랫폼 서버 연결 실패 시 기본 목록 반환
-    return [
-      {
-        id: "rock-clicker",
-        title: "돌깨기 클리커",
-        description: "바위를 연타해서 부수고 게임머니를 모으세요!",
-        url: "http://13.125.187.132/rock-clicker",
-        emoji: "🪨",
-        tags: ["싱글플레이", "클리커"],
-        players: null,
-        rooms: null,
-        category: "earn",
-      },
+    return filterVisibleGames([
       {
         id: "cube-multiplay",
         title: "큐브 멀티플레이",
