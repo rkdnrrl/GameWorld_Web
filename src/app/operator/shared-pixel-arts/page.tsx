@@ -16,6 +16,7 @@ import {
   type SharedPixelArtSummary,
   type SharedPixelArtFull,
 } from "@/lib/api";
+import OperatorPixelImg from "@/components/OperatorPixelImg";
 
 function formatDt(iso: string | undefined): string {
   if (!iso) return "—";
@@ -26,7 +27,6 @@ function formatDt(iso: string | undefined): string {
 
 export default function OperatorSharedPixelArtsPage() {
   const router = useRouter();
-  const [token, setToken] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [items, setItems] = useState<SharedPixelArtSummary[]>([]);
@@ -44,6 +44,10 @@ export default function OperatorSharedPixelArtsPage() {
   const [editImageData, setEditImageData] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+
+  /** 목록에서 빠른 미리보기 */
+  const [peekItem, setPeekItem] = useState<SharedPixelArtFull | null>(null);
+  const [peekLoading, setPeekLoading] = useState(false);
 
   const loadList = useCallback(async () => {
     const t = session.getToken();
@@ -130,6 +134,22 @@ export default function OperatorSharedPixelArtsPage() {
       );
     } finally {
       setEditSaving(false);
+    }
+  }
+
+  async function openPeek(row: SharedPixelArtSummary) {
+    const t = session.getToken();
+    if (!t) return;
+    setPeekLoading(true);
+    setPeekItem(null);
+    try {
+      const { item } = await api.operatorGetSharedPixelArt(t, row.name);
+      setPeekItem(item);
+    } catch {
+      setPeekItem(null);
+      alert("미리보기를 불러오지 못했습니다.");
+    } finally {
+      setPeekLoading(false);
     }
   }
 
@@ -232,6 +252,7 @@ export default function OperatorSharedPixelArtsPage() {
                 <th className="px-3 py-2 font-medium">rarity</th>
                 <th className="px-3 py-2 font-medium">type</th>
                 <th className="px-3 py-2 font-medium">createdAt</th>
+                <th className="px-3 py-2 font-medium">미리보기</th>
                 <th className="px-3 py-2 font-medium"> </th>
               </tr>
             </thead>
@@ -239,7 +260,7 @@ export default function OperatorSharedPixelArtsPage() {
               {items.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-3 py-8 text-center text-zinc-500"
                   >
                     항목이 없습니다.
@@ -258,6 +279,16 @@ export default function OperatorSharedPixelArtsPage() {
                     <td className="px-3 py-2">{row.type}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-zinc-600 dark:text-zinc-400">
                       {formatDt(row.createdAt)}
+                    </td>
+                    <td className="px-3 py-2 align-middle">
+                      <button
+                        type="button"
+                        onClick={() => void openPeek(row)}
+                        disabled={peekLoading}
+                        className="text-xs text-blue-600 hover:underline disabled:opacity-50 dark:text-blue-400"
+                      >
+                        보기
+                      </button>
                     </td>
                     <td className="whitespace-nowrap px-3 py-2">
                       <button
@@ -307,6 +338,36 @@ export default function OperatorSharedPixelArtsPage() {
         </div>
       )}
 
+      {peekItem && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPeekItem(null);
+          }}
+        >
+          <div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-xl border border-zinc-200 bg-white p-4 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+            <div className="mb-3 flex items-start justify-between gap-2">
+              <h2 className="text-sm font-semibold">미리보기</h2>
+              <button
+                type="button"
+                onClick={() => setPeekItem(null)}
+                className="rounded px-2 py-1 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              >
+                닫기
+              </button>
+            </div>
+            <p className="mb-3 font-mono text-[10px] break-all text-zinc-500">
+              {peekItem.name}
+            </p>
+            <div className="flex justify-center rounded-lg bg-zinc-100 p-3 dark:bg-zinc-950">
+              <OperatorPixelImg raw={peekItem.imageData} maxHeightPx={220} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {editOpen && (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center"
@@ -337,13 +398,7 @@ export default function OperatorSharedPixelArtsPage() {
                   {editItem.name}
                 </p>
                 <div className="mb-4 flex justify-center rounded-lg bg-zinc-100 p-4 dark:bg-zinc-950">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={editImageData}
-                    alt=""
-                    className="max-h-48 max-w-full object-contain"
-                    style={{ imageRendering: "pixelated" }}
-                  />
+                  <OperatorPixelImg raw={editImageData} maxHeightPx={192} />
                 </div>
                 <label className="mb-2 block text-sm">
                   <span className="text-zinc-600 dark:text-zinc-400">rarity</span>
