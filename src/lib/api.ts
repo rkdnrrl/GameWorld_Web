@@ -8,6 +8,10 @@ export type User = {
   nickname: string;
   coins: number;
   createdAt: string;
+  /** DB 플래그 (선택) */
+  isOperator?: boolean;
+  /** 이메일 화이트리스트 등 포함한 운영 콘솔 접근 가능 여부 */
+  operatorAccess?: boolean;
 };
 
 /** 우주 낚시 등에서 저장하는 픽셀 스프라이트 (서버 JSONB) */
@@ -31,6 +35,23 @@ export type CatchItem = {
   caughtAt: string;
   pixelArt?: CatchPixelArt | null;
 };
+
+export type SharedPixelArtSummary = {
+  name: string;
+  rarity: string;
+  type: string;
+  createdAt: string;
+};
+
+export type SharedPixelArtListResponse = {
+  items: SharedPixelArtSummary[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};
+
+export type SharedPixelArtFull = SharedPixelArtSummary & { imageData: string };
 
 export type AuthResponse = {
   user: User;
@@ -190,6 +211,56 @@ export const api = {
         headers: authHeaders(token),
         body: JSON.stringify(body),
       }
+    );
+  },
+
+  /** 운영자: shared_pixel_arts 목록 (imageData 없음) */
+  operatorListSharedPixelArts(
+    token: string,
+    opts?: { q?: string; page?: number; limit?: number },
+  ) {
+    const qs = new URLSearchParams();
+    qs.set("page", String(opts?.page ?? 1));
+    qs.set("limit", String(opts?.limit ?? 50));
+    if (opts?.q?.trim()) qs.set("q", opts.q.trim());
+    return request<SharedPixelArtListResponse>(
+      `/api/operator/shared-pixel-arts?${qs.toString()}`,
+      { headers: authHeaders(token) },
+    );
+  },
+
+  operatorGetSharedPixelArt(token: string, name: string) {
+    const qs = new URLSearchParams({ name });
+    return request<{ item: SharedPixelArtFull }>(
+      `/api/operator/shared-pixel-arts/one?${qs.toString()}`,
+      { headers: authHeaders(token) },
+    );
+  },
+
+  operatorPatchSharedPixelArt(
+    token: string,
+    name: string,
+    body: { rarity?: string; type?: string; imageData?: string },
+  ) {
+    const qs = new URLSearchParams({ name });
+    return request<{ item: SharedPixelArtFull }>(
+      `/api/operator/shared-pixel-arts/one?${qs.toString()}`,
+      {
+        method: "PATCH",
+        headers: authHeaders(token),
+        body: JSON.stringify(body),
+      },
+    );
+  },
+
+  operatorDeleteSharedPixelArt(token: string, name: string) {
+    const qs = new URLSearchParams({ name });
+    return request<{ ok: boolean; deleted: string }>(
+      `/api/operator/shared-pixel-arts/one?${qs.toString()}`,
+      {
+        method: "DELETE",
+        headers: authHeaders(token),
+      },
     );
   },
 };

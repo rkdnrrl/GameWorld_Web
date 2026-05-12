@@ -10,6 +10,7 @@ export default function Header() {
   const router = useRouter();
   const [loggedIn, setLoggedIn] = useState(false);
   const [coins, setCoins] = useState<number | null>(null);
+  const [operatorAccess, setOperatorAccess] = useState(false);
 
   const fetchCoins = useCallback(async (token: string) => {
     try {
@@ -20,6 +21,7 @@ export default function Header() {
       const data = await res.json();
       const c = data?.user?.coins;
       setCoins(typeof c === "number" ? c : null);
+      setOperatorAccess(!!data?.user?.operatorAccess);
     } catch {
       // 무시
     }
@@ -29,10 +31,13 @@ export default function Header() {
     const token = session.getToken();
     const isLoggedIn = !!token;
     setLoggedIn(isLoggedIn);
+    const u = session.getUser();
+    setOperatorAccess(!!u?.operatorAccess);
     if (isLoggedIn && token) {
       fetchCoins(token);
     } else {
       setCoins(null);
+      setOperatorAccess(false);
     }
   }, [fetchCoins]);
 
@@ -68,6 +73,14 @@ export default function Header() {
           <Link href="/games" className="shrink-0 whitespace-nowrap hover:text-blue-600">
             게임
           </Link>
+          {loggedIn && operatorAccess && (
+            <Link
+              href="/operator/shared-pixel-arts"
+              className="shrink-0 whitespace-nowrap font-medium text-amber-700 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200"
+            >
+              운영
+            </Link>
+          )}
           {loggedIn && (
             <Link href="/account" className="shrink-0 whitespace-nowrap hover:text-blue-600">
               내 정보
