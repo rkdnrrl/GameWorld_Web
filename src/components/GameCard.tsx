@@ -41,12 +41,17 @@ function gameHrefWithToken(baseUrl: string, token: string): string {
     hash = u.slice(hashIdx);
     u = u.slice(0, hashIdx);
   }
+  /** 싱글플레이 정적 호스트에서 `config.js` 없이 열릴 때 — 백엔드 베이스 URL */
+  const standaloneApi = (process.env.NEXT_PUBLIC_STANDALONE_GAMES_API_URL ?? "").trim();
+  const apiQ = standaloneApi
+    ? `&platformApi=${encodeURIComponent(standaloneApi)}`
+    : "";
   const qIdx = u.indexOf("?");
   if (qIdx !== -1) {
-    return `${u}&token=${encodeURIComponent(token)}${hash}`;
+    return `${u}&token=${encodeURIComponent(token)}${apiQ}${hash}`;
   }
   const root = u.replace(/\/+$/, "") + "/";
-  return `${root}?token=${encodeURIComponent(token)}${hash}`;
+  return `${root}?token=${encodeURIComponent(token)}${apiQ}${hash}`;
 }
 
 export default function GameCard({ game }: { game: Game }) {
