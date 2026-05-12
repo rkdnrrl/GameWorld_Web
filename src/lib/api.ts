@@ -41,6 +41,8 @@ export type SharedPixelArtSummary = {
   rarity: string;
   type: string;
   createdAt: string;
+  /** 목록 요청 시 includeImageData=1 이면 포함 */
+  imageData?: string;
 };
 
 export type SharedPixelArtListResponse = {
@@ -214,15 +216,22 @@ export const api = {
     );
   },
 
-  /** 운영자: shared_pixel_arts 목록 (imageData 없음) */
+  /** 운영자: shared_pixel_arts 목록 — includeImageData 로 썸네일용 imageData 포함 가능 */
   operatorListSharedPixelArts(
     token: string,
-    opts?: { q?: string; page?: number; limit?: number },
+    opts?: {
+      q?: string;
+      page?: number;
+      limit?: number;
+      /** true 이면 각 행에 imageData 포함(응답 크기 큼, 서버에서 limit 최대 60) */
+      includeImageData?: boolean;
+    },
   ) {
     const qs = new URLSearchParams();
     qs.set("page", String(opts?.page ?? 1));
     qs.set("limit", String(opts?.limit ?? 50));
     if (opts?.q?.trim()) qs.set("q", opts.q.trim());
+    if (opts?.includeImageData) qs.set("includeImageData", "1");
     return request<SharedPixelArtListResponse>(
       `/api/operator/shared-pixel-arts?${qs.toString()}`,
       { headers: authHeaders(token) },

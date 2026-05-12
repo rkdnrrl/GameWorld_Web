@@ -7,6 +7,8 @@ type Props = {
   raw: string | null | undefined;
   className?: string;
   maxHeightPx?: number;
+  /** 목록 썸네일 — 작은 정사각형 */
+  variant?: "default" | "thumb";
 };
 
 /**
@@ -17,6 +19,7 @@ export default function OperatorPixelImg({
   raw,
   className = "",
   maxHeightPx = 192,
+  variant = "default",
 }: Props) {
   const dataUrl = useMemo(() => normalizePixelDataUrl(raw) || "", [raw]);
   const [src, setSrc] = useState(dataUrl);
@@ -46,7 +49,17 @@ export default function OperatorPixelImg({
     if (blob) setSrc(blob);
   }, [dataUrl]);
 
+  const isThumb = variant === "thumb";
+  const mh = isThumb ? Math.min(maxHeightPx, 48) : maxHeightPx;
+
   if (!src) {
+    if (isThumb) {
+      return (
+        <span className="inline-flex h-12 w-12 items-center justify-center rounded border border-dashed border-zinc-300 text-xs text-zinc-400 dark:border-zinc-600">
+          —
+        </span>
+      );
+    }
     return (
       <span className="text-xs text-zinc-500 dark:text-zinc-400">
         표시할 이미지가 없거나 형식이 잘못되었습니다.
@@ -59,14 +72,13 @@ export default function OperatorPixelImg({
     <img
       src={src}
       alt=""
-      width={256}
-      height={256}
-      className={className}
+      {...(!isThumb ? { width: 256, height: 256 } : {})}
+      className={`${isThumb ? "box-border max-h-12 max-w-12" : ""} ${className}`}
       style={{
-        maxHeight: maxHeightPx,
-        maxWidth: "100%",
-        width: "auto",
-        height: "auto",
+        maxHeight: mh,
+        maxWidth: isThumb ? mh : "100%",
+        width: isThumb ? mh : "auto",
+        height: isThumb ? mh : "auto",
         objectFit: "contain",
         imageRendering: "pixelated",
       }}
