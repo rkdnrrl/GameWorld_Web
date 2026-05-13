@@ -1,4 +1,5 @@
 import GameCard, { type Game } from "@/components/GameCard";
+import AdBanner from "@/components/AdBanner";
 import {
   GAME_CATEGORY_LABEL,
   GAME_CATEGORY_ORDER,
@@ -62,6 +63,11 @@ export default async function GamesPage() {
         <p className="mt-2 break-words text-sm text-zinc-500">
           종류별로 골라 플레이할 수 있어요
         </p>
+      </div>
+
+      <div className="mb-8">
+        <AdBanner slot="leaderboard" />
+        <AdBanner slot="banner" />
       </div>
 
       <div className="space-y-14">
