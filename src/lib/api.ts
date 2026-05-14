@@ -272,6 +272,30 @@ export const api = {
       },
     );
   },
+
+  operatorSmeltCatalog(token: string) {
+    return request<{ items: { id: string; name: string; emoji: string }[] }>(
+      "/api/operator/smelt-stock/catalog",
+      { headers: authHeaders(token) },
+    );
+  },
+
+  operatorGrantSmeltStock(
+    token: string,
+    targetNickname: string,
+    items: { productId: string; count: number }[],
+  ) {
+    return request<{
+      ok: boolean;
+      targetNickname: string;
+      granted: { productId: string; name: string; emoji: string; count: number }[];
+      errors: string[];
+    }>("/api/operator/smelt-stock/grant", {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({ targetNickname, items }),
+    });
+  },
 };
 
 const TOKEN_KEY = "gameworld_token";

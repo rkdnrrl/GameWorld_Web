@@ -198,12 +198,20 @@ export default function OperatorSharedPixelArtsPage() {
             공유 픽셀 캐시 조회 · 수정 · 삭제 (목록에 썸네일 포함 — 응답이 클 수 있음)
           </p>
         </div>
-        <Link
-          href="/"
-          className="text-sm text-blue-600 hover:underline dark:text-blue-400"
-        >
-          ← 홈
-        </Link>
+        <div className="flex gap-4 text-sm">
+          <Link
+            href="/operator/smelt-stock"
+            className="text-blue-600 hover:underline dark:text-blue-400"
+          >
+            기초 재료 지급
+          </Link>
+          <Link
+            href="/"
+            className="text-blue-600 hover:underline dark:text-blue-400"
+          >
+            ← 홈
+          </Link>
+        </div>
       </div>
 
       <form
