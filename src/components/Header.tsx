@@ -75,7 +75,7 @@ export default function Header() {
           </Link>
           {loggedIn && operatorAccess && (
             <Link
-              href="/operator/shared-pixel-arts"
+              href="/operator"
               className="shrink-0 whitespace-nowrap font-medium text-amber-700 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200"
             >
               운영
