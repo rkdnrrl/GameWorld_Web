@@ -7,7 +7,7 @@ import {
 } from "./gameCategories";
 
 /** 게임 목록에서 숨김 (id·제목·URL 중 하나라도 맞으면 제외 — 배포 설정 차이 대비) */
-const HIDDEN_GAME_IDS = new Set<string>(["rock-clicker"]);
+const HIDDEN_GAME_IDS = new Set<string>(["rock-clicker", "alchemy"]);
 const HIDDEN_TITLE = "돌깨기 클리커";
 const HIDDEN_URL_PATTERN = /rock-clicker/i;
 
