@@ -273,6 +273,31 @@ export const api = {
     );
   },
 
+  operatorActivityLogs(
+    token: string,
+    opts?: { action?: string; nickname?: string; page?: number; limit?: number },
+  ) {
+    const qs = new URLSearchParams();
+    qs.set("page",  String(opts?.page  ?? 1));
+    qs.set("limit", String(opts?.limit ?? 50));
+    if (opts?.action   && opts.action !== "all") qs.set("action",   opts.action);
+    if (opts?.nickname?.trim())                  qs.set("nickname", opts.nickname.trim());
+    return request<{
+      items: {
+        id: string;
+        userId: string;
+        nickname: string;
+        action: string;
+        detail: Record<string, unknown>;
+        createdAt: string;
+      }[];
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    }>(`/api/operator/activity-logs?${qs.toString()}`, { headers: authHeaders(token) });
+  },
+
   operatorSmeltCatalog(token: string) {
     return request<{ items: { id: string; name: string; emoji: string }[] }>(
       "/api/operator/smelt-stock/catalog",

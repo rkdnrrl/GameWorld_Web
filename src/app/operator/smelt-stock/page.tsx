@@ -96,10 +96,9 @@ export default function OperatorSmeltStockPage() {
           </p>
         </div>
         <div className="flex gap-4 text-sm">
-          <Link href="/operator/shared-pixel-arts" className="text-blue-600 hover:underline dark:text-blue-400">
-            ← 픽셀 아트 관리
-          </Link>
-          <Link href="/" className="text-blue-600 hover:underline dark:text-blue-400">홈</Link>
+          <Link href="/operator/activity-logs"    className="text-blue-600 hover:underline dark:text-blue-400">활동 로그</Link>
+          <Link href="/operator/shared-pixel-arts" className="text-blue-600 hover:underline dark:text-blue-400">픽셀 아트 관리</Link>
+          <Link href="/" className="text-blue-600 hover:underline dark:text-blue-400">← 홈</Link>
         </div>
       </div>
 
