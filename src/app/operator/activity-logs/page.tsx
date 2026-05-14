@@ -142,9 +142,8 @@ export default function OperatorActivityLogsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-4 text-sm">
-          <Link href="/operator/smelt-stock"       className="text-blue-600 hover:underline dark:text-blue-400">기초 재료 지급</Link>
-          <Link href="/operator/shared-pixel-arts" className="text-blue-600 hover:underline dark:text-blue-400">픽셀 아트 관리</Link>
-          <Link href="/"                           className="text-blue-600 hover:underline dark:text-blue-400">← 홈</Link>
+          <Link href="/operator" className="text-blue-600 hover:underline dark:text-blue-400">← 운영 메뉴</Link>
+          <Link href="/"         className="text-blue-600 hover:underline dark:text-blue-400">홈</Link>
         </div>
       </div>
 
