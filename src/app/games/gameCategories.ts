@@ -1,10 +1,8 @@
 import type { Game, GameCategory } from "@/components/GameCard";
 
-/** 목록에 표시할 순서 */
+/** 목록에 표시할 순서 (여기 없는 카테고리는 숨김) */
 export const GAME_CATEGORY_ORDER: GameCategory[] = [
   "earn",
-  "multiplay",
-  "decorate",
   "other",
 ];
 
@@ -30,7 +28,7 @@ export function groupGamesByCategory(games: Game[]): Map<GameCategory, Game[]> {
   }
   for (const game of games) {
     const cat = normalizeCategory(game);
-    map.get(cat)!.push(game);
+    map.get(cat)?.push(game);
   }
   return map;
 }
