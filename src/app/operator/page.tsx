@@ -18,6 +18,7 @@ const MENU = [
     items: [
       { href: "/operator/shared-pixel-arts", emoji: "🖼️", label: "공유 픽셀 아트", desc: "AI 생성 스프라이트 캐시 조회·수정·삭제" },
       { href: "/operator/fishing-items",     emoji: "🎣", label: "낚시 아이템 관리", desc: "미생성 아이템 확인 및 PixelLab 이미지 일괄 생성" },
+      { href: "/operator/equip-arts",        emoji: "⚒️", label: "대장간 이미지 관리", desc: "장비 63종 이미지 캐시 확인 및 슬롯별 일괄 생성" },
     ],
   },
 ];

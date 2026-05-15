@@ -322,6 +322,26 @@ export const api = {
     });
   },
 
+  operatorEquipArtStatus(token: string) {
+    return request<{
+      total: number;
+      cached: number;
+      missing: number;
+      items: { noun: string; slot: string; hasCache: boolean }[];
+    }>("/api/operator/equip-art/status", { headers: authHeaders(token) });
+  },
+
+  craftEquipArtGenerateOne(token: string, noun: string) {
+    return request<{ ok: boolean; noun: string; imageDataUrl: string }>(
+      "/api/craft/equip-art/generate-one",
+      {
+        method: "POST",
+        headers: authHeaders(token),
+        body: JSON.stringify({ noun }),
+      },
+    );
+  },
+
   operatorFishingItemsStatus(token: string) {
     return request<{
       total: number;
