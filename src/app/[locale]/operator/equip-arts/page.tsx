@@ -79,8 +79,9 @@ export default function OperatorEquipArtsPage() {
   async function generateAllMissing() {
     const missing = items.filter((i) => !i.hasCache && !generating.has(i.noun)
       && (slotFilter === "all" || i.slot === slotFilter));
-    for (const item of missing) {
-      await generateOne(item.noun);
+    for (let idx = 0; idx < missing.length; idx++) {
+      await generateOne(missing[idx].noun);
+      if (idx < missing.length - 1) await new Promise((r) => setTimeout(r, 1500));
     }
   }
 

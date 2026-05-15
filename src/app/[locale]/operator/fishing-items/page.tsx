@@ -70,8 +70,9 @@ export default function OperatorFishingItemsPage() {
 
   async function generateAllMissing() {
     const missing = items.filter((i) => !i.hasCache && !generating.has(i.name));
-    for (const item of missing) {
-      await generateOne(item.name);
+    for (let idx = 0; idx < missing.length; idx++) {
+      await generateOne(missing[idx].name);
+      if (idx < missing.length - 1) await new Promise((r) => setTimeout(r, 1500));
     }
   }
 
