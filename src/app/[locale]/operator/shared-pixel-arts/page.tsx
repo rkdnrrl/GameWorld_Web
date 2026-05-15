@@ -41,6 +41,14 @@ export default function OperatorSharedPixelArtsPage() {
   const [qInput, setQInput] = useState("");
   const [loading, setLoading] = useState(true);
 
+  const [tab, setTab] = useState<"list" | "bulk-delete">("list");
+  const [bulkFrom, setBulkFrom] = useState("");
+  const [bulkTo, setBulkTo] = useState("");
+  const [bulkPreviewCount, setBulkPreviewCount] = useState<number | null>(null);
+  const [bulkPreviewing, setBulkPreviewing] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkMsg, setBulkMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
   const [editOpen, setEditOpen] = useState(false);
   const [editItem, setEditItem] = useState<SharedPixelArtFull | null>(null);
   const [editRarity, setEditRarity] = useState("");
@@ -168,6 +176,40 @@ export default function OperatorSharedPixelArtsPage() {
     );
   }
 
+  async function bulkPreview() {
+    const tk = session.getToken();
+    if (!tk || !bulkFrom || !bulkTo) return;
+    setBulkPreviewing(true);
+    setBulkPreviewCount(null);
+    setBulkMsg(null);
+    try {
+      const res = await api.operatorBulkDeletePreview(tk, new Date(bulkFrom).toISOString(), new Date(bulkTo + "T23:59:59").toISOString());
+      setBulkPreviewCount(res.count);
+    } catch (err) {
+      setBulkMsg({ type: "err", text: err instanceof ApiError ? err.message : "조회 실패" });
+    } finally {
+      setBulkPreviewing(false);
+    }
+  }
+
+  async function bulkDelete() {
+    const tk = session.getToken();
+    if (!tk || !bulkFrom || !bulkTo || bulkPreviewCount === null) return;
+    if (!confirm(`기간 내 ${bulkPreviewCount}건을 삭제합니다. 되돌릴 수 없습니다.`)) return;
+    setBulkDeleting(true);
+    setBulkMsg(null);
+    try {
+      const res = await api.operatorBulkDelete(tk, new Date(bulkFrom).toISOString(), new Date(bulkTo + "T23:59:59").toISOString());
+      setBulkMsg({ type: "ok", text: `${res.deleted}건 삭제 완료` });
+      setBulkPreviewCount(null);
+      await loadList();
+    } catch (err) {
+      setBulkMsg({ type: "err", text: err instanceof ApiError ? err.message : "삭제 실패" });
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
+
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
@@ -185,6 +227,75 @@ export default function OperatorSharedPixelArtsPage() {
           <Link href="/" className="text-blue-600 hover:underline dark:text-blue-400">{tOp("home")}</Link>
         </div>
       </div>
+
+      {/* 탭 */}
+      <div className="mb-4 flex gap-1 border-b border-zinc-200 dark:border-zinc-700">
+        {(["list", "bulk-delete"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 text-sm font-medium ${tab === t ? "border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-white" : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"}`}
+          >
+            {t === "list" ? "목록" : "기간 삭제"}
+          </button>
+        ))}
+      </div>
+
+      {/* 기간 삭제 탭 */}
+      {tab === "bulk-delete" && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/30">
+          <h2 className="mb-3 text-sm font-semibold text-red-800 dark:text-red-300">기간별 일괄 삭제</h2>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="text-sm">
+              <span className="mb-1 block text-zinc-600 dark:text-zinc-400">시작일</span>
+              <input
+                type="date"
+                value={bulkFrom}
+                onChange={(e) => { setBulkFrom(e.target.value); setBulkPreviewCount(null); setBulkMsg(null); }}
+                className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-900"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-zinc-600 dark:text-zinc-400">종료일</span>
+              <input
+                type="date"
+                value={bulkTo}
+                onChange={(e) => { setBulkTo(e.target.value); setBulkPreviewCount(null); setBulkMsg(null); }}
+                className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-900"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={!bulkFrom || !bulkTo || bulkPreviewing}
+              onClick={() => void bulkPreview()}
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-600 dark:hover:bg-zinc-800"
+            >
+              {bulkPreviewing ? "조회 중..." : "조회"}
+            </button>
+            {bulkPreviewCount !== null && (
+              <button
+                type="button"
+                disabled={bulkDeleting || bulkPreviewCount === 0}
+                onClick={() => void bulkDelete()}
+                className="rounded-md bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700 disabled:opacity-40"
+              >
+                {bulkDeleting ? "삭제 중..." : `${bulkPreviewCount}건 삭제`}
+              </button>
+            )}
+          </div>
+          {bulkPreviewCount !== null && !bulkMsg && (
+            <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
+              해당 기간에 <strong>{bulkPreviewCount}건</strong>이 있습니다.
+            </p>
+          )}
+          {bulkMsg && (
+            <p className={`mt-2 text-sm ${bulkMsg.type === "ok" ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
+              {bulkMsg.text}
+            </p>
+          )}
+        </div>
+      )}
 
       <form
         onSubmit={onSearchSubmit}

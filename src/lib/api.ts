@@ -266,6 +266,25 @@ export const api = {
     );
   },
 
+  operatorBulkDeletePreview(token: string, from: string, to: string) {
+    const qs = new URLSearchParams({ from, to });
+    return request<{ count: number }>(
+      `/api/operator/shared-pixel-arts/bulk-delete-preview?${qs.toString()}`,
+      { headers: authHeaders(token) },
+    );
+  },
+
+  operatorBulkDelete(token: string, from: string, to: string) {
+    return request<{ ok: boolean; deleted: number }>(
+      "/api/operator/shared-pixel-arts/bulk-delete",
+      {
+        method: "DELETE",
+        headers: authHeaders(token),
+        body: JSON.stringify({ from, to }),
+      },
+    );
+  },
+
   operatorDeleteSharedPixelArt(token: string, name: string) {
     const qs = new URLSearchParams({ name });
     return request<{ ok: boolean; deleted: string }>(
