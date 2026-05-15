@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, FormEvent } from "react";
-import { api, session, ApiError } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
+import { api, session } from "@/lib/api";
 import { useLoggedIn } from "@/lib/useLoggedIn";
 
 type FormState = {
@@ -39,36 +40,47 @@ export default function SignupPage() {
   function validate(): string | null {
     if (!form.email.includes("@")) return "올바른 이메일을 입력해주세요.";
     if (form.nickname.trim().length < 2) return "닉네임은 2자 이상이어야 합니다.";
+    if (form.nickname.trim().length > 20) return "닉네임은 20자 이하여야 합니다.";
     if (form.password.length < 8) return "비밀번호는 8자 이상이어야 합니다.";
-    if (form.password !== form.passwordConfirm)
-      return "비밀번호가 일치하지 않습니다.";
+    if (form.password !== form.passwordConfirm) return "비밀번호가 일치하지 않습니다.";
     return null;
   }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     const v = validate();
-    if (v) {
-      setError(v);
-      return;
-    }
+    if (v) { setError(v); return; }
     setError(null);
     setSubmitting(true);
 
     try {
-      const result = await api.signup({
+      // 1. Supabase에 회원가입 — 닉네임을 metadata로 전달해 DB 트리거가 사용
+      const { data, error: authError } = await supabase.auth.signUp({
         email: form.email,
-        nickname: form.nickname,
         password: form.password,
+        options: {
+          data: { nickname: form.nickname.trim() },
+        },
       });
-      session.save(result);
-      router.push("/");
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError("서버에 연결할 수 없습니다.");
+
+      if (authError) {
+        setError(authError.message);
+        return;
       }
+      if (!data.session) {
+        // 이메일 확인이 필요한 경우 (Supabase 대시보드에서 설정)
+        setError("가입 확인 이메일을 보냈습니다. 이메일을 확인해 주세요.");
+        return;
+      }
+
+      // 2. Supabase access_token으로 우리 서버에서 유저 정보 조회
+      const meResult = await api.me(data.session.access_token);
+
+      // 3. 세션 저장 (기존 session 유틸 재사용)
+      session.save({ token: data.session.access_token, user: meResult.user });
+      router.push("/");
+    } catch {
+      setError("서버에 연결할 수 없습니다.");
     } finally {
       setSubmitting(false);
     }
@@ -103,7 +115,7 @@ export default function SignupPage() {
               value={form.nickname}
               onChange={(e) => update("nickname", e.target.value)}
               className="input"
-              placeholder="플레이어 이름"
+              placeholder="플레이어 이름 (2~20자)"
               required
             />
           </Field>
@@ -157,13 +169,7 @@ export default function SignupPage() {
   );
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
       <span className="mb-1.5 block text-sm font-medium">{label}</span>

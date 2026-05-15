@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, FormEvent } from "react";
-import { api, session, ApiError } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
+import { api, session } from "@/lib/api";
 import { useLoggedIn } from "@/lib/useLoggedIn";
 
 export default function LoginPage() {
@@ -13,6 +14,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (loggedIn) router.replace("/");
   }, [loggedIn, router]);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -20,27 +22,31 @@ export default function LoginPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!email.includes("@")) {
-      setError("올바른 이메일을 입력해주세요.");
-      return;
-    }
-    if (password.length === 0) {
-      setError("비밀번호를 입력해주세요.");
-      return;
-    }
+    if (!email.includes("@")) { setError("올바른 이메일을 입력해주세요."); return; }
+    if (!password) { setError("비밀번호를 입력해주세요."); return; }
     setError(null);
     setSubmitting(true);
 
     try {
-      const result = await api.login({ email, password });
-      session.save(result);
-      router.push("/");
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError("서버에 연결할 수 없습니다.");
+      // 1. Supabase로 로그인
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError) {
+        setError("이메일 또는 비밀번호가 올바르지 않습니다.");
+        return;
       }
+
+      // 2. Supabase access_token으로 우리 서버에서 유저 정보 조회
+      const meResult = await api.me(data.session.access_token);
+
+      // 3. 세션 저장
+      session.save({ token: data.session.access_token, user: meResult.user });
+      router.push("/");
+    } catch {
+      setError("서버에 연결할 수 없습니다.");
     } finally {
       setSubmitting(false);
     }
