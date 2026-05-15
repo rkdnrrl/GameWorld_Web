@@ -8,23 +8,9 @@ import { api, session, ApiError } from "@/lib/api";
 type FishingItemStatus = {
   name: string;
   emoji: string;
-  tier: string;
   hasCache: boolean;
 };
 
-const TIER_LABEL: Record<string, string> = {
-  common: "일반",
-  rare: "희귀",
-  epic: "에픽",
-  legendary: "전설",
-};
-
-const TIER_COLOR: Record<string, string> = {
-  common: "text-zinc-500",
-  rare: "text-blue-500",
-  epic: "text-purple-500",
-  legendary: "text-amber-500",
-};
 
 export default function OperatorFishingItemsPage() {
   const router = useRouter();
@@ -65,25 +51,24 @@ export default function OperatorFishingItemsPage() {
 
   useEffect(() => { loadStatus(); }, [loadStatus]);
 
-  async function generateOne(name: string) {
+  async function generateOne(nounName: string) {
     const t = session.getToken();
     if (!t) return;
-    setGenerating((prev) => new Set(prev).add(name));
-    setGenErrors((prev) => { const n = { ...prev }; delete n[name]; return n; });
+    setGenerating((prev) => new Set(prev).add(nounName));
+    setGenErrors((prev) => { const n = { ...prev }; delete n[nounName]; return n; });
     try {
-      await api.aiFishingItemsGenerateOne(t, name);
-      // 로컬 상태 업데이트 (재요청 없이)
-      setItems((prev) => prev.map((i) => i.name === name ? { ...i, hasCache: true } : i));
+      await api.aiFishingItemsGenerateOne(t, nounName);
+      setItems((prev) => prev.map((i) => i.name === nounName ? { ...i, hasCache: true } : i));
       setCached((prev) => prev + 1);
-      setJustDone((prev) => new Set(prev).add(name));
-      setTimeout(() => setJustDone((prev) => { const n = new Set(prev); n.delete(name); return n; }), 3000);
+      setJustDone((prev) => new Set(prev).add(nounName));
+      setTimeout(() => setJustDone((prev) => { const n = new Set(prev); n.delete(nounName); return n; }), 3000);
     } catch (err) {
       setGenErrors((prev) => ({
         ...prev,
-        [name]: err instanceof Error ? err.message : "생성 실패",
+        [nounName]: err instanceof Error ? err.message : "생성 실패",
       }));
     } finally {
-      setGenerating((prev) => { const n = new Set(prev); n.delete(name); return n; });
+      setGenerating((prev) => { const n = new Set(prev); n.delete(nounName); return n; });
     }
   }
 
@@ -191,9 +176,6 @@ export default function OperatorFishingItemsPage() {
               <span className="text-2xl w-8 text-center">{item.emoji}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{item.name}</p>
-                <p className={`text-xs ${TIER_COLOR[item.tier] || "text-zinc-400"}`}>
-                  {TIER_LABEL[item.tier] || item.tier}
-                </p>
                 {errMsg && <p className="text-xs text-red-500 mt-0.5">{errMsg}</p>}
               </div>
               <div className="flex items-center gap-2">

@@ -331,13 +331,13 @@ export const api = {
     }>("/api/operator/fishing-items/status", { headers: authHeaders(token) });
   },
 
-  aiFishingItemsGenerateOne(token: string, name: string) {
-    return request<{ ok: boolean; name: string; emoji: string; imageUrl: string }>(
+  aiFishingItemsGenerateOne(token: string, nounName: string) {
+    return request<{ ok: boolean; nounName: string; name: string; emoji: string; imageUrl: string }>(
       "/api/ai/fishing-items/generate-one",
       {
         method: "POST",
         headers: authHeaders(token),
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ nounName }),
       },
     );
   },
