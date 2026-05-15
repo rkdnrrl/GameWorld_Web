@@ -1,13 +1,24 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import Logo from "./Logo";
 import { SESSION_CHANGE_EVENT, session } from "@/lib/api";
 
+const LOCALES = [
+  { code: "ko", label: "한국어" },
+  { code: "en", label: "English" },
+  { code: "ja", label: "日本語" },
+  { code: "zh", label: "中文" },
+];
+
 export default function Header() {
   const router = useRouter();
+  const pathname = usePathname();
+  const locale = useLocale();
+  const t = useTranslations("Header");
+
   const [loggedIn, setLoggedIn] = useState(false);
   const [coins, setCoins] = useState<number | null>(null);
   const [operatorAccess, setOperatorAccess] = useState(false);
@@ -45,7 +56,6 @@ export default function Header() {
     syncFromStorage();
     window.addEventListener(SESSION_CHANGE_EVENT, syncFromStorage);
 
-    // 탭 포커스 시 코인 갱신
     const onFocus = () => {
       const token = session.getToken();
       if (token) fetchCoins(token);
@@ -63,32 +73,39 @@ export default function Header() {
     router.push("/");
   }
 
+  function onLocaleChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    router.replace(pathname, { locale: e.target.value });
+  }
+
   return (
     <header className="border-b border-zinc-200 dark:border-zinc-800">
       <div className="mx-auto flex min-h-14 w-full max-w-6xl min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-2 px-3 py-2 sm:min-h-16 sm:flex-nowrap sm:px-6 sm:py-0">
-        <Link href="/" aria-label="ALP 홈" className="shrink-0">
+        <Link href="/" aria-label={t("homeAriaLabel")} className="shrink-0">
           <Logo size={28} />
         </Link>
         <nav className="flex min-w-0 max-w-full flex-[1_1_0%] flex-wrap items-center justify-end gap-x-2 gap-y-1.5 text-xs sm:flex-none sm:gap-x-4 sm:text-sm">
           <Link href="/games" className="shrink-0 whitespace-nowrap hover:text-blue-600">
-            게임
+            {t("games")}
+          </Link>
+          <Link href="/donate" className="shrink-0 whitespace-nowrap hover:text-blue-600">
+            {t("donate")}
           </Link>
           {loggedIn && operatorAccess && (
             <Link
               href="/operator"
               className="shrink-0 whitespace-nowrap font-medium text-amber-700 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200"
             >
-              운영
+              {t("operator")}
             </Link>
           )}
           {loggedIn && (
             <Link href="/account" className="shrink-0 whitespace-nowrap hover:text-blue-600">
-              내 정보
+              {t("myInfo")}
             </Link>
           )}
           {loggedIn && (
             <Link href="/inventory" className="shrink-0 whitespace-nowrap hover:text-blue-600">
-              보관함
+              {t("inventory")}
             </Link>
           )}
           {loggedIn && typeof coins === "number" && (
@@ -105,16 +122,29 @@ export default function Header() {
               onClick={onLogout}
               className="shrink-0 whitespace-nowrap rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-900 hover:bg-zinc-50 sm:px-3 sm:text-sm dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
             >
-              로그아웃
+              {t("logout")}
             </button>
           ) : (
             <Link
               href="/login"
               className="shrink-0 whitespace-nowrap rounded-md bg-zinc-900 px-2 py-1.5 text-xs text-white hover:bg-zinc-700 sm:px-3 sm:text-sm dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
             >
-              로그인
+              {t("login")}
             </Link>
           )}
+          {/* 언어 선택기 */}
+          <select
+            value={locale}
+            onChange={onLocaleChange}
+            aria-label="Language"
+            className="shrink-0 rounded-md border border-zinc-300 bg-white px-1.5 py-1 text-xs text-zinc-700 hover:border-zinc-400 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300"
+          >
+            {LOCALES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.label}
+              </option>
+            ))}
+          </select>
         </nav>
       </div>
     </header>

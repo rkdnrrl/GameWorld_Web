@@ -351,6 +351,20 @@ export const api = {
     }>("/api/operator/fishing-items/status", { headers: authHeaders(token) });
   },
 
+  donateConfirm(
+    token: string,
+    body: { paymentKey: string; orderId: string; amount: number },
+  ) {
+    return request<{ ok: boolean; coins: number; amount: number; alreadyProcessed?: boolean }>(
+      "/api/donate/confirm",
+      {
+        method: "POST",
+        headers: authHeaders(token),
+        body: JSON.stringify(body),
+      },
+    );
+  },
+
   aiFishingItemsGenerateOne(token: string, nounName: string) {
     return request<{ ok: boolean; nounName: string; name: string; emoji: string; imageUrl: string }>(
       "/api/ai/fishing-items/generate-one",
