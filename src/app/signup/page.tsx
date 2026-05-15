@@ -79,8 +79,8 @@ export default function SignupPage() {
       // 3. 세션 저장 (기존 session 유틸 재사용)
       session.save({ token: data.session.access_token, user: meResult.user });
       router.push("/");
-    } catch {
-      setError("서버에 연결할 수 없습니다.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "서버에 연결할 수 없습니다.");
     } finally {
       setSubmitting(false);
     }
