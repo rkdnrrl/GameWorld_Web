@@ -106,7 +106,7 @@ function extractApiErrorMessage(data: unknown, status: number): string {
     return "로그인 API를 찾을 수 없습니다. 백엔드 주소(BACKEND_URL)와 경로를 확인해 주세요.";
   }
   if (status === 502 || status === 503 || status === 504) {
-    return "백엔드 서버로 요청을 전달하지 못했습니다. 서버가 켜져 있는지 확인해 주세요.";
+    return "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.";
   }
 
   if (status > 0) {
@@ -143,6 +143,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   if (!res.ok) {
+    // 토큰 만료·무효 → 세션 정리 (로그아웃)
+    if (res.status === 401) {
+      session.clear();
+    }
     const message = extractApiErrorMessage(data, res.status);
     throw new ApiError(res.status, message);
   }
