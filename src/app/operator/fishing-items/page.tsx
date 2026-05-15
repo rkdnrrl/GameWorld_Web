@@ -19,7 +19,6 @@ export default function OperatorFishingItemsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [total, setTotal] = useState(0);
-  const [cached, setCached] = useState(0);
   const [items, setItems] = useState<FishingItemStatus[]>([]);
 
   // 생성 중인 아이템 이름 집합
@@ -39,7 +38,6 @@ export default function OperatorFishingItemsPage() {
     try {
       const res = await api.operatorFishingItemsStatus(t);
       setTotal(res.total);
-      setCached(res.cached);
       setItems(res.items);
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setForbidden(true);
@@ -59,7 +57,6 @@ export default function OperatorFishingItemsPage() {
     try {
       await api.aiFishingItemsGenerateOne(t, nounName);
       setItems((prev) => prev.map((i) => i.name === nounName ? { ...i, hasCache: true } : i));
-      setCached((prev) => prev + 1);
       setJustDone((prev) => new Set(prev).add(nounName));
       setTimeout(() => setJustDone((prev) => { const n = new Set(prev); n.delete(nounName); return n; }), 3000);
     } catch (err) {
@@ -80,11 +77,12 @@ export default function OperatorFishingItemsPage() {
   }
 
   const filteredItems = items.filter((i) => {
-    if (filter === "missing") return !i.hasCache;
+    if (filter === "missing") return !i.hasCache || justDone.has(i.name); // 방금 생성된 것은 잠깐 유지
     if (filter === "cached") return i.hasCache;
     return true;
   });
 
+  const cachedCount = items.filter((i) => i.hasCache).length;
   const missingCount = items.filter((i) => !i.hasCache).length;
   const anyGenerating = generating.size > 0;
 
@@ -114,7 +112,7 @@ export default function OperatorFishingItemsPage() {
         <div className="mb-6 grid grid-cols-3 gap-3">
           {[
             { label: "전체", value: total, color: "text-zinc-700 dark:text-zinc-200" },
-            { label: "생성 완료", value: cached, color: "text-green-600 dark:text-green-400" },
+            { label: "생성 완료", value: cachedCount, color: "text-green-600 dark:text-green-400" },
             { label: "미생성", value: missingCount, color: missingCount > 0 ? "text-red-500" : "text-zinc-400" },
           ].map(({ label, value, color }) => (
             <div key={label} className="rounded-xl border border-zinc-200 bg-white p-4 text-center dark:border-zinc-700 dark:bg-zinc-900">
@@ -151,7 +149,7 @@ export default function OperatorFishingItemsPage() {
                 : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
             }`}
           >
-            {f === "missing" ? `미생성 (${missingCount})` : f === "cached" ? `완료 (${cached})` : `전체 (${total})`}
+            {f === "missing" ? `미생성 (${missingCount})` : f === "cached" ? `완료 (${cachedCount})` : `전체 (${total})`}
           </button>
         ))}
         <button onClick={loadStatus} className="ml-auto text-xs text-zinc-400 hover:text-zinc-600">새로고침</button>
