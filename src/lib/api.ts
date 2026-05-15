@@ -321,6 +321,26 @@ export const api = {
       body: JSON.stringify({ targetNickname, items }),
     });
   },
+
+  operatorFishingItemsStatus(token: string) {
+    return request<{
+      total: number;
+      cached: number;
+      missing: number;
+      items: { name: string; emoji: string; tier: string; hasCache: boolean }[];
+    }>("/api/operator/fishing-items/status", { headers: authHeaders(token) });
+  },
+
+  aiFishingItemsGenerateOne(token: string, name: string) {
+    return request<{ ok: boolean; name: string; emoji: string; imageUrl: string }>(
+      "/api/ai/fishing-items/generate-one",
+      {
+        method: "POST",
+        headers: authHeaders(token),
+        body: JSON.stringify({ name }),
+      },
+    );
+  },
 };
 
 const TOKEN_KEY = "gameworld_token";

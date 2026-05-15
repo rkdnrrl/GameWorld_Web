@@ -17,6 +17,7 @@ const MENU = [
     section: "콘텐츠 관리",
     items: [
       { href: "/operator/shared-pixel-arts", emoji: "🖼️", label: "공유 픽셀 아트", desc: "AI 생성 스프라이트 캐시 조회·수정·삭제" },
+      { href: "/operator/fishing-items",     emoji: "🎣", label: "낚시 아이템 관리", desc: "미생성 아이템 확인 및 PixelLab 이미지 일괄 생성" },
     ],
   },
 ];
