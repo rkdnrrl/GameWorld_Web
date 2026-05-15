@@ -77,7 +77,7 @@ export default function OperatorFishingItemsPage() {
   }
 
   const filteredItems = items.filter((i) => {
-    if (filter === "missing") return !i.hasCache || justDone.has(i.name); // 방금 생성된 것은 잠깐 유지
+    if (filter === "missing") return !i.hasCache;
     if (filter === "cached") return i.hasCache;
     return true;
   });
