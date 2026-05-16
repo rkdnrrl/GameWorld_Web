@@ -47,6 +47,8 @@ export default function AccountPage() {
   } | null>(null);
   const [profileSaving, setProfileSaving] = useState(false);
 
+  const [dungeonRecord, setDungeonRecord] = useState<{ dungeonMaxFloor: number; dungeonMaxKills: number } | null>(null);
+
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [withdrawPhrase, setWithdrawPhrase] = useState("");
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
@@ -57,10 +59,14 @@ export default function AccountPage() {
   const refreshProfile = useCallback(async (tk: string) => {
     setLoadError(null);
     try {
-      const { user: next } = await api.me(tk);
+      const [{ user: next }, recordRes] = await Promise.all([
+        api.me(tk),
+        api.getDungeonRecord(tk).catch(() => ({ record: null })),
+      ]);
       setUser(next);
       session.updateStoredUser(next);
       setNickname(next.nickname);
+      setDungeonRecord(recordRes.record);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         session.clear();
@@ -219,6 +225,28 @@ export default function AccountPage() {
               <dd className="mt-1 text-sm">{formatJoined(user.createdAt)}</dd>
             </div>
           </dl>
+
+          <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+            <h2 className="mb-4 text-lg font-semibold">🏆 개인 최고 기록</h2>
+            <dl className="space-y-3">
+              <div className="flex items-center justify-between">
+                <dt className="flex items-center gap-2 text-sm text-zinc-500">
+                  <span>⚔️</span> 던전 최고 층수
+                </dt>
+                <dd className="text-sm font-bold tabular-nums">
+                  {dungeonRecord ? `${dungeonRecord.dungeonMaxFloor}층` : "—"}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between">
+                <dt className="flex items-center gap-2 text-sm text-zinc-500">
+                  <span>💀</span> 던전 최다 처치
+                </dt>
+                <dd className="text-sm font-bold tabular-nums">
+                  {dungeonRecord ? `${dungeonRecord.dungeonMaxKills}킬` : "—"}
+                </dd>
+              </div>
+            </dl>
+          </div>
 
           <form
             onSubmit={onNicknameSubmit}

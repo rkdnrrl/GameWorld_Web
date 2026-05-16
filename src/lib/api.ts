@@ -443,6 +443,29 @@ export const api = {
       },
     );
   },
+
+  /** 던전 개인 최고 기록 조회 */
+  getDungeonRecord(token: string) {
+    return request<{ record: { dungeonMaxFloor: number; dungeonMaxKills: number } | null }>(
+      "/api/dungeon/record",
+      { headers: authHeaders(token) },
+    );
+  },
+
+  /** 상점 카탈로그 */
+  getShopCatalog() {
+    return request<{ items: { id: string; name: string; emoji: string; price: number; kind: string; desc: string }[] }>(
+      "/api/shop/catalog",
+    );
+  },
+
+  /** 상점 구매 */
+  shopBuy(token: string, itemId: string, quantity: number) {
+    return request<{ ok: boolean; itemId: string; itemName: string; quantity: number; spent: number; remainingCoins: number }>(
+      "/api/shop/buy",
+      { method: "POST", headers: authHeaders(token), body: JSON.stringify({ itemId, quantity }) },
+    );
+  },
 };
 
 const TOKEN_KEY         = "gameworld_token";

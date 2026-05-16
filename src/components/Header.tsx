@@ -87,6 +87,12 @@ export default function Header() {
           <Link href="/games" className="shrink-0 whitespace-nowrap hover:text-blue-600">
             {t("games")}
           </Link>
+          <Link href="/announcements" className="shrink-0 whitespace-nowrap hover:text-blue-600">
+            공지
+          </Link>
+          <Link href="/shop" className="shrink-0 whitespace-nowrap hover:text-blue-600">
+            상점
+          </Link>
           <Link href="/donate" className="shrink-0 whitespace-nowrap hover:text-blue-600">
             {t("donate")}
           </Link>
