@@ -143,9 +143,13 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   if (!res.ok) {
-    // 토큰 만료·무효 → 세션 정리 (로그아웃)
+    // 토큰 만료·무효 → 세션 정리 + 만료 알림 이벤트
     if (res.status === 401) {
+      const wasLoggedIn = !!session.getToken();
       session.clear();
+      if (wasLoggedIn && typeof window !== "undefined") {
+        window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+      }
     }
     const message = extractApiErrorMessage(data, res.status);
     throw new ApiError(res.status, message);
@@ -405,6 +409,8 @@ const USER_KEY = "gameworld_user";
 
 /** 같은 탭에서 로그인/로그아웃 후 헤더 등이 갱신되도록 알림 */
 export const SESSION_CHANGE_EVENT = "gameworld-session-change";
+/** 401 등으로 서버가 세션을 거부했을 때 (강제 로그아웃) */
+export const SESSION_EXPIRED_EVENT = "gameworld-session-expired";
 
 function notifySessionChange() {
   if (typeof window === "undefined") return;
