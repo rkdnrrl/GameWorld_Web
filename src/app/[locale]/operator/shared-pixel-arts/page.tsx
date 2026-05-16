@@ -183,7 +183,7 @@ export default function OperatorSharedPixelArtsPage() {
     setBulkPreviewCount(null);
     setBulkMsg(null);
     try {
-      const res = await api.operatorBulkDeletePreview(tk, new Date(bulkFrom).toISOString(), new Date(bulkTo + "T23:59:59").toISOString());
+      const res = await api.operatorBulkDeletePreview(tk, new Date(bulkFrom).toISOString(), new Date(bulkTo).toISOString());
       setBulkPreviewCount(res.count);
     } catch (err) {
       setBulkMsg({ type: "err", text: err instanceof ApiError ? err.message : "조회 실패" });
@@ -199,7 +199,7 @@ export default function OperatorSharedPixelArtsPage() {
     setBulkDeleting(true);
     setBulkMsg(null);
     try {
-      const res = await api.operatorBulkDelete(tk, new Date(bulkFrom).toISOString(), new Date(bulkTo + "T23:59:59").toISOString());
+      const res = await api.operatorBulkDelete(tk, new Date(bulkFrom).toISOString(), new Date(bulkTo).toISOString());
       setBulkMsg({ type: "ok", text: `${res.deleted}건 삭제 완료` });
       setBulkPreviewCount(null);
       await loadList();
@@ -248,18 +248,18 @@ export default function OperatorSharedPixelArtsPage() {
           <h2 className="mb-3 text-sm font-semibold text-red-800 dark:text-red-300">기간별 일괄 삭제</h2>
           <div className="flex flex-wrap items-end gap-3">
             <label className="text-sm">
-              <span className="mb-1 block text-zinc-600 dark:text-zinc-400">시작일</span>
+              <span className="mb-1 block text-zinc-600 dark:text-zinc-400">시작</span>
               <input
-                type="date"
+                type="datetime-local"
                 value={bulkFrom}
                 onChange={(e) => { setBulkFrom(e.target.value); setBulkPreviewCount(null); setBulkMsg(null); }}
                 className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-900"
               />
             </label>
             <label className="text-sm">
-              <span className="mb-1 block text-zinc-600 dark:text-zinc-400">종료일</span>
+              <span className="mb-1 block text-zinc-600 dark:text-zinc-400">종료</span>
               <input
-                type="date"
+                type="datetime-local"
                 value={bulkTo}
                 onChange={(e) => { setBulkTo(e.target.value); setBulkPreviewCount(null); setBulkMsg(null); }}
                 className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-900"
