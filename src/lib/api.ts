@@ -115,7 +115,34 @@ function extractApiErrorMessage(data: unknown, status: number): string {
   return "네트워크 오류입니다. 연결과 백엔드 서버 상태를 확인해 주세요.";
 }
 
+/** Supabase refresh token으로 access_token 갱신 (동시 호출 중복 방지) */
+let _refreshingPromise: Promise<boolean> | null = null;
+async function tryRefreshToken(): Promise<boolean> {
+  if (_refreshingPromise) return _refreshingPromise;
+  _refreshingPromise = (async () => {
+    try {
+      const refreshToken = session.getRefreshToken();
+      if (!refreshToken) return false;
+      const { supabase } = await import("./supabase");
+      const { data, error } = await supabase.auth.refreshSession({ refresh_token: refreshToken });
+      if (error || !data.session) return false;
+      session.save({ token: data.session.access_token, user: session.getUser()! });
+      session.saveRefreshInfo(data.session.refresh_token, data.session.expires_at ?? 0);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      _refreshingPromise = null;
+    }
+  })();
+  return _refreshingPromise;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  // 토큰이 곧 만료되면 미리 갱신
+  if (session.isNearExpiry()) {
+    await tryRefreshToken();
+  }
   const hasBody =
     init.body !== undefined && init.body !== null && init.body !== "";
 
@@ -143,9 +170,23 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   if (!res.ok) {
-    // 토큰 만료·무효 → 세션 정리 + 만료 알림 이벤트
+    // 토큰 만료·무효 → refresh 시도 후 1회 재시도, 실패 시 로그아웃
     if (res.status === 401) {
       const wasLoggedIn = !!session.getToken();
+      const refreshed = wasLoggedIn ? await tryRefreshToken() : false;
+      if (refreshed) {
+        // 새 토큰으로 재시도
+        const newToken = session.getToken();
+        const retryInit = {
+          ...init,
+          headers: { ...(init.headers || {}), Authorization: newToken ? `Bearer ${newToken}` : "" },
+        };
+        const retryRes = await fetch(path, retryInit);
+        if (retryRes.ok) {
+          const retryText = await retryRes.text();
+          return (retryText ? JSON.parse(retryText) : {}) as T;
+        }
+      }
       session.clear();
       if (wasLoggedIn && typeof window !== "undefined") {
         window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
@@ -404,8 +445,10 @@ export const api = {
   },
 };
 
-const TOKEN_KEY = "gameworld_token";
-const USER_KEY = "gameworld_user";
+const TOKEN_KEY         = "gameworld_token";
+const USER_KEY          = "gameworld_user";
+const REFRESH_TOKEN_KEY = "gameworld_refresh_token";
+const EXPIRES_AT_KEY    = "gameworld_expires_at"; // Unix 초
 
 /** 같은 탭에서 로그인/로그아웃 후 헤더 등이 갱신되도록 알림 */
 export const SESSION_CHANGE_EVENT = "gameworld-session-change";
@@ -424,9 +467,26 @@ export const session = {
     localStorage.setItem(USER_KEY, JSON.stringify(user));
     notifySessionChange();
   },
+  /** 로그인 시 refresh token + 만료 시각 함께 저장 */
+  saveRefreshInfo(refreshToken: string, expiresAt: number) {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    localStorage.setItem(EXPIRES_AT_KEY, String(expiresAt));
+  },
   getToken(): string | null {
     if (typeof window === "undefined") return null;
     return localStorage.getItem(TOKEN_KEY);
+  },
+  getRefreshToken(): string | null {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem(REFRESH_TOKEN_KEY);
+  },
+  /** 토큰이 60초 이내 만료되는지 확인 */
+  isNearExpiry(): boolean {
+    if (typeof window === "undefined") return false;
+    const raw = localStorage.getItem(EXPIRES_AT_KEY);
+    if (!raw) return false;
+    return Date.now() / 1000 > Number(raw) - 60;
   },
   getUser(): User | null {
     if (typeof window === "undefined") return null;
@@ -442,6 +502,8 @@ export const session = {
     if (typeof window === "undefined") return;
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    localStorage.removeItem(EXPIRES_AT_KEY);
     notifySessionChange();
   },
   /** 서버에서 받은 최신 프로필로 로컬 사용자 정보만 갱신 (토큰 유지) */

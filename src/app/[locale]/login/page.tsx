@@ -42,6 +42,7 @@ export default function LoginPage() {
 
       const meResult = await api.me(data.session.access_token);
       session.save({ token: data.session.access_token, user: meResult.user });
+      session.saveRefreshInfo(data.session.refresh_token, data.session.expires_at ?? 0);
       router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("errorInvalidCredentials"));
