@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "@/i18n/navigation";
 import { api, session, ApiError } from "@/lib/api";
+import { useTranslations } from "next-intl";
 
 interface ShopItem {
   id: string;
@@ -14,6 +15,7 @@ interface ShopItem {
 }
 
 export default function ShopPage() {
+  const t = useTranslations("Shop");
   const [items, setItems] = useState<ShopItem[]>([]);
   const [coins, setCoins] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,11 +56,11 @@ export default function ShopPage() {
     try {
       const res = await api.shopBuy(tk, item.id, q);
       setCoins(res.remainingCoins);
-      setNotice({ kind: "ok", text: `${item.emoji} ${item.name} ×${q} 구매 완료! (−${res.spent.toLocaleString()}🪙)` });
+      setNotice({ kind: "ok", text: t("purchaseSuccess", { emoji: item.emoji, name: item.name, qty: q, spent: res.spent.toLocaleString() }) });
     } catch (err) {
       setNotice({
         kind: "err",
-        text: err instanceof ApiError ? err.message : "구매에 실패했습니다.",
+        text: err instanceof ApiError ? err.message : t("purchaseFailed"),
       });
     } finally {
       setBuying(null);
@@ -68,7 +70,7 @@ export default function ShopPage() {
   return (
     <section className="mx-auto w-full max-w-2xl px-4 py-10 sm:px-6 sm:py-12">
       <div className="mb-6 flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold tracking-tight">🛒 상점</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
         {coins !== null && (
           <span className="flex items-center gap-1 rounded-full bg-yellow-50 px-3 py-1.5 text-sm font-semibold text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400">
             🪙 {coins.toLocaleString()}
@@ -76,7 +78,7 @@ export default function ShopPage() {
         )}
       </div>
       <p className="mb-8 text-sm text-zinc-500">
-        낚시·던전에서 획득한 코인으로 강화 재료를 구매하세요.
+        {t("subtitle")}
       </p>
 
       {notice && (
@@ -138,14 +140,14 @@ export default function ShopPage() {
                     disabled={buying === item.id}
                     className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
                   >
-                    {buying === item.id ? "…" : "구매"}
+                    {buying === item.id ? t("buying") : t("buy")}
                   </button>
                 ) : (
                   <Link
                     href="/login"
                     className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-600"
                   >
-                    로그인
+                    {t("login")}
                   </Link>
                 )}
               </div>
@@ -155,7 +157,7 @@ export default function ShopPage() {
       )}
 
       <p className="mt-10 text-center text-sm text-zinc-500">
-        <Link href="/" className="text-blue-600 hover:underline">← 홈으로</Link>
+        <Link href="/" className="text-blue-600 hover:underline">{t("backHome")}</Link>
       </p>
     </section>
   );

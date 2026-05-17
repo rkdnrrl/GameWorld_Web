@@ -34,7 +34,9 @@
     "myInfo": "My Info",
     "inventory": "Inventory",
     "logout": "Logout",
-    "login": "Login"
+    "login": "Login",
+    "announcements": "News",
+    "shop": "Shop"
   },
   "BackendConnectionBanner": {
     "disconnected": "Cannot connect to backend server. Please check if the API server is running.",
@@ -104,7 +106,12 @@
     "withdrawConfirmButton": "Confirm Deletion",
     "withdrawSubmitting": "Processing…",
     "withdrawFailed": "Failed to delete account.",
-    "withdrawPhraseError": "Please type \"{phrase}\" exactly."
+    "withdrawPhraseError": "Please type \"{phrase}\" exactly.",
+    "recordsSection": "🏆 Personal Best",
+    "dungeonMaxFloor": "Dungeon Best Floor",
+    "dungeonMaxKills": "Dungeon Most Kills",
+    "floorUnit": "F",
+    "killUnit": "kills"
   },
   "Inventory": {
     "title": "📦 Inventory",
@@ -115,7 +122,7 @@
     "sellAll": "Sell All",
     "sellingAll": "Selling…",
     "emptyTitle": "Inventory is empty",
-    "emptyDesc": "Go fishing to catch some items!",
+    "emptyDesc": "Go junk fishing to catch some items!",
     "goToGames": "Go to Games →",
     "sell": "Sell",
     "selling": "Selling…",
@@ -332,5 +339,39 @@
   },
   "LanguageSwitcher": {
     "label": "Language"
+  },
+  "Announcements": {
+    "title": "📢 Announcements",
+    "filterAll": "All",
+    "filterNotice": "Notice",
+    "filterPatch": "Patch Notes",
+    "kindNotice": "Notice",
+    "kindPatch": "Patch Notes",
+    "compose": "+ New",
+    "composingTitle": "New Announcement",
+    "kindNoticeLabel": "Notice",
+    "kindPatchLabel": "Patch Notes",
+    "pinned": "📌 Pin to Top",
+    "titlePlaceholder": "Title",
+    "bodyPlaceholder": "Content",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "loading": "Loading…",
+    "empty": "No announcements.",
+    "close": "Close",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this?",
+    "backHome": "← Home"
+  },
+  "Shop": {
+    "title": "🛒 Shop",
+    "subtitle": "Spend coins from fishing & dungeon on upgrade materials.",
+    "buy": "Buy",
+    "buying": "…",
+    "login": "Login",
+    "purchaseSuccess": "{emoji} {name} ×{qty} purchased! (−{spent}🪙)",
+    "purchaseFailed": "Purchase failed.",
+    "backHome": "← Home"
   }
 }

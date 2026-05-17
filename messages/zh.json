@@ -34,7 +34,9 @@
     "myInfo": "我的信息",
     "inventory": "背包",
     "logout": "退出登录",
-    "login": "登录"
+    "login": "登录",
+    "announcements": "公告",
+    "shop": "商店"
   },
   "BackendConnectionBanner": {
     "disconnected": "无法连接到后端服务器，请检查API服务器是否正在运行。",
@@ -104,7 +106,12 @@
     "withdrawConfirmButton": "确认注销",
     "withdrawSubmitting": "处理中…",
     "withdrawFailed": "注销处理失败。",
-    "withdrawPhraseError": "请准确输入\"{phrase}\"。"
+    "withdrawPhraseError": "请准确输入\"{phrase}\"。",
+    "recordsSection": "🏆 个人最佳",
+    "dungeonMaxFloor": "地牢最高层",
+    "dungeonMaxKills": "地牢最多击杀",
+    "floorUnit": "层",
+    "killUnit": "击杀"
   },
   "Inventory": {
     "title": "📦 背包",
@@ -115,7 +122,7 @@
     "sellAll": "全部出售",
     "sellingAll": "出售中…",
     "emptyTitle": "背包是空的",
-    "emptyDesc": "去宇宙钓鱼获取物品吧！",
+    "emptyDesc": "去钓废品来收集物品吧！",
     "goToGames": "去游戏 →",
     "sell": "出售",
     "selling": "出售中…",
@@ -332,5 +339,39 @@
   },
   "LanguageSwitcher": {
     "label": "语言"
+  },
+  "Announcements": {
+    "title": "📢 公告",
+    "filterAll": "全部",
+    "filterNotice": "公告",
+    "filterPatch": "更新日志",
+    "kindNotice": "公告",
+    "kindPatch": "更新日志",
+    "compose": "+ 发布",
+    "composingTitle": "新公告",
+    "kindNoticeLabel": "公告",
+    "kindPatchLabel": "更新日志",
+    "pinned": "📌 置顶",
+    "titlePlaceholder": "标题",
+    "bodyPlaceholder": "内容",
+    "save": "保存",
+    "saving": "保存中…",
+    "cancel": "取消",
+    "loading": "加载中…",
+    "empty": "暂无公告。",
+    "close": "关闭",
+    "delete": "删除",
+    "deleteConfirm": "确定删除？",
+    "backHome": "← 返回首页"
+  },
+  "Shop": {
+    "title": "🛒 商店",
+    "subtitle": "用钓鱼和地牢获得的金币购买强化材料。",
+    "buy": "购买",
+    "buying": "…",
+    "login": "登录",
+    "purchaseSuccess": "{emoji} {name} ×{qty} 购买完成！(−{spent}🪙)",
+    "purchaseFailed": "购买失败。",
+    "backHome": "← 返回首页"
   }
 }

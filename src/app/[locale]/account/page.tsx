@@ -227,22 +227,22 @@ export default function AccountPage() {
           </dl>
 
           <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <h2 className="mb-4 text-lg font-semibold">🏆 개인 최고 기록</h2>
+            <h2 className="mb-4 text-lg font-semibold">{t("recordsSection")}</h2>
             <dl className="space-y-3">
               <div className="flex items-center justify-between">
                 <dt className="flex items-center gap-2 text-sm text-zinc-500">
-                  <span>⚔️</span> 던전 최고 층수
+                  <span>⚔️</span> {t("dungeonMaxFloor")}
                 </dt>
                 <dd className="text-sm font-bold tabular-nums">
-                  {dungeonRecord ? `${dungeonRecord.dungeonMaxFloor}층` : "—"}
+                  {dungeonRecord ? `${dungeonRecord.dungeonMaxFloor}${t("floorUnit")}` : "—"}
                 </dd>
               </div>
               <div className="flex items-center justify-between">
                 <dt className="flex items-center gap-2 text-sm text-zinc-500">
-                  <span>💀</span> 던전 최다 처치
+                  <span>💀</span> {t("dungeonMaxKills")}
                 </dt>
                 <dd className="text-sm font-bold tabular-nums">
-                  {dungeonRecord ? `${dungeonRecord.dungeonMaxKills}킬` : "—"}
+                  {dungeonRecord ? `${dungeonRecord.dungeonMaxKills}${t("killUnit")}` : "—"}
                 </dd>
               </div>
             </dl>

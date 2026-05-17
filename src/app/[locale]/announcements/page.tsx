@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "@/i18n/navigation";
 import { api, session } from "@/lib/api";
+import { useTranslations } from "next-intl";
 
 interface AnnouncementItem {
   id: string;
@@ -22,10 +23,6 @@ interface AnnouncementDetail {
   updatedAt: string;
 }
 
-function kindLabel(kind: string) {
-  return kind === "patch" ? "패치노트" : "공지";
-}
-
 function kindColor(kind: string) {
   return kind === "patch"
     ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
@@ -39,6 +36,7 @@ function formatDate(iso: string) {
 }
 
 export default function AnnouncementsPage() {
+  const t = useTranslations("Announcements");
   const [items, setItems] = useState<AnnouncementItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<AnnouncementDetail | null>(null);
@@ -107,7 +105,7 @@ export default function AnnouncementsPage() {
   async function handleDelete(id: string) {
     const tk = session.getToken();
     if (!tk) return;
-    if (!confirm("삭제할까요?")) return;
+    if (!confirm(t("deleteConfirm"))) return;
     await fetch(`/api/announcements/${id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${tk}` },
@@ -122,13 +120,13 @@ export default function AnnouncementsPage() {
   return (
     <section className="mx-auto w-full max-w-2xl px-4 py-10 sm:px-6 sm:py-12">
       <div className="mb-6 flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold tracking-tight">📢 공지사항</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
         {isOperator && !composing && (
           <button
             onClick={() => setComposing(true)}
             className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
           >
-            + 작성
+            {t("compose")}
           </button>
         )}
       </div>
@@ -145,7 +143,7 @@ export default function AnnouncementsPage() {
                 : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
             }`}
           >
-            {k === "all" ? "전체" : k === "notice" ? "공지" : "패치노트"}
+            {k === "all" ? t("filterAll") : k === "notice" ? t("filterNotice") : t("filterPatch")}
           </button>
         ))}
       </div>
@@ -153,7 +151,7 @@ export default function AnnouncementsPage() {
       {/* 작성 폼 (운영자) */}
       {composing && (
         <div className="mb-6 space-y-3 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
-          <h2 className="font-semibold">새 공지 작성</h2>
+          <h2 className="font-semibold">{t("composingTitle")}</h2>
           <div className="flex gap-2">
             {(["notice", "patch"] as const).map((k) => (
               <label key={k} className="flex cursor-pointer items-center gap-1.5 text-sm">
@@ -164,7 +162,7 @@ export default function AnnouncementsPage() {
                   checked={form.kind === k}
                   onChange={() => setForm((f) => ({ ...f, kind: k }))}
                 />
-                {k === "notice" ? "공지" : "패치노트"}
+                {k === "notice" ? t("kindNoticeLabel") : t("kindPatchLabel")}
               </label>
             ))}
             <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-sm">
@@ -173,18 +171,18 @@ export default function AnnouncementsPage() {
                 checked={form.pinned}
                 onChange={(e) => setForm((f) => ({ ...f, pinned: e.target.checked }))}
               />
-              📌 상단 고정
+              {t("pinned")}
             </label>
           </div>
           <input
             type="text"
-            placeholder="제목"
+            placeholder={t("titlePlaceholder")}
             value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
             className="input w-full"
           />
           <textarea
-            placeholder="내용 (마크다운 미지원)"
+            placeholder={t("bodyPlaceholder")}
             value={form.body}
             onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
             rows={6}
@@ -197,13 +195,13 @@ export default function AnnouncementsPage() {
               disabled={saving}
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
             >
-              {saving ? "저장 중…" : "저장"}
+              {saving ? t("saving") : t("save")}
             </button>
             <button
               onClick={() => setComposing(false)}
               className="rounded-md border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-600"
             >
-              취소
+              {t("cancel")}
             </button>
           </div>
         </div>
@@ -211,9 +209,9 @@ export default function AnnouncementsPage() {
 
       {/* 목록 */}
       {loading ? (
-        <p className="text-sm text-zinc-500">불러오는 중…</p>
+        <p className="text-sm text-zinc-500">{t("loading")}</p>
       ) : items.length === 0 ? (
-        <p className="text-sm text-zinc-500">공지사항이 없습니다.</p>
+        <p className="text-sm text-zinc-500">{t("empty")}</p>
       ) : (
         <ul className="space-y-2">
           {items.map((item) => (
@@ -229,7 +227,7 @@ export default function AnnouncementsPage() {
                     <p className="mt-1 text-xs text-zinc-500">{formatDate(item.createdAt)}</p>
                   </div>
                   <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${kindColor(item.kind)}`}>
-                    {kindLabel(item.kind)}
+                    {item.kind === "patch" ? t("kindPatch") : t("kindNotice")}
                   </span>
                 </div>
               </button>
@@ -249,13 +247,13 @@ export default function AnnouncementsPage() {
             onClick={(e) => e.stopPropagation()}
           >
             {detailLoading ? (
-              <p className="text-sm text-zinc-500">불러오는 중…</p>
+              <p className="text-sm text-zinc-500">{t("loading")}</p>
             ) : selected ? (
               <>
                 <div className="mb-4 flex items-start gap-2">
                   <div className="min-w-0 flex-1">
                     <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${kindColor(selected.kind)} mb-2`}>
-                      {kindLabel(selected.kind)}
+                      {selected.kind === "patch" ? t("kindPatch") : t("kindNotice")}
                     </span>
                     <h2 className="text-xl font-bold">{selected.title}</h2>
                     <p className="mt-1 text-xs text-zinc-500">{formatDate(selected.createdAt)}</p>
@@ -270,14 +268,14 @@ export default function AnnouncementsPage() {
                       onClick={() => handleDelete(selected.id)}
                       className="rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
                     >
-                      삭제
+                      {t("delete")}
                     </button>
                   )}
                   <button
                     onClick={() => setSelected(null)}
                     className="ml-auto rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600"
                   >
-                    닫기
+                    {t("close")}
                   </button>
                 </div>
               </>
@@ -287,7 +285,7 @@ export default function AnnouncementsPage() {
       )}
 
       <p className="mt-10 text-center text-sm text-zinc-500">
-        <Link href="/" className="text-blue-600 hover:underline">← 홈으로</Link>
+        <Link href="/" className="text-blue-600 hover:underline">{t("backHome")}</Link>
       </p>
     </section>
   );

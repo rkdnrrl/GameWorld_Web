@@ -34,7 +34,9 @@
     "myInfo": "내 정보",
     "inventory": "보관함",
     "logout": "로그아웃",
-    "login": "로그인"
+    "login": "로그인",
+    "announcements": "공지",
+    "shop": "상점"
   },
   "BackendConnectionBanner": {
     "disconnected": "백엔드 서버에 연결되지 않았습니다. API 서버가 켜져 있는지 확인해 주세요.",
@@ -104,7 +106,12 @@
     "withdrawConfirmButton": "탈퇴 확인",
     "withdrawSubmitting": "처리 중…",
     "withdrawFailed": "탈퇴 처리에 실패했습니다.",
-    "withdrawPhraseError": "「{phrase}」를 정확히 입력해 주세요."
+    "withdrawPhraseError": "「{phrase}」를 정확히 입력해 주세요.",
+    "recordsSection": "🏆 개인 최고 기록",
+    "dungeonMaxFloor": "던전 최고 층수",
+    "dungeonMaxKills": "던전 최다 처치",
+    "floorUnit": "층",
+    "killUnit": "킬"
   },
   "Inventory": {
     "title": "📦 보관함",
@@ -115,7 +122,7 @@
     "sellAll": "전체 팔기",
     "sellingAll": "판매 중…",
     "emptyTitle": "보관함이 비어있습니다",
-    "emptyDesc": "우주 낚시를 해서 아이템을 잡아보세요!",
+    "emptyDesc": "폐품 낚시를 해서 아이템을 잡아보세요!",
     "goToGames": "게임하러 가기 →",
     "sell": "팔기",
     "selling": "판매 중…",
@@ -332,5 +339,39 @@
   },
   "LanguageSwitcher": {
     "label": "언어"
+  },
+  "Announcements": {
+    "title": "📢 공지사항",
+    "filterAll": "전체",
+    "filterNotice": "공지",
+    "filterPatch": "패치노트",
+    "kindNotice": "공지",
+    "kindPatch": "패치노트",
+    "compose": "+ 작성",
+    "composingTitle": "새 공지 작성",
+    "kindNoticeLabel": "공지",
+    "kindPatchLabel": "패치노트",
+    "pinned": "📌 상단 고정",
+    "titlePlaceholder": "제목",
+    "bodyPlaceholder": "내용",
+    "save": "저장",
+    "saving": "저장 중…",
+    "cancel": "취소",
+    "loading": "불러오는 중…",
+    "empty": "공지사항이 없습니다.",
+    "close": "닫기",
+    "delete": "삭제",
+    "deleteConfirm": "삭제할까요?",
+    "backHome": "← 홈으로"
+  },
+  "Shop": {
+    "title": "🛒 상점",
+    "subtitle": "낚시·던전에서 획득한 코인으로 강화 재료를 구매하세요.",
+    "buy": "구매",
+    "buying": "…",
+    "login": "로그인",
+    "purchaseSuccess": "{emoji} {name} ×{qty} 구매 완료! (−{spent}🪙)",
+    "purchaseFailed": "구매에 실패했습니다.",
+    "backHome": "← 홈으로"
   }
 }
