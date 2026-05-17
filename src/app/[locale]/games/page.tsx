@@ -68,9 +68,6 @@ export default async function GamesPage() {
         <h1 className="break-words text-2xl font-bold tracking-tight sm:text-3xl">
           {t("title")}
         </h1>
-        <p className="mt-1.5 break-words text-sm text-zinc-500">
-          게임을 클릭하면 바로 입장합니다
-        </p>
       </div>
 
       <div className="mb-6">
