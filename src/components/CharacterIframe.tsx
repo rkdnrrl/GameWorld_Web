@@ -10,10 +10,9 @@ function insertIframe(commonUserId: string) {
   iframe.src = `https://assistant-chi-two.vercel.app?userId=${commonUserId}&app=platform`;
 
   let iframeW = 220, iframeH = 390;
-  let iframeX = window.innerWidth  - iframeW;
-  let iframeY = window.innerHeight - iframeH;
+  let iframeX = -1, iframeY = -1; // -1 = 아직 left/top으로 전환 안 됨 (right/bottom 기준)
   iframe.style.cssText =
-    `position:fixed;left:${iframeX}px;top:${iframeY}px;width:${iframeW}px;height:${iframeH}px;border:none;background:transparent;z-index:9999;`;
+    `position:fixed;right:0;bottom:0;width:${iframeW}px;height:${iframeH}px;border:none;background:transparent;z-index:9999;`;
   document.body.appendChild(iframe);
 
   // 부모 페이지에서 마우스 위치를 직접 추적 → 정확한 드래그
@@ -38,8 +37,17 @@ function insertIframe(commonUserId: string) {
   window.addEventListener("message", (e) => {
     if (e.data?.type === "assistant:drag") {
       if (!isDragging) {
-        // 드래그 시작: 현재 마우스·iframe 위치를 기준점으로 기록
+        // 드래그 시작: right/bottom → left/top으로 전환
         isDragging = true;
+        if (iframeX < 0) {
+          const rect = iframe.getBoundingClientRect();
+          iframeX = rect.left;
+          iframeY = rect.top;
+          iframe.style.right  = "";
+          iframe.style.bottom = "";
+          iframe.style.left = iframeX + "px";
+          iframe.style.top  = iframeY + "px";
+        }
         dragStartMouseX  = mouseX;
         dragStartMouseY  = mouseY;
         dragStartIframeX = iframeX;
