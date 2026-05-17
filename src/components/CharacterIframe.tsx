@@ -26,6 +26,7 @@ function insertIframe(commonUserId: string) {
   document.addEventListener("mousemove", (e) => {
     mouseX = e.clientX;
     mouseY = e.clientY;
+    iframe.contentWindow?.postMessage({ type: "assistant:mousemove", x: e.clientX, y: e.clientY }, "*");
     if (!isDragging) return;
     iframeX = Math.max(0, Math.min(window.innerWidth  - iframeW, dragStartIframeX + (mouseX - dragStartMouseX)));
     iframeY = Math.max(0, Math.min(window.innerHeight - iframeH, dragStartIframeY + (mouseY - dragStartMouseY)));
