@@ -8,14 +8,26 @@ function insertIframe(commonUserId: string) {
   const iframe = document.createElement("iframe");
   iframe.id = "assistant-iframe";
   iframe.src = `https://assistant-chi-two.vercel.app?userId=${commonUserId}&app=platform`;
+
+  let iframeW = 220, iframeH = 300;
+  let iframeX = window.innerWidth  - iframeW;
+  let iframeY = window.innerHeight - iframeH;
   iframe.style.cssText =
-    "position:fixed;bottom:0;right:0;width:220px;height:300px;border:none;background:transparent;z-index:9999;";
+    `position:fixed;left:${iframeX}px;top:${iframeY}px;width:${iframeW}px;height:${iframeH}px;border:none;background:transparent;z-index:9999;`;
   document.body.appendChild(iframe);
 
   window.addEventListener("message", (e) => {
+    if (e.data?.type === "assistant:drag") {
+      iframeX = Math.max(0, Math.min(window.innerWidth  - iframeW, iframeX + e.data.dx));
+      iframeY = Math.max(0, Math.min(window.innerHeight - iframeH, iframeY + e.data.dy));
+      iframe.style.left = iframeX + "px";
+      iframe.style.top  = iframeY + "px";
+    }
     if (e.data?.type === "assistant:resize") {
-      iframe.style.width  = e.data.width  + "px";
-      iframe.style.height = e.data.height + "px";
+      iframeW = e.data.width;
+      iframeH = e.data.height;
+      iframe.style.width  = iframeW + "px";
+      iframe.style.height = iframeH + "px";
     }
   });
 }
