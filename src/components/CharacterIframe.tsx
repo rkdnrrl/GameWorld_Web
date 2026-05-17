@@ -4,13 +4,20 @@ import { useEffect } from "react";
 import { session, SESSION_CHANGE_EVENT, api } from "@/lib/api";
 
 function insertIframe(commonUserId: string) {
-  if (document.getElementById("_assistantIframe")) return;
+  if (document.getElementById("assistant-iframe")) return;
   const iframe = document.createElement("iframe");
-  iframe.id = "_assistantIframe";
+  iframe.id = "assistant-iframe";
   iframe.src = `https://assistant-chi-two.vercel.app?userId=${commonUserId}&app=platform`;
   iframe.style.cssText =
-    "position:fixed;bottom:0;right:0;width:220px;height:300px;border:none;background:transparent;z-index:9999;pointer-events:none;";
+    "position:fixed;bottom:0;right:0;width:220px;height:300px;border:none;background:transparent;z-index:9999;";
   document.body.appendChild(iframe);
+
+  window.addEventListener("message", (e) => {
+    if (e.data?.type === "assistant:resize") {
+      iframe.style.width  = e.data.width  + "px";
+      iframe.style.height = e.data.height + "px";
+    }
+  });
 }
 
 async function mount() {
@@ -36,7 +43,7 @@ async function mount() {
 }
 
 function unmount() {
-  document.getElementById("_assistantIframe")?.remove();
+  document.getElementById("assistant-iframe")?.remove();
 }
 
 export default function CharacterIframe() {
