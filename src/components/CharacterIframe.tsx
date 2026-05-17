@@ -16,12 +16,37 @@ function insertIframe(commonUserId: string) {
     `position:fixed;left:${iframeX}px;top:${iframeY}px;width:${iframeW}px;height:${iframeH}px;border:none;background:transparent;z-index:9999;`;
   document.body.appendChild(iframe);
 
+  // 부모 페이지에서 마우스 위치를 직접 추적 → 정확한 드래그
+  let mouseX = 0, mouseY = 0;
+  let isDragging = false;
+  let dragStartMouseX = 0, dragStartMouseY = 0;
+  let dragStartIframeX = 0, dragStartIframeY = 0;
+  let dragEndTimer: ReturnType<typeof setTimeout> | null = null;
+
+  document.addEventListener("mousemove", (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    if (!isDragging) return;
+    iframeX = Math.max(0, Math.min(window.innerWidth  - iframeW, dragStartIframeX + (mouseX - dragStartMouseX)));
+    iframeY = Math.max(0, Math.min(window.innerHeight - iframeH, dragStartIframeY + (mouseY - dragStartMouseY)));
+    iframe.style.left = iframeX + "px";
+    iframe.style.top  = iframeY + "px";
+  });
+  document.addEventListener("mouseup", () => { isDragging = false; });
+
   window.addEventListener("message", (e) => {
     if (e.data?.type === "assistant:drag") {
-      iframeX = Math.max(0, Math.min(window.innerWidth  - iframeW, iframeX + e.data.dx));
-      iframeY = Math.max(0, Math.min(window.innerHeight - iframeH, iframeY + e.data.dy));
-      iframe.style.left = iframeX + "px";
-      iframe.style.top  = iframeY + "px";
+      if (!isDragging) {
+        // 드래그 시작: 현재 마우스·iframe 위치를 기준점으로 기록
+        isDragging = true;
+        dragStartMouseX  = mouseX;
+        dragStartMouseY  = mouseY;
+        dragStartIframeX = iframeX;
+        dragStartIframeY = iframeY;
+      }
+      // 드래그 종료 감지: 150ms 동안 메시지 없으면 종료
+      if (dragEndTimer) clearTimeout(dragEndTimer);
+      dragEndTimer = setTimeout(() => { isDragging = false; }, 150);
     }
     if (e.data?.type === "assistant:resize") {
       iframeW = e.data.width;
