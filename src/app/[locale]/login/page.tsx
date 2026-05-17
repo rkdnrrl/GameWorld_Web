@@ -39,19 +39,9 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (authError) {
-        setError(t("errorInvalidCredentials"));
-        return;
-      }
-
-      const meResult = await api.me(data.session.access_token);
-      session.save({ token: data.session.access_token, user: meResult.user });
-      session.saveRefreshInfo(data.session.refresh_token, data.session.expires_at ?? 0);
+      // 플랫폼 서버 로그인 (isOperator 포함된 JWT 발급)
+      const result = await api.login({ email, password });
+      session.save({ token: result.token, user: result.user });
       router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("errorInvalidCredentials"));
