@@ -157,6 +157,19 @@ export default function Header() {
                 {t("inventory")}
               </Link>
             )}
+            {loggedIn && (
+              <Link href="/equipment" className="shrink-0 whitespace-nowrap hover:text-blue-600">
+                {t("equipmentLink")}
+              </Link>
+            )}
+            <Link href="/leaderboard" className="shrink-0 whitespace-nowrap hover:text-blue-600">
+              {t("leaderboardLink")}
+            </Link>
+            {loggedIn && (
+              <Link href="/missions" className="shrink-0 whitespace-nowrap hover:text-blue-600">
+                {t("missionsLink")}
+              </Link>
+            )}
             {loggedIn && typeof coins === "number" && (
               <span className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full bg-yellow-50 px-2 py-1 text-xs font-semibold text-yellow-600 sm:max-w-[11rem] sm:px-3 sm:text-sm dark:bg-yellow-900/30 dark:text-yellow-400">
                 <span className="shrink-0">🪙</span>

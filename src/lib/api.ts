@@ -60,6 +60,27 @@ export type AuthResponse = {
   token: string;
 };
 
+export type EquipmentItem = {
+  id: string;
+  name: string;
+  itemEmoji: string;
+  emoji: string;
+  tier: string;
+  desc: string | null;
+  stats: {
+    attackBonus?: number;
+    defenseBonus?: number;
+    speedBonus?: number;
+    hpBonus?: number;
+    durability?: number;
+    durabilityMax?: number;
+    equipSlot?: string;
+    [key: string]: unknown;
+  };
+  pixelArt: unknown;
+  createdAt: string;
+};
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -444,6 +465,22 @@ export const api = {
     );
   },
 
+  /** 일일 미션 조회 */
+  getDailyMissions(token: string) {
+    return request<{
+      date: string;
+      missions: { id: string; label: string; icon: string; target: number; reward: number; progress: number; completed: boolean; rewardPaid: boolean }[];
+    }>("/api/missions/daily", { headers: authHeaders(token) });
+  },
+
+  /** 일일 미션 보상 수령 */
+  claimMission(token: string, missionId: string) {
+    return request<{ ok: boolean; reward: number; coins: number }>(
+      "/api/missions/daily/claim",
+      { method: "POST", headers: authHeaders(token), body: JSON.stringify({ missionId }) },
+    );
+  },
+
   /** 던전 개인 최고 기록 조회 */
   getDungeonRecord(token: string) {
     return request<{ record: { dungeonMaxFloor: number; dungeonMaxKills: number } | null }>(
@@ -464,6 +501,38 @@ export const api = {
     return request<{ ok: boolean; itemId: string; itemName: string; quantity: number; spent: number; remainingCoins: number }>(
       "/api/shop/buy",
       { method: "POST", headers: authHeaders(token), body: JSON.stringify({ itemId, quantity }) },
+    );
+  },
+
+  /** 보유 장비 목록 */
+  getEquipment(token: string) {
+    return request<{ equipment: EquipmentItem[] }>(
+      "/api/craft/equipment",
+      { headers: authHeaders(token) },
+    );
+  },
+
+  /** 강화석 재고 */
+  getEnhancementStock(token: string) {
+    return request<{ stock: Record<string, number> }>(
+      "/api/craft/enhancement-stock",
+      { headers: authHeaders(token) },
+    );
+  },
+
+  /** 장비 강화 */
+  enhanceEquipment(token: string, equipId: string, itemType: string) {
+    return request<{ ok: boolean; success: boolean; stats: Record<string, number> | null }>(
+      `/api/craft/equipment/${equipId}/enhance`,
+      { method: "POST", headers: authHeaders(token), body: JSON.stringify({ itemType }) },
+    );
+  },
+
+  /** 장비 수리 */
+  repairEquipment(token: string, equipId: string, finalDur: number, totalCost: number) {
+    return request<{ ok: boolean; costPaid: number; equipment: EquipmentItem }>(
+      `/api/craft/equipment/${equipId}/repair`,
+      { method: "POST", headers: authHeaders(token), body: JSON.stringify({ finalDur, totalCost }) },
     );
   },
 };
