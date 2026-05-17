@@ -9,7 +9,7 @@ function insertIframe(commonUserId: string) {
   iframe.id = "assistant-iframe";
   iframe.src = `https://assistant-chi-two.vercel.app?userId=${commonUserId}&app=platform`;
 
-  let iframeW = 220, iframeH = 300;
+  let iframeW = 220, iframeH = 390;
   let iframeX = window.innerWidth  - iframeW;
   let iframeY = window.innerHeight - iframeH;
   iframe.style.cssText =
