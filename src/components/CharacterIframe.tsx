@@ -17,7 +17,8 @@ function insertIframe(commonUserId: string) {
 
   // 부모 마우스를 iframe으로 전달 (눈 추적용)
   document.addEventListener("mousemove", (e) => {
-    iframe.contentWindow?.postMessage({ type: "assistant:mousemove", x: e.clientX, y: e.clientY }, "*");
+    const rect = iframe.getBoundingClientRect();
+    iframe.contentWindow?.postMessage({ type: "assistant:mousemove", x: e.clientX - rect.left, y: e.clientY - rect.top }, "*");
   });
 
   // 드래그: iframe이 보내는 dx/dy를 직접 적용
