@@ -35,6 +35,7 @@
     "inventory": "Inventory",
     "logout": "Logout",
     "login": "Login",
+    "relogin": "Re-login",
     "announcements": "News",
     "shop": "Shop"
   },

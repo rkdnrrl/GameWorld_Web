@@ -35,6 +35,7 @@
     "inventory": "보관함",
     "logout": "로그아웃",
     "login": "로그인",
+    "relogin": "재로그인",
     "announcements": "공지",
     "shop": "상점"
   },

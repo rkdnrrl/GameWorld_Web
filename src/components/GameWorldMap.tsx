@@ -37,7 +37,9 @@ function gameHrefWithToken(baseUrl: string, token: string): string {
   if (!u) return u;
   const standaloneApi = (process.env.NEXT_PUBLIC_STANDALONE_GAMES_API_URL ?? "").trim();
   const apiQ = standaloneApi ? `&platformApi=${encodeURIComponent(standaloneApi)}` : "";
-  return u.replace(/\/+$/, "") + `/?token=${encodeURIComponent(token)}${apiQ}`;
+  const webOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const webQ = webOrigin ? `&platformWeb=${encodeURIComponent(webOrigin)}` : "";
+  return u.replace(/\/+$/, "") + `/?token=${encodeURIComponent(token)}${apiQ}${webQ}`;
 }
 
 interface BlobProps {

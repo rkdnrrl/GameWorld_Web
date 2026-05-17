@@ -511,6 +511,20 @@ export const session = {
     if (!raw) return false;
     return Date.now() / 1000 > Number(raw) - 60;
   },
+  /** 토큰이 이미 만료됐는지 확인 */
+  isExpired(): boolean {
+    if (typeof window === "undefined") return false;
+    const raw = localStorage.getItem(EXPIRES_AT_KEY);
+    if (!raw) return false;
+    return Date.now() / 1000 > Number(raw);
+  },
+  /** 만료까지 남은 초 (없으면 null) */
+  expiresInSeconds(): number | null {
+    if (typeof window === "undefined") return null;
+    const raw = localStorage.getItem(EXPIRES_AT_KEY);
+    if (!raw) return null;
+    return Math.floor(Number(raw) - Date.now() / 1000);
+  },
   getUser(): User | null {
     if (typeof window === "undefined") return null;
     const raw = localStorage.getItem(USER_KEY);
