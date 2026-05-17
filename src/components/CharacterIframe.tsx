@@ -15,13 +15,6 @@ function insertIframe(commonUserId: string) {
     `position:fixed;right:0;bottom:0;width:${iframeW}px;height:${iframeH}px;border:none;background:transparent;z-index:9999;`;
   document.body.appendChild(iframe);
 
-  // 부모 마우스를 iframe으로 전달 (눈 추적용)
-  document.addEventListener("mousemove", (e) => {
-    const rect = iframe.getBoundingClientRect();
-    iframe.contentWindow?.postMessage({ type: "assistant:mousemove", x: e.clientX - rect.left, y: e.clientY - rect.top }, "*");
-  });
-
-  // 드래그: iframe이 보내는 dx/dy를 직접 적용
   function switchToLeftTop() {
     if (iframeX >= 0) return;
     const rect = iframe.getBoundingClientRect();
@@ -33,16 +26,44 @@ function insertIframe(commonUserId: string) {
     iframe.style.top  = iframeY + "px";
   }
 
+  let isDragging = false;
+  let grabX = 0, grabY = 0, grabSet = false;
+
+  document.addEventListener("mousemove", (e) => {
+    if (isDragging) {
+      // 드래그 중: 첫 이벤트에서 grab 오프셋 확정
+      if (!grabSet) {
+        grabX = e.clientX - iframeX;
+        grabY = e.clientY - iframeY;
+        grabSet = true;
+      }
+      iframeX = Math.max(0, Math.min(window.innerWidth  - iframeW, e.clientX - grabX));
+      iframeY = Math.max(0, Math.min(window.innerHeight - iframeH, e.clientY - grabY));
+      iframe.style.left = iframeX + "px";
+      iframe.style.top  = iframeY + "px";
+    }
+    // 눈 추적: iframe 기준 좌표로 변환
+    iframe.contentWindow?.postMessage({ type: "assistant:mousemove", x: e.clientX - iframeX, y: e.clientY - iframeY }, "*");
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (isDragging) {
+      isDragging = false;
+      grabSet = false;
+      iframe.style.pointerEvents = "auto";
+    }
+  });
+
   window.addEventListener("message", (e) => {
     if (e.data?.type === "assistant:navigate") {
       window.open(e.data.url, "_blank");
     }
-    if (e.data?.type === "assistant:drag") {
+    if (e.data?.type === "assistant:drag" && !isDragging) {
+      // 드래그 시작: pointer-events:none으로 부모가 마우스 직접 수신
       switchToLeftTop();
-      iframeX = Math.max(0, Math.min(window.innerWidth  - iframeW, iframeX + (e.data.dx ?? 0)));
-      iframeY = Math.max(0, Math.min(window.innerHeight - iframeH, iframeY + (e.data.dy ?? 0)));
-      iframe.style.left = iframeX + "px";
-      iframe.style.top  = iframeY + "px";
+      isDragging = true;
+      grabSet = false;
+      iframe.style.pointerEvents = "none";
     }
     if (e.data?.type === "assistant:resize") {
       iframeW = e.data.width;
