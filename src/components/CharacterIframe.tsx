@@ -26,44 +26,33 @@ function insertIframe(commonUserId: string) {
     iframe.style.top  = iframeY + "px";
   }
 
-  let isDragging = false;
-  let grabX = 0, grabY = 0, grabSet = false;
-
+  // 눈 추적
   document.addEventListener("mousemove", (e) => {
-    if (isDragging) {
-      // 드래그 중: 첫 이벤트에서 grab 오프셋 확정
-      if (!grabSet) {
-        grabX = e.clientX - iframeX;
-        grabY = e.clientY - iframeY;
-        grabSet = true;
-      }
-      iframeX = Math.max(0, Math.min(window.innerWidth  - iframeW, e.clientX - grabX));
-      iframeY = Math.max(0, Math.min(window.innerHeight - iframeH, e.clientY - grabY));
-      iframe.style.left = iframeX + "px";
-      iframe.style.top  = iframeY + "px";
-    }
-    // 눈 추적: iframe 기준 좌표로 변환
     iframe.contentWindow?.postMessage({ type: "assistant:mousemove", x: e.clientX - iframeX, y: e.clientY - iframeY }, "*");
   });
 
-  document.addEventListener("mouseup", () => {
-    if (isDragging) {
-      isDragging = false;
-      grabSet = false;
-      iframe.style.pointerEvents = "auto";
-    }
-  });
+  // 드래그: rAF로 묶어서 같은 프레임의 +/-dx 피드백 상쇄
+  let pendingDx = 0, pendingDy = 0, rafPending = false;
+  function flushDrag() {
+    rafPending = false;
+    if (pendingDx === 0 && pendingDy === 0) return;
+    iframeX = Math.max(0, Math.min(window.innerWidth  - iframeW, iframeX + pendingDx));
+    iframeY = Math.max(0, Math.min(window.innerHeight - iframeH, iframeY + pendingDy));
+    iframe.style.left = iframeX + "px";
+    iframe.style.top  = iframeY + "px";
+    pendingDx = 0;
+    pendingDy = 0;
+  }
 
   window.addEventListener("message", (e) => {
     if (e.data?.type === "assistant:navigate") {
       window.open(e.data.url, "_blank");
     }
-    if (e.data?.type === "assistant:drag" && !isDragging) {
-      // 드래그 시작: pointer-events:none으로 부모가 마우스 직접 수신
+    if (e.data?.type === "assistant:drag") {
       switchToLeftTop();
-      isDragging = true;
-      grabSet = false;
-      iframe.style.pointerEvents = "none";
+      pendingDx += e.data.dx ?? 0;
+      pendingDy += e.data.dy ?? 0;
+      if (!rafPending) { rafPending = true; requestAnimationFrame(flushDrag); }
     }
     if (e.data?.type === "assistant:resize") {
       iframeW = e.data.width;
