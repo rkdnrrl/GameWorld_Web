@@ -105,29 +105,6 @@ function GameBlob({ game, cx, cy, r, bg, border, shadow, href, scale }: BlobProp
         </span>
       </div>
 
-      {/* 호버 시 설명 툴팁 — 블롭 오른쪽에 표시 */}
-      {hovered && (
-        <div style={{
-          position: "absolute",
-          left: sr * 2 + 10,
-          top: "50%",
-          transform: "translateY(-50%)",
-          background: "#fff",
-          color: "#3f3f46",
-          fontSize: Math.max(10, 12 * scale),
-          padding: `${6 * scale}px ${10 * scale}px`,
-          borderRadius: 10,
-          border: `1px solid #e4e4e7`,
-          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-          maxWidth: 160 * scale,
-          whiteSpace: "normal",
-          lineHeight: 1.5,
-          pointerEvents: "none",
-          zIndex: 20,
-        }}>
-          {game.description}
-        </div>
-      )}
     </a>
   );
 }
