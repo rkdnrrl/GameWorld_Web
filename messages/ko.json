@@ -43,7 +43,17 @@
     "configuredAt": "(설정 주소: {url})"
   },
   "AdBanner": {
-    "ariaLabel": "광고 영역"
+    "ariaLabel": "광고 영역",
+    "placeholder": "광고 영역"
+  },
+  "GameTitles": {
+    "space-fishing": "폐품 낚시",
+    "blacksmith": "대장간",
+    "dungeon": "던전 탐험",
+    "cube-multiplay": "큐브 멀티플레이",
+    "topdown-multiplay": "탑다운 멀티플레이",
+    "interior-3d": "3D 인테리어 방",
+    "alchemy": "연금술"
   },
   "Home": {
     "tagline": "친구들과 함께 즐기는 멀티플레이 게임 플랫폼",

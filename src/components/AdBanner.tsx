@@ -1,11 +1,15 @@
+import { getTranslations } from "next-intl/server";
+
 type AdBannerProps = {
   /** "leaderboard" = 728×90 (PC 상단), "banner" = 320×50 (모바일) */
   slot?: "leaderboard" | "banner";
   className?: string;
 };
 
-export default function AdBanner({ slot = "leaderboard", className = "" }: AdBannerProps) {
+export default async function AdBanner({ slot = "leaderboard", className = "" }: AdBannerProps) {
+  const t = await getTranslations("AdBanner");
   const isLeaderboard = slot === "leaderboard";
+  const size = isLeaderboard ? "728×90" : "320×50";
 
   return (
     <div
@@ -18,10 +22,10 @@ export default function AdBanner({ slot = "leaderboard", className = "" }: AdBan
       ]
         .filter(Boolean)
         .join(" ")}
-      aria-label="광고 영역"
+      aria-label={t("ariaLabel")}
       data-ad-slot={slot}
     >
-      <span className="text-xs">광고 영역 ({isLeaderboard ? "728×90" : "320×50"})</span>
+      <span className="text-xs">{t("placeholder")} ({size})</span>
     </div>
   );
 }

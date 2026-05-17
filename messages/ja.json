@@ -43,7 +43,17 @@
     "configuredAt": "(設定アドレス: {url})"
   },
   "AdBanner": {
-    "ariaLabel": "広告エリア"
+    "ariaLabel": "広告エリア",
+    "placeholder": "広告"
+  },
+  "GameTitles": {
+    "space-fishing": "ジャンク釣り",
+    "blacksmith": "鍛冶屋",
+    "dungeon": "ダンジョン",
+    "cube-multiplay": "キューブマルチ",
+    "topdown-multiplay": "トップダウンマルチ",
+    "interior-3d": "3Dインテリア",
+    "alchemy": "錬金術"
   },
   "Home": {
     "tagline": "友達と一緒に楽しむマルチプレイゲームプラットフォーム",

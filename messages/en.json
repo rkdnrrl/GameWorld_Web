@@ -43,7 +43,17 @@
     "configuredAt": "(Configured at: {url})"
   },
   "AdBanner": {
-    "ariaLabel": "Ad area"
+    "ariaLabel": "Ad area",
+    "placeholder": "Ad"
+  },
+  "GameTitles": {
+    "space-fishing": "Junk Fishing",
+    "blacksmith": "Blacksmith",
+    "dungeon": "Dungeon",
+    "cube-multiplay": "Cube Multiplay",
+    "topdown-multiplay": "Topdown Multiplay",
+    "interior-3d": "3D Interior Room",
+    "alchemy": "Alchemy"
   },
   "Home": {
     "tagline": "A multiplayer game platform to enjoy with friends",

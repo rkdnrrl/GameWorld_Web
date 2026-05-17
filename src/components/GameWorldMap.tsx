@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useTranslations } from "next-intl";
 import { SESSION_CHANGE_EVENT, session } from "@/lib/api";
 import type { Game } from "./GameCard";
 
@@ -163,6 +164,7 @@ function ConnectionLines({ layouts }: { layouts: typeof GAME_LAYOUT }) {
 }
 
 export default function GameWorldMap({ games }: { games: Game[] }) {
+  const tTitles = useTranslations("GameTitles");
   const [token, setToken] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -214,17 +216,20 @@ export default function GameWorldMap({ games }: { games: Game[] }) {
         {games.map((game) => {
           const href = token ? gameHrefWithToken(game.url, token) : game.url;
           const layout = GAME_LAYOUT[game.id];
+          // 번역된 제목 (없으면 API 제목 폴백)
+          let localTitle: string;
+          try { localTitle = tTitles(game.id as Parameters<typeof tTitles>[0]); } catch { localTitle = game.title; }
 
           if (layout) {
             return (
-              <GameBlob key={game.id} game={game} href={href} scale={scale} {...layout} />
+              <GameBlob key={game.id} game={{ ...game, title: localTitle }} href={href} scale={scale} {...layout} />
             );
           }
 
           const pos = OVERFLOW_POSITIONS[overflowIdx++ % OVERFLOW_POSITIONS.length];
           return (
             <GameBlob
-              key={game.id} game={game} href={href} scale={scale}
+              key={game.id} game={{ ...game, title: localTitle }} href={href} scale={scale}
               cx={pos.cx} cy={pos.cy} r={pos.r}
               bg="#f4f4f5" border="#a1a1aa" shadow="#d4d4d8"
             />

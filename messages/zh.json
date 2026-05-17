@@ -43,7 +43,17 @@
     "configuredAt": "（配置地址：{url}）"
   },
   "AdBanner": {
-    "ariaLabel": "广告区域"
+    "ariaLabel": "广告区域",
+    "placeholder": "广告"
+  },
+  "GameTitles": {
+    "space-fishing": "废品钓鱼",
+    "blacksmith": "铁匠铺",
+    "dungeon": "地牢探险",
+    "cube-multiplay": "方块多人",
+    "topdown-multiplay": "俯视多人",
+    "interior-3d": "3D室内装饰",
+    "alchemy": "炼金术"
   },
   "Home": {
     "tagline": "与朋友一起享受的多人游戏平台",
