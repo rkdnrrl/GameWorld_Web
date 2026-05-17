@@ -12,6 +12,8 @@ export type User = {
   isOperator?: boolean;
   /** 이메일 화이트리스트 등 포함한 운영 콘솔 접근 가능 여부 */
   operatorAccess?: boolean;
+  /** CommonDB 기준 userId — Google OAuth 사용자는 id와 다를 수 있음 */
+  commonUserId?: string;
 };
 
 /** 우주 낚시 등에서 저장하는 픽셀 스프라이트 (서버 JSONB) */

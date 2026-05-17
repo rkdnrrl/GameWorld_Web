@@ -7,11 +7,13 @@ export default function CharacterIframe() {
   useEffect(() => {
     function mount() {
       const user = session.getUser();
-      if (!user?.id) return;
+      // commonUserId 우선 — CommonDB 기준 ID (Google OAuth 사용자 대응)
+      const cuid = user?.commonUserId || user?.id;
+      if (!cuid) return;
       if (document.getElementById("_assistantIframe")) return;
       const iframe = document.createElement("iframe");
       iframe.id = "_assistantIframe";
-      iframe.src = `https://assistant-chi-two.vercel.app?userId=${user.id}&app=platform`;
+      iframe.src = `https://assistant-chi-two.vercel.app?userId=${cuid}&app=platform`;
       iframe.style.cssText =
         "position:fixed;bottom:0;right:0;width:220px;height:300px;border:none;background:transparent;z-index:9999;pointer-events:none;";
       document.body.appendChild(iframe);
