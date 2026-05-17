@@ -40,7 +40,8 @@
     "shop": "商店",
     "equipmentLink": "装备",
     "leaderboardLink": "排行榜",
-    "missionsLink": "任务"
+    "missionsLink": "任务",
+    "compendiumLink": "图鉴"
   },
   "BackendConnectionBanner": {
     "disconnected": "无法连接到后端服务器，请检查API服务器是否正在运行。",
@@ -457,5 +458,31 @@
     "claimFailed": "领取失败。",
     "backHome": "← 返回首页",
     "headerLink": "任务"
+  },
+  "Compendium": {
+    "title": "📖 图鉴",
+    "subtitle": "迄今为止的钓鱼记录",
+    "loading": "加载中…",
+    "lifetimeTotal": "累计收获",
+    "totalUnit": "条",
+    "byType": "按类型",
+    "byRarity": "按稀有度",
+    "topItems": "最常钓到的物品 TOP 10",
+    "countUnit": "次",
+    "coinsUnit": "🪙",
+    "typefish": "🐟 鱼",
+    "typeartifact": "🏺 文物",
+    "typecrystal": "💎 水晶",
+    "typecreature": "🦑 生物",
+    "typedebris": "⚙️ 残骸",
+    "typecosmic": "🌌 宇宙",
+    "typescrap": "🗑️ 废品",
+    "raritycommon": "普通",
+    "rarityrare": "稀有",
+    "rarityepic": "史诗",
+    "raritylegendary": "传说",
+    "empty": "还没有钓到任何东西。",
+    "backHome": "← 返回首页",
+    "headerLink": "图鉴"
   }
 }

@@ -40,7 +40,8 @@
     "shop": "ショップ",
     "equipmentLink": "装備",
     "leaderboardLink": "ランキング",
-    "missionsLink": "ミッション"
+    "missionsLink": "ミッション",
+    "compendiumLink": "図鑑"
   },
   "BackendConnectionBanner": {
     "disconnected": "バックエンドサーバーに接続できません。APIサーバーが起動しているか確認してください。",
@@ -457,5 +458,31 @@
     "claimFailed": "報酬の受け取りに失敗しました。",
     "backHome": "← ホームへ",
     "headerLink": "ミッション"
+  },
+  "Compendium": {
+    "title": "📖 図鑑",
+    "subtitle": "これまでの釣果記録",
+    "loading": "読み込み中…",
+    "lifetimeTotal": "累計収穫",
+    "totalUnit": "匹",
+    "byType": "種類別",
+    "byRarity": "レアリティ別",
+    "topItems": "よく釣れたアイテム TOP 10",
+    "countUnit": "回",
+    "coinsUnit": "🪙",
+    "typefish": "🐟 魚",
+    "typeartifact": "🏺 遺物",
+    "typecrystal": "💎 クリスタル",
+    "typecreature": "🦑 生物",
+    "typedebris": "⚙️ 残骸",
+    "typecosmic": "🌌 宇宙",
+    "typescrap": "🗑️ 廃品",
+    "raritycommon": "コモン",
+    "rarityrare": "レア",
+    "rarityepic": "エピック",
+    "raritylegendary": "レジェンダリー",
+    "empty": "まだ釣果がありません。",
+    "backHome": "← ホームへ",
+    "headerLink": "図鑑"
   }
 }

@@ -40,7 +40,8 @@
     "shop": "상점",
     "equipmentLink": "장비",
     "leaderboardLink": "랭킹",
-    "missionsLink": "미션"
+    "missionsLink": "미션",
+    "compendiumLink": "도감"
   },
   "BackendConnectionBanner": {
     "disconnected": "백엔드 서버에 연결되지 않았습니다. API 서버가 켜져 있는지 확인해 주세요.",
@@ -457,5 +458,31 @@
     "claimFailed": "보상 수령에 실패했습니다.",
     "backHome": "← 홈으로",
     "headerLink": "미션"
+  },
+  "Compendium": {
+    "title": "📖 낚시 도감",
+    "subtitle": "지금까지 잡은 아이템 기록",
+    "loading": "불러오는 중…",
+    "lifetimeTotal": "누적 수확",
+    "totalUnit": "마리",
+    "byType": "종류별",
+    "byRarity": "희귀도별",
+    "topItems": "많이 잡은 아이템 TOP 10",
+    "countUnit": "회",
+    "coinsUnit": "🪙",
+    "typefish": "🐟 물고기",
+    "typeartifact": "🏺 유물",
+    "typecrystal": "💎 크리스탈",
+    "typecreature": "🦑 생물",
+    "typedebris": "⚙️ 잔해",
+    "typecosmic": "🌌 우주",
+    "typescrap": "🗑️ 폐품",
+    "raritycommon": "일반",
+    "rarityrare": "희귀",
+    "rarityepic": "에픽",
+    "raritylegendary": "전설",
+    "empty": "아직 잡은 아이템이 없습니다.",
+    "backHome": "← 홈으로",
+    "headerLink": "도감"
   }
 }

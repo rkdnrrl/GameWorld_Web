@@ -465,6 +465,16 @@ export const api = {
     );
   },
 
+  /** 낚시 도감 */
+  getFishingCompendium(token: string) {
+    return request<{
+      lifetimeTotal: number;
+      byType: { type: string; count: number; coins: number }[];
+      byRarity: { rarity: string; count: number }[];
+      topItems: { name: string; emoji: string; type: string; rarity: string; count: number }[];
+    }>("/api/catches/compendium", { headers: authHeaders(token) });
+  },
+
   /** 일일 미션 조회 */
   getDailyMissions(token: string) {
     return request<{

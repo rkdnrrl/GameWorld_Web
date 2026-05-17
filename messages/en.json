@@ -40,7 +40,8 @@
     "shop": "Shop",
     "equipmentLink": "Equipment",
     "leaderboardLink": "Rankings",
-    "missionsLink": "Missions"
+    "missionsLink": "Missions",
+    "compendiumLink": "Compendium"
   },
   "BackendConnectionBanner": {
     "disconnected": "Cannot connect to backend server. Please check if the API server is running.",
@@ -457,5 +458,31 @@
     "claimFailed": "Failed to claim reward.",
     "backHome": "← Home",
     "headerLink": "Missions"
+  },
+  "Compendium": {
+    "title": "📖 Compendium",
+    "subtitle": "Your fishing catch records",
+    "loading": "Loading…",
+    "lifetimeTotal": "Total Catches",
+    "totalUnit": "",
+    "byType": "By Type",
+    "byRarity": "By Rarity",
+    "topItems": "Top 10 Most Caught",
+    "countUnit": "×",
+    "coinsUnit": "🪙",
+    "typefish": "🐟 Fish",
+    "typeartifact": "🏺 Artifact",
+    "typecrystal": "💎 Crystal",
+    "typecreature": "🦑 Creature",
+    "typedebris": "⚙️ Debris",
+    "typecosmic": "🌌 Cosmic",
+    "typescrap": "🗑️ Scrap",
+    "raritycommon": "Common",
+    "rarityrare": "Rare",
+    "rarityepic": "Epic",
+    "raritylegendary": "Legendary",
+    "empty": "No catches yet.",
+    "backHome": "← Home",
+    "headerLink": "Compendium"
   }
 }
