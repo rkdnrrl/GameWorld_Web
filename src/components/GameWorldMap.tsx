@@ -168,15 +168,9 @@ export default function GameWorldMap({ games }: { games: Game[] }) {
           position: "relative",
           width: scale < 0.6 ? canvasMinW : "100%",
           paddingBottom: scale < 0.6 ? canvasMinW * 0.62 : "62%",
-          background: "linear-gradient(145deg, #f0f7ff 0%, #f5f0ff 50%, #fff5f0 100%)",
-          borderRadius: 16,
-          overflow: "hidden",
-          border: "1px solid #e4e4e7",
-          boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
         }}
       >
-        {/* 배경 점선 그리드 */}
-        <DotGrid />
+
 
         {games.map((game) => {
           const href = token ? gameHrefWithToken(game.url, token) : game.url;
@@ -203,19 +197,3 @@ export default function GameWorldMap({ games }: { games: Game[] }) {
   );
 }
 
-function DotGrid() {
-  return (
-    <svg
-      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
-      viewBox="0 0 100 100"
-      preserveAspectRatio="xMidYMid slice"
-    >
-      <defs>
-        <pattern id="dots" x="0" y="0" width="5" height="5" patternUnits="userSpaceOnUse">
-          <circle cx="2.5" cy="2.5" r="0.4" fill="#c7d2fe" opacity="0.6" />
-        </pattern>
-      </defs>
-      <rect width="100" height="100" fill="url(#dots)" />
-    </svg>
-  );
-}

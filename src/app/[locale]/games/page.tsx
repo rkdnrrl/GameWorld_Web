@@ -64,12 +64,6 @@ export default async function GamesPage() {
 
   return (
     <section className="mx-auto w-full max-w-6xl min-w-0 px-4 py-10 sm:px-6 sm:py-14">
-      <div className="mb-6 min-w-0">
-        <h1 className="break-words text-2xl font-bold tracking-tight sm:text-3xl">
-          {t("title")}
-        </h1>
-      </div>
-
       <div className="mb-6">
         <AdBanner slot="leaderboard" />
         <AdBanner slot="banner" />
