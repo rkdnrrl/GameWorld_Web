@@ -1,5 +1,6 @@
 import GameCard, { type Game, type GameCategory } from "@/components/GameCard";
 import AdBanner from "@/components/AdBanner";
+import GameWorldMap from "@/components/GameWorldMap";
 import { getTranslations } from "next-intl/server";
 import {
   GAME_CATEGORY_ORDER,
@@ -62,39 +63,41 @@ export default async function GamesPage() {
   const byCat = groupGamesByCategory(games);
 
   return (
-    <section className="mx-auto w-full max-w-6xl min-w-0 px-4 py-12 sm:px-6 sm:py-16">
-      <div className="mb-10 min-w-0">
+    <section className="mx-auto w-full max-w-6xl min-w-0 px-4 py-10 sm:px-6 sm:py-14">
+      <div className="mb-6 min-w-0">
         <h1 className="break-words text-2xl font-bold tracking-tight sm:text-3xl">
           {t("title")}
         </h1>
-        <p className="mt-2 break-words text-sm text-zinc-500">
-          {t("subtitle")}
+        <p className="mt-1.5 break-words text-sm text-zinc-500">
+          게임을 클릭하면 바로 입장합니다
         </p>
       </div>
 
-      <div className="mb-8">
+      <div className="mb-6">
         <AdBanner slot="leaderboard" />
         <AdBanner slot="banner" />
       </div>
 
-      <div className="space-y-14">
-        {GAME_CATEGORY_ORDER.map((cat) => {
-          const list = byCat.get(cat) ?? [];
-          if (list.length === 0) return null;
-          return (
-            <div key={cat}>
-              <h2 className="mb-4 break-words text-lg font-semibold tracking-tight text-zinc-900 sm:text-xl dark:text-zinc-50">
-                {t(CATEGORY_LABEL_KEY[cat])}
-              </h2>
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {list.map((game) => (
-                  <GameCard key={game.id} game={game} />
-                ))}
-              </div>
+      {/* 월드맵 — earn 카테고리 게임만 */}
+      <GameWorldMap games={byCat.get("earn") ?? games} />
+
+      {/* 멀티플레이 / 꾸미기 게임은 기존 카드로 */}
+      {GAME_CATEGORY_ORDER.filter(cat => cat !== "earn").map((cat) => {
+        const list = byCat.get(cat) ?? [];
+        if (list.length === 0) return null;
+        return (
+          <div key={cat} className="mt-12">
+            <h2 className="mb-4 break-words text-lg font-semibold tracking-tight text-zinc-900 sm:text-xl dark:text-zinc-50">
+              {t(CATEGORY_LABEL_KEY[cat])}
+            </h2>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {list.map((game) => (
+                <GameCard key={game.id} game={game} />
+              ))}
             </div>
-          );
-        })}
-      </div>
+          </div>
+        );
+      })}
     </section>
   );
 }
