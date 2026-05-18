@@ -441,11 +441,15 @@ export default function OperatorSharedPixelArtsPage() {
                 </div>
                 <label className="mb-2 block text-sm">
                   <span className="text-zinc-600 dark:text-zinc-400">rarity</span>
-                  <input
+                  <select
                     value={editRarity}
                     onChange={(e) => setEditRarity(e.target.value)}
                     className="mt-1 w-full rounded border border-zinc-300 px-2 py-1.5 font-mono text-sm dark:border-zinc-600 dark:bg-zinc-950"
-                  />
+                  >
+                    {["common","uncommon","rare","epic","legendary","mythic","divine"].map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
                 </label>
                 <label className="mb-2 block text-sm">
                   <span className="text-zinc-600 dark:text-zinc-400">type</span>
