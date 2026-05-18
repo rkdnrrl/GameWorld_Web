@@ -199,16 +199,20 @@ export default function CharacterWidget({
         }} />
       </div>
 
-      {/* 드래그 바 (—) */}
+      {/* 드래그 바 (—) — 상단 항상 표시 */}
       <div
         onMouseDown={startDrag}
         onTouchStart={startDrag}
         style={{
-          position: "absolute", top: "28%", left: 32, right: 0, height: 48, zIndex: 2,
+          position: "absolute", top: 0, left: 32, right: 0, height: 28, zIndex: 2,
           cursor: "grab", display: "flex", alignItems: "center", justifyContent: "center",
         }}
       >
-        <div style={{ width: 44, height: 5, borderRadius: 3, background: "rgba(255,255,255,0.35)" }} />
+        <div style={{
+          width: 48, height: 6, borderRadius: 3,
+          background: "rgba(0,0,0,0.55)",
+          boxShadow: "0 0 0 1px rgba(255,255,255,0.7), 0 1px 2px rgba(0,0,0,0.3)",
+        }} />
       </div>
 
       {/* 차단 오버레이 (드래그/리사이즈 중) */}
