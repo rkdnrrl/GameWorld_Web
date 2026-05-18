@@ -193,20 +193,15 @@ export default function GameWorldMap({ games }: { games: Game[] }) {
   }, []);
 
   let overflowIdx = 0;
-  const canvasMinW = 600;
 
   return (
-    <div style={{
-      width: "100%",
-      overflowX: scale < 0.6 ? "auto" : "visible",
-      userSelect: "none",
-    }}>
+    <div style={{ width: "100%", userSelect: "none" }}>
       <div
         onMouseDown={(e) => e.preventDefault()}
         style={{
           position: "relative",
-          width: scale < 0.6 ? canvasMinW : "100%",
-          paddingBottom: scale < 0.6 ? canvasMinW * 0.68 : "68%",
+          width: "100%",
+          paddingBottom: "80%",
           userSelect: "none",
           WebkitUserSelect: "none",
         }}
