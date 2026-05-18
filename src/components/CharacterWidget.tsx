@@ -69,18 +69,13 @@ export default function CharacterWidget({
     localStorage.setItem(`${storageKey}_size`, JSON.stringify(size));
   }, [size, storageKey]);
 
-  // 눈 추적: iframe 영역(툴바 아래) 기준 좌표로 변환
+  // 눈 추적: 마우스 위치를 iframe 내부 좌표(220×390 기준)로 변환
   useEffect(() => {
-    const TOOLBAR_H = 32;
     function onMove(e: MouseEvent) {
       const p = posRef.current;
       const s = sizeRef.current;
-      // wrapper의 left/top: 드래그 후엔 p, 아니면 우하단 고정
-      const wrapperLeft = p.x >= 0 ? p.x : window.innerWidth  - s.w;
-      const wrapperTop  = p.y >= 0 ? p.y : window.innerHeight - (s.h + TOOLBAR_H) - bottomOffset;
-      // iframe은 wrapper 안에서 TOOLBAR_H만큼 아래
-      const elX = wrapperLeft;
-      const elY = wrapperTop + TOOLBAR_H;
+      const elX = p.x >= 0 ? p.x : window.innerWidth  - s.w;
+      const elY = p.y >= 0 ? p.y : window.innerHeight - s.h - bottomOffset;
       const scale = s.w / NATURAL_W;
       iframeRef.current?.contentWindow?.postMessage({
         type: "assistant:mousemove",
@@ -121,9 +116,8 @@ export default function CharacterWidget({
       const t = "touches" in ev ? ev.touches[0] : (ev as MouseEvent);
       const cx = t.clientX;
       const cy = t.clientY;
-      const wrapperH = sizeRef.current.h + 32; // toolbar 포함
       const nx = Math.max(0, Math.min(window.innerWidth  - sizeRef.current.w, sX + cx - sMx));
-      const ny = Math.max(0, Math.min(window.innerHeight - wrapperH, sY + cy - sMy));
+      const ny = Math.max(0, Math.min(window.innerHeight - sizeRef.current.h, sY + cy - sMy));
       posRef.current = { x: nx, y: ny };
       elNN.style.left = nx + "px";
       elNN.style.top  = ny + "px";
