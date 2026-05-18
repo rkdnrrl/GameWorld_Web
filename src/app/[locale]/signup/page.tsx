@@ -3,7 +3,6 @@
 import { Link } from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
 import { useEffect, useState, FormEvent } from "react";
-import { supabase } from "@/lib/supabase";
 import { api, session } from "@/lib/api";
 import { useLoggedIn } from "@/lib/useLoggedIn";
 import { useTranslations } from "next-intl";
