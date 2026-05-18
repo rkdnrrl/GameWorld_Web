@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { SESSION_CHANGE_EVENT, session } from "@/lib/api";
 import type { Game } from "./GameCard";
 
