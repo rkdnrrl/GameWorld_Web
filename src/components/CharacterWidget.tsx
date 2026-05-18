@@ -181,21 +181,22 @@ export default function CharacterWidget({
         background: "transparent",
       }}
     >
-      {/* 리사이즈 핸들 (┌) */}
+      {/* 리사이즈 핸들 (┌) — 좌상단 */}
       <div
         onMouseDown={startResize}
         onTouchStart={startResize}
         style={{
-          position: "absolute", top: "28%", left: 0,
-          width: 32, height: 48, zIndex: 2,
-          cursor: "nwse-resize", display: "flex", alignItems: "center", padding: 8,
+          position: "absolute", top: 0, left: 0,
+          width: 32, height: 32, zIndex: 2,
+          cursor: "nwse-resize", display: "flex", alignItems: "center", justifyContent: "center",
         }}
       >
         <div style={{
           width: 14, height: 14,
-          borderTop:  "2.5px solid rgba(255,255,255,0.5)",
-          borderLeft: "2.5px solid rgba(255,255,255,0.5)",
+          borderTop:  "3px solid rgba(0,0,0,0.6)",
+          borderLeft: "3px solid rgba(0,0,0,0.6)",
           borderRadius: "2px 0 0 0",
+          filter: "drop-shadow(0 0 1px rgba(255,255,255,0.9))",
         }} />
       </div>
 
