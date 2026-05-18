@@ -9,7 +9,22 @@ import { useTranslations } from "next-intl";
 type FishingItemStatus = {
   name: string;
   emoji: string;
+  tier: string;
   hasCache: boolean;
+};
+
+const TIER_COLOR: Record<string, string> = {
+  common:    "text-zinc-400",
+  uncommon:  "text-green-500",
+  rare:      "text-blue-500",
+  epic:      "text-purple-500",
+  legendary: "text-orange-500",
+  mythic:    "text-rose-500",
+  divine:    "text-yellow-400",
+};
+const TIER_LABEL: Record<string, string> = {
+  common: "일반", uncommon: "고급", rare: "희귀",
+  epic: "에픽", legendary: "전설", mythic: "신화", divine: "신성",
 };
 
 export default function OperatorFishingItemsPage() {
@@ -28,6 +43,7 @@ export default function OperatorFishingItemsPage() {
   const [genErrors, setGenErrors] = useState<Record<string, string>>({});
 
   const [filter, setFilter] = useState<"all" | "missing" | "cached">("missing");
+  const [tierFilter, setTierFilter] = useState<string>("all");
 
   const loadStatus = useCallback(async () => {
     const tk = session.getToken();
@@ -77,8 +93,9 @@ export default function OperatorFishingItemsPage() {
   }
 
   const filteredItems = items.filter((i) => {
-    if (filter === "missing") return !i.hasCache;
-    if (filter === "cached") return i.hasCache;
+    if (filter === "missing") { if (i.hasCache) return false; }
+    else if (filter === "cached") { if (!i.hasCache) return false; }
+    if (tierFilter !== "all" && i.tier !== tierFilter) return false;
     return true;
   });
 
@@ -139,6 +156,23 @@ export default function OperatorFishingItemsPage() {
         </div>
       )}
 
+      {/* 등급 필터 */}
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        {["all", "common", "uncommon", "rare", "epic", "legendary", "mythic", "divine"].map((t) => (
+          <button
+            key={t}
+            onClick={() => setTierFilter(t)}
+            className={`rounded-full px-3 py-0.5 text-xs font-medium border transition-colors ${
+              tierFilter === t
+                ? "border-blue-500 bg-blue-500 text-white"
+                : `border-zinc-300 dark:border-zinc-600 ${t !== "all" ? TIER_COLOR[t] : "text-zinc-500"} hover:border-zinc-500`
+            }`}
+          >
+            {t === "all" ? "전체" : TIER_LABEL[t]}
+          </button>
+        ))}
+      </div>
+
       {/* 필터 탭 */}
       <div className="mb-4 flex gap-2 border-b border-zinc-200 dark:border-zinc-700">
         {(["missing", "cached", "all"] as const).map((f) => (
@@ -180,6 +214,9 @@ export default function OperatorFishingItemsPage() {
               <span className="text-2xl w-8 text-center">{item.emoji}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{item.name}</p>
+                <p className={`text-xs font-medium ${TIER_COLOR[item.tier] || "text-zinc-400"}`}>
+                  {TIER_LABEL[item.tier] || item.tier}
+                </p>
                 {errMsg && <p className="text-xs text-red-500 mt-0.5">{errMsg}</p>}
               </div>
               <div className="flex items-center gap-2">
