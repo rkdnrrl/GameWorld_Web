@@ -179,16 +179,25 @@ export default function GameWorldMap({ games }: { games: Game[] }) {
   }, []);
 
   useEffect(() => {
+    let rafId: number | null = null;
     const update = () => {
-      if (containerRef.current) {
-        const w = containerRef.current.offsetWidth;
-        setScale(Math.max(0.4, Math.min(1, w / 1000)));
-      }
+      if (rafId !== null) return; // 이미 예약됨 — 건너뜀
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        if (containerRef.current) {
+          const w = containerRef.current.offsetWidth;
+          setScale((prev) => {
+            const next = Math.max(0.4, Math.min(1, w / 1000));
+            // 변화가 미미하면 리렌더 생략
+            return Math.abs(next - prev) < 0.005 ? prev : next;
+          });
+        }
+      });
     };
     update();
     const ro = new ResizeObserver(update);
     if (containerRef.current) ro.observe(containerRef.current);
-    return () => ro.disconnect();
+    return () => { ro.disconnect(); if (rafId !== null) cancelAnimationFrame(rafId); };
   }, []);
 
   let overflowIdx = 0;
