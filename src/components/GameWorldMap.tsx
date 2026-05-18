@@ -168,6 +168,7 @@ function ConnectionLines({ layouts }: { layouts: typeof GAME_LAYOUT }) {
 
 export default function GameWorldMap({ games }: { games: Game[] }) {
   const tTitles = useTranslations("GameTitles");
+  const locale = useLocale();
   const [token, setToken] = useState<string | null>(null);
   const [scale, setScale] = useState(1);
 
