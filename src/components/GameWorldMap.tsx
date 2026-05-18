@@ -213,7 +213,7 @@ export default function GameWorldMap({ games }: { games: Game[] }) {
 
         {/* 게임 블롭 */}
         {games.map((game) => {
-          const href = token ? gameHrefWithToken(game.url, token) : game.url;
+          const href = token ? gameHrefWithToken(game.url, token, locale) : game.url;
           const layout = GAME_LAYOUT[game.id];
           // 번역된 제목 (없으면 API 제목 폴백)
           let localTitle: string;
