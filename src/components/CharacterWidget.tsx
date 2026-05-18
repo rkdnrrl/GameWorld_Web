@@ -176,7 +176,6 @@ export default function CharacterWidget({
   const scale     = size.w / NATURAL_W;
   const blocked   = isResizing || isDragging;
   const TOOLBAR_H = 32;
-  const wrapperH  = size.h + TOOLBAR_H;
 
   return (
     <div
@@ -185,12 +184,35 @@ export default function CharacterWidget({
         position: "fixed",
         ...(pos.x >= 0 ? { left: pos.x, top: pos.y } : { right: 0, bottom: bottomOffset }),
         width: size.w,
-        height: wrapperH,
+        height: size.h,
         zIndex: 9999,
         background: "transparent",
       }}
     >
-      {/* 툴바 — 솔리드 배경, iframe 위쪽 */}
+      {/* iframe — 위젯 전체 영역 */}
+      <iframe
+        ref={iframeRef}
+        src={`${IFRAME_SRC}?userId=${userId}&app=${app}`}
+        style={{
+          width: NATURAL_W,
+          height: NATURAL_H,
+          border: "none",
+          background: "transparent",
+          pointerEvents: blocked ? "none" : "auto",
+          transform: `scale(${scale})`,
+          transformOrigin: "bottom right",
+          position: "absolute",
+          bottom: 0,
+          right: 0,
+          willChange: "transform",
+        }}
+        allow="autoplay"
+      />
+
+      {/* 차단 오버레이 (드래그/리사이즈 중) — iframe 위, 툴바 아래 */}
+      {blocked && <div style={{ position: "absolute", inset: 0, zIndex: 2 }} />}
+
+      {/* 툴바 — 캐릭터 위에 오버레이 */}
       <div style={{
         position: "absolute", top: 0, left: 0, right: 0, height: TOOLBAR_H,
         display: "flex", alignItems: "center",
@@ -199,7 +221,7 @@ export default function CharacterWidget({
         boxShadow: "0 -1px 0 rgba(255,255,255,0.15) inset",
         zIndex: 3,
       }}>
-        {/* 리사이즈 핸들 (좌) */}
+        {/* 리사이즈 핸들 */}
         <div
           onMouseDown={startResize}
           onTouchStart={startResize}
@@ -215,7 +237,7 @@ export default function CharacterWidget({
             borderRadius: "2px 0 0 0",
           }} />
         </div>
-        {/* 드래그 바 (가운데 그래버) */}
+        {/* 드래그 바 */}
         <div
           onMouseDown={startDrag}
           onTouchStart={startDrag}
@@ -227,31 +249,6 @@ export default function CharacterWidget({
           <div style={{ width: 40, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.6)" }} />
           <div style={{ width: 40, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.6)", marginLeft: 4 }} />
         </div>
-      </div>
-
-      {/* 차단 오버레이 (드래그/리사이즈 중) */}
-      {blocked && <div style={{ position: "absolute", inset: 0, zIndex: 1 }} />}
-
-      {/* iframe 영역 — 툴바 아래 */}
-      <div style={{ position: "absolute", top: TOOLBAR_H, left: 0, right: 0, bottom: 0 }}>
-        <iframe
-          ref={iframeRef}
-          src={`${IFRAME_SRC}?userId=${userId}&app=${app}`}
-          style={{
-            width: NATURAL_W,
-            height: NATURAL_H,
-            border: "none",
-            background: "transparent",
-            pointerEvents: blocked ? "none" : "auto",
-            transform: `scale(${scale})`,
-            transformOrigin: "bottom right",
-            position: "absolute",
-            bottom: 0,
-            right: 0,
-            willChange: "transform",
-          }}
-          allow="autoplay"
-        />
       </div>
     </div>
   );
