@@ -95,8 +95,9 @@ export default function CharacterWidget({
   function startDrag(e: React.MouseEvent | React.TouchEvent) {
     e.preventDefault();
     e.stopPropagation();
-    const el = wrapperRef.current;
+    const el: HTMLDivElement | null = wrapperRef.current;
     if (!el) return;
+    const elNN: HTMLDivElement = el; // 클로저용 non-null 별칭
 
     // right/bottom으로 위치 잡혀있으면 left/top으로 전환
     if (posRef.current.x < 0) {
