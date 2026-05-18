@@ -242,6 +242,13 @@ export const api = {
       headers: authHeaders(token),
     });
   },
+  /** Supabase 토큰 → 플랫폼 JWT (7일 만료) 교환 */
+  exchange(token: string) {
+    return request<{ token: string }>("/api/auth/exchange", {
+      method: "POST",
+      headers: authHeaders(token),
+    });
+  },
   /**
    * 닉네임 변경. 백엔드 예: `PATCH /api/auth/me` body `{ nickname }`
    * 응답은 `{ user }` 또는 로그인과 동일한 `{ user, token }` 모두 허용
