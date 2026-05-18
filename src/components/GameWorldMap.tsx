@@ -85,7 +85,7 @@ function GameBlob({ game, cx, cy, r, bg, border, shadow, href, scale }: BlobProp
         alignItems: "center",
         justifyContent: "center",
         gap: Math.max(3, 5 * scale),
-        transition: "all .22s cubic-bezier(.34,1.56,.64,1)",
+        transition: "transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .22s ease",
         transform: hovered ? "scale(1.06)" : "scale(1)",
         cursor: "pointer",
         flexShrink: 0,
