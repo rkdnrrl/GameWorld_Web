@@ -32,14 +32,15 @@ const OVERFLOW_POSITIONS = [
   { cx: 70, cy: 82, r: 50 },
 ];
 
-function gameHrefWithToken(baseUrl: string, token: string): string {
+function gameHrefWithToken(baseUrl: string, token: string, locale: string): string {
   const u = String(baseUrl || "").trim();
   if (!u) return u;
   const standaloneApi = (process.env.NEXT_PUBLIC_STANDALONE_GAMES_API_URL ?? "").trim();
   const apiQ = standaloneApi ? `&platformApi=${encodeURIComponent(standaloneApi)}` : "";
   const webOrigin = typeof window !== "undefined" ? window.location.origin : "";
   const webQ = webOrigin ? `&platformWeb=${encodeURIComponent(webOrigin)}` : "";
-  return u.replace(/\/+$/, "") + `/?token=${encodeURIComponent(token)}${apiQ}${webQ}`;
+  const langQ = locale ? `&lang=${encodeURIComponent(locale)}` : "";
+  return u.replace(/\/+$/, "") + `/?token=${encodeURIComponent(token)}${apiQ}${webQ}${langQ}`;
 }
 
 interface BlobProps {
