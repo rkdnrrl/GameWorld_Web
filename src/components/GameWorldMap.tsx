@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { SESSION_CHANGE_EVENT, session } from "@/lib/api";
 import type { Game } from "./GameCard";
@@ -168,7 +168,6 @@ function ConnectionLines({ layouts }: { layouts: typeof GAME_LAYOUT }) {
 export default function GameWorldMap({ games }: { games: Game[] }) {
   const tTitles = useTranslations("GameTitles");
   const [token, setToken] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
 
   useEffect(() => {
@@ -179,25 +178,18 @@ export default function GameWorldMap({ games }: { games: Game[] }) {
   }, []);
 
   useEffect(() => {
-    let rafId: number | null = null;
+    // window.innerWidth 기준 — 맵 컨테이너 자체를 감시하면
+    // scale 변화 → 컨테이너 크기 변화 → scale 변화 무한루프 발생
     const update = () => {
-      if (rafId !== null) return; // 이미 예약됨 — 건너뜀
-      rafId = requestAnimationFrame(() => {
-        rafId = null;
-        if (containerRef.current) {
-          const w = containerRef.current.offsetWidth;
-          setScale((prev) => {
-            const next = Math.max(0.4, Math.min(1, w / 1000));
-            // 변화가 미미하면 리렌더 생략
-            return Math.abs(next - prev) < 0.005 ? prev : next;
-          });
-        }
+      const w = window.innerWidth;
+      setScale((prev) => {
+        const next = Math.max(0.4, Math.min(1, w / 1000));
+        return Math.abs(next - prev) < 0.005 ? prev : next;
       });
     };
     update();
-    const ro = new ResizeObserver(update);
-    if (containerRef.current) ro.observe(containerRef.current);
-    return () => { ro.disconnect(); if (rafId !== null) cancelAnimationFrame(rafId); };
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
   }, []);
 
   let overflowIdx = 0;
@@ -210,7 +202,6 @@ export default function GameWorldMap({ games }: { games: Game[] }) {
       userSelect: "none",
     }}>
       <div
-        ref={containerRef}
         onMouseDown={(e) => e.preventDefault()}
         style={{
           position: "relative",
