@@ -9,7 +9,9 @@ function insertIframe(commonUserId: string) {
   iframe.id = "assistant-iframe";
   iframe.src = `https://assistant-chi-two.vercel.app?userId=${commonUserId}&app=platform`;
 
-  let iframeW = 220, iframeH = 390;
+  const isMobile = window.innerWidth < 480;
+  let iframeW = isMobile ? 120 : 220;
+  let iframeH = isMobile ? 213 : 390;
   let iframeX = -1, iframeY = -1; // -1 = 아직 left/top으로 전환 안 됨 (right/bottom 기준)
   iframe.style.cssText =
     `position:fixed;right:0;bottom:0;width:${iframeW}px;height:${iframeH}px;border:none;background:transparent;z-index:9999;`;
