@@ -125,8 +125,8 @@ export default function CharacterWidget({
       const nx = Math.max(0, Math.min(window.innerWidth  - sizeRef.current.w, sX + cx - sMx));
       const ny = Math.max(0, Math.min(window.innerHeight - wrapperH, sY + cy - sMy));
       posRef.current = { x: nx, y: ny };
-      el.style.left = nx + "px";
-      el.style.top  = ny + "px";
+      elNN.style.left = nx + "px";
+      elNN.style.top  = ny + "px";
     }
     function onUp() {
       setIsDragging(false);
