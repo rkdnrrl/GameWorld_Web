@@ -42,6 +42,7 @@ export default async function LocaleLayout({
       <body className="flex min-h-full min-w-0 flex-col overflow-x-hidden bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
         <NextIntlClientProvider messages={messages}>
           <SessionExpiredBanner />
+          <SessionRefresher />
           <CharacterIframe />
           <Header />
           <BackendConnectionBanner enabled={showBackendConnectionBanner} />
