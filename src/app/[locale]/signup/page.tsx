@@ -55,30 +55,13 @@ export default function SignupPage() {
     setSubmitting(true);
 
     try {
-      const { data, error: authError } = await supabase.auth.signUp({
+      // Common API 회원가입 (CommonDB가 단일 사용자 소스)
+      const result = await api.signup({
         email: form.email,
+        nickname: form.nickname.trim(),
         password: form.password,
-        options: {
-          data: { nickname: form.nickname.trim() },
-        },
       });
-
-      if (authError) {
-        setError(authError.message);
-        return;
-      }
-      if (!data.session) {
-        setError(t("emailConfirmationSent"));
-        return;
-      }
-
-      const meResult = await api.me(data.session.access_token);
-      let platformToken = data.session.access_token;
-      try {
-        const ex = await api.exchange(data.session.access_token);
-        if (ex.token) platformToken = ex.token;
-      } catch { /* 폴백 */ }
-      session.save({ token: platformToken, user: meResult.user });
+      session.save({ token: result.token, user: result.user });
       router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("errorInvalidEmail"));
