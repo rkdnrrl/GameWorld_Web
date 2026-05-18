@@ -166,8 +166,10 @@ export default function CharacterWidget({
     document.addEventListener("touchend",  onUp);
   }
 
-  const scale   = size.w / NATURAL_W;
-  const blocked = isResizing || isDragging;
+  const scale     = size.w / NATURAL_W;
+  const blocked   = isResizing || isDragging;
+  const TOOLBAR_H = 32;
+  const wrapperH  = size.h + TOOLBAR_H;
 
   return (
     <div
@@ -176,68 +178,74 @@ export default function CharacterWidget({
         position: "fixed",
         ...(pos.x >= 0 ? { left: pos.x, top: pos.y } : { right: 0, bottom: bottomOffset }),
         width: size.w,
-        height: size.h,
+        height: wrapperH,
         zIndex: 9999,
         background: "transparent",
       }}
     >
-      {/* 리사이즈 핸들 (┌) — 좌상단 */}
-      <div
-        onMouseDown={startResize}
-        onTouchStart={startResize}
-        style={{
-          position: "absolute", top: 0, left: 0,
-          width: 32, height: 32, zIndex: 2,
-          cursor: "nwse-resize", display: "flex", alignItems: "center", justifyContent: "center",
-        }}
-      >
-        <div style={{
-          width: 14, height: 14,
-          borderTop:  "3px solid rgba(0,0,0,0.6)",
-          borderLeft: "3px solid rgba(0,0,0,0.6)",
-          borderRadius: "2px 0 0 0",
-          filter: "drop-shadow(0 0 1px rgba(255,255,255,0.9))",
-        }} />
-      </div>
-
-      {/* 드래그 바 (—) — 상단 항상 표시 */}
-      <div
-        onMouseDown={startDrag}
-        onTouchStart={startDrag}
-        style={{
-          position: "absolute", top: 0, left: 32, right: 0, height: 28, zIndex: 2,
-          cursor: "grab", display: "flex", alignItems: "center", justifyContent: "center",
-        }}
-      >
-        <div style={{
-          width: 48, height: 6, borderRadius: 3,
-          background: "rgba(0,0,0,0.55)",
-          boxShadow: "0 0 0 1px rgba(255,255,255,0.7), 0 1px 2px rgba(0,0,0,0.3)",
-        }} />
+      {/* 툴바 — 솔리드 배경, iframe 위쪽 */}
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, height: TOOLBAR_H,
+        display: "flex", alignItems: "center",
+        background: "rgba(30,30,40,0.85)",
+        borderRadius: "8px 8px 0 0",
+        boxShadow: "0 -1px 0 rgba(255,255,255,0.15) inset",
+        zIndex: 3,
+      }}>
+        {/* 리사이즈 핸들 (좌) */}
+        <div
+          onMouseDown={startResize}
+          onTouchStart={startResize}
+          style={{
+            width: 32, height: TOOLBAR_H, cursor: "nwse-resize",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          <div style={{
+            width: 12, height: 12,
+            borderTop:  "2.5px solid #fff",
+            borderLeft: "2.5px solid #fff",
+            borderRadius: "2px 0 0 0",
+          }} />
+        </div>
+        {/* 드래그 바 (가운데 그래버) */}
+        <div
+          onMouseDown={startDrag}
+          onTouchStart={startDrag}
+          style={{
+            flex: 1, height: TOOLBAR_H, cursor: "grab",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          <div style={{ width: 40, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.6)" }} />
+          <div style={{ width: 40, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.6)", marginLeft: 4 }} />
+        </div>
       </div>
 
       {/* 차단 오버레이 (드래그/리사이즈 중) */}
       {blocked && <div style={{ position: "absolute", inset: 0, zIndex: 1 }} />}
 
-      {/* iframe: 항상 220×390 으로 렌더링하고 transform으로 축소 */}
-      <iframe
-        ref={iframeRef}
-        src={`${IFRAME_SRC}?userId=${userId}&app=${app}`}
-        style={{
-          width: NATURAL_W,
-          height: NATURAL_H,
-          border: "none",
-          background: "transparent",
-          pointerEvents: blocked ? "none" : "auto",
-          transform: `scale(${scale})`,
-          transformOrigin: "bottom right",
-          position: "absolute",
-          bottom: 0,
-          right: 0,
-          willChange: "transform",
-        }}
-        allow="autoplay"
-      />
+      {/* iframe 영역 — 툴바 아래 */}
+      <div style={{ position: "absolute", top: TOOLBAR_H, left: 0, right: 0, bottom: 0 }}>
+        <iframe
+          ref={iframeRef}
+          src={`${IFRAME_SRC}?userId=${userId}&app=${app}`}
+          style={{
+            width: NATURAL_W,
+            height: NATURAL_H,
+            border: "none",
+            background: "transparent",
+            pointerEvents: blocked ? "none" : "auto",
+            transform: `scale(${scale})`,
+            transformOrigin: "bottom right",
+            position: "absolute",
+            bottom: 0,
+            right: 0,
+            willChange: "transform",
+          }}
+          allow="autoplay"
+        />
+      </div>
     </div>
   );
 }
