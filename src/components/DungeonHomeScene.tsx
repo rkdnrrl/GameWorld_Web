@@ -26,6 +26,10 @@ function getViewport() {
 
 const MOVE_DELAY_MS = 180;  // 타일 한 칸 이동 쿨다운
 const PLAYER_SIZE = TS;     // 1 타일
+// 달리기 (Game7 동일)
+const RUN_DOUBLE_MS = 320;  // 같은 방향 더블 입력 감지 창
+const RUN_DURATION  = 1800; // 달리기 지속 시간
+const RUN_DELAY_MUL = 0.50; // 달리기 시 이동 쿨다운 배율
 
 // 타일 종류 (Game7 방식)
 const T = {
@@ -139,6 +143,8 @@ export default function DungeonHomeScene() {
   const gamesRef = useRef<Map<string, string>>(new Map());
   // D-pad → 게임 루프 통신. dir 값을 update() 에서 매 프레임 읽어 tryMove 호출.
   const dpadRef = useRef<{ dir: null | "up" | "down" | "left" | "right" }>({ dir: null });
+  // 게임 루프 내 함수를 외부 JSX 에서 호출할 수 있도록 노출
+  const runTriggerRef = useRef<((dir: "u" | "d" | "l" | "r") => void) | null>(null);
   const [viewport, setViewport] = useState(() => getViewport());
 
   // 리사이즈에 따라 viewport 재계산 (모바일↔데스크탑 전환)
@@ -207,8 +213,24 @@ export default function DungeonHomeScene() {
       px: startGx * TS, py: startGy * TS,
       facing: "down" as "up" | "down" | "left" | "right",
       lastMoveAt: 0,
+      runUntil: 0,
     };
     lastPosRef.current = { gx: startGx, gy: startGy };
+
+    // 같은 방향 더블 입력 감지 → 달리기 트리거
+    let lastDirKey: "u" | "d" | "l" | "r" | null = null;
+    let lastDirAt = 0;
+    function triggerRunOnDouble(dir: "u" | "d" | "l" | "r") {
+      const now2 = performance.now();
+      if (dir === lastDirKey && now2 - lastDirAt < RUN_DOUBLE_MS) {
+        player.runUntil = now2 + RUN_DURATION;
+        lastDirKey = null; // 연속 트리거 방지
+      } else {
+        lastDirKey = dir;
+        lastDirAt  = now2;
+      }
+    }
+    runTriggerRef.current = triggerRunOnDouble;
 
     // 카메라 — Game7 의 camX/camY + 보간 (viewport 의존)
     const { VW, VH, CW, CH } = viewport;
@@ -237,7 +259,11 @@ export default function DungeonHomeScene() {
     // 격자 한 칸 이동 시도 (Game7 의 tryMove)
     function tryMove(dx: number, dy: number) {
       const now = performance.now();
-      if (now - player.lastMoveAt < MOVE_DELAY_MS) return;
+      const isRunning = now < player.runUntil;
+      const effDelay = isRunning
+        ? Math.max(70, Math.round(MOVE_DELAY_MS * RUN_DELAY_MUL))
+        : MOVE_DELAY_MS;
+      if (now - player.lastMoveAt < effDelay) return;
       const nx = player.gx + dx, ny = player.gy + dy;
       if (nx < 0 || nx >= DW || ny < 0 || ny >= DH) return;
       const tile = MAP[ny][nx];
@@ -251,11 +277,23 @@ export default function DungeonHomeScene() {
       else if (dy < 0) player.facing = "up";
     }
 
+    const DIR_MAP: Record<string, "u" | "d" | "l" | "r"> = {
+      arrowup: "u", w: "u",
+      arrowdown: "d", s: "d",
+      arrowleft: "l", a: "l",
+      arrowright: "r", d: "r",
+    };
     const onKey = (e: KeyboardEvent, down: boolean) => {
       const k = e.key.toLowerCase();
       if (["arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d"].includes(k)) {
         e.preventDefault();
-        if (down) keys.add(k); else keys.delete(k);
+        if (down) {
+          // 같은 방향 더블 입력 감지 (키 반복은 무시)
+          if (!e.repeat && DIR_MAP[k]) triggerRunOnDouble(DIR_MAP[k]);
+          keys.add(k);
+        } else {
+          keys.delete(k);
+        }
       }
     };
     const onKeyDown = (e: KeyboardEvent) => onKey(e, true);
@@ -365,6 +403,15 @@ export default function DungeonHomeScene() {
       const sx = player.px - cam.x;
       const sy = player.py - cam.y;
       const hx = sx + TS / 2;
+      const nowMs = performance.now();
+      const isRunning = nowMs < player.runUntil;
+
+      // 달리기 글로우 (Game7 동일: rgba(128,203,196,0.55))
+      if (isRunning) {
+        ctx.strokeStyle = "rgba(128,203,196,0.55)";
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(hx, sy + TS / 2, TS / 2 + 2, 0, Math.PI * 2); ctx.stroke();
+      }
 
       // 몸체 원
       ctx.fillStyle = "#0f0f2a";
@@ -395,8 +442,10 @@ export default function DungeonHomeScene() {
   const startDir = useCallback((dir: "up" | "down" | "left" | "right") => (e: SyntheticEvent) => {
     e.preventDefault();
     dpadRef.current.dir = dir;
+    // 같은 방향 D-pad 더블 탭 → 달리기
+    const dShort = dir === "up" ? "u" : dir === "down" ? "d" : dir === "left" ? "l" : "r";
+    runTriggerRef.current?.(dShort);
     if (dpadHold.current.timer != null) window.clearInterval(dpadHold.current.timer);
-    // 누르고 있는 동안 dir 유지 → 게임 루프가 매 프레임 tryMove 호출 (쿨다운으로 보호됨)
   }, []);
   const stopDir = useCallback((e: SyntheticEvent) => {
     e.preventDefault();
