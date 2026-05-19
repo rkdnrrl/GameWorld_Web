@@ -1,6 +1,6 @@
 import GameCard, { type Game, type GameCategory } from "@/components/GameCard";
 import AdBanner from "@/components/AdBanner";
-import GameWorldMap from "@/components/GameWorldMap";
+import DungeonHomeScene from "@/components/DungeonHomeScene";
 import { getTranslations } from "next-intl/server";
 import {
   GAME_CATEGORY_ORDER,
@@ -69,8 +69,8 @@ export default async function GamesPage() {
         <AdBanner slot="banner" />
       </div>
 
-      {/* 월드맵 — earn 카테고리 게임만 */}
-      <GameWorldMap games={byCat.get("earn") ?? games} />
+      {/* 던전 씬 — 캐릭터가 건물에 들어가면 해당 게임 실행 */}
+      <DungeonHomeScene />
 
       {/* 멀티플레이 / 꾸미기 게임은 기존 카드로 */}
       {GAME_CATEGORY_ORDER.filter(cat => cat !== "earn").map((cat) => {
