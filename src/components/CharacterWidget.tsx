@@ -17,6 +17,8 @@ const IFRAME_SRC = "https://assistant-chi-two.vercel.app";
 type Bound = { x: number; y: number; w: number; h: number; kind?: string };
 type Bubble = { id: string; text: string; x: number; y: number; anchor?: "above" | "below" };
 
+const BASE_CHAR_WIDTH = 200; // 기준 캐릭터 너비 — 이 크기일 때 말풍선이 디자인 원본 크기
+
 type Props = {
   userId: string;
   app?: string;
