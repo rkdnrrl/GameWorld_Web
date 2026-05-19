@@ -6,14 +6,18 @@ import { SESSION_CHANGE_EVENT, session } from "@/lib/api";
 
 type GameSummary = { id: string; url: string };
 
-/* ── Game7 던전과 동일한 상수 ─────────────────────────── */
+/* ── Game7 던전과 동일한 상수 + 카메라 ─────────────────── */
 const TS = 32;              // 타일 크기 (Game7 동일)
-const DW = 14;              // 가로 타일 (모바일에서 캐릭터가 잘 보이도록 컴팩트하게)
-const DH = 9;               // 세로 타일
+const DW = 28;              // 가로 타일 (월드)
+const DH = 16;              // 세로 타일 (월드)
+const VW = 16;              // 가로 뷰포트 타일 수 (보이는 영역)
+const VH = 10;              // 세로 뷰포트 타일 수
 const WORLD_W = TS * DW;
 const WORLD_H = TS * DH;
+const CW = TS * VW;         // 캔버스 내부 너비
+const CH = TS * VH;         // 캔버스 내부 높이
 
-const MOVE_DELAY_MS = 180;  // 타일 한 칸 이동 쿨다운 (Game7 의 MOVE_BASE_MS=220 보다 살짝 빠름)
+const MOVE_DELAY_MS = 180;  // 타일 한 칸 이동 쿨다운
 const PLAYER_SIZE = TS;     // 1 타일
 
 // 타일 종류 (Game7 방식)
@@ -48,10 +52,11 @@ const MAP_RAW = [
 
 // 단순 맵: 외곽 벽만 두고 건물 자리는 2x2 도어 타일 (벽 없음 — 닿기만 해도 입장)
 // 낚시(좌), 던전(중), 대장간(우)
+// 28×16 월드에 3 건물 펼쳐서 배치 (던전 중앙)
 const BUILDING_PLACES = [
-  { sx: 2,  sy: 2, door: T.DOOR_FISH,  emoji: "🎣", label: "낚시터" },
-  { sx: 6,  sy: 2, door: T.DOOR_DUNG,  emoji: "🏰", label: "던전" },
-  { sx: 10, sy: 2, door: T.DOOR_FORGE, emoji: "⚒️", label: "대장간" },
+  { sx: 4,  sy: 4,  door: T.DOOR_FISH,  emoji: "🎣", label: "낚시터" },
+  { sx: 13, sy: 7,  door: T.DOOR_DUNG,  emoji: "🏰", label: "던전" },
+  { sx: 22, sy: 4,  door: T.DOOR_FORGE, emoji: "⚒️", label: "대장간" },
 ] as const;
 
 const MAP: Tile[][] = (() => {
@@ -159,9 +164,20 @@ export default function DungeonHomeScene() {
     const player = {
       gx: startGx, gy: startGy,
       px: startGx * TS, py: startGy * TS,
-      facing: "up" as "up" | "down" | "left" | "right",
+      facing: "down" as "up" | "down" | "left" | "right",
       lastMoveAt: 0,
     };
+
+    // 카메라 — Game7 의 camX/camY + 보간
+    const cam = { x: 0, y: 0, tx: 0, ty: 0 };
+    function updateCameraTarget() {
+      const tx = player.gx * TS - VW * 0.5 * TS + TS * 0.5;
+      const ty = player.gy * TS - VH * 0.5 * TS + TS * 0.5;
+      cam.tx = Math.max(0, Math.min(WORLD_W - CW, tx));
+      cam.ty = Math.max(0, Math.min(WORLD_H - CH, ty));
+    }
+    updateCameraTarget();
+    cam.x = cam.tx; cam.y = cam.ty;
 
     const keys = new Set<string>();
     const touch = dpadRef.current; // D-pad 가 .dir 을 갱신함
@@ -215,6 +231,14 @@ export default function DungeonHomeScene() {
       player.px += (player.gx * TS - player.px) * pk;
       player.py += (player.gy * TS - player.py) * pk;
 
+      // 카메라 추적 (Game7 lerpCamera 동일)
+      updateCameraTarget();
+      const ck = 1 - Math.pow(0.93, (dt * 1000) / 16.67);
+      cam.x += (cam.tx - cam.x) * ck;
+      cam.y += (cam.ty - cam.y) * ck;
+      if (Math.abs(cam.tx - cam.x) < 0.5) cam.x = cam.tx;
+      if (Math.abs(cam.ty - cam.y) < 0.5) cam.y = cam.ty;
+
       // 문 트리거 — 현재 격자 위치 기준
       const cur = tileAt(player.gx, player.gy);
       const door = BUILDING_DOORS.find((d) => d.tile === cur);
@@ -231,18 +255,22 @@ export default function DungeonHomeScene() {
     function draw() {
       if (!ctx) return;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const wantW = WORLD_W * dpr;
-      const wantH = WORLD_H * dpr;
+      const wantW = CW * dpr;
+      const wantH = CH * dpr;
       if (canvas!.width !== wantW || canvas!.height !== wantH) {
         canvas!.width = wantW; canvas!.height = wantH;
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, WORLD_W, WORLD_H);
+      ctx.clearRect(0, 0, CW, CH);
 
-      // ── 타일 (Game7 스타일 그대로) ─────────────────────────
-      for (let ty = 0; ty < DH; ty++) {
-        for (let tx = 0; tx < DW; tx++) {
-          const sx = tx * TS, sy = ty * TS;
+      // ── 타일 (Game7 스타일, 카메라 오프셋 적용) ────────────
+      const startTx = Math.max(0, Math.floor(cam.x / TS));
+      const endTx = Math.min(DW, Math.ceil((cam.x + CW) / TS) + 1);
+      const startTy = Math.max(0, Math.floor(cam.y / TS));
+      const endTy = Math.min(DH, Math.ceil((cam.y + CH) / TS) + 1);
+      for (let ty = startTy; ty < endTy; ty++) {
+        for (let tx = startTx; tx < endTx; tx++) {
+          const sx = tx * TS - cam.x, sy = ty * TS - cam.y;
           const t = MAP[ty][tx];
           if (t === T.WALL) {
             // 벽 — Game7 일반 던전 벽 동일 색
@@ -267,28 +295,26 @@ export default function DungeonHomeScene() {
         }
       }
 
-      // ── 건물 이모지 + 라벨 (도어 2x2 영역 위에 큼지막하게) ──
+      // ── 건물 이모지 + 라벨 (카메라 오프셋 적용) ────────────
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       for (const p of BUILDING_PLACES) {
-        const cx = (p.sx + 1) * TS;       // 2x2 중앙
-        const cy = (p.sy + 1) * TS;
-        // 라벨 박스 (도어 위, 가독성)
+        const cx = (p.sx + 1) * TS - cam.x;
+        const cy = (p.sy + 1) * TS - cam.y;
         ctx.font = "bold 13px sans-serif";
         const tw = ctx.measureText(p.label).width;
-        const labelY = p.sy * TS - 10;
+        const labelY = p.sy * TS - 10 - cam.y;
         ctx.fillStyle = "rgba(10,10,30,0.85)";
         ctx.fillRect(cx - tw / 2 - 6, labelY - 9, tw + 12, 18);
         ctx.fillStyle = "#d0e8ff";
         ctx.fillText(p.label, cx, labelY);
-        // 큰 이모지 (도어 영역 중앙)
         ctx.font = "52px serif";
         ctx.fillStyle = "#fff";
         ctx.fillText(p.emoji, cx, cy);
       }
 
       // ── 플레이어 (Game7 동일 스타일: 동그라미 + 🧙) ──────
-      const sx = player.px;
-      const sy = player.py;
+      const sx = player.px - cam.x;
+      const sy = player.py - cam.y;
       const hx = sx + TS / 2;
 
       // 몸체 원
@@ -337,7 +363,7 @@ export default function DungeonHomeScene() {
       <div className="mb-3 text-center text-sm text-zinc-400">
         {tHome("dungeonHint")}
       </div>
-      <div className="relative w-full" style={{ aspectRatio: `${WORLD_W} / ${WORLD_H}` }}>
+      <div className="relative w-full" style={{ aspectRatio: `${CW} / ${CH}` }}>
         <canvas
           ref={canvasRef}
           tabIndex={0}
