@@ -143,6 +143,12 @@ export default function SignupPage() {
             </p>
           )}
 
+          {success && (
+            <p className="break-words rounded-md bg-green-50 px-3 py-2 text-sm text-green-700 dark:bg-green-950 dark:text-green-300">
+              ✉️ {success}
+            </p>
+          )}
+
           <button
             type="submit"
             disabled={submitting}
