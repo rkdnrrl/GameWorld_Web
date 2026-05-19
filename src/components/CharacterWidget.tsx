@@ -1,249 +1,174 @@
 "use client";
 
 /**
- * CharacterWidget — AI 비서 캐릭터 iframe
- * iframe은 항상 220×390 으로 렌더링하고 CSS transform: scale()로 축소 (선명함 유지)
- * 드래그 바(—) + 리사이즈 핸들(┌) + localStorage 위치·크기 저장 + 터치 지원
+ * AssistantCharacter — Kamego 통합 가이드 기준 구현
+ * - iframe은 화면 전체(inset:0)에 렌더링하고 SVG clipPath로 캐릭터 영역만 hit-test 활성화
+ * - assistant:bounds 로 캐릭터/메뉴 영역 좌표 수신
+ * - assistant:bubble:show/hide 로 말풍선을 부모에서 직접 렌더링 (externalBubbles=1 필수)
+ * - assistant:navigate 로 외부 링크 새 탭
+ * - 부모는 마우스 위치만 iframe으로 전달 (시선 추적)
+ * - Live2D 로딩 3초 + bounds 도착 후 로딩 오버레이 종료
  */
 
 import { useState, useEffect, useRef } from "react";
 
 const IFRAME_SRC = "https://assistant-chi-two.vercel.app";
-const NATURAL_W  = 220;
-const NATURAL_H  = 390;
-const ASPECT     = NATURAL_H / NATURAL_W;
-const DESKTOP_W  = 220;
-const MOBILE_W   = 140;
-const MIN_W      = 80;
-const MAX_W      = 360;
 
-const isMobile = () => window.innerWidth < 640;
-
-function load<T>(k: string, f: T): T {
-  try {
-    const v = JSON.parse(localStorage.getItem(k) || "null");
-    if (v != null) return v as T;
-  } catch {}
-  return f;
-}
-
-type Pos  = { x: number; y: number };
-type Size = { w: number; h: number };
+type Bound = { x: number; y: number; w: number; h: number; kind?: string };
+type Bubble = { id: string; text: string; x: number; y: number; anchor?: "above" | "below" };
 
 type Props = {
   userId: string;
   app?: string;
-  bottomOffset?: number;
-  storageKey?: string;
 };
 
-export default function CharacterWidget({
-  userId,
-  app = "platform",
-  bottomOffset = 0,
-  storageKey = "charwidget",
-}: Props) {
-  const mob = typeof window !== "undefined" ? isMobile() : false;
-  const defaultSize: Size = {
-    w: mob ? MOBILE_W : DESKTOP_W,
-    h: Math.round((mob ? MOBILE_W : DESKTOP_W) * ASPECT),
-  };
+export default function CharacterWidget({ userId, app = "platform" }: Props) {
+  const [charBounds, setCharBounds]   = useState<Bound[]>([]);
+  const [iframeReady, setIframeReady] = useState(false);
+  const [bubbles, setBubbles]         = useState<Bubble[]>([]);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
-  const [pos,        setPos]        = useState<Pos>(() => load(`${storageKey}_pos`,  { x: -1, y: -1 }));
-  const [size,       setSize]       = useState<Size>(() => load(`${storageKey}_size`, defaultSize));
-  const [isResizing, setIsResizing] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-
-  const posRef     = useRef<Pos>(pos);
-  const sizeRef    = useRef<Size>(size);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const iframeRef  = useRef<HTMLIFrameElement>(null);
-
+  // ── postMessage 수신 (iframe → 부모) ──
   useEffect(() => {
-    posRef.current = pos;
-    if (pos.x >= 0) localStorage.setItem(`${storageKey}_pos`, JSON.stringify(pos));
-  }, [pos, storageKey]);
+    let firstBoundsTime = 0;
+    let readyTimer: ReturnType<typeof setTimeout> | null = null;
 
-  useEffect(() => {
-    sizeRef.current = size;
-    localStorage.setItem(`${storageKey}_size`, JSON.stringify(size));
-  }, [size, storageKey]);
+    function onMsg(e: MessageEvent) {
+      const d = e.data;
+      if (!d?.type) return;
 
-  // 눈 추적: 마우스 위치를 iframe 내부 좌표(220×390 기준)로 변환
+      if (d.type === "assistant:bounds") {
+        const arr: Bound[] = Array.isArray(d.bounds) ? d.bounds : [d.bounds];
+        setCharBounds(arr);
+        if (firstBoundsTime === 0) {
+          firstBoundsTime = Date.now();
+          // 첫 bounds 도착 후 Live2D 렌더링 3초 추가 대기
+          readyTimer = setTimeout(() => setIframeReady(true), 3000);
+        }
+      }
+      if (d.type === "assistant:navigate" && typeof d.url === "string") {
+        window.open(d.url, "_blank");
+      }
+      if (d.type === "assistant:bubble:show") {
+        setBubbles((prev) => [
+          ...prev.filter((b) => b.id !== d.id),
+          { id: d.id, text: d.text, x: d.x, y: d.y, anchor: d.anchor || "above" },
+        ]);
+      }
+      if (d.type === "assistant:bubble:hide") {
+        setBubbles((prev) => prev.filter((b) => b.id !== d.id));
+      }
+    }
+    window.addEventListener("message", onMsg);
+
+    // 15초 fallback — iframe이 망가져도 진입은 가능하도록
+    const fallback = setTimeout(() => setIframeReady(true), 15000);
+
+    return () => {
+      window.removeEventListener("message", onMsg);
+      clearTimeout(fallback);
+      if (readyTimer) clearTimeout(readyTimer);
+    };
+  }, []);
+
+  // ── 마우스 위치 → iframe (시선 추적) ──
   useEffect(() => {
     function onMove(e: MouseEvent) {
-      const p = posRef.current;
-      const s = sizeRef.current;
-      const elX = p.x >= 0 ? p.x : window.innerWidth  - s.w;
-      const elY = p.y >= 0 ? p.y : window.innerHeight - s.h - bottomOffset;
-      const scale = s.w / NATURAL_W;
-      iframeRef.current?.contentWindow?.postMessage({
-        type: "assistant:mousemove",
-        x: (e.clientX - elX) / scale,
-        y: (e.clientY - elY) / scale,
-      }, "*");
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: "assistant:mousemove", x: e.clientX, y: e.clientY },
+        "*"
+      );
     }
     window.addEventListener("mousemove", onMove);
     return () => window.removeEventListener("mousemove", onMove);
-  }, [bottomOffset]);
+  }, []);
 
-  function startDrag(e: React.MouseEvent | React.TouchEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    const el: HTMLDivElement | null = wrapperRef.current;
-    if (!el) return;
-    const elNN: HTMLDivElement = el; // 클로저용 non-null 별칭
-
-    // right/bottom으로 위치 잡혀있으면 left/top으로 전환
-    if (posRef.current.x < 0) {
-      const r = el.getBoundingClientRect();
-      posRef.current = { x: r.left, y: r.top };
-      el.style.right = "";
-      el.style.bottom = "";
-      el.style.left = r.left + "px";
-      el.style.top  = r.top + "px";
-    }
-
-    const isTouch = "touches" in e;
-    const sMx = isTouch ? e.touches[0].clientX : e.clientX;
-    const sMy = isTouch ? e.touches[0].clientY : e.clientY;
-    const sX  = posRef.current.x;
-    const sY  = posRef.current.y;
-    setIsDragging(true);
-
-    function onMove(ev: MouseEvent | TouchEvent) {
-      if (ev.cancelable) ev.preventDefault();
-      const t = "touches" in ev ? ev.touches[0] : (ev as MouseEvent);
-      const cx = t.clientX;
-      const cy = t.clientY;
-      const nx = Math.max(0, Math.min(window.innerWidth  - sizeRef.current.w, sX + cx - sMx));
-      const ny = Math.max(0, Math.min(window.innerHeight - sizeRef.current.h, sY + cy - sMy));
-      posRef.current = { x: nx, y: ny };
-      elNN.style.left = nx + "px";
-      elNN.style.top  = ny + "px";
-    }
-    function onUp() {
-      setIsDragging(false);
-      setPos({ ...posRef.current });
-      document.removeEventListener("mousemove", onMove as EventListener);
-      document.removeEventListener("mouseup",   onUp);
-      document.removeEventListener("touchmove", onMove as EventListener);
-      document.removeEventListener("touchend",  onUp);
-    }
-    document.addEventListener("mousemove", onMove as EventListener);
-    document.addEventListener("mouseup",   onUp);
-    document.addEventListener("touchmove", onMove as EventListener, { passive: false });
-    document.addEventListener("touchend",  onUp);
-  }
-
-  function startResize(e: React.MouseEvent | React.TouchEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    const isTouch = "touches" in e;
-    const sMx = isTouch ? e.touches[0].clientX : e.clientX;
-    const sMy = isTouch ? e.touches[0].clientY : e.clientY;
-    const sW  = sizeRef.current.w;
-    setIsResizing(true);
-
-    function onMove(ev: MouseEvent | TouchEvent) {
-      if (ev.cancelable) ev.preventDefault();
-      const t = "touches" in ev ? ev.touches[0] : (ev as MouseEvent);
-      const delta = ((sMx - t.clientX) + (sMy - t.clientY)) / 2;
-      const nw = Math.max(MIN_W, Math.min(MAX_W, sW + delta));
-      const next: Size = { w: Math.round(nw), h: Math.round(nw * ASPECT) };
-      sizeRef.current = next;
-      setSize(next);
-    }
-    function onUp() {
-      setIsResizing(false);
-      document.removeEventListener("mousemove", onMove as EventListener);
-      document.removeEventListener("mouseup",   onUp);
-      document.removeEventListener("touchmove", onMove as EventListener);
-      document.removeEventListener("touchend",  onUp);
-    }
-    document.addEventListener("mousemove", onMove as EventListener);
-    document.addEventListener("mouseup",   onUp);
-    document.addEventListener("touchmove", onMove as EventListener, { passive: false });
-    document.addEventListener("touchend",  onUp);
-  }
-
-  const scale     = size.w / NATURAL_W;
-  const blocked   = isResizing || isDragging;
-  const TOOLBAR_H = 32;
+  const src = `${IFRAME_SRC}?userId=${encodeURIComponent(userId)}&app=${encodeURIComponent(app)}&size=large&externalBubbles=1`;
 
   return (
-    <div
-      ref={wrapperRef}
-      style={{
-        position: "fixed",
-        ...(pos.x >= 0 ? { left: pos.x, top: pos.y } : { right: 0, bottom: bottomOffset }),
-        width: size.w,
-        height: size.h,
-        zIndex: 9999,
-        background: "transparent",
-      }}
-    >
-      {/* iframe — 위젯 전체 영역 */}
+    <>
+      {/* 로딩 오버레이 */}
+      {!iframeReady && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 10000,
+            background: "#0f0920",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              border: "4px solid #58CC02",
+              borderTopColor: "transparent",
+              borderRadius: "50%",
+              animation: "assistant-spin 1s linear infinite",
+            }}
+          />
+          <style>{`@keyframes assistant-spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      )}
+
+      {/* 외부 말풍선 — pointer-events:none이라 페이지 클릭 통과 */}
+      {bubbles.map((b) => (
+        <div
+          key={b.id}
+          style={{
+            position: "fixed",
+            left: b.x,
+            top: b.y,
+            transform: `translateX(-50%) ${b.anchor === "above" ? "translateY(-100%)" : ""}`,
+            pointerEvents: "none",
+            background: "rgba(20,15,40,0.95)",
+            color: "#fff",
+            padding: "8px 14px",
+            borderRadius: 16,
+            border: "1.5px solid rgba(168,85,247,0.4)",
+            boxShadow: "0 4px 16px rgba(0,0,0,.5)",
+            fontSize: 12,
+            fontWeight: 600,
+            maxWidth: 220,
+            textAlign: "center",
+            lineHeight: 1.4,
+            zIndex: 10000,
+          }}
+        >
+          {b.text}
+        </div>
+      ))}
+
+      {/* SVG clipPath — bounds 영역만 iframe 노출 */}
+      <svg width="0" height="0" style={{ position: "absolute" }}>
+        <defs>
+          <clipPath id="assistantClip" clipPathUnits="userSpaceOnUse">
+            {charBounds.map((b, i) => (
+              <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h} />
+            ))}
+          </clipPath>
+        </defs>
+      </svg>
+
+      {/* iframe — 전체화면, clipPath로 hit-test 영역 제한 */}
       <iframe
         ref={iframeRef}
-        src={`${IFRAME_SRC}?userId=${userId}&app=${app}`}
+        src={src}
         style={{
-          width: NATURAL_W,
-          height: NATURAL_H,
-          border: "none",
+          position: "fixed",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          border: 0,
           background: "transparent",
-          pointerEvents: blocked ? "none" : "auto",
-          transform: `scale(${scale})`,
-          transformOrigin: "bottom right",
-          position: "absolute",
-          bottom: 0,
-          right: 0,
-          willChange: "transform",
+          clipPath: charBounds.length > 0 ? "url(#assistantClip)" : "inset(100%)",
+          zIndex: 9999,
         }}
         allow="autoplay"
       />
-
-      {/* 차단 오버레이 (드래그/리사이즈 중) — iframe 위, 툴바 아래 */}
-      {blocked && <div style={{ position: "absolute", inset: 0, zIndex: 2 }} />}
-
-      {/* 툴바 — 캐릭터 위에 오버레이 */}
-      <div style={{
-        position: "absolute", top: 0, left: 0, right: 0, height: TOOLBAR_H,
-        display: "flex", alignItems: "center",
-        background: "rgba(30,30,40,0.85)",
-        borderRadius: "8px 8px 0 0",
-        boxShadow: "0 -1px 0 rgba(255,255,255,0.15) inset",
-        zIndex: 3,
-      }}>
-        {/* 리사이즈 핸들 */}
-        <div
-          onMouseDown={startResize}
-          onTouchStart={startResize}
-          style={{
-            width: 32, height: TOOLBAR_H, cursor: "nwse-resize",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}
-        >
-          <div style={{
-            width: 12, height: 12,
-            borderTop:  "2.5px solid #fff",
-            borderLeft: "2.5px solid #fff",
-            borderRadius: "2px 0 0 0",
-          }} />
-        </div>
-        {/* 드래그 바 */}
-        <div
-          onMouseDown={startDrag}
-          onTouchStart={startDrag}
-          style={{
-            flex: 1, height: TOOLBAR_H, cursor: "grab",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}
-        >
-          <div style={{ width: 40, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.6)" }} />
-          <div style={{ width: 40, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.6)", marginLeft: 4 }} />
-        </div>
-      </div>
-    </div>
+    </>
   );
 }
