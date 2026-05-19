@@ -25,16 +25,12 @@ type Props = {
 };
 
 export default function CharacterWidget({ userId, app = "platform" }: Props) {
-  const [charBounds, setCharBounds]   = useState<Bound[]>([]);
-  const [iframeReady, setIframeReady] = useState(false);
-  const [bubbles, setBubbles]         = useState<Bubble[]>([]);
+  const [charBounds, setCharBounds] = useState<Bound[]>([]);
+  const [bubbles, setBubbles]       = useState<Bubble[]>([]);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   // ── postMessage 수신 (iframe → 부모) ──
   useEffect(() => {
-    let firstBoundsTime = 0;
-    let readyTimer: ReturnType<typeof setTimeout> | null = null;
-
     function onMsg(e: MessageEvent) {
       const d = e.data;
       if (!d?.type) return;
@@ -42,11 +38,6 @@ export default function CharacterWidget({ userId, app = "platform" }: Props) {
       if (d.type === "assistant:bounds") {
         const arr: Bound[] = Array.isArray(d.bounds) ? d.bounds : [d.bounds];
         setCharBounds(arr);
-        if (firstBoundsTime === 0) {
-          firstBoundsTime = Date.now();
-          // 첫 bounds 도착 후 Live2D 렌더링 3초 추가 대기
-          readyTimer = setTimeout(() => setIframeReady(true), 3000);
-        }
       }
       if (d.type === "assistant:navigate" && typeof d.url === "string") {
         window.open(d.url, "_blank");
@@ -62,15 +53,7 @@ export default function CharacterWidget({ userId, app = "platform" }: Props) {
       }
     }
     window.addEventListener("message", onMsg);
-
-    // 15초 fallback — iframe이 망가져도 진입은 가능하도록
-    const fallback = setTimeout(() => setIframeReady(true), 15000);
-
-    return () => {
-      window.removeEventListener("message", onMsg);
-      clearTimeout(fallback);
-      if (readyTimer) clearTimeout(readyTimer);
-    };
+    return () => window.removeEventListener("message", onMsg);
   }, []);
 
   // ── 마우스 위치 → iframe (시선 추적) ──
@@ -89,33 +72,6 @@ export default function CharacterWidget({ userId, app = "platform" }: Props) {
 
   return (
     <>
-      {/* 로딩 오버레이 */}
-      {!iframeReady && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 10000,
-            background: "#0f0920",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              border: "4px solid #58CC02",
-              borderTopColor: "transparent",
-              borderRadius: "50%",
-              animation: "assistant-spin 1s linear infinite",
-            }}
-          />
-          <style>{`@keyframes assistant-spin { to { transform: rotate(360deg); } }`}</style>
-        </div>
-      )}
-
       {/* 외부 말풍선 — 캐릭터 위치/크기에 맞춰 자동 조정 */}
       {(() => {
         // 캐릭터 bounds 찾기 (kind === 'character', 없으면 첫 번째)
