@@ -191,8 +191,6 @@ export default function GamesBrowser({ games }: Props) {
         )}
       </div>
 
-      {/* locale prop 미사용 경고 회피 */}
-      <span className="hidden" aria-hidden="true">{locale}</span>
     </div>
   );
 }
