@@ -102,6 +102,21 @@ function isWalkable(tile: Tile): boolean {
   return tile !== T.WALL;
 }
 
+const HOME_POS_KEY = "alp_home_pos";
+
+function saveHomePos(gx: number, gy: number) {
+  try { localStorage.setItem(HOME_POS_KEY, JSON.stringify({ gx, gy })); } catch { /* ignore */ }
+}
+function loadHomePos(): { gx: number; gy: number } | null {
+  try {
+    const raw = localStorage.getItem(HOME_POS_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw);
+    if (typeof v?.gx === "number" && typeof v?.gy === "number") return { gx: v.gx, gy: v.gy };
+  } catch { /* ignore */ }
+  return null;
+}
+
 function gameHrefWithToken(baseUrl: string, token: string | null, locale: string): string {
   const u = String(baseUrl || "").trim();
   if (!u) return u;
@@ -158,6 +173,9 @@ export default function DungeonHomeScene() {
     })();
   }, []);
 
+  // 플레이어가 마지막으로 서 있던 위치 (게임 진입 직전) — 게임 나왔을 때 그 위치로 복귀
+  const lastPosRef = useRef<{ gx: number; gy: number } | null>(null);
+
   const navigateToGame = useCallback((gameId: string) => {
     if (navigating) return;
     const url = gamesRef.current.get(gameId);
@@ -165,6 +183,9 @@ export default function DungeonHomeScene() {
       setHint("게임을 찾을 수 없습니다.");
       return;
     }
+    // 현재 위치 저장 → 돌아왔을 때 여기서 시작
+    const pos = lastPosRef.current;
+    if (pos) saveHomePos(pos.gx, pos.gy);
     setNavigating(true);
     const href = gameHrefWithToken(url, tokenRef.current, locale);
     window.location.href = href;
@@ -177,14 +198,17 @@ export default function DungeonHomeScene() {
     if (!ctx) return;
 
     // 캐릭터 — Game7 동일 방식: gx,gy 는 격자, px,py 는 보간된 픽셀
-    const startGx = Math.floor(DW / 2);
-    const startGy = DH - 3;
+    // 저장된 위치가 있으면 거기서 시작 (게임에서 돌아온 경우)
+    const saved = loadHomePos();
+    const startGx = saved ? Math.max(1, Math.min(DW - 2, saved.gx)) : Math.floor(DW / 2);
+    const startGy = saved ? Math.max(1, Math.min(DH - 2, saved.gy)) : DH - 3;
     const player = {
       gx: startGx, gy: startGy,
       px: startGx * TS, py: startGy * TS,
       facing: "down" as "up" | "down" | "left" | "right",
       lastMoveAt: 0,
     };
+    lastPosRef.current = { gx: startGx, gy: startGy };
 
     // 카메라 — Game7 의 camX/camY + 보간 (viewport 의존)
     const { VW, VH, CW, CH } = viewport;
@@ -203,7 +227,12 @@ export default function DungeonHomeScene() {
     let frameCount = 0;
     let lastTs = performance.now();
     let raf = 0;
-    let lastDoorTile: Tile | null = null;
+    // 시작 타일이 문이면 그 문을 "이미 점유한 상태"로 초기화 → 재진입 차단
+    let lastDoorTile: Tile | null = (() => {
+      const t = MAP[player.gy]?.[player.gx];
+      const door = BUILDING_DOORS.find((d) => d.tile === t);
+      return door ? door.tile : null;
+    })();
 
     // 격자 한 칸 이동 시도 (Game7 의 tryMove)
     function tryMove(dx: number, dy: number) {
@@ -215,6 +244,7 @@ export default function DungeonHomeScene() {
       if (tile === T.WALL) return;
       player.gx = nx; player.gy = ny;
       player.lastMoveAt = now;
+      lastPosRef.current = { gx: nx, gy: ny };
       if (dx > 0) player.facing = "right";
       else if (dx < 0) player.facing = "left";
       else if (dy > 0) player.facing = "down";
