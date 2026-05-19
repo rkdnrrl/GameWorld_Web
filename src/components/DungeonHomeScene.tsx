@@ -8,14 +8,14 @@ type GameSummary = { id: string; url: string };
 
 /* ── Game7 던전과 동일한 상수 + 카메라 ─────────────────── */
 const TS = 32;              // 타일 크기 (Game7 동일)
-const DW = 56;              // 가로 타일 (월드)
-const DH = 32;              // 세로 타일 (월드)
+const DW = 30;              // 가로 타일 (월드)
+const DH = 18;              // 세로 타일 (월드)
 const WORLD_W = TS * DW;
 const WORLD_H = TS * DH;
 
 // 뷰포트: 모바일은 줌인(작은 영역), 데스크탑은 줌아웃(넓은 영역)
-const VW_DESKTOP = 44, VH_DESKTOP = 26;
-const VW_MOBILE  = 18, VH_MOBILE  = 11;
+const VW_DESKTOP = 24, VH_DESKTOP = 14;
+const VW_MOBILE  = 14, VH_MOBILE  = 9;
 const MOBILE_BREAKPOINT = 640;  // Tailwind sm
 function getViewport() {
   const isMobile = typeof window !== "undefined" && window.innerWidth < MOBILE_BREAKPOINT;
@@ -63,11 +63,11 @@ const MAP_RAW = [
 
 // 단순 맵: 외곽 벽만 두고 건물 자리는 2x2 도어 타일 (벽 없음 — 닿기만 해도 입장)
 // 낚시(좌), 던전(중), 대장간(우)
-// 56×32 월드에 3 건물 펼쳐서 배치 (던전 중앙)
+// 30×18 월드에 3 건물 배치 (던전 중앙)
 const BUILDING_PLACES = [
-  { sx: 8,  sy: 8,  door: T.DOOR_FISH,  emoji: "🎣", label: "낚시터" },
-  { sx: 26, sy: 15, door: T.DOOR_DUNG,  emoji: "🏰", label: "던전" },
-  { sx: 44, sy: 8,  door: T.DOOR_FORGE, emoji: "⚒️", label: "대장간" },
+  { sx: 4,  sy: 4,  door: T.DOOR_FISH,  emoji: "🎣", label: "낚시터" },
+  { sx: 14, sy: 8,  door: T.DOOR_DUNG,  emoji: "🏰", label: "던전" },
+  { sx: 24, sy: 4,  door: T.DOOR_FORGE, emoji: "⚒️", label: "대장간" },
 ] as const;
 
 const MAP: Tile[][] = (() => {
