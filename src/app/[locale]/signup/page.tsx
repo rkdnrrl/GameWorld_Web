@@ -53,6 +53,7 @@ export default function SignupPage() {
     const v = validate();
     if (v) { setError(v); return; }
     setError(null);
+    setSuccess(null);
     setSubmitting(true);
 
     try {
