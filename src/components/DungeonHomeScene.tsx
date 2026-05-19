@@ -8,10 +8,10 @@ type GameSummary = { id: string; url: string };
 
 /* ── Game7 던전과 동일한 상수 + 카메라 ─────────────────── */
 const TS = 32;              // 타일 크기 (Game7 동일)
-const DW = 28;              // 가로 타일 (월드)
-const DH = 16;              // 세로 타일 (월드)
-const VW = 22;              // 가로 뷰포트 타일 수 (줌 아웃 — 더 넓게)
-const VH = 13;              // 세로 뷰포트 타일 수
+const DW = 56;              // 가로 타일 (월드) — 2배 확장
+const DH = 32;              // 세로 타일 (월드)
+const VW = 44;              // 가로 뷰포트 타일 수 (줌 아웃 2배)
+const VH = 26;              // 세로 뷰포트 타일 수
 const WORLD_W = TS * DW;
 const WORLD_H = TS * DH;
 const CW = TS * VW;         // 캔버스 내부 너비
@@ -52,11 +52,11 @@ const MAP_RAW = [
 
 // 단순 맵: 외곽 벽만 두고 건물 자리는 2x2 도어 타일 (벽 없음 — 닿기만 해도 입장)
 // 낚시(좌), 던전(중), 대장간(우)
-// 28×16 월드에 3 건물 펼쳐서 배치 (던전 중앙)
+// 56×32 월드에 3 건물 펼쳐서 배치 (던전 중앙)
 const BUILDING_PLACES = [
-  { sx: 4,  sy: 4,  door: T.DOOR_FISH,  emoji: "🎣", label: "낚시터" },
-  { sx: 13, sy: 7,  door: T.DOOR_DUNG,  emoji: "🏰", label: "던전" },
-  { sx: 22, sy: 4,  door: T.DOOR_FORGE, emoji: "⚒️", label: "대장간" },
+  { sx: 8,  sy: 8,  door: T.DOOR_FISH,  emoji: "🎣", label: "낚시터" },
+  { sx: 26, sy: 15, door: T.DOOR_DUNG,  emoji: "🏰", label: "던전" },
+  { sx: 44, sy: 8,  door: T.DOOR_FORGE, emoji: "⚒️", label: "대장간" },
 ] as const;
 
 const MAP: Tile[][] = (() => {
