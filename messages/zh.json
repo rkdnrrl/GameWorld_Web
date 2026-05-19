@@ -51,6 +51,26 @@
     "ariaLabel": "广告区域",
     "placeholder": "广告"
   },
+  "RewardedAd": {
+    "title": "观看广告领取奖励",
+    "placeholder": "激励广告 (placeholder)",
+    "rewardPrefix": "奖励：",
+    "waiting": "{seconds} 秒后可领取奖励",
+    "ready": "广告播放完成！领取奖励吧。",
+    "cancel": "取消",
+    "claim": "领取奖励"
+  },
+  "Subscribe": {
+    "title": "高级订阅",
+    "subtitle": "无广告畅玩，享受更多福利。",
+    "benefitNoAds": "移除所有广告",
+    "benefitBonus": "游戏内奖励加成",
+    "benefitPriority": "优先客服与新内容抢先体验",
+    "comingSoon": "订阅付费功能即将上线。",
+    "donateInstead": "通过捐赠支持",
+    "activeNotice": "您的高级订阅已激活。",
+    "until": "到期: {date}"
+  },
   "GameTitles": {
     "space-fishing": "废品钓鱼",
     "blacksmith": "铁匠铺",
@@ -63,7 +83,8 @@
   "Home": {
     "tagline": "与朋友一起享受的多人游戏平台",
     "browsGames": "浏览游戏",
-    "signup": "注册"
+    "signup": "注册",
+    "dungeonHint": "移动: 方向键 / WASD / 触摸 · 走进建筑物门口即可开始游戏"
   },
   "Login": {
     "title": "登录",

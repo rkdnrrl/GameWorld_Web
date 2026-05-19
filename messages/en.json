@@ -51,6 +51,26 @@
     "ariaLabel": "Ad area",
     "placeholder": "Ad"
   },
+  "RewardedAd": {
+    "title": "Watch ad for reward",
+    "placeholder": "Rewarded ad (placeholder)",
+    "rewardPrefix": "Reward:",
+    "waiting": "Reward available in {seconds}s",
+    "ready": "Ad finished! Claim your reward.",
+    "cancel": "Cancel",
+    "claim": "Claim reward"
+  },
+  "Subscribe": {
+    "title": "Premium subscription",
+    "subtitle": "Play without ads and enjoy extra perks.",
+    "benefitNoAds": "Remove all ads",
+    "benefitBonus": "In-game bonus rewards",
+    "benefitPriority": "Priority support and early access",
+    "comingSoon": "Subscription purchase is coming soon.",
+    "donateInstead": "Support via donation",
+    "activeNotice": "Your premium subscription is active.",
+    "until": "Expires: {date}"
+  },
   "GameTitles": {
     "space-fishing": "Junk Fishing",
     "blacksmith": "Blacksmith",
@@ -63,7 +83,8 @@
   "Home": {
     "tagline": "A multiplayer game platform to enjoy with friends",
     "browsGames": "Browse Games",
-    "signup": "Sign Up"
+    "signup": "Sign Up",
+    "dungeonHint": "Move: Arrows / WASD / touch · Walk into a building's door to enter the game"
   },
   "Login": {
     "title": "Login",

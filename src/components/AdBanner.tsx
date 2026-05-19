@@ -21,8 +21,8 @@ export default function AdBanner({ slot = "leaderboard", className = "" }: AdBan
     };
     check();
     const onChange = () => check();
-    window.addEventListener("alp:session-change", onChange);
-    return () => window.removeEventListener("alp:session-change", onChange);
+    window.addEventListener(SESSION_CHANGE_EVENT, onChange);
+    return () => window.removeEventListener(SESSION_CHANGE_EVENT, onChange);
   }, []);
 
   // 구독자는 광고 비노출

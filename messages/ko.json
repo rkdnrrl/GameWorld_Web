@@ -51,6 +51,26 @@
     "ariaLabel": "광고 영역",
     "placeholder": "광고 영역"
   },
+  "RewardedAd": {
+    "title": "광고 시청 후 보상",
+    "placeholder": "보상형 광고 (placeholder)",
+    "rewardPrefix": "보상:",
+    "waiting": "{seconds}초 후 보상을 받을 수 있어요",
+    "ready": "광고 시청 완료! 보상을 받으세요.",
+    "cancel": "취소",
+    "claim": "보상 받기"
+  },
+  "Subscribe": {
+    "title": "프리미엄 구독",
+    "subtitle": "광고 없이 더 쾌적하게 즐겨보세요.",
+    "benefitNoAds": "모든 광고 제거",
+    "benefitBonus": "게임 내 보너스 혜택",
+    "benefitPriority": "우선 지원 및 신규 콘텐츠 우선 체험",
+    "comingSoon": "구독 결제 기능은 곧 오픈됩니다.",
+    "donateInstead": "후원으로 응원하기",
+    "activeNotice": "현재 프리미엄 구독이 활성화되어 있습니다.",
+    "until": "만료: {date}"
+  },
   "GameTitles": {
     "space-fishing": "폐품 낚시",
     "blacksmith": "대장간",
@@ -63,7 +83,8 @@
   "Home": {
     "tagline": "친구들과 함께 즐기는 멀티플레이 게임 플랫폼",
     "browsGames": "게임 둘러보기",
-    "signup": "회원가입"
+    "signup": "회원가입",
+    "dungeonHint": "이동: 방향키 / WASD / 화면 터치 · 건물 문에 들어가면 게임 시작"
   },
   "Login": {
     "title": "로그인",

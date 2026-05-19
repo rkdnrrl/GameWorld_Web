@@ -51,6 +51,26 @@
     "ariaLabel": "広告エリア",
     "placeholder": "広告"
   },
+  "RewardedAd": {
+    "title": "広告を見て報酬を獲得",
+    "placeholder": "リワード広告 (placeholder)",
+    "rewardPrefix": "報酬:",
+    "waiting": "{seconds}秒後に報酬を受け取れます",
+    "ready": "広告終了！報酬を受け取ってください。",
+    "cancel": "キャンセル",
+    "claim": "報酬を受け取る"
+  },
+  "Subscribe": {
+    "title": "プレミアム購読",
+    "subtitle": "広告なしで快適にお楽しみください。",
+    "benefitNoAds": "すべての広告を削除",
+    "benefitBonus": "ゲーム内ボーナス特典",
+    "benefitPriority": "優先サポート・新コンテンツ先行体験",
+    "comingSoon": "購読決済機能は近日公開予定です。",
+    "donateInstead": "寄付で応援する",
+    "activeNotice": "プレミアム購読が有効です。",
+    "until": "有効期限: {date}"
+  },
   "GameTitles": {
     "space-fishing": "ジャンク釣り",
     "blacksmith": "鍛冶屋",
@@ -63,7 +83,8 @@
   "Home": {
     "tagline": "友達と一緒に楽しむマルチプレイゲームプラットフォーム",
     "browsGames": "ゲームを見る",
-    "signup": "新規登録"
+    "signup": "新規登録",
+    "dungeonHint": "移動: 矢印 / WASD / タッチ · 建物の扉に入るとゲーム開始"
   },
   "Login": {
     "title": "ログイン",
