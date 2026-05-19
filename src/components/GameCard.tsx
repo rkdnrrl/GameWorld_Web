@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { SESSION_CHANGE_EVENT, session } from "@/lib/api";
+import { saveLastGameId } from "@/lib/lastGame";
 
 /** API `games.js`의 category와 동일 */
 export type GameCategory = "earn" | "multiplay" | "decorate" | "other";
