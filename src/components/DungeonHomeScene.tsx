@@ -8,14 +8,21 @@ type GameSummary = { id: string; url: string };
 
 /* ── Game7 던전과 동일한 상수 + 카메라 ─────────────────── */
 const TS = 32;              // 타일 크기 (Game7 동일)
-const DW = 56;              // 가로 타일 (월드) — 2배 확장
+const DW = 56;              // 가로 타일 (월드)
 const DH = 32;              // 세로 타일 (월드)
-const VW = 44;              // 가로 뷰포트 타일 수 (줌 아웃 2배)
-const VH = 26;              // 세로 뷰포트 타일 수
 const WORLD_W = TS * DW;
 const WORLD_H = TS * DH;
-const CW = TS * VW;         // 캔버스 내부 너비
-const CH = TS * VH;         // 캔버스 내부 높이
+
+// 뷰포트: 모바일은 줌인(작은 영역), 데스크탑은 줌아웃(넓은 영역)
+const VW_DESKTOP = 44, VH_DESKTOP = 26;
+const VW_MOBILE  = 18, VH_MOBILE  = 11;
+const MOBILE_BREAKPOINT = 640;  // Tailwind sm
+function getViewport() {
+  const isMobile = typeof window !== "undefined" && window.innerWidth < MOBILE_BREAKPOINT;
+  return isMobile
+    ? { VW: VW_MOBILE,  VH: VH_MOBILE,  CW: TS * VW_MOBILE,  CH: TS * VH_MOBILE  }
+    : { VW: VW_DESKTOP, VH: VH_DESKTOP, CW: TS * VW_DESKTOP, CH: TS * VH_DESKTOP };
+}
 
 const MOVE_DELAY_MS = 180;  // 타일 한 칸 이동 쿨다운
 const PLAYER_SIZE = TS;     // 1 타일
@@ -117,6 +124,17 @@ export default function DungeonHomeScene() {
   const gamesRef = useRef<Map<string, string>>(new Map());
   // D-pad → 게임 루프 통신. dir 값을 update() 에서 매 프레임 읽어 tryMove 호출.
   const dpadRef = useRef<{ dir: null | "up" | "down" | "left" | "right" }>({ dir: null });
+  const [viewport, setViewport] = useState(() => getViewport());
+
+  // 리사이즈에 따라 viewport 재계산 (모바일↔데스크탑 전환)
+  useEffect(() => {
+    const onResize = () => {
+      const next = getViewport();
+      setViewport((prev) => (prev.VW === next.VW && prev.VH === next.VH) ? prev : next);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     const sync = () => { tokenRef.current = session.getToken(); };
@@ -168,7 +186,8 @@ export default function DungeonHomeScene() {
       lastMoveAt: 0,
     };
 
-    // 카메라 — Game7 의 camX/camY + 보간
+    // 카메라 — Game7 의 camX/camY + 보간 (viewport 의존)
+    const { VW, VH, CW, CH } = viewport;
     const cam = { x: 0, y: 0, tx: 0, ty: 0 };
     function updateCameraTarget() {
       const tx = player.gx * TS - VW * 0.5 * TS + TS * 0.5;
@@ -339,7 +358,7 @@ export default function DungeonHomeScene() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [navigateToGame]);
+  }, [navigateToGame, viewport]);
 
   /* D-pad 버튼 — Game7 와 동일한 동작 (누름 → 즉시 이동 + 80ms 간격 반복) */
   const dpadHold = useRef<{ timer: number | null }>({ timer: null });
@@ -363,7 +382,7 @@ export default function DungeonHomeScene() {
       <div className="mb-3 text-center text-sm text-zinc-400">
         {tHome("dungeonHint")}
       </div>
-      <div className="relative w-full" style={{ aspectRatio: `${CW} / ${CH}` }}>
+      <div className="relative w-full" style={{ aspectRatio: `${viewport.CW} / ${viewport.CH}` }}>
         <canvas
           ref={canvasRef}
           tabIndex={0}
