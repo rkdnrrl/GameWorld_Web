@@ -58,10 +58,12 @@ export default function SignupPage() {
 
     try {
       // Common API 회원가입 (CommonDB가 단일 사용자 소스)
+      // redirectTo: 이메일 인증 후 돌아올 URL (메일 발송에 필수)
       const result = await api.signup({
         email: form.email,
         nickname: form.nickname.trim(),
         password: form.password,
+        redirectTo: window.location.origin + "/",
       });
       // 이메일 인증 필요 → 안내 메시지만 표시하고 종료
       if ("requiresEmailConfirmation" in result && result.requiresEmailConfirmation) {
