@@ -66,10 +66,11 @@ const MAP: Tile[][] = (() => {
   // 낚시 (좌측 위): x=2..4, y=2..4 → 정중앙 (3,4)에 문 = T.DOOR_FISH (실제로는 4행 위치)
   // 대장간 (중앙 위): x=10..12, y=2..4 → (11,4) DOOR_FORGE
   // 던전 (우측 위): x=17..19, y=2..4 → (18,4) DOOR_DUNG
+  // 던전을 중앙에, 낚시는 왼쪽, 대장간은 오른쪽
   const buildings: { sx: number; sy: number; door: Tile }[] = [
-    { sx: 2,  sy: 2, door: T.DOOR_FISH  },
-    { sx: 10, sy: 2, door: T.DOOR_FORGE },
-    { sx: 17, sy: 2, door: T.DOOR_DUNG  },
+    { sx: 3,  sy: 2, door: T.DOOR_FISH  },
+    { sx: 10, sy: 2, door: T.DOOR_DUNG  },
+    { sx: 17, sy: 2, door: T.DOOR_FORGE },
   ];
   for (const b of buildings) {
     for (let dy = 0; dy < 3; dy++) {
@@ -294,9 +295,9 @@ export default function DungeonHomeScene() {
       const labels: { door: Tile; emoji: string; label: string; cx: number; cy: number }[] = [];
       // 건물 중앙 좌표 자동 계산 (벽 덩어리 위에 이모지+이름)
       const places = [
-        { tile: T.DOOR_FISH,  emoji: "🎣", label: "낚시터", sx: 2,  sy: 2 },
-        { tile: T.DOOR_FORGE, emoji: "⚒️", label: "대장간", sx: 10, sy: 2 },
-        { tile: T.DOOR_DUNG,  emoji: "🏰", label: "던전",   sx: 17, sy: 2 },
+        { tile: T.DOOR_FISH,  emoji: "🎣", label: "낚시터", sx: 3,  sy: 2 },
+        { tile: T.DOOR_DUNG,  emoji: "🏰", label: "던전",   sx: 10, sy: 2 },
+        { tile: T.DOOR_FORGE, emoji: "⚒️", label: "대장간", sx: 17, sy: 2 },
       ];
       for (const p of places) {
         labels.push({
