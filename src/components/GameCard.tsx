@@ -86,6 +86,7 @@ export default function GameCard({ game }: { game: Game }) {
   return (
     <a
       href={href}
+      onClick={() => saveLastGameId(game.id)}
       className="group flex min-w-0 max-w-full flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white transition-all hover:-translate-y-1 hover:border-blue-500 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-blue-500"
     >
       <div className="relative flex h-40 items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 text-6xl">
