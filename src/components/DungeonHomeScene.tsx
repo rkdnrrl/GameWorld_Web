@@ -8,8 +8,8 @@ type GameSummary = { id: string; url: string };
 
 /* ── Game7 던전과 동일한 상수 ─────────────────────────── */
 const TS = 32;              // 타일 크기 (Game7 동일)
-const DW = 22;              // 가로 타일
-const DH = 10;              // 세로 타일 (모바일에서 D-pad 까지 한 화면에 들어오게 축소)
+const DW = 14;              // 가로 타일 (모바일에서 캐릭터가 잘 보이도록 컴팩트하게)
+const DH = 9;               // 세로 타일
 const WORLD_W = TS * DW;
 const WORLD_H = TS * DH;
 
@@ -49,9 +49,9 @@ const MAP_RAW = [
 // 단순 맵: 외곽 벽만 두고 건물 자리는 2x2 도어 타일 (벽 없음 — 닿기만 해도 입장)
 // 낚시(좌), 던전(중), 대장간(우)
 const BUILDING_PLACES = [
-  { sx: 3,  sy: 3, door: T.DOOR_FISH,  emoji: "🎣", label: "낚시터" },
-  { sx: 10, sy: 3, door: T.DOOR_DUNG,  emoji: "🏰", label: "던전" },
-  { sx: 17, sy: 3, door: T.DOOR_FORGE, emoji: "⚒️", label: "대장간" },
+  { sx: 2,  sy: 2, door: T.DOOR_FISH,  emoji: "🎣", label: "낚시터" },
+  { sx: 6,  sy: 2, door: T.DOOR_DUNG,  emoji: "🏰", label: "던전" },
+  { sx: 10, sy: 2, door: T.DOOR_FORGE, emoji: "⚒️", label: "대장간" },
 ] as const;
 
 const MAP: Tile[][] = (() => {
@@ -281,7 +281,7 @@ export default function DungeonHomeScene() {
         ctx.fillStyle = "#d0e8ff";
         ctx.fillText(p.label, cx, labelY);
         // 큰 이모지 (도어 영역 중앙)
-        ctx.font = "44px serif";
+        ctx.font = "52px serif";
         ctx.fillStyle = "#fff";
         ctx.fillText(p.emoji, cx, cy);
       }
@@ -293,9 +293,9 @@ export default function DungeonHomeScene() {
 
       // 몸체 원
       ctx.fillStyle = "#0f0f2a";
-      ctx.beginPath(); ctx.arc(hx, sy + TS / 2, TS / 2 - 2, 0, Math.PI * 2); ctx.fill();
-      // 이모지 (크게)
-      ctx.font = "26px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.beginPath(); ctx.arc(hx, sy + TS / 2, TS / 2 - 1, 0, Math.PI * 2); ctx.fill();
+      // 이모지 (모바일 가독성을 위해 크게)
+      ctx.font = "32px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText("🧙", hx, sy + TS / 2 + 1);
     }
 
