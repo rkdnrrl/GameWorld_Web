@@ -23,7 +23,6 @@ function gameHrefWithToken(baseUrl: string, token: string | null): string {
 
 export default function GamesBrowser({ games }: Props) {
   const t = useTranslations("Games");
-  const locale = useLocale();
 
   const [query, setQuery] = useState("");
   const [activeCat, setActiveCat] = useState<GameCategory | "all">("all");
