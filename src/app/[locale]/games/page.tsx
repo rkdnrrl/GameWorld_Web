@@ -63,7 +63,7 @@ export default async function GamesPage() {
   const byCat = groupGamesByCategory(games);
 
   return (
-    <section className="mx-auto w-full max-w-6xl min-w-0 px-4 py-10 sm:px-6 sm:py-14">
+    <section className="mx-auto w-full max-w-[1400px] min-w-0 px-4 py-10 sm:px-6 sm:py-14">
       <div className="mb-6">
         <AdBanner slot="leaderboard" />
         <AdBanner slot="banner" />

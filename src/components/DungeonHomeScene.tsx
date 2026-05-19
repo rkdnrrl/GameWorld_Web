@@ -359,7 +359,7 @@ export default function DungeonHomeScene() {
   }, []);
 
   return (
-    <div className="mx-auto w-full max-w-[900px] px-2">
+    <div className="mx-auto w-full max-w-[1400px]">
       <div className="mb-3 text-center text-sm text-zinc-400">
         {tHome("dungeonHint")}
       </div>
