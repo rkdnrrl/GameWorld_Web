@@ -64,13 +64,19 @@ export default async function GamesPage() {
 
   return (
     <section className="mx-auto w-full max-w-[1400px] min-w-0 px-4 py-10 sm:px-6 sm:py-14">
-      <div className="mb-6">
-        <AdBanner slot="leaderboard" />
+      {/* 모바일에서는 상단 가로 광고만 노출 (세로 광고는 lg 이상에서만) */}
+      <div className="mb-6 lg:hidden">
         <AdBanner slot="banner" />
       </div>
 
-      {/* 던전 씬 — 캐릭터가 건물에 들어가면 해당 게임 실행 */}
-      <DungeonHomeScene />
+      {/* 던전 씬 — 양옆에 세로 광고 (lg 이상), 중앙에 씬 */}
+      <div className="flex items-start justify-center gap-4">
+        <AdBanner slot="skyscraper" />
+        <div className="min-w-0 flex-1">
+          <DungeonHomeScene />
+        </div>
+        <AdBanner slot="skyscraper" />
+      </div>
 
       {/* 멀티플레이 / 꾸미기 게임은 기존 카드로 */}
       {GAME_CATEGORY_ORDER.filter(cat => cat !== "earn").map((cat) => {
