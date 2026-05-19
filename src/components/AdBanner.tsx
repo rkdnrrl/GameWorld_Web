@@ -1,4 +1,8 @@
-import { getTranslations } from "next-intl/server";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
+import { session, SESSION_CHANGE_EVENT } from "@/lib/api";
 
 type AdBannerProps = {
   /** "leaderboard" = 728×90 (PC 상단), "banner" = 320×50 (모바일) */
@@ -6,8 +10,24 @@ type AdBannerProps = {
   className?: string;
 };
 
-export default async function AdBanner({ slot = "leaderboard", className = "" }: AdBannerProps) {
-  const t = await getTranslations("AdBanner");
+export default function AdBanner({ slot = "leaderboard", className = "" }: AdBannerProps) {
+  const t = useTranslations("AdBanner");
+  const [subscribed, setSubscribed] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const check = () => {
+      const u = session.getUser();
+      setSubscribed(!!u?.isSubscribed);
+    };
+    check();
+    const onChange = () => check();
+    window.addEventListener("alp:session-change", onChange);
+    return () => window.removeEventListener("alp:session-change", onChange);
+  }, []);
+
+  // 구독자는 광고 비노출
+  if (subscribed) return null;
+
   const isLeaderboard = slot === "leaderboard";
   const size = isLeaderboard ? "728×90" : "320×50";
 
