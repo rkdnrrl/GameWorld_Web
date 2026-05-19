@@ -116,33 +116,42 @@ export default function CharacterWidget({ userId, app = "platform" }: Props) {
         </div>
       )}
 
-      {/* 외부 말풍선 — pointer-events:none이라 페이지 클릭 통과 */}
-      {bubbles.map((b) => (
-        <div
-          key={b.id}
-          style={{
-            position: "fixed",
-            left: b.x,
-            top: b.y,
-            transform: `translateX(-50%) ${b.anchor === "above" ? "translateY(-100%)" : ""}`,
-            pointerEvents: "none",
-            background: "rgba(20,15,40,0.95)",
-            color: "#fff",
-            padding: "8px 14px",
-            borderRadius: 16,
-            border: "1.5px solid rgba(168,85,247,0.4)",
-            boxShadow: "0 4px 16px rgba(0,0,0,.5)",
-            fontSize: 12,
-            fontWeight: 600,
-            maxWidth: 220,
-            textAlign: "center",
-            lineHeight: 1.4,
-            zIndex: 10000,
-          }}
-        >
-          {b.text}
-        </div>
-      ))}
+      {/* 외부 말풍선 — 캐릭터 위치/크기에 맞춰 자동 조정 */}
+      {(() => {
+        // 캐릭터 bounds 찾기 (kind === 'character', 없으면 첫 번째)
+        const charBound = charBounds.find((b) => b.kind === "character") || charBounds[0];
+        if (!charBound) return null;
+        const scale = Math.max(0.5, Math.min(2.5, charBound.w / BASE_CHAR_WIDTH));
+        const cx = charBound.x + charBound.w / 2;       // 캐릭터 수평 중앙
+        const topY = charBound.y;                       // 캐릭터 상단
+        return bubbles.map((b) => (
+          <div
+            key={b.id}
+            style={{
+              position: "fixed",
+              left: cx,
+              top: topY - 8 * scale,                    // 캐릭터 위쪽 약간 띄움
+              transform: "translateX(-50%) translateY(-100%)",
+              pointerEvents: "none",
+              background: "rgba(20,15,40,0.95)",
+              color: "#fff",
+              padding: `${8 * scale}px ${14 * scale}px`,
+              borderRadius: 16 * scale,
+              border: `${1.5 * scale}px solid rgba(168,85,247,0.4)`,
+              boxShadow: `0 ${4 * scale}px ${16 * scale}px rgba(0,0,0,.5)`,
+              fontSize: 12 * scale,
+              fontWeight: 600,
+              maxWidth: 220 * scale,
+              textAlign: "center",
+              lineHeight: 1.4,
+              zIndex: 10000,
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {b.text}
+          </div>
+        ));
+      })()}
 
       {/* SVG clipPath — bounds 영역만 iframe 노출 */}
       <svg width="0" height="0" style={{ position: "absolute" }}>
