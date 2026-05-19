@@ -229,7 +229,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   signup(input: { email: string; nickname: string; password: string }) {
-    return request<AuthResponse>("/api/auth/signup", {
+    return request<SignupResponse>("/api/auth/signup", {
       method: "POST",
       body: JSON.stringify(input),
     });
