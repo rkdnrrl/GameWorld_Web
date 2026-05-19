@@ -84,7 +84,7 @@
     "tagline": "与朋友一起享受的多人游戏平台",
     "browsGames": "浏览游戏",
     "signup": "注册",
-    "dungeonHint": "移动: 方向键 / WASD / 触摸 · 走进建筑物门口即可开始游戏"
+    "dungeonHint": "移动: 方向键 / WASD · 移动端使用下方 D-pad · 走进建筑物门口即可开始游戏"
   },
   "Login": {
     "title": "登录",

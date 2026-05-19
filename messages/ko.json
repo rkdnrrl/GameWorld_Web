@@ -84,7 +84,7 @@
     "tagline": "친구들과 함께 즐기는 멀티플레이 게임 플랫폼",
     "browsGames": "게임 둘러보기",
     "signup": "회원가입",
-    "dungeonHint": "이동: 방향키 / WASD / 화면 터치 · 건물 문에 들어가면 게임 시작"
+    "dungeonHint": "이동: 방향키 / WASD · 모바일은 하단 D-pad · 건물 문에 들어가면 게임 시작"
   },
   "Login": {
     "title": "로그인",

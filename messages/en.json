@@ -84,7 +84,7 @@
     "tagline": "A multiplayer game platform to enjoy with friends",
     "browsGames": "Browse Games",
     "signup": "Sign Up",
-    "dungeonHint": "Move: Arrows / WASD / touch · Walk into a building's door to enter the game"
+    "dungeonHint": "Move: Arrows / WASD · D-pad on mobile · Walk into a building's door to enter the game"
   },
   "Login": {
     "title": "Login",

@@ -84,7 +84,7 @@
     "tagline": "友達と一緒に楽しむマルチプレイゲームプラットフォーム",
     "browsGames": "ゲームを見る",
     "signup": "新規登録",
-    "dungeonHint": "移動: 矢印 / WASD / タッチ · 建物の扉に入るとゲーム開始"
+    "dungeonHint": "移動: 矢印 / WASD · モバイルは下部 D-pad · 建物の扉に入るとゲーム開始"
   },
   "Login": {
     "title": "ログイン",

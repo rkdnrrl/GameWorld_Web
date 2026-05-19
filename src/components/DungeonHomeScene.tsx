@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, type SyntheticEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { SESSION_CHANGE_EVENT, session } from "@/lib/api";
 
@@ -119,6 +119,8 @@ export default function DungeonHomeScene() {
   const [navigating, setNavigating] = useState(false);
   const tokenRef = useRef<string | null>(null);
   const gamesRef = useRef<Map<string, string>>(new Map());
+  // D-pad → 게임 루프 통신. dir 값을 update() 에서 매 프레임 읽어 tryMove 호출.
+  const dpadRef = useRef<{ dir: null | "up" | "down" | "left" | "right" }>({ dir: null });
 
   useEffect(() => {
     const sync = () => { tokenRef.current = session.getToken(); };
@@ -171,7 +173,7 @@ export default function DungeonHomeScene() {
     };
 
     const keys = new Set<string>();
-    const touch = { dir: null as null | "up" | "down" | "left" | "right" };
+    const touch = dpadRef.current; // D-pad 가 .dir 을 갱신함
     let frameCount = 0;
     let lastTs = performance.now();
     let raf = 0;
@@ -328,40 +330,29 @@ export default function DungeonHomeScene() {
     }
     raf = requestAnimationFrame(tick);
 
-    /* 터치: 캔버스에서 캐릭터 기준 방향으로 한 칸씩 이동 */
-    const onTouchStart = (e: TouchEvent) => {
-      e.preventDefault();
-      const t = e.touches[0];
-      if (!t) { touch.dir = null; return; }
-      const rect = canvas.getBoundingClientRect();
-      // 캐릭터 화면 좌표
-      const scale = rect.width / WORLD_W;
-      const charX = rect.left + (player.px + TS / 2) * scale;
-      const charY = rect.top + (player.py + TS / 2) * scale;
-      const dx = t.clientX - charX, dy = t.clientY - charY;
-      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) { touch.dir = null; return; }
-      if (Math.abs(dx) > Math.abs(dy)) touch.dir = dx > 0 ? "right" : "left";
-      else touch.dir = dy > 0 ? "down" : "up";
-    };
-    const onTouchEnd = (e: TouchEvent) => {
-      e.preventDefault();
-      touch.dir = null;
-    };
-    canvas.addEventListener("touchstart", onTouchStart, { passive: false });
-    canvas.addEventListener("touchmove", onTouchStart, { passive: false });
-    canvas.addEventListener("touchend", onTouchEnd, { passive: false });
-    canvas.addEventListener("touchcancel", onTouchEnd, { passive: false });
-
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
-      canvas.removeEventListener("touchstart", onTouchStart);
-      canvas.removeEventListener("touchmove", onTouchStart);
-      canvas.removeEventListener("touchend", onTouchEnd);
-      canvas.removeEventListener("touchcancel", onTouchEnd);
     };
   }, [navigateToGame]);
+
+  /* D-pad 버튼 — Game7 와 동일한 동작 (누름 → 즉시 이동 + 80ms 간격 반복) */
+  const dpadHold = useRef<{ timer: number | null }>({ timer: null });
+  const startDir = useCallback((dir: "up" | "down" | "left" | "right") => (e: SyntheticEvent) => {
+    e.preventDefault();
+    dpadRef.current.dir = dir;
+    if (dpadHold.current.timer != null) window.clearInterval(dpadHold.current.timer);
+    // 누르고 있는 동안 dir 유지 → 게임 루프가 매 프레임 tryMove 호출 (쿨다운으로 보호됨)
+  }, []);
+  const stopDir = useCallback((e: SyntheticEvent) => {
+    e.preventDefault();
+    dpadRef.current.dir = null;
+    if (dpadHold.current.timer != null) {
+      window.clearInterval(dpadHold.current.timer);
+      dpadHold.current.timer = null;
+    }
+  }, []);
 
   return (
     <div className="mx-auto w-full max-w-[900px] px-2">
@@ -381,6 +372,67 @@ export default function DungeonHomeScene() {
             {hint}
           </div>
         )}
+      </div>
+
+      {/* 모바일 D-pad — 데스크탑(sm 이상)에서는 숨김 */}
+      <div className="mt-4 flex justify-center sm:hidden">
+        <div className="flex flex-col items-center gap-1.5">
+          <div className="flex justify-center">
+            <button
+              type="button"
+              aria-label="위로"
+              className="flex h-12 w-12 items-center justify-center rounded-lg border border-zinc-700 bg-[#0e0e20] text-lg text-zinc-200 active:bg-[#1e1e38]"
+              style={{ touchAction: "none", WebkitTapHighlightColor: "transparent" }}
+              onTouchStart={startDir("up")}
+              onTouchEnd={stopDir}
+              onTouchCancel={stopDir}
+              onMouseDown={startDir("up")}
+              onMouseUp={stopDir}
+              onMouseLeave={stopDir}
+            >▲</button>
+          </div>
+          <div className="flex justify-center gap-1.5">
+            <button
+              type="button"
+              aria-label="왼쪽"
+              className="flex h-12 w-12 items-center justify-center rounded-lg border border-zinc-700 bg-[#0e0e20] text-lg text-zinc-200 active:bg-[#1e1e38]"
+              style={{ touchAction: "none", WebkitTapHighlightColor: "transparent" }}
+              onTouchStart={startDir("left")}
+              onTouchEnd={stopDir}
+              onTouchCancel={stopDir}
+              onMouseDown={startDir("left")}
+              onMouseUp={stopDir}
+              onMouseLeave={stopDir}
+            >◀</button>
+            <div className="h-12 w-12" /> {/* 가운데 비움 (Game7 의 ⚡ counter 자리) */}
+            <button
+              type="button"
+              aria-label="오른쪽"
+              className="flex h-12 w-12 items-center justify-center rounded-lg border border-zinc-700 bg-[#0e0e20] text-lg text-zinc-200 active:bg-[#1e1e38]"
+              style={{ touchAction: "none", WebkitTapHighlightColor: "transparent" }}
+              onTouchStart={startDir("right")}
+              onTouchEnd={stopDir}
+              onTouchCancel={stopDir}
+              onMouseDown={startDir("right")}
+              onMouseUp={stopDir}
+              onMouseLeave={stopDir}
+            >▶</button>
+          </div>
+          <div className="flex justify-center">
+            <button
+              type="button"
+              aria-label="아래로"
+              className="flex h-12 w-12 items-center justify-center rounded-lg border border-zinc-700 bg-[#0e0e20] text-lg text-zinc-200 active:bg-[#1e1e38]"
+              style={{ touchAction: "none", WebkitTapHighlightColor: "transparent" }}
+              onTouchStart={startDir("down")}
+              onTouchEnd={stopDir}
+              onTouchCancel={stopDir}
+              onMouseDown={startDir("down")}
+              onMouseUp={stopDir}
+              onMouseLeave={stopDir}
+            >▼</button>
+          </div>
+        </div>
       </div>
     </div>
   );
