@@ -61,8 +61,16 @@ export default function SignupPage() {
         nickname: form.nickname.trim(),
         password: form.password,
       });
-      session.save({ token: result.token, user: result.user });
-      router.push("/");
+      // 이메일 인증 필요 → 안내 메시지만 표시하고 종료
+      if ("requiresEmailConfirmation" in result && result.requiresEmailConfirmation) {
+        setSuccess(result.message || t("emailConfirmationSent"));
+        return;
+      }
+      // 즉시 활성화된 경우만 로그인 처리
+      if ("token" in result) {
+        session.save({ token: result.token, user: result.user });
+        router.push("/");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : t("errorInvalidEmail"));
     } finally {
