@@ -32,6 +32,7 @@ export default function SignupPage() {
 
   const [form, setForm] = useState<FormState>(initial);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
