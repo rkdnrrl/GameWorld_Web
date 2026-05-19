@@ -14,6 +14,10 @@ export type User = {
   operatorAccess?: boolean;
   /** CommonDB 기준 userId — Google OAuth 사용자는 id와 다를 수 있음 */
   commonUserId?: string;
+  /** 구독 여부 — true면 광고 숨김 */
+  isSubscribed?: boolean;
+  /** 구독 만료일 (ISO 문자열) */
+  subscriptionUntil?: string | null;
 };
 
 /** 우주 낚시 등에서 저장하는 픽셀 스프라이트 (서버 JSONB) */
