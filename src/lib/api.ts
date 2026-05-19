@@ -62,6 +62,11 @@ export type AuthResponse = {
   token: string;
 };
 
+/** 회원가입 응답: 이메일 인증 필요 시엔 토큰 없이 메시지만 */
+export type SignupResponse =
+  | AuthResponse
+  | { requiresEmailConfirmation: true; email: string; message: string };
+
 export type EquipmentItem = {
   id: string;
   name: string;
