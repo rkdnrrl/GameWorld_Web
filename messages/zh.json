@@ -176,7 +176,16 @@
     "categoryEarn": "奖励游戏",
     "categoryMultiplay": "多人游戏",
     "categoryDecorate": "装饰游戏",
-    "categoryOther": "其他"
+    "categoryOther": "其他",
+    "searchPlaceholder": "搜索游戏…",
+    "filterAll": "全部",
+    "continueLabel": "继续",
+    "continueButton": "▶ 继续游玩",
+    "worldMapTitle": "🗺️ 世界地图模式",
+    "worldMapDesc": "也可以操作角色走入建筑物来开始游戏。",
+    "worldMapOpen": "打开世界地图",
+    "worldMapClose": "关闭世界地图",
+    "emptyResult": "没有匹配的游戏。"
   },
   "AuthCallback": {
     "processing": "正在处理认证...",

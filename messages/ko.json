@@ -176,7 +176,16 @@
     "categoryEarn": "리워드 게임",
     "categoryMultiplay": "멀티플레이 게임",
     "categoryDecorate": "꾸미기 게임",
-    "categoryOther": "기타"
+    "categoryOther": "기타",
+    "searchPlaceholder": "게임 검색…",
+    "filterAll": "전체",
+    "continueLabel": "이어하기",
+    "continueButton": "▶ 계속 플레이",
+    "worldMapTitle": "🗺️ 월드맵 모드",
+    "worldMapDesc": "캐릭터를 조작해 건물에 들어가는 방식으로도 게임을 시작할 수 있어요.",
+    "worldMapOpen": "월드맵 열기",
+    "worldMapClose": "월드맵 닫기",
+    "emptyResult": "검색 결과가 없습니다."
   },
   "AuthCallback": {
     "processing": "인증 처리 중...",

@@ -1,11 +1,6 @@
-import GameCard, { type Game, type GameCategory } from "@/components/GameCard";
+import type { Game } from "@/components/GameCard";
 import AdBanner from "@/components/AdBanner";
-import DungeonHomeScene from "@/components/DungeonHomeScene";
-import { getTranslations } from "next-intl/server";
-import {
-  GAME_CATEGORY_ORDER,
-  groupGamesByCategory,
-} from "./gameCategories";
+import GamesBrowser from "@/components/GamesBrowser";
 
 /** 게임 목록에서 숨김 */
 const HIDDEN_GAME_IDS = new Set<string>(["rock-clicker", "alchemy"]);
@@ -50,51 +45,17 @@ async function getGames(): Promise<Game[]> {
   }
 }
 
-const CATEGORY_LABEL_KEY: Record<GameCategory, string> = {
-  earn: "categoryEarn",
-  multiplay: "categoryMultiplay",
-  decorate: "categoryDecorate",
-  other: "categoryOther",
-};
-
 export default async function GamesPage() {
-  const t = await getTranslations("Games");
   const games = await getGames();
-  const byCat = groupGamesByCategory(games);
 
   return (
-    <section className="mx-auto w-full max-w-[1400px] min-w-0 px-4 py-10 sm:px-6 sm:py-14">
-      {/* 모바일에서는 상단 가로 광고만 노출 (세로 광고는 lg 이상에서만) */}
+    <section className="mx-auto w-full max-w-[1400px] min-w-0 px-4 py-8 sm:px-6 sm:py-12">
+      {/* 모바일 상단 광고 */}
       <div className="mb-6 lg:hidden">
         <AdBanner slot="banner" />
       </div>
 
-      {/* 던전 씬 — 양옆에 세로 광고 (lg 이상), 중앙에 씬 */}
-      <div className="flex items-start justify-center gap-4">
-        <AdBanner slot="skyscraper" />
-        <div className="min-w-0 flex-1">
-          <DungeonHomeScene />
-        </div>
-        <AdBanner slot="skyscraper" />
-      </div>
-
-      {/* 멀티플레이 / 꾸미기 게임은 기존 카드로 */}
-      {GAME_CATEGORY_ORDER.filter(cat => cat !== "earn").map((cat) => {
-        const list = byCat.get(cat) ?? [];
-        if (list.length === 0) return null;
-        return (
-          <div key={cat} className="mt-12">
-            <h2 className="mb-4 break-words text-lg font-semibold tracking-tight text-zinc-900 sm:text-xl dark:text-zinc-50">
-              {t(CATEGORY_LABEL_KEY[cat])}
-            </h2>
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {list.map((game) => (
-                <GameCard key={game.id} game={game} />
-              ))}
-            </div>
-          </div>
-        );
-      })}
+      <GamesBrowser games={games} />
     </section>
   );
 }

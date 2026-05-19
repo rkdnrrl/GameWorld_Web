@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback, type SyntheticEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { SESSION_CHANGE_EVENT, session } from "@/lib/api";
+import { saveLastGameId } from "@/lib/lastGame";
 
 type GameSummary = { id: string; url: string };
 
@@ -192,6 +193,7 @@ export default function DungeonHomeScene() {
     // 현재 위치 저장 → 돌아왔을 때 여기서 시작
     const pos = lastPosRef.current;
     if (pos) saveHomePos(pos.gx, pos.gy);
+    saveLastGameId(gameId);
     setNavigating(true);
     const href = gameHrefWithToken(url, tokenRef.current, locale);
     window.location.href = href;

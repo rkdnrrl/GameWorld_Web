@@ -176,7 +176,16 @@
     "categoryEarn": "Reward Games",
     "categoryMultiplay": "Multiplayer Games",
     "categoryDecorate": "Decoration Games",
-    "categoryOther": "Other"
+    "categoryOther": "Other",
+    "searchPlaceholder": "Search games…",
+    "filterAll": "All",
+    "continueLabel": "Continue",
+    "continueButton": "▶ Resume",
+    "worldMapTitle": "🗺️ World map mode",
+    "worldMapDesc": "Walk a character into buildings to launch a game.",
+    "worldMapOpen": "Open world map",
+    "worldMapClose": "Close world map",
+    "emptyResult": "No matching games."
   },
   "AuthCallback": {
     "processing": "Processing authentication...",
