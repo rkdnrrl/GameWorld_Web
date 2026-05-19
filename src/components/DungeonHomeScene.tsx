@@ -13,7 +13,7 @@ const DH = 14;              // 세로 타일
 const WORLD_W = TS * DW;
 const WORLD_H = TS * DH;
 
-const PLAYER_SPEED = 130;   // px/sec
+const MOVE_DELAY_MS = 180;  // 타일 한 칸 이동 쿨다운 (Game7 의 MOVE_BASE_MS=220 보다 살짝 빠름)
 const PLAYER_SIZE = TS;     // 1 타일
 
 // 타일 종류 (Game7 방식)
@@ -160,19 +160,38 @@ export default function DungeonHomeScene() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // 캐릭터 — Game7 처럼 타일 한 칸 단위, px 좌표로 부드러운 이동
+    // 캐릭터 — Game7 동일 방식: gx,gy 는 격자, px,py 는 보간된 픽셀
+    const startGx = Math.floor(DW / 2);
+    const startGy = DH - 3;
     const player = {
-      px: (Math.floor(DW / 2)) * TS,
-      py: (DH - 3) * TS,
+      gx: startGx, gy: startGy,
+      px: startGx * TS, py: startGy * TS,
       facing: "up" as "up" | "down" | "left" | "right",
+      lastMoveAt: 0,
     };
 
     const keys = new Set<string>();
-    const touch = { dx: 0, dy: 0, active: false };
+    const touch = { dir: null as null | "up" | "down" | "left" | "right" };
     let frameCount = 0;
     let lastTs = performance.now();
     let raf = 0;
     let lastDoorTile: Tile | null = null;
+
+    // 격자 한 칸 이동 시도 (Game7 의 tryMove)
+    function tryMove(dx: number, dy: number) {
+      const now = performance.now();
+      if (now - player.lastMoveAt < MOVE_DELAY_MS) return;
+      const nx = player.gx + dx, ny = player.gy + dy;
+      if (nx < 0 || nx >= DW || ny < 0 || ny >= DH) return;
+      const tile = MAP[ny][nx];
+      if (tile === T.WALL) return;
+      player.gx = nx; player.gy = ny;
+      player.lastMoveAt = now;
+      if (dx > 0) player.facing = "right";
+      else if (dx < 0) player.facing = "left";
+      else if (dy > 0) player.facing = "down";
+      else if (dy < 0) player.facing = "up";
+    }
 
     const onKey = (e: KeyboardEvent, down: boolean) => {
       const k = e.key.toLowerCase();
@@ -188,51 +207,23 @@ export default function DungeonHomeScene() {
 
     function update(dt: number) {
       frameCount++;
-      let vx = 0, vy = 0;
-      if (keys.has("arrowleft") || keys.has("a")) vx -= 1;
-      if (keys.has("arrowright") || keys.has("d")) vx += 1;
-      if (keys.has("arrowup") || keys.has("w")) vy -= 1;
-      if (keys.has("arrowdown") || keys.has("s")) vy += 1;
-      if (touch.active) { vx += touch.dx; vy += touch.dy; }
-      const len = Math.hypot(vx, vy);
-      if (len > 0) {
-        vx /= len; vy /= len;
-        if (Math.abs(vx) > Math.abs(vy)) player.facing = vx > 0 ? "right" : "left";
-        else player.facing = vy > 0 ? "down" : "up";
-      }
+      // Game7 식: 키가 눌려 있으면 매 프레임 tryMove 호출 (내부 쿨다운으로 1타일씩만 진행)
+      if      (keys.has("arrowup")   || keys.has("w")) tryMove( 0, -1);
+      else if (keys.has("arrowdown") || keys.has("s")) tryMove( 0,  1);
+      else if (keys.has("arrowleft") || keys.has("a")) tryMove(-1,  0);
+      else if (keys.has("arrowright")|| keys.has("d")) tryMove( 1,  0);
+      else if (touch.dir === "up")    tryMove( 0, -1);
+      else if (touch.dir === "down")  tryMove( 0,  1);
+      else if (touch.dir === "left")  tryMove(-1,  0);
+      else if (touch.dir === "right") tryMove( 1,  0);
 
-      // X 축 충돌
-      const nxp = player.px + vx * PLAYER_SPEED * dt;
-      const corners = [
-        [nxp, player.py],
-        [nxp + TS - 1, player.py],
-        [nxp, player.py + TS - 1],
-        [nxp + TS - 1, player.py + TS - 1],
-      ];
-      let okX = true;
-      for (const [cx, cy] of corners) {
-        if (!isWalkable(tileAt(Math.floor(cx / TS), Math.floor(cy / TS)))) { okX = false; break; }
-      }
-      if (okX) player.px = Math.max(0, Math.min(WORLD_W - TS, nxp));
+      // 픽셀 보간 — Game7 동일 공식
+      const pk = 1 - Math.pow(0.82, (dt * 1000) / 16.67);
+      player.px += (player.gx * TS - player.px) * pk;
+      player.py += (player.gy * TS - player.py) * pk;
 
-      // Y 축 충돌
-      const nyp = player.py + vy * PLAYER_SPEED * dt;
-      const corners2 = [
-        [player.px, nyp],
-        [player.px + TS - 1, nyp],
-        [player.px, nyp + TS - 1],
-        [player.px + TS - 1, nyp + TS - 1],
-      ];
-      let okY = true;
-      for (const [cx, cy] of corners2) {
-        if (!isWalkable(tileAt(Math.floor(cx / TS), Math.floor(cy / TS)))) { okY = false; break; }
-      }
-      if (okY) player.py = Math.max(0, Math.min(WORLD_H - TS, nyp));
-
-      // 문 트리거 — 중심 타일
-      const cgx = Math.floor((player.px + TS / 2) / TS);
-      const cgy = Math.floor((player.py + TS / 2) / TS);
-      const cur = tileAt(cgx, cgy);
+      // 문 트리거 — 현재 격자 위치 기준
+      const cur = tileAt(player.gx, player.gy);
       const door = BUILDING_DOORS.find((d) => d.tile === cur);
       if (door && cur !== lastDoorTile) {
         lastDoorTile = cur;
@@ -337,21 +328,24 @@ export default function DungeonHomeScene() {
     }
     raf = requestAnimationFrame(tick);
 
-    /* 터치: 캔버스 중심 기준 방향 */
+    /* 터치: 캔버스에서 캐릭터 기준 방향으로 한 칸씩 이동 */
     const onTouchStart = (e: TouchEvent) => {
       e.preventDefault();
       const t = e.touches[0];
-      if (!t) return;
+      if (!t) { touch.dir = null; return; }
       const rect = canvas.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      const dx = t.clientX - cx, dy = t.clientY - cy;
-      const len = Math.hypot(dx, dy) || 1;
-      touch.active = true; touch.dx = dx / len; touch.dy = dy / len;
+      // 캐릭터 화면 좌표
+      const scale = rect.width / WORLD_W;
+      const charX = rect.left + (player.px + TS / 2) * scale;
+      const charY = rect.top + (player.py + TS / 2) * scale;
+      const dx = t.clientX - charX, dy = t.clientY - charY;
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) { touch.dir = null; return; }
+      if (Math.abs(dx) > Math.abs(dy)) touch.dir = dx > 0 ? "right" : "left";
+      else touch.dir = dy > 0 ? "down" : "up";
     };
     const onTouchEnd = (e: TouchEvent) => {
       e.preventDefault();
-      touch.active = false; touch.dx = 0; touch.dy = 0;
+      touch.dir = null;
     };
     canvas.addEventListener("touchstart", onTouchStart, { passive: false });
     canvas.addEventListener("touchmove", onTouchStart, { passive: false });
