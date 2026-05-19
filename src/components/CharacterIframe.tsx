@@ -55,5 +55,5 @@ export default function CharacterIframe() {
   }, []);
 
   if (!commonUserId) return null;
-  return <CharacterWidget userId={commonUserId} app="platform" storageKey="alp_charwidget" />;
+  return <CharacterWidget userId={commonUserId} app="platform" />;
 }
