@@ -9,7 +9,7 @@ type GameSummary = { id: string; url: string };
 /* ── Game7 던전과 동일한 상수 ─────────────────────────── */
 const TS = 32;              // 타일 크기 (Game7 동일)
 const DW = 22;              // 가로 타일
-const DH = 14;              // 세로 타일
+const DH = 10;              // 세로 타일 (모바일에서 D-pad 까지 한 화면에 들어오게 축소)
 const WORLD_W = TS * DW;
 const WORLD_H = TS * DH;
 
@@ -46,40 +46,31 @@ const MAP_RAW = [
   "1111111111111111111111",
 ];
 
-// 간단한 맵 — 건물별 입구 문 위치
-//  낚시: (4,5)에 문
-//  대장간: (10,5)에 문
-//  던전: (16,5)에 문
-// 위 MAP_RAW는 너무 복잡해서, 새 단순 맵 사용
+// 단순 맵: 외곽 벽만 두고 건물 자리는 2x2 도어 타일 (벽 없음 — 닿기만 해도 입장)
+// 낚시(좌), 던전(중), 대장간(우)
+const BUILDING_PLACES = [
+  { sx: 3,  sy: 3, door: T.DOOR_FISH,  emoji: "🎣", label: "낚시터" },
+  { sx: 10, sy: 3, door: T.DOOR_DUNG,  emoji: "🏰", label: "던전" },
+  { sx: 17, sy: 3, door: T.DOOR_FORGE, emoji: "⚒️", label: "대장간" },
+] as const;
+
 const MAP: Tile[][] = (() => {
   const m: Tile[][] = [];
   for (let y = 0; y < DH; y++) {
     const row: Tile[] = [];
     for (let x = 0; x < DW; x++) {
-      // 외곽 벽
       if (x === 0 || y === 0 || x === DW - 1 || y === DH - 1) row.push(T.WALL);
       else row.push(T.FLOOR);
     }
     m.push(row);
   }
-  // 건물 3채 — 각 3x3 벽덩어리 + 정중앙 문 (floor row 바로 위)
-  // 낚시 (좌측 위): x=2..4, y=2..4 → 정중앙 (3,4)에 문 = T.DOOR_FISH (실제로는 4행 위치)
-  // 대장간 (중앙 위): x=10..12, y=2..4 → (11,4) DOOR_FORGE
-  // 던전 (우측 위): x=17..19, y=2..4 → (18,4) DOOR_DUNG
-  // 던전을 중앙에, 낚시는 왼쪽, 대장간은 오른쪽
-  const buildings: { sx: number; sy: number; door: Tile }[] = [
-    { sx: 3,  sy: 2, door: T.DOOR_FISH  },
-    { sx: 10, sy: 2, door: T.DOOR_DUNG  },
-    { sx: 17, sy: 2, door: T.DOOR_FORGE },
-  ];
-  for (const b of buildings) {
-    for (let dy = 0; dy < 3; dy++) {
-      for (let dx = 0; dx < 3; dx++) {
-        m[b.sy + dy][b.sx + dx] = T.WALL;
+  // 각 건물 2x2 영역을 도어 타일로 (벽 없음, 자유롭게 걸어갈 수 있음)
+  for (const b of BUILDING_PLACES) {
+    for (let dy = 0; dy < 2; dy++) {
+      for (let dx = 0; dx < 2; dx++) {
+        m[b.sy + dy][b.sx + dx] = b.door;
       }
     }
-    // 정중앙 아래쪽이 문 (사람이 위로 걸어 들어가는 입구)
-    m[b.sy + 2][b.sx + 1] = b.door;
   }
   return m;
 })();
@@ -263,49 +254,36 @@ export default function DungeonHomeScene() {
             ctx.strokeStyle = "#0e0e22"; ctx.lineWidth = 0.5;
             ctx.strokeRect(sx + 0.5, sy + 0.5, TS - 1, TS - 1);
 
-            // 문 타일 — Game7 ESCAPE 스타일 (초록 펄스 + 🚪)
+            // 문(건물 영역) 타일 — Game7 ESCAPE 스타일 색 펄스 (이모지는 별도로 중앙에 그림)
             if (t === T.DOOR_FISH || t === T.DOOR_FORGE || t === T.DOOR_DUNG) {
               const ep = 0.55 + Math.sin(frameCount * 0.09) * 0.45;
-              // 건물별 다른 색
               const col = t === T.DOOR_FISH ? "59,130,246"
                         : t === T.DOOR_FORGE ? "249,115,22"
                         : "139,92,246";
-              ctx.fillStyle = `rgba(${col},${ep * 0.45})`;
+              ctx.fillStyle = `rgba(${col},${ep * 0.5})`;
               ctx.fillRect(sx, sy, TS, TS);
-              ctx.font = "20px serif";
-              ctx.textAlign = "center"; ctx.textBaseline = "middle";
-              ctx.globalAlpha = 0.7 + Math.sin(frameCount * 0.09) * 0.3;
-              ctx.fillText("🚪", sx + TS / 2, sy + TS / 2 + 1);
-              ctx.globalAlpha = 1;
             }
           }
         }
       }
 
-      // ── 건물 라벨 (벽 위에) ───────────────────────────────
-      ctx.font = "bold 11px sans-serif";
+      // ── 건물 이모지 + 라벨 (도어 2x2 영역 위에 큼지막하게) ──
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      const labels: { door: Tile; emoji: string; label: string; cx: number; cy: number }[] = [];
-      // 건물 중앙 좌표 자동 계산 (벽 덩어리 위에 이모지+이름)
-      const places = [
-        { tile: T.DOOR_FISH,  emoji: "🎣", label: "낚시터", sx: 3,  sy: 2 },
-        { tile: T.DOOR_DUNG,  emoji: "🏰", label: "던전",   sx: 10, sy: 2 },
-        { tile: T.DOOR_FORGE, emoji: "⚒️", label: "대장간", sx: 17, sy: 2 },
-      ];
-      for (const p of places) {
-        labels.push({
-          door: p.tile, emoji: p.emoji, label: p.label,
-          cx: (p.sx + 1.5) * TS,
-          cy: (p.sy + 1.0) * TS,
-        });
-      }
-      for (const l of labels) {
-        ctx.font = "22px serif";
-        ctx.fillStyle = "#fff";
-        ctx.fillText(l.emoji, l.cx, l.cy - 4);
-        ctx.font = "bold 10px sans-serif";
+      for (const p of BUILDING_PLACES) {
+        const cx = (p.sx + 1) * TS;       // 2x2 중앙
+        const cy = (p.sy + 1) * TS;
+        // 라벨 박스 (도어 위, 가독성)
+        ctx.font = "bold 13px sans-serif";
+        const tw = ctx.measureText(p.label).width;
+        const labelY = p.sy * TS - 10;
+        ctx.fillStyle = "rgba(10,10,30,0.85)";
+        ctx.fillRect(cx - tw / 2 - 6, labelY - 9, tw + 12, 18);
         ctx.fillStyle = "#d0e8ff";
-        ctx.fillText(l.label, l.cx, l.cy + 14);
+        ctx.fillText(p.label, cx, labelY);
+        // 큰 이모지 (도어 영역 중앙)
+        ctx.font = "44px serif";
+        ctx.fillStyle = "#fff";
+        ctx.fillText(p.emoji, cx, cy);
       }
 
       // ── 플레이어 (Game7 동일 스타일: 동그라미 + 🧙) ──────
@@ -315,9 +293,9 @@ export default function DungeonHomeScene() {
 
       // 몸체 원
       ctx.fillStyle = "#0f0f2a";
-      ctx.beginPath(); ctx.arc(hx, sy + TS / 2, TS / 2 - 3, 0, Math.PI * 2); ctx.fill();
-      // 이모지
-      ctx.font = "20px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.beginPath(); ctx.arc(hx, sy + TS / 2, TS / 2 - 2, 0, Math.PI * 2); ctx.fill();
+      // 이모지 (크게)
+      ctx.font = "26px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText("🧙", hx, sy + TS / 2 + 1);
     }
 
@@ -374,64 +352,47 @@ export default function DungeonHomeScene() {
         )}
       </div>
 
-      {/* 모바일 D-pad — 데스크탑(sm 이상)에서는 숨김 */}
-      <div className="mt-4 flex justify-center sm:hidden">
-        <div className="flex flex-col items-center gap-1.5">
-          <div className="flex justify-center">
-            <button
-              type="button"
-              aria-label="위로"
-              className="flex h-12 w-12 items-center justify-center rounded-lg border border-zinc-700 bg-[#0e0e20] text-lg text-zinc-200 active:bg-[#1e1e38]"
-              style={{ touchAction: "none", WebkitTapHighlightColor: "transparent" }}
-              onTouchStart={startDir("up")}
-              onTouchEnd={stopDir}
-              onTouchCancel={stopDir}
-              onMouseDown={startDir("up")}
-              onMouseUp={stopDir}
-              onMouseLeave={stopDir}
-            >▲</button>
-          </div>
-          <div className="flex justify-center gap-1.5">
+      {/* 모바일 D-pad — 화면 우하단 고정. 데스크탑(sm 이상)에서는 숨김 */}
+      <div
+        className="fixed bottom-3 right-3 z-40 sm:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="flex flex-col items-center gap-1 rounded-xl bg-black/40 p-1.5 backdrop-blur">
+          <button
+            type="button"
+            aria-label="위로"
+            className="flex h-11 w-11 items-center justify-center rounded-lg border border-zinc-700 bg-[#0e0e20] text-base text-zinc-100 active:bg-[#1e1e38]"
+            style={{ touchAction: "none", WebkitTapHighlightColor: "transparent" }}
+            onTouchStart={startDir("up")} onTouchEnd={stopDir} onTouchCancel={stopDir}
+            onMouseDown={startDir("up")} onMouseUp={stopDir} onMouseLeave={stopDir}
+          >▲</button>
+          <div className="flex gap-1">
             <button
               type="button"
               aria-label="왼쪽"
-              className="flex h-12 w-12 items-center justify-center rounded-lg border border-zinc-700 bg-[#0e0e20] text-lg text-zinc-200 active:bg-[#1e1e38]"
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-zinc-700 bg-[#0e0e20] text-base text-zinc-100 active:bg-[#1e1e38]"
               style={{ touchAction: "none", WebkitTapHighlightColor: "transparent" }}
-              onTouchStart={startDir("left")}
-              onTouchEnd={stopDir}
-              onTouchCancel={stopDir}
-              onMouseDown={startDir("left")}
-              onMouseUp={stopDir}
-              onMouseLeave={stopDir}
+              onTouchStart={startDir("left")} onTouchEnd={stopDir} onTouchCancel={stopDir}
+              onMouseDown={startDir("left")} onMouseUp={stopDir} onMouseLeave={stopDir}
             >◀</button>
-            <div className="h-12 w-12" /> {/* 가운데 비움 (Game7 의 ⚡ counter 자리) */}
+            <div className="h-11 w-11" />
             <button
               type="button"
               aria-label="오른쪽"
-              className="flex h-12 w-12 items-center justify-center rounded-lg border border-zinc-700 bg-[#0e0e20] text-lg text-zinc-200 active:bg-[#1e1e38]"
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-zinc-700 bg-[#0e0e20] text-base text-zinc-100 active:bg-[#1e1e38]"
               style={{ touchAction: "none", WebkitTapHighlightColor: "transparent" }}
-              onTouchStart={startDir("right")}
-              onTouchEnd={stopDir}
-              onTouchCancel={stopDir}
-              onMouseDown={startDir("right")}
-              onMouseUp={stopDir}
-              onMouseLeave={stopDir}
+              onTouchStart={startDir("right")} onTouchEnd={stopDir} onTouchCancel={stopDir}
+              onMouseDown={startDir("right")} onMouseUp={stopDir} onMouseLeave={stopDir}
             >▶</button>
           </div>
-          <div className="flex justify-center">
-            <button
-              type="button"
-              aria-label="아래로"
-              className="flex h-12 w-12 items-center justify-center rounded-lg border border-zinc-700 bg-[#0e0e20] text-lg text-zinc-200 active:bg-[#1e1e38]"
-              style={{ touchAction: "none", WebkitTapHighlightColor: "transparent" }}
-              onTouchStart={startDir("down")}
-              onTouchEnd={stopDir}
-              onTouchCancel={stopDir}
-              onMouseDown={startDir("down")}
-              onMouseUp={stopDir}
-              onMouseLeave={stopDir}
-            >▼</button>
-          </div>
+          <button
+            type="button"
+            aria-label="아래로"
+            className="flex h-11 w-11 items-center justify-center rounded-lg border border-zinc-700 bg-[#0e0e20] text-base text-zinc-100 active:bg-[#1e1e38]"
+            style={{ touchAction: "none", WebkitTapHighlightColor: "transparent" }}
+            onTouchStart={startDir("down")} onTouchEnd={stopDir} onTouchCancel={stopDir}
+            onMouseDown={startDir("down")} onMouseUp={stopDir} onMouseLeave={stopDir}
+          >▼</button>
         </div>
       </div>
     </div>
