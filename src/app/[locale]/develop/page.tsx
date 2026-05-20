@@ -381,6 +381,7 @@ export default function DevelopPage() {
             {myGames.map((g) => {
               const msg = perGameMsg[g.slug];
               const isUpdating = updatingSlug === g.slug;
+              const hasPending = !!g.pendingStoragePath;
               return (
                 <li
                   key={g.slug}
@@ -390,10 +391,23 @@ export default function DevelopPage() {
                     <div className="flex items-center gap-2">
                       <span className="text-2xl" aria-hidden>{g.emoji || "🎮"}</span>
                       <div>
-                        <p className="font-medium">{g.title}</p>
+                        <p className="font-medium">
+                          {g.title}
+                          {hasPending && (
+                            <span className="ml-2 inline-block rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-medium text-amber-900 dark:bg-amber-800 dark:text-amber-100">
+                              {t("pendingBadge")}
+                            </span>
+                          )}
+                        </p>
                         <p className="text-xs text-zinc-500">
                           <code>{g.slug}</code> · {g.kind} · {g.status} · v{g.version}
+                          {hasPending && g.pendingVersion && ` → v${g.pendingVersion}`}
                         </p>
+                        {g.pendingRejectReason && !hasPending && (
+                          <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {t("lastUpdateRejected", { reason: g.pendingRejectReason })}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
