@@ -20,7 +20,6 @@ export default function DevelopPage() {
   const router = useRouter();
   const t = useTranslations("Develop");
 
-  const [authChecked, setAuthChecked] = useState(false);
   const [slug, setSlug] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
