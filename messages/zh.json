@@ -560,7 +560,9 @@
     "mineEmpty": "尚未注册任何游戏。",
     "updateButton": "用 zip 更新",
     "updating": "更新中…",
-    "updateSuccess": "更新完成。v{version} · {kb} KB"
+    "updateSuccess": "已提交审核队列。运营批准后将上线。(v{version}, {kb} KB)",
+    "pendingBadge": "审核中",
+    "lastUpdateRejected": "上次更新被拒绝: {reason}"
   },
   "ModerationGames": {
     "breadcrumb": "运营 · 游戏审核",
@@ -582,7 +584,11 @@
     "rejectReasonRequired": "请输入拒绝理由。",
     "rejectConfirm": "确认拒绝",
     "approveFailed": "批准失败。",
-    "rejectFailed": "拒绝失败。"
+    "rejectFailed": "拒绝失败。",
+    "pendingUpdatesSection": "待审核的重新上传 (更新审核)",
+    "pendingUpdatesSubtitle": "已发布游戏的新 zip 在 staging。批准后将部署到线上。",
+    "pendingUpdatesEmpty": "暂无待审核的更新。",
+    "approveUpdate": "✅ 部署更新"
   },
   "GamePlay": {
     "backToList": "← 返回游戏列表",

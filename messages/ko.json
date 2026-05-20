@@ -560,7 +560,9 @@
     "mineEmpty": "등록한 게임이 없습니다.",
     "updateButton": "zip 으로 업데이트",
     "updating": "업데이트 중…",
-    "updateSuccess": "업데이트 완료. v{version} · {kb} KB"
+    "updateSuccess": "검수 대기 큐에 올렸습니다. 운영자 승인 후 라이브에 반영됩니다. (v{version}, {kb} KB)",
+    "pendingBadge": "검수 대기",
+    "lastUpdateRejected": "지난 업데이트가 거절됨: {reason}"
   },
   "ModerationGames": {
     "breadcrumb": "운영자 · 게임 모더레이션",
@@ -582,7 +584,11 @@
     "rejectReasonRequired": "거절 사유를 입력하세요.",
     "rejectConfirm": "거절 확정",
     "approveFailed": "승인에 실패했습니다.",
-    "rejectFailed": "거절에 실패했습니다."
+    "rejectFailed": "거절에 실패했습니다.",
+    "pendingUpdatesSection": "보류 중인 재업로드 (업데이트 검수)",
+    "pendingUpdatesSubtitle": "이미 공개된 게임의 새 zip 이 staging 에 올라와 있습니다. 승인하면 라이브에 반영됩니다.",
+    "pendingUpdatesEmpty": "검수 대기 중인 업데이트가 없습니다.",
+    "approveUpdate": "✅ 업데이트 적용"
   },
   "GamePlay": {
     "backToList": "← 게임 목록으로",

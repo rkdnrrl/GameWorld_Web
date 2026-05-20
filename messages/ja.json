@@ -560,7 +560,9 @@
     "mineEmpty": "登録したゲームはありません。",
     "updateButton": "zip で更新",
     "updating": "更新中…",
-    "updateSuccess": "更新完了。v{version} · {kb} KB"
+    "updateSuccess": "審査キューに登録しました。運営承認後にライブへ反映されます。(v{version}, {kb} KB)",
+    "pendingBadge": "審査待ち",
+    "lastUpdateRejected": "前回の更新は却下されました: {reason}"
   },
   "ModerationGames": {
     "breadcrumb": "運営 · ゲームモデレーション",
@@ -582,7 +584,11 @@
     "rejectReasonRequired": "却下理由を入力してください。",
     "rejectConfirm": "却下を確定",
     "approveFailed": "承認に失敗しました。",
-    "rejectFailed": "却下に失敗しました。"
+    "rejectFailed": "却下に失敗しました。",
+    "pendingUpdatesSection": "保留中の再アップロード (更新審査)",
+    "pendingUpdatesSubtitle": "公開済みゲームの新しい zip が staging にあります。承認するとライブに反映されます。",
+    "pendingUpdatesEmpty": "審査待ちの更新はありません。",
+    "approveUpdate": "✅ 更新を反映"
   },
   "GamePlay": {
     "backToList": "← ゲーム一覧へ",

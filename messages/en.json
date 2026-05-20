@@ -560,7 +560,9 @@
     "mineEmpty": "No games yet.",
     "updateButton": "Update with zip",
     "updating": "Updating…",
-    "updateSuccess": "Updated. v{version} · {kb} KB"
+    "updateSuccess": "Queued for moderation. Goes live after operator approval. (v{version}, {kb} KB)",
+    "pendingBadge": "Pending review",
+    "lastUpdateRejected": "Last update rejected: {reason}"
   },
   "ModerationGames": {
     "breadcrumb": "Operator · Game Moderation",
@@ -582,7 +584,11 @@
     "rejectReasonRequired": "Please enter a rejection reason.",
     "rejectConfirm": "Confirm Reject",
     "approveFailed": "Approval failed.",
-    "rejectFailed": "Rejection failed."
+    "rejectFailed": "Rejection failed.",
+    "pendingUpdatesSection": "Pending Re-uploads (Update Review)",
+    "pendingUpdatesSubtitle": "New zip files for already-published games are in staging. Approving will deploy to live.",
+    "pendingUpdatesEmpty": "No updates waiting for review.",
+    "approveUpdate": "✅ Deploy update"
   },
   "GamePlay": {
     "backToList": "← Back to games",
