@@ -33,12 +33,7 @@ export default function DevelopPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    const tk = session.getToken();
-    if (!tk) {
-      router.replace("/login");
-      return;
-    }
-    setAuthChecked(true);
+    if (!session.getToken()) router.replace("/login");
   }, [router]);
 
   function onFileChange(e: ChangeEvent<HTMLInputElement>) {
