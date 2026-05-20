@@ -116,14 +116,6 @@ export default function DevelopPage() {
     }
   }
 
-  if (!authChecked) {
-    return (
-      <div className="mx-auto w-full max-w-3xl px-4 py-16 text-sm text-zinc-500">
-        {t("checking")}
-      </div>
-    );
-  }
-
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
