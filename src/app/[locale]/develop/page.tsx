@@ -12,6 +12,16 @@ type UploadResult = {
   message: string;
 };
 
+type MyGame = {
+  slug: string;
+  title: string;
+  emoji: string;
+  kind: string;
+  status: string;
+  version: number;
+  updatedAt: string;
+};
+
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const CATEGORIES = ["earn", "multiplay", "decorate", "other"] as const;
 type Category = (typeof CATEGORIES)[number];
@@ -32,9 +42,90 @@ export default function DevelopPage() {
   const [result, setResult] = useState<UploadResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // 내 게임 목록 + 재업로드 상태
+  const [myGames, setMyGames] = useState<MyGame[]>([]);
+  const [myGamesLoading, setMyGamesLoading] = useState(false);
+  const [updatingSlug, setUpdatingSlug] = useState<string | null>(null);
+  const [perGameMsg, setPerGameMsg] = useState<Record<string, { ok: boolean; text: string }>>({});
+
   useEffect(() => {
     if (!session.getToken()) router.replace("/login");
   }, [router]);
+
+  async function loadMyGames() {
+    const tk = session.getToken();
+    if (!tk) return;
+    setMyGamesLoading(true);
+    try {
+      const res = await fetch("/api/games/mine", {
+        headers: { Authorization: `Bearer ${tk}` },
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { games?: MyGame[] };
+      setMyGames(data.games ?? []);
+    } catch {
+      /* ignore */
+    } finally {
+      setMyGamesLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadMyGames();
+  }, []);
+
+  async function onReupload(slugTarget: string, picked: File) {
+    const tk = session.getToken();
+    if (!tk) {
+      router.replace("/login");
+      return;
+    }
+    if (picked.size > MAX_UPLOAD_BYTES) {
+      setPerGameMsg((m) => ({
+        ...m,
+        [slugTarget]: { ok: false, text: t("errorFileTooLarge", { mb: MAX_UPLOAD_BYTES / 1024 / 1024 }) },
+      }));
+      return;
+    }
+    const fd = new FormData();
+    fd.append("gamezip", picked);
+    setUpdatingSlug(slugTarget);
+    setPerGameMsg((m) => ({ ...m, [slugTarget]: { ok: true, text: t("updating") } }));
+    try {
+      const res = await fetch(`/api/games/${slugTarget}/files`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${tk}` },
+        body: fd,
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        game?: { version: number; uploadedBytes: number };
+        error?: { message?: string };
+      };
+      if (!res.ok || !data.ok) {
+        setPerGameMsg((m) => ({
+          ...m,
+          [slugTarget]: { ok: false, text: data.error?.message || t("errorGeneric", { status: res.status }) },
+        }));
+        return;
+      }
+      setPerGameMsg((m) => ({
+        ...m,
+        [slugTarget]: {
+          ok: true,
+          text: t("updateSuccess", {
+            version: data.game?.version ?? "?",
+            kb: ((data.game?.uploadedBytes ?? 0) / 1024).toFixed(1),
+          }),
+        },
+      }));
+      void loadMyGames();
+    } catch {
+      setPerGameMsg((m) => ({ ...m, [slugTarget]: { ok: false, text: t("errorNetwork") } }));
+    } finally {
+      setUpdatingSlug(null);
+    }
+  }
 
   function onFileChange(e: ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null;
