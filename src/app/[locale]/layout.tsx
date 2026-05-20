@@ -9,6 +9,7 @@ import SessionExpiredBanner from "@/components/SessionExpiredBanner";
 import SessionRefresher from "@/components/SessionRefresher";
 import CharacterIframe from "@/components/CharacterIframe";
 import AirnuriTokenReceiver from "@/components/AirnuriTokenReceiver";
+import AirnuriSocialMount from "@/components/AirnuriSocialMount";
 
 /** 로컬에서 백엔드 상태 표시. 프로덕션 빌드를 로컬에서 검증하려면 NEXT_PUBLIC_BACKEND_STATUS=1 */
 const showBackendConnectionBanner =
