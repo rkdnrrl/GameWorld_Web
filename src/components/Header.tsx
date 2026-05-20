@@ -148,6 +148,14 @@ export default function Header() {
               </Link>
             )}
             {loggedIn && (
+              <Link
+                href="/develop"
+                className="shrink-0 whitespace-nowrap font-medium text-emerald-700 hover:text-emerald-900 dark:text-emerald-400 dark:hover:text-emerald-200"
+              >
+                {t("develop")}
+              </Link>
+            )}
+            {loggedIn && (
               <Link href="/account" className="shrink-0 whitespace-nowrap hover:text-blue-600">
                 {t("myInfo")}
               </Link>
