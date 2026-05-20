@@ -6,7 +6,6 @@ import {
   useCallback,
   useEffect,
   useState,
-  FormEvent,
 } from "react";
 import {
   api,
@@ -39,13 +38,6 @@ export default function AccountPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [nickname, setNickname] = useState("");
-  const [profileNotice, setProfileNotice] = useState<{
-    kind: "ok" | "err";
-    text: string;
-  } | null>(null);
-  const [profileSaving, setProfileSaving] = useState(false);
-
   const [dungeonRecord, setDungeonRecord] = useState<{ dungeonMaxFloor: number; dungeonMaxKills: number } | null>(null);
 
   const refreshProfile = useCallback(async (tk: string) => {
@@ -57,7 +49,6 @@ export default function AccountPage() {
       ]);
       setUser(next);
       session.updateStoredUser(next);
-      setNickname(next.nickname);
       setDungeonRecord(recordRes.record);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
@@ -91,41 +82,9 @@ export default function AccountPage() {
     }
   }, [loggedIn, loading, router]);
 
-  async function onNicknameSubmit(e: FormEvent) {
-    e.preventDefault();
-    const tk = session.getToken();
-    if (!tk || !user) return;
-
-    const nextNick = nickname.trim();
-    if (nextNick.length < 2) {
-      setProfileNotice({ kind: "err", text: t("nicknameTooShort") });
-      return;
-    }
-    if (nextNick === user.nickname) {
-      setProfileNotice({ kind: "err", text: t("nicknameUnchanged") });
-      return;
-    }
-
-    setProfileNotice(null);
-    setProfileSaving(true);
-    try {
-      const res = await api.updateProfile(tk, { nickname: nextNick });
-      if (res.token) {
-        session.save({ token: res.token, user: res.user });
-      } else {
-        session.updateStoredUser(res.user);
-      }
-      setUser(res.user);
-      setNickname(res.user.nickname);
-      setProfileNotice({ kind: "ok", text: t("nicknameSaved") });
-    } catch (err) {
-      setProfileNotice({
-        kind: "err",
-        text: err instanceof ApiError ? err.message : t("saveFailed"),
-      });
-    } finally {
-      setProfileSaving(false);
-    }
+  function goAirnuriAccount() {
+    const returnTo = encodeURIComponent(window.location.origin + "/");
+    window.location.href = `https://airnuri.com/account?return_to=${returnTo}`;
   }
 
   function goAirnuriWithdraw() {
@@ -218,40 +177,19 @@ export default function AccountPage() {
             </dl>
           </div>
 
-          <form
-            onSubmit={onNicknameSubmit}
-            className="mt-8 space-y-4 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900"
-          >
+          <div className="mt-8 space-y-3 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
             <h2 className="text-lg font-semibold">{t("nicknameSection")}</h2>
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium">{t("nickname")}</span>
-              <input
-                type="text"
-                value={nickname}
-                onChange={(e) => {
-                  setNickname(e.target.value);
-                  setProfileNotice(null);
-                }}
-                className="input"
-                minLength={2}
-                autoComplete="nickname"
-              />
-            </label>
-            {profileNotice && (
-              <p
-                className={`text-sm ${profileNotice.kind === "ok" ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-300"}`}
-              >
-                {profileNotice.text}
-              </p>
-            )}
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              <span className="font-medium text-zinc-900 dark:text-zinc-100">{user?.nickname || "—"}</span>
+            </p>
             <button
-              type="submit"
-              disabled={profileSaving}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+              type="button"
+              onClick={goAirnuriAccount}
+              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
-              {profileSaving ? t("savingNickname") : t("saveNickname")}
+              {t("saveNickname")}
             </button>
-          </form>
+          </div>
 
           <div className="mt-10 rounded-xl border border-red-200 bg-red-50/80 p-6 dark:border-red-900/60 dark:bg-red-950/30">
             <h2 className="text-lg font-semibold text-red-900 dark:text-red-200">
