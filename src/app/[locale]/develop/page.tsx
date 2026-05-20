@@ -358,6 +358,80 @@ export default function DevelopPage() {
           </Link>
         </div>
       </form>
+
+      {/* ── 내 게임: 재업로드 ── */}
+      <section className="mt-12 border-t border-zinc-200 pt-8 dark:border-zinc-800">
+        <h2 className="text-lg font-semibold">{t("mineSection")}</h2>
+        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{t("mineSubtitle")}</p>
+
+        {myGamesLoading && (
+          <p className="mt-4 text-sm text-zinc-500">{t("mineLoading")}</p>
+        )}
+
+        {!myGamesLoading && myGames.length === 0 && (
+          <p className="mt-4 text-sm text-zinc-500">{t("mineEmpty")}</p>
+        )}
+
+        {!myGamesLoading && myGames.length > 0 && (
+          <ul className="mt-4 space-y-3">
+            {myGames.map((g) => {
+              const msg = perGameMsg[g.slug];
+              const isUpdating = updatingSlug === g.slug;
+              return (
+                <li
+                  key={g.slug}
+                  className="rounded-md border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl" aria-hidden>{g.emoji || "🎮"}</span>
+                      <div>
+                        <p className="font-medium">{g.title}</p>
+                        <p className="text-xs text-zinc-500">
+                          <code>{g.slug}</code> · {g.kind} · {g.status} · v{g.version}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        id={`reupload-${g.slug}`}
+                        type="file"
+                        accept=".zip,application/zip"
+                        disabled={isUpdating}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) void onReupload(g.slug, f);
+                          e.target.value = "";
+                        }}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor={`reupload-${g.slug}`}
+                        className={`cursor-pointer rounded-md px-3 py-2 text-sm font-medium text-white ${
+                          isUpdating ? "bg-zinc-400" : "bg-emerald-600 hover:bg-emerald-700"
+                        }`}
+                      >
+                        {isUpdating ? t("updating") : t("updateButton")}
+                      </label>
+                    </div>
+                  </div>
+                  {msg && (
+                    <div
+                      className={`mt-3 rounded-md p-2 text-xs ${
+                        msg.ok
+                          ? "border border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200"
+                          : "border border-red-300 bg-red-50 text-red-800 dark:border-red-700 dark:bg-red-950/40 dark:text-red-200"
+                      }`}
+                    >
+                      {msg.text}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
