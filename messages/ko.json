@@ -553,7 +553,14 @@
     "errorFileTooLarge": "파일이 너무 큽니다 (최대 {mb}MB).",
     "errorMissingMeta": "slug 와 제목은 필수입니다.",
     "errorGeneric": "업로드에 실패했습니다. (HTTP {status})",
-    "errorNetwork": "네트워크 오류입니다. 잠시 후 다시 시도해 주세요."
+    "errorNetwork": "네트워크 오류입니다. 잠시 후 다시 시도해 주세요.",
+    "mineSection": "내 게임 (재업로드)",
+    "mineSubtitle": "이미 등록한 게임의 zip 을 다시 올리면 기존 파일을 모두 교체합니다. 버전이 +1 됩니다.",
+    "mineLoading": "목록을 불러오는 중…",
+    "mineEmpty": "등록한 게임이 없습니다.",
+    "updateButton": "zip 으로 업데이트",
+    "updating": "업데이트 중…",
+    "updateSuccess": "업데이트 완료. v{version} · {kb} KB"
   },
   "ModerationGames": {
     "breadcrumb": "운영자 · 게임 모더레이션",

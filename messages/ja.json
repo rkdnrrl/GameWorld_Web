@@ -553,7 +553,14 @@
     "errorFileTooLarge": "ファイルが大きすぎます(最大 {mb}MB)。",
     "errorMissingMeta": "slug とタイトルは必須です。",
     "errorGeneric": "アップロードに失敗しました。(HTTP {status})",
-    "errorNetwork": "ネットワークエラーです。しばらくしてから再試行してください。"
+    "errorNetwork": "ネットワークエラーです。しばらくしてから再試行してください。",
+    "mineSection": "マイゲーム（再アップロード）",
+    "mineSubtitle": "新しい zip をアップロードすると既存ファイルがすべて置き換わります。バージョンが +1 されます。",
+    "mineLoading": "読み込み中…",
+    "mineEmpty": "登録したゲームはありません。",
+    "updateButton": "zip で更新",
+    "updating": "更新中…",
+    "updateSuccess": "更新完了。v{version} · {kb} KB"
   },
   "ModerationGames": {
     "breadcrumb": "運営 · ゲームモデレーション",

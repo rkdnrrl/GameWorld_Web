@@ -553,7 +553,14 @@
     "errorFileTooLarge": "文件过大(最大 {mb}MB)。",
     "errorMissingMeta": "slug 和标题为必填项。",
     "errorGeneric": "上传失败。(HTTP {status})",
-    "errorNetwork": "网络错误。请稍后重试。"
+    "errorNetwork": "网络错误。请稍后重试。",
+    "mineSection": "我的游戏（重新上传）",
+    "mineSubtitle": "上传新的 zip 将替换所有现有文件。版本号 +1。",
+    "mineLoading": "加载中…",
+    "mineEmpty": "尚未注册任何游戏。",
+    "updateButton": "用 zip 更新",
+    "updating": "更新中…",
+    "updateSuccess": "更新完成。v{version} · {kb} KB"
   },
   "ModerationGames": {
     "breadcrumb": "运营 · 游戏审核",

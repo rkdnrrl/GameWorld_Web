@@ -553,7 +553,14 @@
     "errorFileTooLarge": "File too large (max {mb} MB).",
     "errorMissingMeta": "Slug and title are required.",
     "errorGeneric": "Upload failed. (HTTP {status})",
-    "errorNetwork": "Network error. Please try again."
+    "errorNetwork": "Network error. Please try again.",
+    "mineSection": "My Games (Re-upload)",
+    "mineSubtitle": "Uploading a new zip replaces all existing files. Version is incremented by 1.",
+    "mineLoading": "Loading…",
+    "mineEmpty": "No games yet.",
+    "updateButton": "Update with zip",
+    "updating": "Updating…",
+    "updateSuccess": "Updated. v{version} · {kb} KB"
   },
   "ModerationGames": {
     "breadcrumb": "Operator · Game Moderation",
