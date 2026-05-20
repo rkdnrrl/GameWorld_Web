@@ -305,6 +305,16 @@ export default function OperatorPendingGamesPage() {
                       {" · "}
                       {t("category")}: {t(`category_${g.category}` as const)}
                     </p>
+                    <p className="mt-1 text-xs">
+                      <a
+                        href={`https://play.airliveplay.com/_preview/${g.slug}/`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-600 hover:underline dark:text-blue-400"
+                      >
+                        {t("previewStagingLink")}
+                      </a>
+                    </p>
                   </div>
                   <div className="flex shrink-0 flex-col gap-2">
                     <button
