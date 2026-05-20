@@ -588,7 +588,8 @@
     "pendingUpdatesSection": "保留中の再アップロード (更新審査)",
     "pendingUpdatesSubtitle": "公開済みゲームの新しい zip が staging にあります。承認するとライブに反映されます。",
     "pendingUpdatesEmpty": "審査待ちの更新はありません。",
-    "approveUpdate": "✅ 更新を反映"
+    "approveUpdate": "✅ 更新を反映",
+    "previewStagingLink": "🔍 staging でプレイ (審査用)"
   },
   "GamePlay": {
     "backToList": "← ゲーム一覧へ",

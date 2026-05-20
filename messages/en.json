@@ -588,7 +588,8 @@
     "pendingUpdatesSection": "Pending Re-uploads (Update Review)",
     "pendingUpdatesSubtitle": "New zip files for already-published games are in staging. Approving will deploy to live.",
     "pendingUpdatesEmpty": "No updates waiting for review.",
-    "approveUpdate": "✅ Deploy update"
+    "approveUpdate": "✅ Deploy update",
+    "previewStagingLink": "🔍 Play staging build (review)"
   },
   "GamePlay": {
     "backToList": "← Back to games",

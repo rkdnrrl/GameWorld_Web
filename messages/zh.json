@@ -588,7 +588,8 @@
     "pendingUpdatesSection": "待审核的重新上传 (更新审核)",
     "pendingUpdatesSubtitle": "已发布游戏的新 zip 在 staging。批准后将部署到线上。",
     "pendingUpdatesEmpty": "暂无待审核的更新。",
-    "approveUpdate": "✅ 部署更新"
+    "approveUpdate": "✅ 部署更新",
+    "previewStagingLink": "🔍 在 staging 试玩 (审核用)"
   },
   "GamePlay": {
     "backToList": "← 返回游戏列表",

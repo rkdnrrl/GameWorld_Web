@@ -588,7 +588,8 @@
     "pendingUpdatesSection": "보류 중인 재업로드 (업데이트 검수)",
     "pendingUpdatesSubtitle": "이미 공개된 게임의 새 zip 이 staging 에 올라와 있습니다. 승인하면 라이브에 반영됩니다.",
     "pendingUpdatesEmpty": "검수 대기 중인 업데이트가 없습니다.",
-    "approveUpdate": "✅ 업데이트 적용"
+    "approveUpdate": "✅ 업데이트 적용",
+    "previewStagingLink": "🔍 staging 에서 플레이해보기 (검수용)"
   },
   "GamePlay": {
     "backToList": "← 게임 목록으로",
