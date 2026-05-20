@@ -25,6 +25,10 @@ export default function OperatorPendingGamesPage() {
   const [rejectUpdateFor, setRejectUpdateFor] = useState<string | null>(null);
   const [rejectUpdateReason, setRejectUpdateReason] = useState("");
 
+  // 미리보기 URL 의 token 쿼리는 client mount 후에만 채움 (SSR 시 localStorage 없음).
+  const [previewToken, setPreviewToken] = useState<string | null>(null);
+  useEffect(() => { setPreviewToken(session.getToken()); }, []);
+
   function load() {
     const tk = session.getToken();
     if (!tk) { router.replace("/login"); return; }
