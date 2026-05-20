@@ -273,6 +273,96 @@ export default function OperatorPendingGamesPage() {
           ))}
         </ul>
       )}
+
+      {/* ── 보류 중인 재업로드 (업데이트 검수) ── */}
+      <section className="mt-12 border-t border-zinc-200 pt-8 dark:border-zinc-800">
+        <h2 className="text-lg font-semibold">{t("pendingUpdatesSection")}</h2>
+        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{t("pendingUpdatesSubtitle")}</p>
+
+        {pendingUpdates === null ? (
+          <p className="mt-4 text-sm text-zinc-500">{tCommon("loading")}</p>
+        ) : pendingUpdates.length === 0 ? (
+          <p className="mt-4 text-sm text-zinc-500">{t("pendingUpdatesEmpty")}</p>
+        ) : (
+          <ul className="mt-4 space-y-4">
+            {pendingUpdates.map((g) => (
+              <li
+                key={g.slug}
+                className="rounded-xl border border-amber-300 bg-amber-50/40 p-4 dark:border-amber-700 dark:bg-amber-950/20"
+              >
+                <div className="flex items-start gap-4">
+                  <span className="mt-0.5 text-3xl leading-none">{g.emoji}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <h3 className="font-medium text-zinc-900 dark:text-zinc-100">{g.title}</h3>
+                      <code className="text-xs text-zinc-500">{g.slug}</code>
+                      <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-800 dark:text-amber-100">
+                        v{g.version} → v{g.pendingVersion ?? "?"}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs text-zinc-500">
+                      {g.pendingUploadedAt && t("uploadedAt", { date: new Date(g.pendingUploadedAt).toLocaleString() })}
+                      {" · "}
+                      {t("category")}: {t(`category_${g.category}` as const)}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-col gap-2">
+                    <button
+                      onClick={() => void onApproveUpdate(g.slug)}
+                      disabled={actingSlug !== null}
+                      className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                    >
+                      {actingSlug === g.slug ? tCommon("processingEllipsis") : t("approveUpdate")}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setRejectUpdateFor(rejectUpdateFor === g.slug ? null : g.slug);
+                        setRejectUpdateReason("");
+                        setActionError(null);
+                      }}
+                      disabled={actingSlug !== null}
+                      className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-700 dark:bg-zinc-800 dark:text-red-300 dark:hover:bg-red-950/30"
+                    >
+                      {t("reject")}
+                    </button>
+                  </div>
+                </div>
+
+                {rejectUpdateFor === g.slug && (
+                  <div className="mt-4 rounded-md border border-red-200 bg-red-50/50 p-3 dark:border-red-800 dark:bg-red-950/20">
+                    <label className="mb-1 block text-xs font-medium text-red-800 dark:text-red-300">
+                      {t("rejectReasonLabel")}
+                    </label>
+                    <textarea
+                      value={rejectUpdateReason}
+                      onChange={(e) => setRejectUpdateReason(e.target.value)}
+                      rows={2}
+                      maxLength={500}
+                      placeholder={t("rejectReasonPlaceholder")}
+                      className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm dark:border-red-700 dark:bg-zinc-900"
+                    />
+                    <div className="mt-2 flex justify-end gap-2">
+                      <button
+                        onClick={() => { setRejectUpdateFor(null); setRejectUpdateReason(""); }}
+                        className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+                      >
+                        {tCommon("cancel")}
+                      </button>
+                      <button
+                        onClick={() => void onRejectUpdate(g.slug)}
+                        disabled={actingSlug !== null || !rejectUpdateReason.trim()}
+                        className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+                      >
+                        {actingSlug === g.slug ? tCommon("processingEllipsis") : t("rejectConfirm")}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
