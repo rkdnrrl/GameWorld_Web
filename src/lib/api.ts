@@ -590,6 +590,30 @@ export const api = {
     );
   },
 
+  /**
+   * 게임 단일 조회 (공개 — 인증 불필요).
+   * 응답 형식은 GET /api/games/:slug 와 동일하다.
+   */
+  getGame(slug: string) {
+    return request<{
+      game: {
+        slug: string;
+        title: string;
+        description: string | null;
+        emoji: string;
+        kind: "official" | "community";
+        category: string;
+        tags: string[];
+        thumbnailUrl: string | null;
+        screenshots: string[];
+        url: string;
+        playCount?: number;
+        likeCount?: number;
+        publishedAt?: string | null;
+      };
+    }>(`/api/games/${encodeURIComponent(slug)}`);
+  },
+
   /** 운영자: 모더레이션 대기 중인 UGC 게임 목록 */
   operatorListPendingGames(token: string) {
     return request<{ games: UgcGame[] }>("/api/operator/games/pending", {
