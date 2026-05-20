@@ -20,6 +20,10 @@ type MyGame = {
   status: string;
   version: number;
   updatedAt: string;
+  pendingStoragePath?: string | null;
+  pendingVersion?: number | null;
+  pendingUploadedAt?: string | null;
+  pendingRejectReason?: string | null;
 };
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
