@@ -7,7 +7,6 @@ import {
   useEffect,
   useState,
   FormEvent,
-  ChangeEvent,
 } from "react";
 import {
   api,
@@ -48,13 +47,6 @@ export default function AccountPage() {
   const [profileSaving, setProfileSaving] = useState(false);
 
   const [dungeonRecord, setDungeonRecord] = useState<{ dungeonMaxFloor: number; dungeonMaxKills: number } | null>(null);
-
-  const [withdrawOpen, setWithdrawOpen] = useState(false);
-  const [withdrawPhrase, setWithdrawPhrase] = useState("");
-  const [withdrawError, setWithdrawError] = useState<string | null>(null);
-  const [withdrawSubmitting, setWithdrawSubmitting] = useState(false);
-
-  const WITHDRAW_CONFIRM_TEXT = t("withdrawConfirmText");
 
   const refreshProfile = useCallback(async (tk: string) => {
     setLoadError(null);
@@ -136,31 +128,9 @@ export default function AccountPage() {
     }
   }
 
-  async function onWithdrawConfirm() {
-    const tk = session.getToken();
-    if (!tk) return;
-    if (withdrawPhrase.trim() !== WITHDRAW_CONFIRM_TEXT) {
-      setWithdrawError(t("withdrawPhraseError", { phrase: WITHDRAW_CONFIRM_TEXT }));
-      return;
-    }
-    setWithdrawError(null);
-    setWithdrawSubmitting(true);
-    try {
-      await api.deleteAccount(tk);
-      session.clear();
-      router.replace("/");
-    } catch (err) {
-      setWithdrawError(
-        err instanceof ApiError ? err.message : t("withdrawFailed"),
-      );
-    } finally {
-      setWithdrawSubmitting(false);
-    }
-  }
-
-  function onWithdrawPhraseChange(e: ChangeEvent<HTMLInputElement>) {
-    setWithdrawPhrase(e.target.value);
-    setWithdrawError(null);
+  function goAirnuriWithdraw() {
+    const returnTo = encodeURIComponent(window.location.origin + "/");
+    window.location.href = `https://airnuri.com/account?return_to=${returnTo}`;
   }
 
   if (!token && !loading) {
@@ -290,60 +260,13 @@ export default function AccountPage() {
             <p className="mt-2 text-sm text-red-800/90 dark:text-red-300/90">
               {t("withdrawDesc")}
             </p>
-            {!withdrawOpen ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setWithdrawOpen(true);
-                  setWithdrawPhrase("");
-                  setWithdrawError(null);
-                }}
-                className="mt-4 rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-800 hover:bg-red-100 dark:border-red-800 dark:bg-red-950 dark:text-red-200 dark:hover:bg-red-900/40"
-              >
-                {t("withdrawButton")}
-              </button>
-            ) : (
-              <div className="mt-4 space-y-3">
-                <p className="text-sm text-red-900 dark:text-red-200">
-                  {t("withdrawPrompt", { phrase: WITHDRAW_CONFIRM_TEXT })}
-                </p>
-                <input
-                  type="text"
-                  value={withdrawPhrase}
-                  onChange={onWithdrawPhraseChange}
-                  className="input font-mono"
-                  placeholder={WITHDRAW_CONFIRM_TEXT}
-                  autoComplete="off"
-                />
-                {withdrawError && (
-                  <p className="text-sm text-red-700 dark:text-red-400">
-                    {withdrawError}
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled={withdrawSubmitting}
-                    onClick={onWithdrawConfirm}
-                    className="rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-60"
-                  >
-                    {withdrawSubmitting ? t("withdrawSubmitting") : t("withdrawConfirmButton")}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={withdrawSubmitting}
-                    onClick={() => {
-                      setWithdrawOpen(false);
-                      setWithdrawPhrase("");
-                      setWithdrawError(null);
-                    }}
-                    className="rounded-md border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-600"
-                  >
-                    {tCommon("cancel")}
-                  </button>
-                </div>
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={goAirnuriWithdraw}
+              className="mt-4 rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-800 hover:bg-red-100 dark:border-red-800 dark:bg-red-950 dark:text-red-200 dark:hover:bg-red-900/40"
+            >
+              {t("withdrawButton")}
+            </button>
           </div>
 
           <p className="mt-8 text-center text-sm text-zinc-500">
