@@ -576,5 +576,12 @@
     "rejectConfirm": "Confirm Reject",
     "approveFailed": "Approval failed.",
     "rejectFailed": "Rejection failed."
+  },
+  "GamePlay": {
+    "backToList": "← Back to games",
+    "loadFailed": "Failed to load game info.",
+    "notFound": "Game not found.",
+    "officialBadge": "Official",
+    "communityBadge": "Community"
   }
 }

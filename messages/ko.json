@@ -576,5 +576,12 @@
     "rejectConfirm": "거절 확정",
     "approveFailed": "승인에 실패했습니다.",
     "rejectFailed": "거절에 실패했습니다."
+  },
+  "GamePlay": {
+    "backToList": "← 게임 목록으로",
+    "loadFailed": "게임 정보를 불러오지 못했습니다.",
+    "notFound": "게임을 찾을 수 없습니다.",
+    "officialBadge": "공식",
+    "communityBadge": "커뮤니티"
   }
 }

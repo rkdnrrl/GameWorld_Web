@@ -576,5 +576,12 @@
     "rejectConfirm": "却下を確定",
     "approveFailed": "承認に失敗しました。",
     "rejectFailed": "却下に失敗しました。"
+  },
+  "GamePlay": {
+    "backToList": "← ゲーム一覧へ",
+    "loadFailed": "ゲーム情報の読み込みに失敗しました。",
+    "notFound": "ゲームが見つかりません。",
+    "officialBadge": "公式",
+    "communityBadge": "コミュニティ"
   }
 }

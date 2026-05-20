@@ -576,5 +576,12 @@
     "rejectConfirm": "确认拒绝",
     "approveFailed": "批准失败。",
     "rejectFailed": "拒绝失败。"
+  },
+  "GamePlay": {
+    "backToList": "← 返回游戏列表",
+    "loadFailed": "加载游戏信息失败。",
+    "notFound": "未找到游戏。",
+    "officialBadge": "官方",
+    "communityBadge": "社区"
   }
 }
