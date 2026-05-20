@@ -71,6 +71,32 @@ export type SignupResponse =
   | AuthResponse
   | { requiresEmailConfirmation: true; email: string; message: string };
 
+/** UGC 플랫폼 — games 테이블 한 행 */
+export type UgcGame = {
+  slug: string;
+  ownerUserId: string | null;
+  title: string;
+  description: string | null;
+  emoji: string;
+  kind: "official" | "community";
+  status: "pending" | "published" | "rejected" | "hidden";
+  category: "earn" | "multiplay" | "decorate" | "other";
+  storagePath: string;
+  externalUrl: string | null;
+  thumbnailUrl: string | null;
+  screenshots: unknown;
+  tags: unknown;
+  statusUrl: string | null;
+  maxPlayers: number | null;
+  playCount: number;
+  likeCount: number;
+  version: number;
+  rejectReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt: string | null;
+};
+
 export type EquipmentItem = {
   id: string;
   name: string;
