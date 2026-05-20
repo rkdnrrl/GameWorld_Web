@@ -589,6 +589,38 @@ export const api = {
       { method: "POST", headers: authHeaders(token), body: JSON.stringify({ finalDur, totalCost }) },
     );
   },
+
+  /** 운영자: 모더레이션 대기 중인 UGC 게임 목록 */
+  operatorListPendingGames(token: string) {
+    return request<{ games: UgcGame[] }>("/api/operator/games/pending", {
+      headers: authHeaders(token),
+    });
+  },
+
+  /** 운영자: UGC 게임 승인 → status=published */
+  operatorApproveGame(token: string, slug: string) {
+    return request<{ game: UgcGame }>(`/api/operator/games/${encodeURIComponent(slug)}/approve`, {
+      method: "POST",
+      headers: authHeaders(token),
+    });
+  },
+
+  /** 운영자: UGC 게임 거절 → status=rejected, 사유 저장 */
+  operatorRejectGame(token: string, slug: string, reason: string) {
+    return request<{ game: UgcGame }>(`/api/operator/games/${encodeURIComponent(slug)}/reject`, {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  /** 운영자: 이미 published 된 게임 숨김 → status=hidden */
+  operatorHideGame(token: string, slug: string) {
+    return request<{ game: UgcGame }>(`/api/operator/games/${encodeURIComponent(slug)}/hide`, {
+      method: "POST",
+      headers: authHeaders(token),
+    });
+  },
 };
 
 const TOKEN_KEY         = "gameworld_token";
