@@ -205,6 +205,8 @@
     "menuActivityLogsDesc": "낚시·용광로·제련 이벤트 실시간 확인",
     "menuSmeltStock": "기초 재료 지급",
     "menuSmeltStockDesc": "유저에게 용광로 기초 재료 지급",
+    "menuPendingGames": "게임 모더레이션",
+    "menuPendingGamesDesc": "개발자가 업로드한 커뮤니티 게임 승인·거절",
     "menuSharedPixelArts": "공유 픽셀 아트",
     "menuSharedPixelArtsDesc": "AI 생성 스프라이트 캐시 조회·수정·삭제",
     "menuFishingItems": "낚시 아이템 관리",
@@ -552,5 +554,27 @@
     "errorMissingMeta": "slug 와 제목은 필수입니다.",
     "errorGeneric": "업로드에 실패했습니다. (HTTP {status})",
     "errorNetwork": "네트워크 오류입니다. 잠시 후 다시 시도해 주세요."
+  },
+  "ModerationGames": {
+    "breadcrumb": "운영자 · 게임 모더레이션",
+    "title": "업로드된 게임 검수",
+    "subtitle": "개발자가 올린 커뮤니티 게임을 검토하고 공개 여부를 결정하세요.",
+    "empty": "검수 대기 중인 게임이 없습니다.",
+    "loadFailed": "목록을 불러오지 못했습니다.",
+    "uploadedAt": "업로드 {date}",
+    "category": "카테고리",
+    "category_earn": "코인 획득",
+    "category_multiplay": "멀티플레이",
+    "category_decorate": "꾸미기",
+    "category_other": "기타",
+    "previewLink": "🔍 직접 실행해 보기 (play.airliveplay.com)",
+    "approve": "✅ 승인",
+    "reject": "거절",
+    "rejectReasonLabel": "거절 사유 (개발자에게 표시됨)",
+    "rejectReasonPlaceholder": "예: 게임 콘텐츠가 가이드라인 위반",
+    "rejectReasonRequired": "거절 사유를 입력하세요.",
+    "rejectConfirm": "거절 확정",
+    "approveFailed": "승인에 실패했습니다.",
+    "rejectFailed": "거절에 실패했습니다."
   }
 }

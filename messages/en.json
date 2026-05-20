@@ -205,6 +205,8 @@
     "menuActivityLogsDesc": "Real-time fishing, smelting, forging event logs",
     "menuSmeltStock": "Grant Base Materials",
     "menuSmeltStockDesc": "Grant furnace base materials to users",
+    "menuPendingGames": "Game Moderation",
+    "menuPendingGamesDesc": "Approve or reject community games uploaded by developers",
     "menuSharedPixelArts": "Shared Pixel Arts",
     "menuSharedPixelArtsDesc": "Browse, edit, and delete AI-generated sprite cache",
     "menuFishingItems": "Fishing Item Management",
@@ -552,5 +554,27 @@
     "errorMissingMeta": "Slug and title are required.",
     "errorGeneric": "Upload failed. (HTTP {status})",
     "errorNetwork": "Network error. Please try again."
+  },
+  "ModerationGames": {
+    "breadcrumb": "Operator · Game Moderation",
+    "title": "Review Uploaded Games",
+    "subtitle": "Review community games uploaded by developers and decide whether to publish them.",
+    "empty": "No games waiting for review.",
+    "loadFailed": "Failed to load the list.",
+    "uploadedAt": "Uploaded {date}",
+    "category": "Category",
+    "category_earn": "Earn coins",
+    "category_multiplay": "Multiplayer",
+    "category_decorate": "Decorate",
+    "category_other": "Other",
+    "previewLink": "🔍 Preview on play.airliveplay.com",
+    "approve": "✅ Approve",
+    "reject": "Reject",
+    "rejectReasonLabel": "Rejection reason (visible to the developer)",
+    "rejectReasonPlaceholder": "e.g. content violates guidelines",
+    "rejectReasonRequired": "Please enter a rejection reason.",
+    "rejectConfirm": "Confirm Reject",
+    "approveFailed": "Approval failed.",
+    "rejectFailed": "Rejection failed."
   }
 }

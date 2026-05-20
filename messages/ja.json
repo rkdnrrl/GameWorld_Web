@@ -205,6 +205,8 @@
     "menuActivityLogsDesc": "釣り・溶鉱炉・製錬イベントのリアルタイム確認",
     "menuSmeltStock": "基礎素材付与",
     "menuSmeltStockDesc": "ユーザーに溶鉱炉の基礎素材を付与",
+    "menuPendingGames": "ゲームモデレーション",
+    "menuPendingGamesDesc": "開発者がアップロードしたコミュニティゲームの承認・却下",
     "menuSharedPixelArts": "共有ピクセルアート",
     "menuSharedPixelArtsDesc": "AI生成スプライトキャッシュの照会・編集・削除",
     "menuFishingItems": "釣りアイテム管理",
@@ -552,5 +554,27 @@
     "errorMissingMeta": "slug とタイトルは必須です。",
     "errorGeneric": "アップロードに失敗しました。(HTTP {status})",
     "errorNetwork": "ネットワークエラーです。しばらくしてから再試行してください。"
+  },
+  "ModerationGames": {
+    "breadcrumb": "運営 · ゲームモデレーション",
+    "title": "アップロード済みゲームの審査",
+    "subtitle": "開発者がアップロードしたコミュニティゲームを審査して公開可否を決定します。",
+    "empty": "審査待ちのゲームはありません。",
+    "loadFailed": "リストの読み込みに失敗しました。",
+    "uploadedAt": "アップロード {date}",
+    "category": "カテゴリー",
+    "category_earn": "コイン獲得",
+    "category_multiplay": "マルチプレイ",
+    "category_decorate": "デコレート",
+    "category_other": "その他",
+    "previewLink": "🔍 play.airliveplay.com で確認",
+    "approve": "✅ 承認",
+    "reject": "却下",
+    "rejectReasonLabel": "却下理由 (開発者に表示されます)",
+    "rejectReasonPlaceholder": "例: コンテンツがガイドライン違反",
+    "rejectReasonRequired": "却下理由を入力してください。",
+    "rejectConfirm": "却下を確定",
+    "approveFailed": "承認に失敗しました。",
+    "rejectFailed": "却下に失敗しました。"
   }
 }

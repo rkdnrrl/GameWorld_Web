@@ -205,6 +205,8 @@
     "menuActivityLogsDesc": "实时查看钓鱼、熔炉、冶炼事件",
     "menuSmeltStock": "发放基础材料",
     "menuSmeltStockDesc": "向用户发放熔炉基础材料",
+    "menuPendingGames": "游戏审核",
+    "menuPendingGamesDesc": "批准或拒绝开发者上传的社区游戏",
     "menuSharedPixelArts": "共享像素艺术",
     "menuSharedPixelArtsDesc": "查看、编辑、删除AI生成的精灵缓存",
     "menuFishingItems": "钓鱼物品管理",
@@ -552,5 +554,27 @@
     "errorMissingMeta": "slug 和标题为必填项。",
     "errorGeneric": "上传失败。(HTTP {status})",
     "errorNetwork": "网络错误。请稍后重试。"
+  },
+  "ModerationGames": {
+    "breadcrumb": "运营 · 游戏审核",
+    "title": "审核已上传游戏",
+    "subtitle": "审核开发者上传的社区游戏并决定是否公开。",
+    "empty": "暂无待审核游戏。",
+    "loadFailed": "加载列表失败。",
+    "uploadedAt": "上传于 {date}",
+    "category": "类别",
+    "category_earn": "获得金币",
+    "category_multiplay": "多人游戏",
+    "category_decorate": "装饰",
+    "category_other": "其他",
+    "previewLink": "🔍 在 play.airliveplay.com 预览",
+    "approve": "✅ 批准",
+    "reject": "拒绝",
+    "rejectReasonLabel": "拒绝理由 (开发者可见)",
+    "rejectReasonPlaceholder": "例: 内容违反指南",
+    "rejectReasonRequired": "请输入拒绝理由。",
+    "rejectConfirm": "确认拒绝",
+    "approveFailed": "批准失败。",
+    "rejectFailed": "拒绝失败。"
   }
 }
