@@ -311,11 +311,11 @@ export default function OperatorPendingGamesPage() {
                     </p>
                     <p className="mt-1 text-xs">
                       <a
-                        href={(() => {
-                          const tk = session.getToken();
-                          const base = `https://play.airliveplay.com/_preview/${g.slug}/`;
-                          return tk ? `${base}?token=${encodeURIComponent(tk)}` : base;
-                        })()}
+                        href={
+                          previewToken
+                            ? `https://play.airliveplay.com/_preview/${g.slug}/?token=${encodeURIComponent(previewToken)}`
+                            : `https://play.airliveplay.com/_preview/${g.slug}/`
+                        }
                         target="_blank"
                         rel="noreferrer"
                         className="text-blue-600 hover:underline dark:text-blue-400"
