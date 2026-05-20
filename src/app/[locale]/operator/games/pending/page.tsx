@@ -13,6 +13,7 @@ export default function OperatorPendingGamesPage() {
   const tCommon = useTranslations("Common");
 
   const [games, setGames] = useState<UgcGame[] | null>(null);
+  const [pendingUpdates, setPendingUpdates] = useState<UgcGame[] | null>(null);
   const [forbidden, setForbidden] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -21,6 +22,8 @@ export default function OperatorPendingGamesPage() {
 
   const [rejectFor, setRejectFor] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [rejectUpdateFor, setRejectUpdateFor] = useState<string | null>(null);
+  const [rejectUpdateReason, setRejectUpdateReason] = useState("");
 
   function load() {
     const tk = session.getToken();
@@ -31,6 +34,9 @@ export default function OperatorPendingGamesPage() {
         if (err instanceof ApiError && err.status === 403) setForbidden(true);
         else setLoadError(err instanceof ApiError ? err.message : t("loadFailed"));
       });
+    api.operatorListPendingUpdates(tk)
+      .then((res) => setPendingUpdates(res.games))
+      .catch(() => { /* 부수적 — 표시 안 함 */ });
   }
 
   useEffect(() => {
@@ -42,7 +48,46 @@ export default function OperatorPendingGamesPage() {
         if (err instanceof ApiError && err.status === 403) setForbidden(true);
         else setLoadError(err instanceof ApiError ? err.message : t("loadFailed"));
       });
+    api.operatorListPendingUpdates(tk)
+      .then((res) => setPendingUpdates(res.games))
+      .catch(() => {});
   }, [router, t]);
+
+  async function onApproveUpdate(slug: string) {
+    const tk = session.getToken();
+    if (!tk) return;
+    setActingSlug(slug);
+    setActionError(null);
+    try {
+      await api.operatorApproveUpdate(tk, slug);
+      setPendingUpdates((prev) => prev?.filter((g) => g.slug !== slug) ?? null);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : t("approveFailed"));
+    } finally {
+      setActingSlug(null);
+    }
+  }
+
+  async function onRejectUpdate(slug: string) {
+    const tk = session.getToken();
+    if (!tk) return;
+    if (!rejectUpdateReason.trim()) {
+      setActionError(t("rejectReasonRequired"));
+      return;
+    }
+    setActingSlug(slug);
+    setActionError(null);
+    try {
+      await api.operatorRejectUpdate(tk, slug, rejectUpdateReason.trim());
+      setPendingUpdates((prev) => prev?.filter((g) => g.slug !== slug) ?? null);
+      setRejectUpdateFor(null);
+      setRejectUpdateReason("");
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : t("rejectFailed"));
+    } finally {
+      setActingSlug(null);
+    }
+  }
 
   async function onApprove(slug: string) {
     const tk = session.getToken();
