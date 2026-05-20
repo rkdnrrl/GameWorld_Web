@@ -25,9 +25,8 @@ export default function OperatorPendingGamesPage() {
   function load() {
     const tk = session.getToken();
     if (!tk) { router.replace("/login"); return; }
-    setLoadError(null);
     api.operatorListPendingGames(tk)
-      .then((res) => setGames(res.games))
+      .then((res) => { setGames(res.games); setLoadError(null); })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 403) setForbidden(true);
         else setLoadError(err instanceof ApiError ? err.message : t("loadFailed"));
@@ -35,9 +34,15 @@ export default function OperatorPendingGamesPage() {
   }
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router]);
+    const tk = session.getToken();
+    if (!tk) { router.replace("/login"); return; }
+    api.operatorListPendingGames(tk)
+      .then((res) => setGames(res.games))
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 403) setForbidden(true);
+        else setLoadError(err instanceof ApiError ? err.message : t("loadFailed"));
+      });
+  }, [router, t]);
 
   async function onApprove(slug: string) {
     const tk = session.getToken();
