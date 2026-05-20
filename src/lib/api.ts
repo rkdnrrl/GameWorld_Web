@@ -649,6 +649,33 @@ export const api = {
       headers: authHeaders(token),
     });
   },
+
+  /** 운영자: 검수 대기 중인 재업로드 목록 */
+  operatorListPendingUpdates(token: string) {
+    return request<{ games: UgcGame[] }>("/api/operator/games/pending-updates", {
+      headers: authHeaders(token),
+    });
+  },
+
+  /** 운영자: 보류 업데이트 승인 → staging zip 을 라이브로 반영 */
+  operatorApproveUpdate(token: string, slug: string) {
+    return request<{ ok: true; game: UgcGame }>(
+      `/api/operator/games/${encodeURIComponent(slug)}/approve-update`,
+      { method: "POST", headers: authHeaders(token) },
+    );
+  },
+
+  /** 운영자: 보류 업데이트 거절 → staging 폐기 + 사유 저장 */
+  operatorRejectUpdate(token: string, slug: string, reason: string) {
+    return request<{ ok: true; game: UgcGame }>(
+      `/api/operator/games/${encodeURIComponent(slug)}/reject-update`,
+      {
+        method: "POST",
+        headers: authHeaders(token),
+        body: JSON.stringify({ reason }),
+      },
+    );
+  },
 };
 
 const TOKEN_KEY         = "gameworld_token";
