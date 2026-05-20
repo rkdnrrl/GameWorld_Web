@@ -307,7 +307,11 @@ export default function OperatorPendingGamesPage() {
                     </p>
                     <p className="mt-1 text-xs">
                       <a
-                        href={`https://play.airliveplay.com/_preview/${g.slug}/`}
+                        href={(() => {
+                          const tk = session.getToken();
+                          const base = `https://play.airliveplay.com/_preview/${g.slug}/`;
+                          return tk ? `${base}?token=${encodeURIComponent(tk)}` : base;
+                        })()}
                         target="_blank"
                         rel="noreferrer"
                         className="text-blue-600 hover:underline dark:text-blue-400"
