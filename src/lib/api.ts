@@ -676,6 +676,21 @@ export const api = {
       },
     );
   },
+
+  /** 운영자: 모든 게임 목록 (상태·종류 무관, 관리용) */
+  operatorListAllGames(token: string) {
+    return request<{ games: UgcGame[] }>("/api/operator/games/all", {
+      headers: authHeaders(token),
+    });
+  },
+
+  /** 운영자/owner: 게임 삭제 (R2 파일 + DB row). */
+  deleteGame(token: string, slug: string) {
+    return request<{ ok: true }>(`/api/games/${encodeURIComponent(slug)}`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+    });
+  },
 };
 
 const TOKEN_KEY         = "gameworld_token";
