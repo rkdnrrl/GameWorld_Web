@@ -334,6 +334,14 @@ export const api = {
     );
   },
 
+  /** 보관함에서 아이템 제거 (코인 보상 없음). inventory_items 의 BigInt id 를 string 으로 전달. */
+  deleteInventoryItem(token: string, id: string) {
+    return request<{ ok: true }>(`/api/inventory/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+    });
+  },
+
   /** 운영자: shared_pixel_arts 목록 — includeImageData 로 썸네일용 imageData 포함 가능 */
   operatorListSharedPixelArts(
     token: string,
