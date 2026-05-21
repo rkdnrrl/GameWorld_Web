@@ -26,6 +26,7 @@ export default function OperatorManageGamesPage() {
   // 필터
   const [filterKind, setFilterKind] = useState<"all" | "official" | "community">("all");
   const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "published" | "rejected" | "hidden">("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   function load() {
     const tk = session.getToken();
