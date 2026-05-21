@@ -577,6 +577,8 @@
     "filterKind": "種類",
     "filterStatus": "ステータス",
     "filterAll": "すべて",
+    "searchPlaceholder": "🔍 タイトル・slug・説明を検索",
+    "resultCount": "{count} 件",
     "delete": "🗑️ 削除",
     "deleteWarning": "この操作は取り消せません。R2 ファイルと DB データがすべて削除されます。",
     "deleteConfirmLabel": "確認のため slug ({slug}) を正確に入力してください:",

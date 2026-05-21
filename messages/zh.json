@@ -577,6 +577,8 @@
     "filterKind": "类型",
     "filterStatus": "状态",
     "filterAll": "全部",
+    "searchPlaceholder": "🔍 搜索标题 / slug / 描述",
+    "resultCount": "{count} 个结果",
     "delete": "🗑️ 删除",
     "deleteWarning": "此操作无法撤销。R2 文件和数据库数据将全部删除。",
     "deleteConfirmLabel": "请准确输入 slug ({slug}) 以确认:",

@@ -577,6 +577,8 @@
     "filterKind": "Kind",
     "filterStatus": "Status",
     "filterAll": "All",
+    "searchPlaceholder": "🔍 Search title / slug / description",
+    "resultCount": "{count} result(s)",
     "delete": "🗑️ Delete",
     "deleteWarning": "This is irreversible. R2 files and DB data will be removed.",
     "deleteConfirmLabel": "Type the slug ({slug}) exactly to confirm:",

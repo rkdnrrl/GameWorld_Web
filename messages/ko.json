@@ -577,6 +577,8 @@
     "filterKind": "종류",
     "filterStatus": "상태",
     "filterAll": "전체",
+    "searchPlaceholder": "🔍 제목·slug·설명 부분 검색 (예: 폐품)",
+    "resultCount": "{count}개 결과",
     "delete": "🗑️ 삭제",
     "deleteWarning": "이 작업은 되돌릴 수 없습니다. R2 파일과 DB 데이터가 모두 제거됩니다.",
     "deleteConfirmLabel": "확인을 위해 slug ({slug}) 를 정확히 입력하세요:",
