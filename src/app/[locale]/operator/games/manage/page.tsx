@@ -74,9 +74,14 @@ export default function OperatorManageGamesPage() {
     );
   }
 
+  const q = searchQuery.trim().toLowerCase();
   const filtered = (games ?? []).filter((g) => {
     if (filterKind !== "all" && g.kind !== filterKind) return false;
     if (filterStatus !== "all" && g.status !== filterStatus) return false;
+    if (q) {
+      const hay = `${g.title} ${g.slug} ${g.description ?? ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
     return true;
   });
 
