@@ -133,9 +133,6 @@ export default function Header() {
             <Link href="/announcements" className="shrink-0 whitespace-nowrap hover:text-blue-600">
               {t("announcements")}
             </Link>
-            <Link href="/shop" className="shrink-0 whitespace-nowrap hover:text-blue-600">
-              {t("shop")}
-            </Link>
             <Link href="/donate" className="shrink-0 whitespace-nowrap hover:text-blue-600">
               {t("donate")}
             </Link>

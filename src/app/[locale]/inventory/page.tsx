@@ -58,12 +58,11 @@ export default function InventoryPage() {
   const t = useTranslations("Inventory");
   const [token, setToken] = useState<string | null>(null);
   const [items, setItems] = useState<CatchItem[]>([]);
-  const [coins, setCoins] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [sellingId, setSellingId] = useState<string | null>(null);
-  const [sellingAll, setSellingAll] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [query, setQuery] = useState("");
 
   const loadInventory = useCallback(
     async (tk: string) => {
@@ -95,10 +94,6 @@ export default function InventoryPage() {
       return;
     }
     setToken(tk);
-    const user = session.getUser();
-    if (user) {
-      setCoins(typeof user.coins === "number" ? user.coins : null);
-    }
     void loadInventory(tk);
   }, [router, loadInventory]);
 
@@ -107,71 +102,49 @@ export default function InventoryPage() {
     setTimeout(() => setNotice(null), 3000);
   }
 
-  async function sellOne(id: string) {
-    if (!token || sellingId || sellingAll) return;
-    setSellingId(id);
+  async function removeOne(id: string) {
+    if (!token || removingId) return;
+    if (!confirm(t("removeConfirm"))) return;
+    setRemovingId(id);
     try {
-      const res = await api.sellCatches(token, { ids: [id] });
+      await api.deleteInventoryItem(token, id);
       const item = items.find((i) => i.id === id);
       setItems((prev) => prev.filter((i) => i.id !== id));
-      setCoins(res.totalCoins);
-      session.updateStoredUser({ ...session.getUser()!, coins: res.totalCoins });
-      showNotice("ok", t("soldNotice", { emoji: item?.itemEmoji ?? "", name: item?.itemName ?? "아이템", coins: res.coinsEarned }));
+      showNotice("ok", t("removedNotice", { emoji: item?.itemEmoji ?? "", name: item?.itemName ?? "아이템" }));
     } catch (err) {
       showNotice(
         "err",
-        err instanceof ApiError ? err.message : t("sellFailed")
+        err instanceof ApiError ? err.message : t("removeFailed")
       );
     } finally {
-      setSellingId(null);
+      setRemovingId(null);
     }
   }
 
-  async function sellAll() {
-    if (!token || sellingId || sellingAll || items.length === 0) return;
-    setSellingAll(true);
-    try {
-      const res = await api.sellCatches(token, { all: true });
-      setItems([]);
-      setCoins(res.totalCoins);
-      session.updateStoredUser({ ...session.getUser()!, coins: res.totalCoins });
-      showNotice("ok", t("soldAllNotice", { count: res.sold, coins: Number(res.coinsEarned || 0).toLocaleString() }));
-    } catch (err) {
-      showNotice(
-        "err",
-        err instanceof ApiError ? err.message : t("sellFailed")
-      );
-    } finally {
-      setSellingAll(false);
-    }
-  }
-
-  const coinNum = (i: CatchItem) => {
-    const n = Number(i.coinValue);
-    return Number.isFinite(n) ? n : 0;
-  };
-  const totalValue = items.reduce((s, i) => s + coinNum(i), 0);
+  // 검색 필터 (이름·이모지·타입 부분 매칭)
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? items.filter((i) => {
+        const hay = `${i.itemName} ${i.itemEmoji} ${i.itemType} ${i.rarity}`.toLowerCase();
+        return hay.includes(q);
+      })
+    : items;
 
   return (
     <section className="mx-auto w-full min-w-0 max-w-2xl px-4 py-10 sm:px-6 sm:py-12">
       {/* 헤더 */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-        <div className="min-w-0">
-          <h1 className="break-words text-2xl font-bold tracking-tight sm:text-3xl">
-            {t("title")}
-          </h1>
-          <p className="mt-1 break-words text-sm text-zinc-500">
-            {t("subtitle")}
-          </p>
+      <div className="mb-6 flex flex-col gap-3">
+        <div className="flex items-start gap-3">
+          <span className="text-3xl">📦</span>
+          <div className="min-w-0">
+            <h1 className="break-words text-2xl font-bold tracking-tight sm:text-3xl">
+              {t("title")}
+            </h1>
+            <p className="mt-1 break-words text-sm text-zinc-500">
+              {t("subtitle")}
+            </p>
+          </div>
         </div>
-        {typeof coins === "number" && (
-          <span className="inline-flex w-fit max-w-full shrink-0 items-center gap-1 self-start rounded-full bg-yellow-50 px-3 py-2 text-sm font-semibold text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400">
-            <span className="shrink-0">🪙</span>
-            <span className="min-w-0 truncate tabular-nums">
-              {coins.toLocaleString()}
-            </span>
-          </span>
-        )}
       </div>
 
       {/* 알림 토스트 */}
@@ -187,22 +160,19 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* 전체 팔기 바 */}
-      {items.length > 0 && (
-        <div className="mb-4 flex flex-col gap-3 rounded-xl bg-zinc-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 dark:bg-zinc-800">
-          <span className="min-w-0 break-words text-sm text-zinc-600 dark:text-zinc-300">
-            총 <strong>{items.length}</strong>개 &nbsp;·&nbsp; 합계{" "}
-            <strong className="text-yellow-600 dark:text-yellow-400">
-              {totalValue.toLocaleString()}🪙
-            </strong>
+      {/* 검색 + 통계 */}
+      {(items.length > 0 || query) && (
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("searchPlaceholder")}
+            className="flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900"
+          />
+          <span className="shrink-0 text-xs text-zinc-500 sm:ml-2">
+            {t("itemCount", { count: filtered.length, total: items.length })}
           </span>
-          <button
-            onClick={sellAll}
-            disabled={sellingAll || !!sellingId}
-            className="w-full shrink-0 rounded-lg bg-yellow-500 px-4 py-2 text-sm font-semibold text-white hover:bg-yellow-600 disabled:opacity-60 sm:w-auto"
-          >
-            {sellingAll ? t("sellingAll") : t("sellAll")}
-          </button>
         </div>
       )}
 
@@ -221,7 +191,7 @@ export default function InventoryPage() {
       {/* 빈 보관함 */}
       {!loading && !loadError && items.length === 0 && (
         <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-6 py-16 text-center dark:border-zinc-800 dark:bg-zinc-900">
-          <p className="text-5xl">🎣</p>
+          <p className="text-5xl">📦</p>
           <p className="mt-4 text-lg font-semibold">{t("emptyTitle")}</p>
           <p className="mt-1 text-sm text-zinc-500">
             {t("emptyDesc")}
@@ -235,10 +205,17 @@ export default function InventoryPage() {
         </div>
       )}
 
+      {/* 검색 결과 없음 */}
+      {!loading && items.length > 0 && filtered.length === 0 && (
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-6 py-10 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
+          {t("noSearchResult", { query })}
+        </div>
+      )}
+
       {/* 아이템 목록 */}
-      {!loading && items.length > 0 && (
+      {!loading && filtered.length > 0 && (
         <div className="flex flex-col gap-3">
-          {items.map((item) => (
+          {filtered.map((item) => (
             <div
               key={item.id}
               className={`flex min-w-0 items-center gap-2 rounded-xl border border-zinc-200 border-l-4 bg-white px-3 py-3 sm:gap-4 sm:px-5 dark:border-zinc-700 dark:border-l-4 dark:bg-zinc-900 ${RARITY_BORDER[item.rarity] ?? "border-l-zinc-400"}`}
@@ -261,16 +238,13 @@ export default function InventoryPage() {
                 </p>
               </div>
               <div className="min-w-0 shrink-0 text-right">
-                <p className="font-bold tabular-nums text-yellow-500">
-                  {coinNum(item).toLocaleString()}🪙
-                </p>
                 <button
                   type="button"
-                  onClick={() => sellOne(item.id)}
-                  disabled={sellingId === item.id || sellingAll}
-                  className="mt-1 rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60 sm:px-3"
+                  onClick={() => removeOne(item.id)}
+                  disabled={removingId === item.id}
+                  className="rounded-md border border-red-300 bg-white px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 sm:px-3 dark:border-red-700 dark:bg-zinc-800 dark:text-red-300 dark:hover:bg-red-950/30"
                 >
-                  {sellingId === item.id ? t("selling") : t("sell")}
+                  {removingId === item.id ? t("removing") : t("remove")}
                 </button>
               </div>
             </div>
