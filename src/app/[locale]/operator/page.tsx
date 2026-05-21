@@ -24,6 +24,7 @@ export default function OperatorIndexPage() {
       section: t("sectionContentManagement"),
       items: [
         { href: "/operator/games/pending", emoji: "🎮", label: t("menuPendingGames"), desc: t("menuPendingGamesDesc") },
+        { href: "/operator/games/manage", emoji: "🗂️", label: t("menuManageGames"), desc: t("menuManageGamesDesc") },
         { href: "/operator/shared-pixel-arts", emoji: "🖼️", label: t("menuSharedPixelArts"), desc: t("menuSharedPixelArtsDesc") },
         { href: "/operator/fishing-items", emoji: "🎣", label: t("menuFishingItems"), desc: t("menuFishingItemsDesc") },
         { href: "/operator/equip-arts", emoji: "⚒️", label: t("menuEquipArts"), desc: t("menuEquipArtsDesc") },

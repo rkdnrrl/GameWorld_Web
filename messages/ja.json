@@ -208,6 +208,8 @@
     "menuSmeltStockDesc": "ユーザーに溶鉱炉の基礎素材を付与",
     "menuPendingGames": "ゲームモデレーション",
     "menuPendingGamesDesc": "開発者がアップロードしたコミュニティゲームの承認・却下",
+    "menuManageGames": "ゲーム管理",
+    "menuManageGamesDesc": "全ゲームの一覧・ステータス確認・削除",
     "menuSharedPixelArts": "共有ピクセルアート",
     "menuSharedPixelArtsDesc": "AI生成スプライトキャッシュの照会・編集・削除",
     "menuFishingItems": "釣りアイテム管理",
@@ -564,6 +566,23 @@
     "updateSuccess": "審査キューに登録しました。運営承認後にライブへ反映されます。(v{version}, {kb} KB)",
     "pendingBadge": "審査待ち",
     "lastUpdateRejected": "前回の更新は却下されました: {reason}"
+  },
+  "ManageGames": {
+    "breadcrumb": "運営 · ゲーム管理",
+    "title": "全ゲーム管理",
+    "subtitle": "全ゲーム (official・community) のステータス確認と削除ができます。",
+    "empty": "条件に合うゲームがありません。",
+    "loadFailed": "リストの読み込みに失敗しました。",
+    "createdAt": "登録 {date}",
+    "filterKind": "種類",
+    "filterStatus": "ステータス",
+    "filterAll": "すべて",
+    "delete": "🗑️ 削除",
+    "deleteWarning": "この操作は取り消せません。R2 ファイルと DB データがすべて削除されます。",
+    "deleteConfirmLabel": "確認のため slug ({slug}) を正確に入力してください:",
+    "deleteConfirm": "完全に削除",
+    "deleteConfirmSlugMismatch": "入力した slug が一致しません。",
+    "deleteFailed": "削除に失敗しました。"
   },
   "ModerationGames": {
     "breadcrumb": "運営 · ゲームモデレーション",

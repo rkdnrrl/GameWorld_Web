@@ -208,6 +208,8 @@
     "menuSmeltStockDesc": "유저에게 용광로 기초 재료 지급",
     "menuPendingGames": "게임 모더레이션",
     "menuPendingGamesDesc": "개발자가 업로드한 커뮤니티 게임 승인·거절",
+    "menuManageGames": "게임 관리",
+    "menuManageGamesDesc": "모든 게임 목록·상태 확인·삭제",
     "menuSharedPixelArts": "공유 픽셀 아트",
     "menuSharedPixelArtsDesc": "AI 생성 스프라이트 캐시 조회·수정·삭제",
     "menuFishingItems": "낚시 아이템 관리",
@@ -564,6 +566,23 @@
     "updateSuccess": "검수 대기 큐에 올렸습니다. 운영자 승인 후 라이브에 반영됩니다. (v{version}, {kb} KB)",
     "pendingBadge": "검수 대기",
     "lastUpdateRejected": "지난 업데이트가 거절됨: {reason}"
+  },
+  "ManageGames": {
+    "breadcrumb": "운영자 · 게임 관리",
+    "title": "모든 게임 관리",
+    "subtitle": "모든 게임(official·community)의 상태를 확인하고 삭제할 수 있습니다.",
+    "empty": "조건에 맞는 게임이 없습니다.",
+    "loadFailed": "목록을 불러오지 못했습니다.",
+    "createdAt": "등록 {date}",
+    "filterKind": "종류",
+    "filterStatus": "상태",
+    "filterAll": "전체",
+    "delete": "🗑️ 삭제",
+    "deleteWarning": "이 작업은 되돌릴 수 없습니다. R2 파일과 DB 데이터가 모두 제거됩니다.",
+    "deleteConfirmLabel": "확인을 위해 slug ({slug}) 를 정확히 입력하세요:",
+    "deleteConfirm": "영구 삭제",
+    "deleteConfirmSlugMismatch": "입력한 slug 가 일치하지 않습니다.",
+    "deleteFailed": "삭제에 실패했습니다."
   },
   "ModerationGames": {
     "breadcrumb": "운영자 · 게임 모더레이션",

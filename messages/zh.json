@@ -208,6 +208,8 @@
     "menuSmeltStockDesc": "向用户发放熔炉基础材料",
     "menuPendingGames": "游戏审核",
     "menuPendingGamesDesc": "批准或拒绝开发者上传的社区游戏",
+    "menuManageGames": "游戏管理",
+    "menuManageGamesDesc": "查看所有游戏列表·状态·删除",
     "menuSharedPixelArts": "共享像素艺术",
     "menuSharedPixelArtsDesc": "查看、编辑、删除AI生成的精灵缓存",
     "menuFishingItems": "钓鱼物品管理",
@@ -564,6 +566,23 @@
     "updateSuccess": "已提交审核队列。运营批准后将上线。(v{version}, {kb} KB)",
     "pendingBadge": "审核中",
     "lastUpdateRejected": "上次更新被拒绝: {reason}"
+  },
+  "ManageGames": {
+    "breadcrumb": "运营 · 游戏管理",
+    "title": "管理所有游戏",
+    "subtitle": "查看所有游戏(official·community)的状态并可删除。",
+    "empty": "没有符合条件的游戏。",
+    "loadFailed": "加载列表失败。",
+    "createdAt": "创建于 {date}",
+    "filterKind": "类型",
+    "filterStatus": "状态",
+    "filterAll": "全部",
+    "delete": "🗑️ 删除",
+    "deleteWarning": "此操作无法撤销。R2 文件和数据库数据将全部删除。",
+    "deleteConfirmLabel": "请准确输入 slug ({slug}) 以确认:",
+    "deleteConfirm": "永久删除",
+    "deleteConfirmSlugMismatch": "输入的 slug 不一致。",
+    "deleteFailed": "删除失败。"
   },
   "ModerationGames": {
     "breadcrumb": "运营 · 游戏审核",

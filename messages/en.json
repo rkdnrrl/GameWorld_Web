@@ -208,6 +208,8 @@
     "menuSmeltStockDesc": "Grant furnace base materials to users",
     "menuPendingGames": "Game Moderation",
     "menuPendingGamesDesc": "Approve or reject community games uploaded by developers",
+    "menuManageGames": "Manage Games",
+    "menuManageGamesDesc": "List all games, view status, and delete",
     "menuSharedPixelArts": "Shared Pixel Arts",
     "menuSharedPixelArtsDesc": "Browse, edit, and delete AI-generated sprite cache",
     "menuFishingItems": "Fishing Item Management",
@@ -564,6 +566,23 @@
     "updateSuccess": "Queued for moderation. Goes live after operator approval. (v{version}, {kb} KB)",
     "pendingBadge": "Pending review",
     "lastUpdateRejected": "Last update rejected: {reason}"
+  },
+  "ManageGames": {
+    "breadcrumb": "Operator · Game Management",
+    "title": "Manage All Games",
+    "subtitle": "Review the status of all games (official and community) and delete if needed.",
+    "empty": "No games match the filter.",
+    "loadFailed": "Failed to load the list.",
+    "createdAt": "Created {date}",
+    "filterKind": "Kind",
+    "filterStatus": "Status",
+    "filterAll": "All",
+    "delete": "🗑️ Delete",
+    "deleteWarning": "This is irreversible. R2 files and DB data will be removed.",
+    "deleteConfirmLabel": "Type the slug ({slug}) exactly to confirm:",
+    "deleteConfirm": "Delete Permanently",
+    "deleteConfirmSlugMismatch": "Slug doesn't match.",
+    "deleteFailed": "Deletion failed."
   },
   "ModerationGames": {
     "breadcrumb": "Operator · Game Moderation",
