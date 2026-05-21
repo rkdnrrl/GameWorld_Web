@@ -106,8 +106,15 @@ export default function OperatorManageGamesPage() {
         </div>
       </div>
 
-      {/* 필터 */}
-      <div className="mb-4 flex flex-wrap gap-3 text-sm">
+      {/* 필터 + 검색 */}
+      <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
+        <input
+          type="search"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={t("searchPlaceholder")}
+          className="min-w-[240px] flex-1 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-900"
+        />
         <label className="flex items-center gap-2">
           <span className="text-zinc-500">{t("filterKind")}</span>
           <select
@@ -134,6 +141,7 @@ export default function OperatorManageGamesPage() {
             <option value="hidden">hidden</option>
           </select>
         </label>
+        <span className="text-xs text-zinc-500">{t("resultCount", { count: filtered.length })}</span>
       </div>
 
       {actionError && (
