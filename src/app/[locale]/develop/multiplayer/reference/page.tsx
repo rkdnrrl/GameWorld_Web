@@ -166,6 +166,43 @@ await mp.joinRoom(...);      // 방 입장`}</Block>
               </div>
             </div>
 
+            {/* joinVoice */}
+            <div className="flex flex-col gap-1 rounded-lg bg-zinc-50 px-4 py-3 dark:bg-zinc-800 sm:flex-row sm:items-start sm:gap-4">
+              <div className="shrink-0">
+                <Chip color="violet">joinVoice(options?)</Chip>
+              </div>
+              <div className="text-sm text-zinc-600 dark:text-zinc-400">
+                마이크 권한 요청 후 같은 방 전원과 WebRTC P2P 음성 연결합니다.
+                <br />
+                <span className="text-xs text-zinc-400">반환: <code>Promise&lt;MediaStream&gt;</code> · options: <code>{'{ iceServers, muted }'}</code></span>
+              </div>
+            </div>
+
+            {/* setMuted / leaveVoice */}
+            <div className="flex flex-col gap-1 rounded-lg bg-zinc-50 px-4 py-3 dark:bg-zinc-800 sm:flex-row sm:items-start sm:gap-4">
+              <div className="shrink-0 flex flex-col gap-1">
+                <Chip color="zinc">setMuted(bool)</Chip>
+                <Chip color="red">leaveVoice()</Chip>
+              </div>
+              <div className="text-sm text-zinc-600 dark:text-zinc-400">
+                <code>setMuted(true/false)</code> — 마이크 음소거/해제 (연결 유지).
+                <br />
+                <code>leaveVoice()</code> — 음성 종료. <code>leave()</code> 시 자동 호출.
+              </div>
+            </div>
+
+            {/* onVoiceState */}
+            <div className="flex flex-col gap-1 rounded-lg bg-zinc-50 px-4 py-3 dark:bg-zinc-800 sm:flex-row sm:items-start sm:gap-4">
+              <div className="shrink-0">
+                <Chip color="green">onVoiceState(cb)</Chip>
+              </div>
+              <div className="text-sm text-zinc-600 dark:text-zinc-400">
+                음성 연결 상태 변경 시 호출됩니다.
+                <br />
+                <span className="text-xs text-zinc-400"><code>{'cb({ type: "joined"|"left", peerId })'}</code></span>
+              </div>
+            </div>
+
             {/* isHost */}
             <div className="flex flex-col gap-1 rounded-lg bg-amber-50 px-4 py-3 dark:bg-amber-950/20 sm:flex-row sm:items-start sm:gap-4">
               <div className="shrink-0">

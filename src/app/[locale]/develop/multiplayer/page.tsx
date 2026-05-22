@@ -133,6 +133,7 @@ export default async function MultiplayGuide() {
             ["api", "API 레퍼런스"],
             ["full-example", "완성 예시"],
             ["game-objects", "게임 오브젝트 동기화 (몬스터·투사체)"],
+            ["voice", "음성 채팅"],
             ["room-list", "방 목록 (로비)"],
             ["limits", "권장 인원 & 팁"],
             ["faq", "자주 묻는 질문"],
@@ -582,6 +583,59 @@ await mp.joinRoom('room2', playerInfo);`}</Code>
             <span className="text-zinc-600 dark:text-zinc-400">{text}</span>
           </div>
         ))}
+      </div>
+
+      {/* 음성 채팅 */}
+      <Section id="voice" title="음성 채팅" sub="같은 방 플레이어끼리 WebRTC P2P 음성 연결 — 서버 미경유, 무료" />
+
+      <p className="mb-4 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+        <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">mp.joinVoice()</code>를 호출하면
+        마이크 권한을 요청하고 현재 방의 모든 플레이어와 WebRTC로 직접 연결합니다.
+        오디오 데이터는 서버를 거치지 않아 추가 비용이 없습니다.
+      </p>
+
+      <Code>{`const mp = new ALPMultiplayer();
+await mp.joinRoom('room1', { id: myId, name: '플레이어1' });
+
+// 음성 채팅 참여 (브라우저 마이크 권한 팝업 표시)
+await mp.joinVoice();
+
+// 누가 연결/해제됐는지 감지
+mp.onVoiceState(({ type, peerId }) => {
+  console.log(type === 'joined' ? peerId + ' 음성 연결' : peerId + ' 음성 해제');
+});
+
+// 음소거 토글
+muteBtn.addEventListener('click', () => {
+  muted = !muted;
+  mp.setMuted(muted);
+  muteBtn.textContent = muted ? '🔇 음소거 해제' : '🔊 음소거';
+});
+
+// 음성 종료 (mp.leave() 호출 시 자동 처리됨)
+mp.leaveVoice();`}</Code>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3 text-sm">
+        {[
+          { icon: "🎙️", title: "joinVoice()", desc: "마이크 권한 요청 후 방 전원과 P2P 연결" },
+          { icon: "🔇", title: "setMuted(bool)", desc: "마이크 음소거 / 해제 (연결은 유지)" },
+          { icon: "📡", title: "onVoiceState(cb)", desc: "joined / left 이벤트로 UI 업데이트" },
+        ].map(({ icon, title, desc }) => (
+          <div key={title} className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+            <p className="font-semibold">{icon} <code className="text-violet-600 dark:text-violet-400 text-xs">{title}</code></p>
+            <p className="mt-1 text-xs text-zinc-500">{desc}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm dark:border-blue-800 dark:bg-blue-950/30">
+        <p className="font-semibold text-blue-700 dark:text-blue-300">💡 참고</p>
+        <ul className="mt-1 space-y-1 text-zinc-600 dark:text-zinc-400">
+          <li>• 오디오는 <strong>P2P 직접 전송</strong> — Cloudflare Worker/DO를 거치지 않아 무료입니다.</li>
+          <li>• 기업망·학교 등 엄격한 NAT 환경에서는 TURN 서버가 필요할 수 있습니다. <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">joinVoice({'{ iceServers: [...] }'})</code>로 전달하세요.</li>
+          <li>• 메시 구조(모두가 모두에게 연결)라 <strong>10명 이하</strong> 권장입니다.</li>
+          <li>• <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">mp.leave()</code> 호출 시 음성도 자동 종료됩니다.</li>
+        </ul>
       </div>
 
       {/* 6. FAQ */}
