@@ -55,13 +55,33 @@ Creates a multiplayer instance. One instance = one room connection.
 
 ---
 
-### `mp.on(event, callback)` → `this`
+### `mp.on(event, callback, options?)` → `this`
 Register a broadcast listener. Safe to call before OR after `joinRoom()`.
 
 ```js
 mp.on('move',   (payload) => { /* payload = what sender passed to send() */ });
 mp.on('attack', (payload) => { });
 mp.on('chat',   ({ text }) => { });
+```
+
+**`options.predict = true`** — Interpolation buffer mode (recommended for position sync):
+- SDK buffers received positions with timestamps
+- Renders 50ms behind current time, linearly interpolating between two buffered samples
+- Callback fires at 60fps with smoothly interpolated x/y values
+- No lerp code needed in the game loop
+- Options: `id` (default: `'id'`), `x` (default: `'x'`), `y` (default: `'y'`)
+
+```js
+// Without predict: game must lerp manually
+mp.on('move', (p) => { other.tx = p.x; other.ty = p.y; });
+// game loop: other.x += (other.tx - other.x) * 0.2;
+
+// With predict: SDK handles interpolation, callback gets smooth values at 60fps
+mp.on('move', (p) => {
+  const o = others.get(p.id);
+  if (o) { o.x = p.x; o.y = p.y; }  // already interpolated
+}, { predict: true });
+// game loop: just read o.x, o.y and render
 ```
 
 ---
