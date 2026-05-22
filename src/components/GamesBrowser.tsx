@@ -80,6 +80,11 @@ export default function GamesBrowser({ games }: Props) {
         />
       </div>
 
+      {/* ── 모바일 배너 광고 (sm 미만에서만) ───────────────────────── */}
+      <div className="mb-4 flex justify-center sm:hidden">
+        <AdBanner slot="banner" />
+      </div>
+
       {/* ── 이어하기 ────────────────────────────────────────────────── */}
       {lastGame && (
         <a href={lastGameHref} onClick={() => saveLastGameId(lastGame.id)}
