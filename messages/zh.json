@@ -651,5 +651,29 @@
     "notFound": "未找到游戏。",
     "officialBadge": "官方",
     "communityBadge": "社区"
+  },
+  "DevelopStats": {
+    "title": "开发者统计",
+    "subtitle": "查看所有游戏的游玩次数、点赞、评分和评论。",
+    "backToDevelop": "← 开发主页",
+    "totalPlays": "总游玩",
+    "totalLikes": "总点赞",
+    "totalComments": "总评论",
+    "publishedGames": "已发布",
+    "sortDefault": "默认",
+    "sortPlays": "游玩最多",
+    "sortLikes": "点赞最多",
+    "sortRating": "评分最高",
+    "noGames": "尚未上传任何游戏。",
+    "loading": "正在加载统计数据…",
+    "plays": "次游玩",
+    "likes": "个点赞",
+    "comments": "条评论",
+    "ratingLabel": "评分",
+    "viewGame": "查看游戏 →",
+    "status_pending": "审核中",
+    "status_published": "已发布",
+    "status_rejected": "已拒绝",
+    "status_hidden": "已隐藏"
   }
 }

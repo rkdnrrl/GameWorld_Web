@@ -651,5 +651,29 @@
     "notFound": "게임을 찾을 수 없습니다.",
     "officialBadge": "공식",
     "communityBadge": "커뮤니티"
+  },
+  "DevelopStats": {
+    "title": "개발자 통계",
+    "subtitle": "내 게임의 플레이·좋아요·평점·댓글을 한눈에 확인하세요.",
+    "backToDevelop": "← 개발 홈",
+    "totalPlays": "총 플레이",
+    "totalLikes": "총 좋아요",
+    "totalComments": "총 댓글",
+    "publishedGames": "출시 게임",
+    "sortDefault": "기본순",
+    "sortPlays": "플레이 많은 순",
+    "sortLikes": "좋아요 많은 순",
+    "sortRating": "평점 높은 순",
+    "noGames": "아직 업로드한 게임이 없습니다.",
+    "loading": "통계를 불러오는 중…",
+    "plays": "플레이",
+    "likes": "좋아요",
+    "comments": "댓글",
+    "ratingLabel": "평점",
+    "viewGame": "게임 보기 →",
+    "status_pending": "검수 대기",
+    "status_published": "출시",
+    "status_rejected": "거절됨",
+    "status_hidden": "숨김"
   }
 }

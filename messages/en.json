@@ -651,5 +651,29 @@
     "notFound": "Game not found.",
     "officialBadge": "Official",
     "communityBadge": "Community"
+  },
+  "DevelopStats": {
+    "title": "Developer Stats",
+    "subtitle": "Track plays, likes, ratings, and comments across all your games.",
+    "backToDevelop": "← Developer Home",
+    "totalPlays": "Total Plays",
+    "totalLikes": "Total Likes",
+    "totalComments": "Total Comments",
+    "publishedGames": "Published",
+    "sortDefault": "Default",
+    "sortPlays": "Most Played",
+    "sortLikes": "Most Liked",
+    "sortRating": "Highest Rated",
+    "noGames": "No games uploaded yet.",
+    "loading": "Loading stats…",
+    "plays": "plays",
+    "likes": "likes",
+    "comments": "comments",
+    "ratingLabel": "rating",
+    "viewGame": "View Game →",
+    "status_pending": "Pending",
+    "status_published": "Published",
+    "status_rejected": "Rejected",
+    "status_hidden": "Hidden"
   }
 }

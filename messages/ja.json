@@ -651,5 +651,29 @@
     "notFound": "ゲームが見つかりません。",
     "officialBadge": "公式",
     "communityBadge": "コミュニティ"
+  },
+  "DevelopStats": {
+    "title": "開発者統計",
+    "subtitle": "ゲームのプレイ数・いいね・評価・コメントを確認しましょう。",
+    "backToDevelop": "← 開発ホーム",
+    "totalPlays": "総プレイ数",
+    "totalLikes": "総いいね",
+    "totalComments": "総コメント",
+    "publishedGames": "公開中",
+    "sortDefault": "デフォルト",
+    "sortPlays": "プレイ数順",
+    "sortLikes": "いいね順",
+    "sortRating": "評価順",
+    "noGames": "まだゲームがアップロードされていません。",
+    "loading": "統計を読み込み中…",
+    "plays": "プレイ",
+    "likes": "いいね",
+    "comments": "コメント",
+    "ratingLabel": "評価",
+    "viewGame": "ゲームを見る →",
+    "status_pending": "審査中",
+    "status_published": "公開中",
+    "status_rejected": "却下",
+    "status_hidden": "非表示"
   }
 }
