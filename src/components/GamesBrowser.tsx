@@ -145,24 +145,18 @@ export default function GamesBrowser({ games }: Props) {
         </a>
       )}
 
-      {/* 카드 그리드 + 광고 (한 줄) */}
-      <div className="flex items-start gap-4">
-        <AdBanner slot="skyscraper" />
-        <div className="min-w-0 flex-1">
-          {filtered.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-zinc-300 p-12 text-center text-sm text-zinc-500 dark:border-zinc-700">
-              {t("emptyResult")}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {filtered.map((g) => (
-                <GameCard key={g.id} game={g} />
-              ))}
-            </div>
-          )}
+      {/* 카드 그리드 */}
+      {filtered.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-zinc-300 p-12 text-center text-sm text-zinc-500 dark:border-zinc-700">
+          {t("emptyResult")}
         </div>
-        <AdBanner slot="skyscraper" />
-      </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filtered.map((g) => (
+            <GameCard key={g.id} game={g} />
+          ))}
+        </div>
+      )}
 
       {/* 월드맵 모드 — 접이식 */}
       <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/50">
