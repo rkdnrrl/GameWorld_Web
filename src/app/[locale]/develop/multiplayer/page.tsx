@@ -85,17 +85,32 @@ export default async function MultiplayGuide() {
           ALP 플랫폼의 <strong className="text-white">ALPMultiplayer SDK</strong>를 사용해
           게임에 실시간 멀티플레이를 3단계로 추가하세요.
         </p>
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-2 text-sm">
-            {["Supabase Realtime", "Broadcast", "Presence", "자동 방 격리"].map((tag) => (
-              <span key={tag} className="rounded-full bg-white/20 px-3 py-0.5">{tag}</span>
-            ))}
-          </div>
-          {/* AI 가이드 다운로드 */}
+        <div className="flex flex-wrap gap-2 text-sm">
+          {["Supabase Realtime", "Broadcast", "Presence", "자동 방 격리"].map((tag) => (
+            <span key={tag} className="rounded-full bg-white/20 px-3 py-0.5">{tag}</span>
+          ))}
+        </div>
+        {/* 데모 + 다운로드 버튼 */}
+        <div className="mt-5 flex flex-wrap gap-3">
+          <a
+            href="https://play.airliveplay.com/multi-arena/"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-bold text-violet-700 shadow hover:bg-violet-50"
+          >
+            ▶ 데모 플레이
+          </a>
+          <a
+            href="/multi-arena.zip"
+            download="multi-arena.zip"
+            className="flex items-center gap-2 rounded-lg bg-white/20 px-4 py-2 text-sm font-medium text-white hover:bg-white/30"
+          >
+            ⬇ 소스 다운로드 (.zip)
+          </a>
           <a
             href="/alp-multiplayer-sdk.md"
             download="alp-multiplayer-sdk.md"
-            className="flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/25"
+            className="flex items-center gap-2 rounded-lg bg-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/25"
           >
             🤖 AI 가이드 다운로드
           </a>
