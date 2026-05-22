@@ -155,8 +155,11 @@ export default async function GameDetailPage({
               )}
             </div>
 
-            {/* ▶ 게임 시작 버튼 */}
-            <GamePlayButton gameId={game.id} gameUrl={game.url} />
+            {/* ▶ 게임 시작 + ❤️ 좋아요 */}
+            <div className="flex flex-wrap items-center gap-3">
+              <GamePlayButton gameId={game.id} gameUrl={game.url} />
+              <GameLikeButton gameId={game.id} initialCount={game.likeCount} />
+            </div>
           </div>
         </div>
 
