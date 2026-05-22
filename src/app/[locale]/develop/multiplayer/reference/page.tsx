@@ -86,7 +86,7 @@ await mp.joinRoom(...);      // 방 입장`}</Block>
             {/* joinRoom */}
             <div className="flex flex-col gap-1 rounded-lg bg-zinc-50 px-4 py-3 dark:bg-zinc-800 sm:flex-row sm:items-start sm:gap-4">
               <div className="shrink-0">
-                <Chip color="violet">joinRoom(roomId, 내정보)</Chip>
+                <Chip color="violet">joinRoom(roomId, 내정보, 옵션?)</Chip>
               </div>
               <div className="text-sm text-zinc-600 dark:text-zinc-400">
                 방에 입장합니다. <strong className="text-zinc-800 dark:text-zinc-200">항상 마지막에 호출</strong>하세요.
@@ -94,6 +94,8 @@ await mp.joinRoom(...);      // 방 입장`}</Block>
                 <code className="text-xs text-zinc-400">roomId</code> — 같은 방에 들어갈 사람들끼리 동일하게 맞추면 됩니다.
                 <br />
                 <code className="text-xs text-zinc-400">내정보</code> — 이름, 색상 등 자유 형식. 다른 플레이어가 onPlayers로 받습니다.
+                <br />
+                <code className="text-xs text-zinc-400">{"{ password: '...' }"}</code> — 비밀번호 설정/입력. 틀리면 Promise reject.
               </div>
             </div>
 
@@ -173,7 +175,7 @@ await mp.joinRoom(...);      // 방 입장`}</Block>
                 현재 게임에 열려 있는 방 목록을 가져옵니다.{" "}
                 <code className="text-violet-500">ALPMultiplayer.getRooms()</code>로 인스턴스 없이 호출 가능합니다.
                 <br />
-                <span className="text-xs text-zinc-400">반환: <code>{"[{ id, count }]"}</code> — count 많은 순 정렬. 빈 방은 자동 제거.</span>
+                <span className="text-xs text-zinc-400">반환: <code>{"[{ id, count, hasPassword }]"}</code> — count 많은 순 정렬. hasPassword로 🔒 표시 가능.</span>
               </div>
             </div>
 

@@ -222,12 +222,25 @@ mp.send("move", { x: 150, y: 300 });`}</Code>
       <Section id="api" title="API 레퍼런스" />
 
       <ApiMethod
-        signature="joinRoom(roomId, playerInfo?)"
+        signature="joinRoom(roomId, playerInfo?, options?)"
         returns="Promise<void>"
-        desc="지정한 방에 입장하고 Presence에 내 정보를 등록합니다. Cloudflare Durable Objects에 WebSocket으로 연결합니다."
+        desc="지정한 방에 입장하고 Presence에 내 정보를 등록합니다. Cloudflare Durable Objects에 WebSocket으로 연결합니다. 서버에서 welcome 메시지를 받은 뒤 resolve됩니다."
         params={[
-          { name: "roomId",     type: "string", desc: "방 이름 (같은 slug + roomId면 같은 방에 연결됨)" },
-          { name: "playerInfo", type: "object?", desc: "Presence에 등록할 내 정보 (자유 형식 JSON). 다른 플레이어가 onPlayers()로 수신." },
+          { name: "roomId",           type: "string",  desc: "방 이름 (같은 slug + roomId면 같은 방에 연결됨)" },
+          { name: "playerInfo",       type: "object?", desc: "Presence에 등록할 내 정보 (자유 형식 JSON). 다른 플레이어가 onPlayers()로 수신." },
+          { name: "options.password", type: "string?", desc: "방 비밀번호. 첫 입장자가 설정값으로 고정됩니다. 이후 입장자가 틀리면 Promise가 reject됩니다." },
+        ]}
+      />
+
+      <ApiMethod
+        signature="ALPMultiplayer.getRooms(slug?)"
+        returns="Promise<Room[]>"
+        desc="현재 게임에 열려 있는 방 목록을 가져옵니다. 인스턴스 없이 정적 메서드로 호출 가능합니다. 인원 많은 순으로 정렬됩니다."
+        params={[
+          { name: "slug",   type: "string?", desc: "게임 slug. 생략 시 현재 URL에서 자동 감지됩니다." },
+          { name: "→ id",   type: "string",  desc: "방 ID" },
+          { name: "→ count",       type: "number",  desc: "현재 접속 인원" },
+          { name: "→ hasPassword", type: "boolean", desc: "비밀번호 필요 여부 (로비 UI에서 🔒 표시에 활용)" },
         ]}
       />
 
@@ -370,75 +383,50 @@ const mp = new ALPMultiplayer();
 await mp.joinRoom(rooms[0].id, { id: myId, name: "Player" });`}</Code>
 
       <p className="mb-3 mt-6 text-sm text-zinc-600 dark:text-zinc-400">
-        아래는 로비 화면을 구현하는 최소 예시입니다. 5초마다 자동 갱신하거나 버튼으로 수동 갱신할 수 있습니다.
+        아래는 로비 화면을 구현하는 최소 예시입니다. 5초마다 자동 갱신하며, 비밀번호 있는 방은 🔒로 표시됩니다.
       </p>
-      <Code>{`<!DOCTYPE html>
-<html>
-<head>
-  <script src="/_alp/sdk.js"></script>
-</head>
-<body>
-  <h2>방 목록</h2>
-  <ul id="room-list"></ul>
-  <button id="new-room-btn">+ 새 방 만들기</button>
-  <button id="join-btn">입장</button>
+      <Code>{`async function loadRooms() {
+  const rooms = await ALPMultiplayer.getRooms();
+  // rooms: [{ id, count, hasPassword }, ...]   ← hasPassword로 🔒 표시
 
-  <script>
-    const listEl = document.getElementById('room-list');
-    let selectedId = null;
+  list.innerHTML = rooms.map(r =>
+    \`<li data-id="\${r.id}" data-pw="\${r.hasPassword}">
+      \${r.hasPassword ? '🔒 ' : ''}\${r.id}  (\${r.count}명)
+    </li>\`
+  ).join('') || '<li>열려 있는 방이 없습니다.</li>';
 
-    async function refreshRooms() {
-      const rooms = await ALPMultiplayer.getRooms();
-
-      if (rooms.length === 0) {
-        listEl.innerHTML = '<li>열려 있는 방이 없습니다.</li>';
-        return;
-      }
-
-      listEl.innerHTML = rooms.map(r =>
-        \`<li data-id="\${r.id}" style="cursor:pointer">
-          🏠 \${r.id}  (\${r.count}명)
-        </li>\`
-      ).join('');
-
-      listEl.querySelectorAll('li[data-id]').forEach(li => {
-        li.addEventListener('click', () => {
-          listEl.querySelectorAll('li').forEach(x => x.style.fontWeight = '');
-          li.style.fontWeight = 'bold';
-          selectedId = li.dataset.id;
-        });
-      });
-    }
-
-    // 5초마다 자동 갱신
-    refreshRooms();
-    setInterval(refreshRooms, 5000);
-
-    // 새 방 만들기 (랜덤 ID)
-    document.getElementById('new-room-btn').addEventListener('click', () => {
-      enterRoom('room-' + Math.random().toString(36).slice(2, 7));
+  list.querySelectorAll('li[data-id]').forEach(li => {
+    li.addEventListener('click', () => {
+      roomInput.value = li.dataset.id;
+      // 비밀번호 있는 방 클릭 시 비밀번호 입력창 표시
+      pwInput.style.display = li.dataset.pw === 'true' ? '' : 'none';
     });
+  });
+}
+setInterval(loadRooms, 5000);
+loadRooms();`}</Code>
 
-    // 선택한 방 입장
-    document.getElementById('join-btn').addEventListener('click', () => {
-      if (selectedId) enterRoom(selectedId);
-    });
+      <p className="mb-3 mt-6 font-semibold text-sm text-zinc-700 dark:text-zinc-200">비밀번호 방 만들기 & 입장</p>
+      <Code>{`// 비밀번호 있는 방 만들기 — 첫 입장자가 비밀번호를 설정합니다
+await mp.joinRoom('room1', playerInfo, { password: '1234' });
 
-    async function enterRoom(roomId) {
-      const mp = new ALPMultiplayer();
-      await mp.joinRoom(roomId, { id: crypto.randomUUID(), name: 'Player' });
-      // 로비 숨기기, 게임 화면 표시...
-    }
-  </script>
-</body>
-</html>`}</Code>
+// 비밀번호 있는 방 입장 — 틀리면 Promise가 reject됩니다
+try {
+  await mp.joinRoom('room1', playerInfo, { password: userInput });
+} catch (e) {
+  // e.message === '[ALP] 비밀번호가 틀렸습니다.'
+  alert('비밀번호가 틀렸습니다.');
+}
+
+// 비밀번호 없는 방 — options 생략 또는 password: ''
+await mp.joinRoom('room2', playerInfo);`}</Code>
 
       <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm dark:border-blue-800 dark:bg-blue-950/30">
         <p className="font-semibold text-blue-700 dark:text-blue-300">💡 참고</p>
         <ul className="mt-1 space-y-1 text-zinc-600 dark:text-zinc-400">
-          <li>• 실제로 플레이어가 접속 중인 방만 목록에 표시됩니다. 빈 방은 자동 제거됩니다.</li>
-          <li>• <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">count</code>가 0이 되면 최대 2분 이내에 목록에서 사라집니다.</li>
-          <li>• 방 이름을 직접 정하거나 랜덤 ID를 써서 "새 방 만들기"를 구현하세요.</li>
+          <li>• 비밀번호는 <strong>첫 입장자</strong>가 설정합니다. 이후 입장자는 같은 비밀번호를 입력해야 합니다.</li>
+          <li>• <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">getRooms()</code>는 비밀번호 자체가 아닌 <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">hasPassword: true/false</code>만 반환합니다.</li>
+          <li>• 빈 방은 자동 제거됩니다 (count = 0이 되면 최대 2분 이내).</li>
         </ul>
       </div>
 
@@ -499,6 +487,10 @@ await mp.joinRoom(rooms[0].id, { id: myId, name: "Player" });`}</Code>
           {
             q: "내가 보낸 이벤트가 나에게도 오나요?",
             a: "아닙니다. send()로 보낸 이벤트는 자기 자신에게 전달되지 않습니다. 내 상태는 로컬에서 직접 관리하세요.",
+          },
+          {
+            q: "비밀번호 방을 만들 수 있나요?",
+            a: "네. joinRoom()의 세 번째 인자에 { password: '비밀번호' }를 전달하면 됩니다. 첫 입장자가 비밀번호를 설정하며, 이후 입장자가 틀리면 Promise가 reject됩니다. getRooms()의 hasPassword 필드로 로비에서 🔒 표시를 할 수 있습니다.",
           },
           {
             q: "게임 상태(DB 저장)는 어떻게 하나요?",
