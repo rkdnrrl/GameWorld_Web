@@ -107,7 +107,23 @@ export default async function GameDetailPage({
             </div>
 
             {/* 제목 */}
-            <h1 className="mb-3 text-2xl font-bold text-gray-900 sm:text-3xl">{game.title}</h1>
+            <h1 className="mb-1 text-2xl font-bold text-gray-900 sm:text-3xl">{game.title}</h1>
+
+            {/* 제작자 */}
+            {game.ownerNickname && (
+              <p className="mb-3 text-sm text-gray-500">
+                제작자: <span className="font-medium text-gray-700">{game.ownerNickname}</span>
+              </p>
+            )}
+
+            {/* 별점 (클라이언트 컴포넌트) */}
+            <div className="mb-4">
+              <GameDetailRating
+                gameId={game.id}
+                initialAvg={game.ratingAvg}
+                initialCount={game.ratingCount}
+              />
+            </div>
 
             {/* 설명 */}
             {game.description && (
