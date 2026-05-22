@@ -55,7 +55,7 @@ export default async function GamesPage() {
         <AdBanner slot="skyscraper" />
       </div>
       <div className="fixed right-0 top-1/2 z-30 -translate-y-1/2">
-        <AdBanner slot="skyscraper" />
+        <AdBanner slot="skyscraperRight" />
       </div>
 
       <div className="min-h-screen bg-[#f5f5f5]">
