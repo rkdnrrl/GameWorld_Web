@@ -157,32 +157,6 @@ export default function GamesBrowser({ games }: Props) {
         </div>
       )}
 
-      {/* 월드맵 모드 — 접이식 */}
-      <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/50">
-        <button
-          type="button"
-          onClick={() => setWorldOpen((v) => !v)}
-          aria-expanded={worldOpen}
-          className="flex w-full items-center justify-between gap-3 p-4 text-left"
-        >
-          <div>
-            <div className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
-              {t("worldMapTitle")}
-            </div>
-            <div className="text-sm text-zinc-600 dark:text-zinc-400">
-              {t("worldMapDesc")}
-            </div>
-          </div>
-          <span className="flex-shrink-0 rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 dark:border-zinc-700 dark:text-zinc-200">
-            {worldOpen ? t("worldMapClose") : t("worldMapOpen")}
-          </span>
-        </button>
-        {worldOpen && (
-          <div className="border-t border-zinc-200 p-3 dark:border-zinc-800">
-            <DungeonHomeScene />
-          </div>
-        )}
-      </div>
 
     </div>
   );
