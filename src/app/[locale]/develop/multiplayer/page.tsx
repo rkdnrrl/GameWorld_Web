@@ -364,6 +364,10 @@ mp.send("move", { x: 150, y: 300 });`}</Code>
 
       {/* 5. 권장 인원 & 팁 */}
       <Section id="limits" title="권장 인원 & 팁" />
+      <p className="mb-4 text-sm text-zinc-500">
+        아래 인원은 <strong>방(room) 하나당</strong> 권장 수치입니다.
+        방을 여러 개 만들면 게임 전체 인원은 그만큼 늘어납니다.
+      </p>
       <div className="mb-6 overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
         <table className="w-full text-sm">
           <thead className="bg-zinc-100 dark:bg-zinc-800">

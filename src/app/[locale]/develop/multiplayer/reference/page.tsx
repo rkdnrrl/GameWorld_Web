@@ -216,7 +216,8 @@ other.y += (other.ty - other.y) * 0.2;
 
         {/* ── 6. 한도 ── */}
         <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
-          <h2 className="mb-3 font-bold">한도 & 권장 인원</h2>
+          <h2 className="mb-1 font-bold">권장 인원 <span className="text-xs font-normal text-zinc-400">(방 1개 기준)</span></h2>
+          <p className="mb-3 text-xs text-zinc-400">방을 여러 개 열면 게임 전체 인원은 그만큼 늘어납니다.</p>
           <div className="mb-4 overflow-hidden rounded-lg border border-zinc-100 dark:border-zinc-800 text-sm">
             <table className="w-full">
               <thead className="bg-zinc-50 dark:bg-zinc-800 text-xs text-zinc-400">
