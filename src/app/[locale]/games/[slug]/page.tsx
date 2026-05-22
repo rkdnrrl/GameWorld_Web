@@ -1,7 +1,8 @@
 import { getTranslations } from "next-intl/server";
 import Link from "next/link";
-import GamePlayButton from "@/components/GamePlayButton";
-import GameComments   from "@/components/GameComments";
+import GamePlayButton    from "@/components/GamePlayButton";
+import GameComments     from "@/components/GameComments";
+import GameDetailRating from "@/components/GameDetailRating";
 import type { GameCategory } from "@/components/GameCard";
 
 const CAT_BG: Record<string, string> = {
