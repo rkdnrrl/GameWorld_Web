@@ -231,12 +231,14 @@ mp.send("move", { x: 150, y: 300 });`}</Code>
       />
 
       <ApiMethod
-        signature="on(event, callback)"
+        signature="on(event, callback, options?)"
         returns="this"
         desc="다른 플레이어가 send()로 보낸 이벤트를 수신합니다. joinRoom() 전후 어느 시점에도 호출 가능합니다."
         params={[
-          { name: "event",    type: "string",          desc: "이벤트 이름 (예: 'move', 'attack', 'chat')" },
+          { name: "event",    type: "string",           desc: "이벤트 이름 (예: 'move', 'attack', 'chat')" },
           { name: "callback", type: "(payload) => void", desc: "수신 시 호출될 함수. payload는 send()에서 넘긴 객체." },
+          { name: "options.predict", type: "boolean?",  desc: "true 시 인터폴레이션 버퍼 활성화. 60fps로 callback을 호출하며 수신 위치 사이를 선형 보간해 완전히 부드러운 이동을 제공. 위치 동기화 이벤트에 권장." },
+          { name: "options.id/x/y",  type: "string?",  desc: "predict 사용 시 페이로드의 식별자·위치 필드명. 기본값: 'id', 'x', 'y'" },
         ]}
       />
 
@@ -282,74 +284,70 @@ mp.send("move", { x: 150, y: 300 });`}</Code>
   <script src="/_alp/sdk.js"></script>
 </head>
 <body>
-  <canvas id="c" width="600" height="400"></canvas>
+  <canvas id="c" width="600" height="400" style="background:#111"></canvas>
   <script>
-    const canvas = document.getElementById('c');
-    const ctx    = canvas.getContext('2d');
-
-    // 고유 ID · 색상 생성
+    const ctx     = document.getElementById('c').getContext('2d');
     const myId    = crypto.randomUUID();
-    const myColor = '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0');
-    let myX = 300, myY = 200;
-    const others = new Map();   // id → { x, y, tx, ty, color }
+    const myColor = '#' + Math.floor(Math.random()*0xffffff).toString(16).padStart(6,'0');
+    let myX = 300, myY = 200, mp = null;
 
-    async function start() {
-      const mp = new ALPMultiplayer();
+    const others = new Map(); // id → { x, y, color }
 
-      // 1. 콜백 먼저 등록
-      mp.on('move', (p) => {
-        const o = others.get(p.id);
-        if (o) { o.tx = p.x; o.ty = p.y; }
-        else others.set(p.id, { x: p.x, y: p.y, tx: p.x, ty: p.y, color: p.color });
-      });
+    async function main() {
+      mp = new ALPMultiplayer();
 
+      // predict: true — SDK가 인터폴레이션 버퍼로 60fps 부드러운 위치를 계산해 callback 호출
+      mp.on('move', ({ id, x, y, color }) => {
+        const o = others.get(id);
+        if (o) { o.x = x; o.y = y; }  // SDK가 이미 보간된 위치를 전달
+      }, { predict: true });
+
+      // 입장·퇴장 관리
       mp.onPlayers((players) => {
-        const ids = new Set(players.filter(p => p.id !== myId).map(p => p.id));
-        // 퇴장 플레이어 제거
-        for (const id of others.keys()) if (!ids.has(id)) others.delete(id);
+        const live = new Set(players.map(p => p.id));
+        for (const id of others.keys()) if (!live.has(id)) others.delete(id);
+        for (const p of players) {
+          if (p.id !== myId && !others.has(p.id))
+            others.set(p.id, { x: p.x || 300, y: p.y || 200, color: p.color });
+        }
       });
 
-      // 2. 방 입장
       await mp.joinRoom('room1', { id: myId, color: myColor, x: myX, y: myY });
 
-      // 3. 이동 전송
+      // 키 누를 때 즉시 전송 + 16ms 주기 전송
+      const keys = new Set();
       let lastSend = 0;
-      document.addEventListener('keydown', (e) => {
-        if (e.code === 'ArrowLeft')  myX -= 5;
-        if (e.code === 'ArrowRight') myX += 5;
-        if (e.code === 'ArrowUp')    myY -= 5;
-        if (e.code === 'ArrowDown')  myY += 5;
-      });
+      window.addEventListener('keydown', e => { keys.add(e.code);    sendPos(); });
+      window.addEventListener('keyup',   e => { keys.delete(e.code); sendPos(); });
 
-      // 4. 게임 루프
+      function sendPos() {
+        if (mp) mp.send('move', {
+          id: myId, color: myColor,
+          x: Math.round(myX), y: Math.round(myY),
+        });
+      }
+
       function loop(now) {
-        // lerp — 부드러운 이동
-        for (const o of others.values()) {
-          o.x += (o.tx - o.x) * 0.2;
-          o.y += (o.ty - o.y) * 0.2;
-        }
-        // 50ms 마다 전송
-        if (now - lastSend > 50) {
-          mp.send('move', { id: myId, color: myColor, x: Math.round(myX), y: Math.round(myY) });
-          lastSend = now;
-        }
-        // 렌더
-        ctx.fillStyle = '#111'; ctx.fillRect(0, 0, 600, 400);
-        for (const o of others.values()) drawCircle(o.x, o.y, o.color);
-        drawCircle(myX, myY, myColor);
+        if (keys.has('ArrowLeft'))  myX -= 3;
+        if (keys.has('ArrowRight')) myX += 3;
+        if (keys.has('ArrowUp'))    myY -= 3;
+        if (keys.has('ArrowDown'))  myY += 3;
+        if (now - lastSend > 16) { sendPos(); lastSend = now; }
+
+        ctx.fillStyle = '#111'; ctx.fillRect(0,0,600,400);
+        for (const o of others.values()) dot(o.x, o.y, o.color);
+        dot(myX, myY, myColor);
         requestAnimationFrame(loop);
       }
       requestAnimationFrame(loop);
     }
 
-    function drawCircle(x, y, color) {
-      ctx.beginPath();
-      ctx.arc(x, y, 16, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
+    function dot(x, y, color) {
+      ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI*2);
+      ctx.fillStyle = color; ctx.fill();
     }
 
-    start();
+    main();
   </script>
 </body>
 </html>`}</Code>

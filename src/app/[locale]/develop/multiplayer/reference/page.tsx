@@ -120,6 +120,17 @@ await mp.joinRoom(...);      // 방 입장`}</Block>
               </div>
             </div>
 
+            {/* on predict */}
+            <div className="flex flex-col gap-1 rounded-lg bg-violet-50 px-4 py-3 dark:bg-violet-950/20 sm:flex-row sm:items-start sm:gap-4">
+              <div className="shrink-0">
+                <Chip color="violet">on(이벤트, 함수, {"{"}predict:true{"}"})</Chip>
+              </div>
+              <div className="text-sm text-zinc-600 dark:text-zinc-400">
+                위치 동기화 이벤트에 권장. SDK가 인터폴레이션 버퍼로 60fps 부드러운 위치를 계산해 callback을 호출합니다.
+                게임 루프에서 별도 보간 코드 불필요.
+              </div>
+            </div>
+
             {/* send */}
             <div className="flex flex-col gap-1 rounded-lg bg-zinc-50 px-4 py-3 dark:bg-zinc-800 sm:flex-row sm:items-start sm:gap-4">
               <div className="shrink-0">
@@ -160,57 +171,56 @@ await mp.joinRoom(...);      // 방 입장`}</Block>
           <h2 className="mb-3 font-bold">복붙 예시 (그대로 쓰면 작동합니다)</h2>
           <Block>{`const mp    = new ALPMultiplayer();
 const myId  = crypto.randomUUID();
-const others = new Map(); // id → { x, y, tx, ty }
+const others = new Map(); // id → { x, y, color }
 
-// 1. 콜백 먼저
-mp.on('move', ({ id, x, y }) => {
+// predict: true — SDK가 인터폴레이션 버퍼로 60fps 부드러운 위치를 전달
+mp.on('move', ({ id, x, y, color }) => {
   const o = others.get(id);
-  if (o) { o.tx = x; o.ty = y; }            // 목표 위치만 갱신
-  else     others.set(id, { x, y, tx: x, ty: y });
-});
+  if (o) { o.x = x; o.y = y; }  // SDK가 이미 보간된 위치 전달, 별도 lerp 불필요
+}, { predict: true });
 
+// 입장·퇴장 관리 (onPlayers가 others 목록 관리)
 mp.onPlayers((players) => {
-  const ids = new Set(players.map(p => p.id));
-  for (const id of others.keys())
-    if (!ids.has(id)) others.delete(id);    // 퇴장 플레이어 제거
+  const live = new Set(players.map(p => p.id));
+  for (const id of others.keys()) if (!live.has(id)) others.delete(id);
+  for (const p of players) {
+    if (p.id !== myId && !others.has(p.id))
+      others.set(p.id, { x: p.x || 0, y: p.y || 0, color: p.color });
+  }
 });
 
-// 2. 입장
-await mp.joinRoom('room1', { id: myId, x: 0, y: 0 });
+await mp.joinRoom('room1', { id: myId, color: myColor, x: myX, y: myY });
 
-// 3. 게임 루프에서
+// 키 누를 때 즉시 + 16ms 주기로 전송
+const keys = new Set();
+let lastSend = 0;
+window.addEventListener('keydown', e => { keys.add(e.code);    sendPos(); });
+window.addEventListener('keyup',   e => { keys.delete(e.code); sendPos(); });
+function sendPos() { mp.send('move', { id: myId, color: myColor, x: myX, y: myY }); }
+
 function loop(now) {
-  // 부드러운 이동 (lerp)
-  for (const o of others.values()) {
-    o.x += (o.tx - o.x) * 0.2;
-    o.y += (o.ty - o.y) * 0.2;
-  }
-  // 50ms마다 내 위치 전송
-  if (now - lastSend > 50) {
-    mp.send('move', { id: myId, x: myX, y: myY });
-    lastSend = now;
-  }
+  // 이동 처리
+  if (now - lastSend > 16) { sendPos(); lastSend = now; }
+  // 렌더링 (others의 x,y는 SDK가 매 프레임 업데이트)
   requestAnimationFrame(loop);
 }`}</Block>
         </div>
 
-        {/* ── 5. 끊김 없이 만들기 (lerp) ── */}
-        <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
-          <h2 className="mb-3 font-bold">끊김 없이 만들기 (lerp)</h2>
-          <p className="mb-3 text-sm text-zinc-500">
-            네트워크는 50ms마다 위치를 보내서 뚝뚝 끊깁니다.
-            <code className="mx-1 text-violet-500">tx/ty</code>(목표)와
-            <code className="mx-1 text-violet-500">x/y</code>(렌더)를 분리하면 부드러워집니다.
+        {/* ── 5. predict 옵션 ── */}
+        <div className="rounded-xl border border-violet-200 bg-violet-50 p-5 dark:border-violet-800 dark:bg-violet-950/20">
+          <h2 className="mb-3 font-bold">predict 옵션 — 인터폴레이션 버퍼</h2>
+          <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">
+            <code className="text-violet-600">{"{ predict: true }"}</code>를 붙이면
+            SDK가 수신된 위치들을 버퍼에 저장하고, 50ms 전 시점을 두 위치 사이에서 선형 보간해
+            60fps로 callback을 호출합니다. 게임 루프에서 별도 보간 코드가 필요 없습니다.
           </p>
-          <Block>{`// 받을 때 → 목표만 갱신
-other.tx = payload.x;
-other.ty = payload.y;
+          <Block>{`// predict 없이 (직접 보간 필요)
+mp.on('move', (p) => { other.tx = p.x; other.ty = p.y; });
+// 게임 루프: other.x += (other.tx - other.x) * 0.2; // lerp 직접 처리
 
-// 매 프레임 → 렌더 위치를 목표로 서서히 이동
-other.x += (other.tx - other.x) * 0.2;
-other.y += (other.ty - other.y) * 0.2;
-
-// 그리기는 other.x, other.y 기준으로`}</Block>
+// predict 사용 (SDK가 자동 처리)
+mp.on('move', (p) => { other.x = p.x; other.y = p.y; }, { predict: true });
+// 게임 루프: 그냥 other.x, other.y 읽어서 렌더링만`}</Block>
         </div>
 
         {/* ── 6. 한도 ── */}
