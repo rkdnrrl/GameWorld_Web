@@ -24,7 +24,6 @@ export default function GamesBrowser({ games }: Props) {
 
   const [query, setQuery] = useState("");
   const [activeCat, setActiveCat] = useState<GameCategory | "all">("all");
-  const [worldOpen, setWorldOpen] = useState(false);
   const [lastGameId, setLastGameId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
 
