@@ -20,9 +20,10 @@ type AdSlot = "leaderboard" | "banner" | "skyscraper" | "skyscraperRight";
  */
 
 const UNIT_IDS: Record<AdSlot, string> = {
-  leaderboard: process.env.NEXT_PUBLIC_KAKAO_ADFIT_LEADERBOARD ?? "",
-  banner:      process.env.NEXT_PUBLIC_KAKAO_ADFIT_BANNER      ?? "",
-  skyscraper:  process.env.NEXT_PUBLIC_KAKAO_ADFIT_SKYSCRAPER  ?? "",
+  leaderboard:    process.env.NEXT_PUBLIC_KAKAO_ADFIT_LEADERBOARD       ?? "",
+  banner:         process.env.NEXT_PUBLIC_KAKAO_ADFIT_BANNER            ?? "",
+  skyscraper:     process.env.NEXT_PUBLIC_KAKAO_ADFIT_SKYSCRAPER        ?? "",
+  skyscraperRight: process.env.NEXT_PUBLIC_KAKAO_ADFIT_SKYSCRAPER_RIGHT ?? "",
 };
 
 const SIZES: Record<AdSlot, { w: string; h: string }> = {
