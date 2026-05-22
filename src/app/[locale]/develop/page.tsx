@@ -361,30 +361,17 @@ export default function DevelopPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-sm font-medium">{t("fieldSlug")}</label>
-            <input
-              type="text"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-              placeholder={t("slugPlaceholder")}
-              disabled={submitting}
-              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900"
-            />
-            <p className="mt-1 text-xs text-zinc-500">{t("slugHelp")}</p>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">{t("fieldEmoji")}</label>
-            <input
-              type="text"
-              value={emoji}
-              onChange={(e) => setEmoji(e.target.value)}
-              maxLength={8}
-              disabled={submitting}
-              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900"
-            />
-          </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">{t("fieldSlug")}</label>
+          <input
+            type="text"
+            value={slug}
+            onChange={(e) => setSlug(e.target.value)}
+            placeholder={t("slugPlaceholder")}
+            disabled={submitting}
+            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900"
+          />
+          <p className="mt-1 text-xs text-zinc-500">{t("slugHelp")}</p>
         </div>
 
         <div>
