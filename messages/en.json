@@ -222,7 +222,7 @@
   "ActivityLogs": {
     "breadcrumb": "Admin",
     "title": "Activity Logs",
-    "subtitle": "Real-time fishing, smelting, and forging event records",
+    "subtitle": "Real-time log of fishing · smelting · forging · deploy events",
     "filterAll": "All",
     "filterFish": "Fishing",
     "filterSmelt": "Smelting",
@@ -241,7 +241,15 @@
     "forgeFirstDiscovery": " ✨First Discovery",
     "loadFailed": "Failed to load.",
     "forbidden": "Access Denied",
-    "forbiddenDesc": "Only operators can view this page."
+    "forbiddenDesc": "Only operators can view this page.",
+    "filterDeploy": "Deploy",
+    "gameUpload": "New Deploy",
+    "gameApprove": "Approved",
+    "gameReject": "Rejected",
+    "gameUpdate": "Update",
+    "gameUpdateApprove": "Update Approved",
+    "gameUpdateReject": "Update Rejected",
+    "gameDelete": "Deleted"
   },
   "SmeltStock": {
     "breadcrumb": "Admin",

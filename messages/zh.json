@@ -222,7 +222,7 @@
   "ActivityLogs": {
     "breadcrumb": "管理",
     "title": "活动日志",
-    "subtitle": "钓鱼、熔炉、冶炼事件实时记录",
+    "subtitle": "钓鱼·熔炼·锻造·部署事件实时记录",
     "filterAll": "全部",
     "filterFish": "钓鱼",
     "filterSmelt": "熔炉",
@@ -241,7 +241,15 @@
     "forgeFirstDiscovery": " ✨首次发现",
     "loadFailed": "加载失败。",
     "forbidden": "访问被拒绝",
-    "forbiddenDesc": "只有运营者才能查看此页面。"
+    "forbiddenDesc": "只有运营者才能查看此页面。",
+    "filterDeploy": "部署",
+    "gameUpload": "新部署",
+    "gameApprove": "已批准",
+    "gameReject": "已拒绝",
+    "gameUpdate": "更新",
+    "gameUpdateApprove": "更新批准",
+    "gameUpdateReject": "更新拒绝",
+    "gameDelete": "删除"
   },
   "SmeltStock": {
     "breadcrumb": "管理",

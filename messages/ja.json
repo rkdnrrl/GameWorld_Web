@@ -222,7 +222,7 @@
   "ActivityLogs": {
     "breadcrumb": "管理",
     "title": "アクティビティログ",
-    "subtitle": "釣り・溶鉱炉・製錬イベントのリアルタイム記録",
+    "subtitle": "釣り・溶鉱炉・鍛造・デプロイイベントのリアルタイムログ",
     "filterAll": "全て",
     "filterFish": "釣り",
     "filterSmelt": "溶鉱炉",
@@ -241,7 +241,15 @@
     "forgeFirstDiscovery": " ✨初発見",
     "loadFailed": "読み込みに失敗しました。",
     "forbidden": "アクセス拒否",
-    "forbiddenDesc": "運営者のみがこのページを表示できます。"
+    "forbiddenDesc": "運営者のみがこのページを表示できます。",
+    "filterDeploy": "デプロイ",
+    "gameUpload": "新規デプロイ",
+    "gameApprove": "承認",
+    "gameReject": "却下",
+    "gameUpdate": "アップデート",
+    "gameUpdateApprove": "アップデート承認",
+    "gameUpdateReject": "アップデート却下",
+    "gameDelete": "削除"
   },
   "SmeltStock": {
     "breadcrumb": "管理",

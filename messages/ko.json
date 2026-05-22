@@ -222,7 +222,7 @@
   "ActivityLogs": {
     "breadcrumb": "운영",
     "title": "활동 로그",
-    "subtitle": "낚시 · 용광로 · 제련 이벤트 실시간 기록",
+    "subtitle": "낚시 · 용광로 · 제련 · 배포 이벤트 실시간 기록",
     "filterAll": "전체",
     "filterFish": "낚시",
     "filterSmelt": "용광로",
@@ -241,7 +241,15 @@
     "forgeFirstDiscovery": " ✨첫발견",
     "loadFailed": "불러오지 못했습니다.",
     "forbidden": "접근 불가",
-    "forbiddenDesc": "운영자만 이 페이지를 볼 수 있습니다."
+    "forbiddenDesc": "운영자만 이 페이지를 볼 수 있습니다.",
+    "filterDeploy": "배포",
+    "gameUpload": "신규배포",
+    "gameApprove": "배포승인",
+    "gameReject": "배포거절",
+    "gameUpdate": "업데이트",
+    "gameUpdateApprove": "업데이트승인",
+    "gameUpdateReject": "업데이트거절",
+    "gameDelete": "삭제"
   },
   "SmeltStock": {
     "breadcrumb": "운영",

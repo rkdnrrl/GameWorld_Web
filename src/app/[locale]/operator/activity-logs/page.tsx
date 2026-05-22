@@ -62,6 +62,24 @@ function DetailCell({ action, detail, t }: { action: string; detail: Record<stri
       </span>
     );
   }
+  if (action.startsWith("game_")) {
+    const slug  = String(detail.slug  ?? "");
+    const title = String(detail.title ?? slug);
+    const extra = action === "game_reject" || action === "game_update_reject"
+      ? String(detail.reason ?? "")
+      : action === "game_update" || action === "game_update_approve"
+        ? `v${String(detail.pendingVersion ?? detail.version ?? "")}`
+        : action === "game_upload"
+          ? String(detail.kind ?? "")
+          : "";
+    return (
+      <span>
+        <span className="font-medium">{title}</span>
+        <span className="ml-1 text-xs text-zinc-400">({slug})</span>
+        {extra && <span className="ml-2 text-xs text-zinc-500">{extra}</span>}
+      </span>
+    );
+  }
   return <span className="font-mono text-xs">{JSON.stringify(detail)}</span>;
 }
 
@@ -82,10 +100,18 @@ export default function OperatorActivityLogsPage() {
   const [nicknameInput, setNicknameInput] = useState("");
   const [nicknameFilter, setNicknameFilter] = useState("");
 
+  const DEPLOY_COLOR = "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300";
   const ACTION_LABELS: Record<string, { label: string; emoji: string; color: string }> = {
-    fish_catch: { label: t("filterFish"), emoji: "🎣", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300" },
-    smelt_melt: { label: t("filterSmelt"), emoji: "🔥", color: "bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300" },
-    forge_craft: { label: t("filterForge"), emoji: "⚒️", color: "bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300" },
+    fish_catch:          { label: t("filterFish"),        emoji: "🎣", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300" },
+    smelt_melt:          { label: t("filterSmelt"),       emoji: "🔥", color: "bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300" },
+    forge_craft:         { label: t("filterForge"),       emoji: "⚒️", color: "bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300" },
+    game_upload:         { label: t("gameUpload"),        emoji: "📦", color: DEPLOY_COLOR },
+    game_approve:        { label: t("gameApprove"),       emoji: "✅", color: DEPLOY_COLOR },
+    game_reject:         { label: t("gameReject"),        emoji: "❌", color: "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300" },
+    game_update:         { label: t("gameUpdate"),        emoji: "🔄", color: DEPLOY_COLOR },
+    game_update_approve: { label: t("gameUpdateApprove"), emoji: "✅", color: DEPLOY_COLOR },
+    game_update_reject:  { label: t("gameUpdateReject"),  emoji: "❌", color: "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300" },
+    game_delete:         { label: t("gameDelete"),        emoji: "🗑️", color: "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-300" },
   };
 
   const load = useCallback(async () => {
@@ -154,8 +180,8 @@ export default function OperatorActivityLogsPage() {
       {/* 필터 */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex gap-1">
-          {(["all", "fish_catch", "smelt_melt", "forge_craft"] as const).map((a) => {
-            const meta = a === "all" ? { label: t("filterAll"), emoji: "" } : ACTION_LABELS[a];
+          {(["all", "fish_catch", "smelt_melt", "forge_craft", "game_deploy"] as const).map((a) => {
+            const meta = a === "all" ? { label: t("filterAll"), emoji: "" } : a === "game_deploy" ? { label: t("filterDeploy"), emoji: "🚀" } : ACTION_LABELS[a];
             return (
               <button
                 key={a}
