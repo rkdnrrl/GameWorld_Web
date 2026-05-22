@@ -160,6 +160,41 @@ window.addEventListener('beforeunload', () => mp.leave());
 
 ---
 
+### `ALPMultiplayer.getRooms(slug?)` → `Promise<{id: string, count: number}[]>`
+Fetch the list of currently active rooms for this game. **Static method — no instance needed.**
+
+```js
+// Static call (no instance required)
+const rooms = await ALPMultiplayer.getRooms();
+// → [{ id: 'room1', count: 3 }, { id: 'room2', count: 1 }]
+// Sorted by player count descending
+
+// Instance call (same result)
+const mp = new ALPMultiplayer();
+const rooms = await mp.getRooms();
+```
+
+- `slug` — optional override. Defaults to `window.__ALP_GAME_SLUG__` (auto-set by the platform).
+- Returns `[]` if no rooms are active.
+- Rooms with 0 players are automatically removed from the list (within 2 minutes).
+
+**Lobby UI example:**
+```js
+async function refreshRooms() {
+  const rooms = await ALPMultiplayer.getRooms();
+  // rooms: [{ id, count }, ...]
+  renderLobby(rooms);
+}
+refreshRooms();
+setInterval(refreshRooms, 5000); // poll every 5 seconds
+
+// After player selects a room:
+const mp = new ALPMultiplayer();
+await mp.joinRoom(selectedRoomId, { id: myId, name: 'Player' });
+```
+
+---
+
 ## Minimal Working Game (copy-paste complete)
 
 ```html
