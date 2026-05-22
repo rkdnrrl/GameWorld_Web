@@ -96,6 +96,11 @@ export type UgcGame = {
   pendingVersion: number | null;
   pendingUploadedAt: string | null;
   pendingRejectReason: string | null;
+  pendingThumbnailUrl: string | null;
+  pendingDemoVideoUrl: string | null;
+  pendingScreenshots: unknown;
+  pendingMediaAt: string | null;
+  pendingMediaRejectReason: string | null;
   createdAt: string;
   updatedAt: string;
   publishedAt: string | null;
