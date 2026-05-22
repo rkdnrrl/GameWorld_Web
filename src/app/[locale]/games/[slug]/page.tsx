@@ -138,6 +138,21 @@ export default async function GameDetailPage({
           </div>
         </div>
 
+        {/* ── 데모 영상 ── */}
+        {game.demoVideoUrl && (
+          <div className="mt-5 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-200">
+            <div className="p-4">
+              <h2 className="mb-3 text-sm font-semibold text-gray-700">🎬 데모 영상</h2>
+              <video
+                src={game.demoVideoUrl}
+                controls
+                className="w-full rounded-lg bg-black"
+                style={{ maxHeight: "480px" }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* ── 댓글 ── */}
         <div className="mt-5 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-200">
           <GameComments slug={slug} />
