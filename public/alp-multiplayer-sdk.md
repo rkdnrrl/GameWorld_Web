@@ -100,8 +100,9 @@ mp.onPlayers((players) => {
 
 ---
 
-### `await mp.joinRoom(roomId, playerInfo?)` → `Promise<void>`
+### `await mp.joinRoom(roomId, playerInfo?, options?)` → `Promise<void>`
 Connect to the room via WebSocket to Cloudflare Durable Objects.
+Resolves when the server sends `welcome` (player is fully joined).
 
 ```js
 await mp.joinRoom('room1', {
@@ -112,8 +113,23 @@ await mp.joinRoom('room1', {
 });
 ```
 
+**Password-protected rooms:**
+```js
+// Create a password-protected room (first joiner sets the password)
+await mp.joinRoom('room1', playerInfo, { password: '1234' });
+
+// Join with password — rejects if wrong
+try {
+  await mp.joinRoom('room1', playerInfo, { password: userInput });
+} catch (e) {
+  // e.message === '[ALP] 비밀번호가 틀렸습니다.'
+  showError('Wrong password');
+}
+```
+
 - `roomId` — string, shared by players who want to be in the same room
 - `playerInfo` — any JSON-serializable object; sent to others via Presence
+- `options.password` — string. First joiner sets the password; later joiners must match it.
 - Channel: `game:{window.__ALP_GAME_SLUG__}:{roomId}`
 
 ---
