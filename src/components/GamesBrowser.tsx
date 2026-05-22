@@ -23,7 +23,6 @@ function gameHrefWithToken(baseUrl: string, token: string | null): string {
 export default function GamesBrowser({ games }: Props) {
   const t = useTranslations("Games");
 
-  const [query,      setQuery]     = useState("");
   const [activeCat,  setActiveCat] = useState<GameCategory | "all">("all");
   const [sortBy,     setSortBy]    = useState<"default" | "popular" | "rating">("default");
   const [lastGameId, setLastGameId] = useState<string | null>(null);
