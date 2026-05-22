@@ -3,7 +3,8 @@ import Link from "next/link";
 import GamePlayButton    from "@/components/GamePlayButton";
 import GameComments     from "@/components/GameComments";
 import GameDetailRating from "@/components/GameDetailRating";
-import GameLikeButton   from "@/components/GameLikeButton";
+import GameLikeButton     from "@/components/GameLikeButton";
+import GameScreenshots    from "@/components/GameScreenshots";
 import type { GameCategory } from "@/components/GameCard";
 
 const CAT_BG: Record<string, string> = {
