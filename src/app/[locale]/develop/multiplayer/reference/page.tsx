@@ -164,6 +164,19 @@ await mp.joinRoom(...);      // 방 입장`}</Block>
               </div>
             </div>
 
+            {/* getRooms */}
+            <div className="flex flex-col gap-1 rounded-lg bg-zinc-50 px-4 py-3 dark:bg-zinc-800 sm:flex-row sm:items-start sm:gap-4">
+              <div className="shrink-0">
+                <Chip color="green">getRooms(slug?)</Chip>
+              </div>
+              <div className="text-sm text-zinc-600 dark:text-zinc-400">
+                현재 게임에 열려 있는 방 목록을 가져옵니다.{" "}
+                <code className="text-violet-500">ALPMultiplayer.getRooms()</code>로 인스턴스 없이 호출 가능합니다.
+                <br />
+                <span className="text-xs text-zinc-400">반환: <code>{"[{ id, count }]"}</code> — count 많은 순 정렬. 빈 방은 자동 제거.</span>
+              </div>
+            </div>
+
           </div>
         </div>
 

@@ -132,6 +132,7 @@ export default async function MultiplayGuide() {
             ["quickstart", "시작하기 (3단계)"],
             ["api", "API 레퍼런스"],
             ["full-example", "완성 예시"],
+            ["room-list", "방 목록 (로비)"],
             ["limits", "권장 인원 & 팁"],
             ["faq", "자주 묻는 질문"],
           ].map(([id, label]) => (
@@ -352,7 +353,96 @@ mp.send("move", { x: 150, y: 300 });`}</Code>
 </body>
 </html>`}</Code>
 
-      {/* 5. 권장 인원 & 팁 */}
+      {/* 5. 방 목록 (로비) */}
+      <Section id="room-list" title="방 목록 (로비)" sub="현재 열려 있는 방 목록을 가져와 로비 화면을 만드세요" />
+      <p className="mb-4 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+        <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">ALPMultiplayer.getRooms()</code>를 호출하면
+        현재 게임에 열려 있는 방 목록과 각 방의 인원 수를 받을 수 있습니다.
+        인스턴스 없이도 호출 가능한 정적 메서드입니다.
+      </p>
+      <Code>{`// 방 목록 가져오기 (인스턴스 없이 호출 가능)
+const rooms = await ALPMultiplayer.getRooms();
+// → [{ id: "room1", count: 3 }, { id: "room2", count: 1 }]
+//   count 많은 순으로 정렬됨
+
+// 방 선택 후 입장
+const mp = new ALPMultiplayer();
+await mp.joinRoom(rooms[0].id, { id: myId, name: "Player" });`}</Code>
+
+      <p className="mb-3 mt-6 text-sm text-zinc-600 dark:text-zinc-400">
+        아래는 로비 화면을 구현하는 최소 예시입니다. 5초마다 자동 갱신하거나 버튼으로 수동 갱신할 수 있습니다.
+      </p>
+      <Code>{`<!DOCTYPE html>
+<html>
+<head>
+  <script src="/_alp/sdk.js"></script>
+</head>
+<body>
+  <h2>방 목록</h2>
+  <ul id="room-list"></ul>
+  <button id="new-room-btn">+ 새 방 만들기</button>
+  <button id="join-btn">입장</button>
+
+  <script>
+    const listEl = document.getElementById('room-list');
+    let selectedId = null;
+
+    async function refreshRooms() {
+      const rooms = await ALPMultiplayer.getRooms();
+
+      if (rooms.length === 0) {
+        listEl.innerHTML = '<li>열려 있는 방이 없습니다.</li>';
+        return;
+      }
+
+      listEl.innerHTML = rooms.map(r =>
+        \`<li data-id="\${r.id}" style="cursor:pointer">
+          🏠 \${r.id}  (\${r.count}명)
+        </li>\`
+      ).join('');
+
+      listEl.querySelectorAll('li[data-id]').forEach(li => {
+        li.addEventListener('click', () => {
+          listEl.querySelectorAll('li').forEach(x => x.style.fontWeight = '');
+          li.style.fontWeight = 'bold';
+          selectedId = li.dataset.id;
+        });
+      });
+    }
+
+    // 5초마다 자동 갱신
+    refreshRooms();
+    setInterval(refreshRooms, 5000);
+
+    // 새 방 만들기 (랜덤 ID)
+    document.getElementById('new-room-btn').addEventListener('click', () => {
+      enterRoom('room-' + Math.random().toString(36).slice(2, 7));
+    });
+
+    // 선택한 방 입장
+    document.getElementById('join-btn').addEventListener('click', () => {
+      if (selectedId) enterRoom(selectedId);
+    });
+
+    async function enterRoom(roomId) {
+      const mp = new ALPMultiplayer();
+      await mp.joinRoom(roomId, { id: crypto.randomUUID(), name: 'Player' });
+      // 로비 숨기기, 게임 화면 표시...
+    }
+  </script>
+</body>
+</html>`}</Code>
+
+      <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm dark:border-blue-800 dark:bg-blue-950/30">
+        <p className="font-semibold text-blue-700 dark:text-blue-300">💡 참고</p>
+        <ul className="mt-1 space-y-1 text-zinc-600 dark:text-zinc-400">
+          <li>• 실제로 플레이어가 접속 중인 방만 목록에 표시됩니다. 빈 방은 자동 제거됩니다.</li>
+          <li>• <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">count</code>가 0이 되면 최대 2분 이내에 목록에서 사라집니다.</li>
+          <li>• 방 이름을 직접 정하거나 랜덤 ID를 써서 "새 방 만들기"를 구현하세요.</li>
+        </ul>
+      </div>
+
+      {/* 6. 권장 인원 & 팁 */}
       <Section id="limits" title="권장 인원 & 팁" />
       <p className="mb-4 text-sm text-zinc-500">
         아래 인원은 <strong>방(room) 하나당</strong> 권장 수치입니다.
