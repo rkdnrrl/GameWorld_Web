@@ -80,13 +80,32 @@ export default function OperatorManageGamesPage() {
         headers: { Authorization: `Bearer ${tk}` },
       });
       if (!res.ok) throw new Error("설정 실패");
-      // 피처드 상태 업데이트
       setGames((prev) => prev?.map((g) => ({
         ...g,
         isFeatured: g.slug === slug ? !currentlyFeatured : g.isFeatured,
       })) ?? null);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "설정 실패");
+    } finally {
+      setActingSlug(null);
+    }
+  }
+
+  async function onToggleVisibility(slug: string, currentStatus: string) {
+    const tk = session.getToken();
+    if (!tk) return;
+    setActingSlug(slug);
+    setActionError(null);
+    try {
+      const isHiding = currentStatus === "published";
+      const res = isHiding
+        ? await api.operatorHideGame(tk, slug)
+        : await api.operatorUnhideGame(tk, slug);
+      setGames((prev) => prev?.map((g) =>
+        g.slug === slug ? { ...g, status: res.game.status } : g
+      ) ?? null);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "변경 실패");
     } finally {
       setActingSlug(null);
     }
@@ -261,6 +280,20 @@ export default function OperatorManageGamesPage() {
                       }`}
                     >
                       {g.isFeatured ? "⭐ 피처드 해제" : "☆ 피처드 설정"}
+                    </button>
+                  )}
+                  {/* 공개/비공개 토글 */}
+                  {(g.status === "published" || g.status === "hidden") && (
+                    <button
+                      onClick={() => void onToggleVisibility(g.slug, g.status)}
+                      disabled={actingSlug !== null}
+                      className={`rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-60 ${
+                        g.status === "published"
+                          ? "border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                          : "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                      }`}
+                    >
+                      {g.status === "published" ? "🔒 비공개" : "🔓 공개"}
                     </button>
                   )}
                   <button
