@@ -132,7 +132,7 @@ export default async function MultiplayGuide() {
             ["quickstart", "시작하기 (3단계)"],
             ["api", "API 레퍼런스"],
             ["full-example", "완성 예시"],
-            ["limits", "제한 및 주의사항"],
+            ["limits", "권장 인원 & 팁"],
             ["faq", "자주 묻는 질문"],
           ].map(([id, label]) => (
             <li key={id}>
@@ -362,53 +362,24 @@ mp.send("move", { x: 150, y: 300 });`}</Code>
 </body>
 </html>`}</Code>
 
-      {/* 5. 제한 */}
-      <Section id="limits" title="제한 및 주의사항" />
-      <div className="mb-4 overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
-        <table className="w-full text-sm">
-          <thead className="bg-zinc-100 dark:bg-zinc-800">
-            <tr>
-              <th className="px-4 py-2 text-left font-medium">항목</th>
-              <th className="px-4 py-2 text-left font-medium">Free 플랜</th>
-              <th className="px-4 py-2 text-left font-medium">Pro 플랜</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {[
-              ["동시 접속자 (전체)", "200명", "500명"],
-              ["메시지/초 (전체)", "500개/초", "2,500개/초"],
-              ["채널(방)당 인원", "제한 없음*", "제한 없음*"],
-              ["메시지 크기", "최대 2MB", "최대 2MB"],
-            ].map(([item, free, pro]) => (
-              <tr key={item as string}>
-                <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{item}</td>
-                <td className="px-4 py-2">{free}</td>
-                <td className="px-4 py-2 text-violet-600 dark:text-violet-400">{pro}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="mb-4 text-xs text-zinc-400">* 전체 동시접속 제한에 따라 실질적으로 제한됨</p>
-
-      <div className="mb-4 overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
+      {/* 5. 권장 인원 & 팁 */}
+      <Section id="limits" title="권장 인원 & 팁" />
+      <div className="mb-6 overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
         <table className="w-full text-sm">
           <thead className="bg-zinc-100 dark:bg-zinc-800">
             <tr>
               <th className="px-4 py-2 text-left font-medium">게임 타입</th>
-              <th className="px-4 py-2 text-left font-medium">1인당 msg/초</th>
               <th className="px-4 py-2 text-left font-medium">권장 방 인원</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {[
-              ["턴제 (보드, 퍼즐)", "~1개", "최대 50명"],
-              ["협동·탐험", "~5개", "최대 20명"],
-              ["실시간 액션", "~20개", "최대 10명"],
-            ].map(([type, msg, rec]) => (
+              ["턴제 (보드, 퍼즐)", "최대 50명"],
+              ["협동·탐험", "최대 20명"],
+              ["실시간 액션", "최대 10명"],
+            ].map(([type, rec]) => (
               <tr key={type as string}>
                 <td className="px-4 py-2">{type}</td>
-                <td className="px-4 py-2 text-zinc-500">{msg}</td>
                 <td className="px-4 py-2 font-medium text-green-600 dark:text-green-400">{rec}</td>
               </tr>
             ))}
@@ -418,10 +389,9 @@ mp.send("move", { x: 150, y: 300 });`}</Code>
 
       <div className="space-y-2">
         {[
-          { icon: "📨", text: "send()는 20회/초(50ms) 간격으로 스로틀하세요. 그 이상은 Supabase가 버립니다." },
-          { icon: "🔄", text: "위치처럼 자주 바뀌는 값은 lerp 보간을 적용해 부드럽게 표시하세요." },
-          { icon: "🏠", text: "같은 slug + roomId면 같은 채널에 연결됩니다. roomId로 방을 구분하세요." },
-          { icon: "🔑", text: "Supabase Anon Key는 공개 키입니다. Row Level Security(RLS)를 적용해 데이터를 보호하세요." },
+          { icon: "📨", text: "send()는 50ms 간격으로 호출하세요. 위치·상태처럼 자주 바뀌는 값에 적합합니다." },
+          { icon: "🔄", text: "다른 플레이어 위치가 뚝뚝 끊긴다면 lerp 보간을 적용하세요. 전체 예시 코드를 참고하세요." },
+          { icon: "🏠", text: "같은 방에 들어가려면 roomId를 똑같이 맞추세요. 다른 roomId면 별개의 방입니다." },
         ].map(({ icon, text }) => (
           <div key={text} className="flex gap-2 rounded-lg bg-zinc-50 px-4 py-3 text-sm dark:bg-zinc-900">
             <span>{icon}</span>
