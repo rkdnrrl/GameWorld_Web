@@ -102,6 +102,39 @@ export default function OperatorPendingGamesPage() {
     }
   }
 
+  async function onApproveMedia(slug: string) {
+    const tk = session.getToken();
+    if (!tk) return;
+    setActingSlug(slug);
+    setActionError(null);
+    try {
+      await api.operatorApproveMedia(tk, slug);
+      setPendingMedia((prev) => prev?.filter((g) => g.slug !== slug) ?? null);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "승인 실패");
+    } finally {
+      setActingSlug(null);
+    }
+  }
+
+  async function onRejectMedia(slug: string) {
+    const tk = session.getToken();
+    if (!tk) return;
+    if (!rejectMediaReason.trim()) { setActionError("거절 사유를 입력해주세요."); return; }
+    setActingSlug(slug);
+    setActionError(null);
+    try {
+      await api.operatorRejectMedia(tk, slug, rejectMediaReason.trim());
+      setPendingMedia((prev) => prev?.filter((g) => g.slug !== slug) ?? null);
+      setRejectMediaFor(null);
+      setRejectMediaReason("");
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "거절 실패");
+    } finally {
+      setActingSlug(null);
+    }
+  }
+
   async function onApprove(slug: string) {
     const tk = session.getToken();
     if (!tk) return;
