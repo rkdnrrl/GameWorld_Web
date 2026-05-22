@@ -69,6 +69,31 @@ export default function OperatorManageGamesPage() {
     }
   }
 
+  async function onToggleFeatured(slug: string, currentlyFeatured: boolean) {
+    const tk = session.getToken();
+    if (!tk) return;
+    setActingSlug(slug);
+    try {
+      const method  = currentlyFeatured ? "DELETE" : "POST";
+      const res = await fetch(`/api/operator/games/${slug}/feature`, {
+        method,
+        headers: { Authorization: `Bearer ${tk}` },
+      });
+      if (!res.ok) throw new Error("설정 실패");
+      // 피처드 상태 업데이트
+      setGames((prev) => prev?.map((g) => ({
+        ...g,
+        isFeatured: currentlyFeatured
+          ? false                                        // 해제: 모두 false
+          : g.slug === slug,                            // 설정: 이 게임만 true
+      })) ?? null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "설정 실패");
+    } finally {
+      setActingSlug(null);
+    }
+  }
+
   async function onDelete(slug: string) {
     const tk = session.getToken();
     if (!tk) return;
@@ -226,6 +251,20 @@ export default function OperatorManageGamesPage() {
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-col gap-2">
+                  {/* 피처드 토글 */}
+                  {g.status === "published" && (
+                    <button
+                      onClick={() => onToggleFeatured(g.slug, !!g.isFeatured)}
+                      disabled={actingSlug !== null}
+                      className={`rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-60 ${
+                        g.isFeatured
+                          ? "border-yellow-400 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 dark:border-yellow-600 dark:bg-yellow-950/30 dark:text-yellow-300"
+                          : "border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                      }`}
+                    >
+                      {g.isFeatured ? "⭐ 피처드 해제" : "☆ 피처드 설정"}
+                    </button>
+                  )}
                   <button
                     onClick={() => onDownload(g.slug)}
                     disabled={downloadingSlug === g.slug || actingSlug !== null}
