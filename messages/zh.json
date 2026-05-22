@@ -199,6 +199,19 @@
     "loginToRate": "登录后评分",
     "plays": "{count}次游玩"
   },
+  "GameDetail": {
+    "back": "← 游戏列表",
+    "play": "▶ 开始游戏",
+    "notFound": "找不到该游戏。",
+    "commentsTitle": "{count}条评论",
+    "commentPlaceholder": "写下评论... (最多500字)",
+    "commentSubmit": "发布",
+    "commentDelete": "删除",
+    "commentLoginPrompt": "请登录后发表评论",
+    "commentEmpty": "还没有评论，来写第一条吧！",
+    "commentDeleting": "删除中…",
+    "commentSubmitting": "发布中…"
+  },
   "AuthCallback": {
     "processing": "正在处理认证...",
     "authFailed": "认证失败，请重试。",

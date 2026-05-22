@@ -199,6 +199,19 @@
     "loginToRate": "Login to rate",
     "plays": "{count} plays"
   },
+  "GameDetail": {
+    "back": "← Game List",
+    "play": "▶ Play Game",
+    "notFound": "Game not found.",
+    "commentsTitle": "{count} Comments",
+    "commentPlaceholder": "Write a comment... (max 500 chars)",
+    "commentSubmit": "Post",
+    "commentDelete": "Delete",
+    "commentLoginPrompt": "Please log in to write a comment",
+    "commentEmpty": "No comments yet. Be the first!",
+    "commentDeleting": "Deleting…",
+    "commentSubmitting": "Posting…"
+  },
   "AuthCallback": {
     "processing": "Processing authentication...",
     "authFailed": "Authentication failed. Please try again.",
