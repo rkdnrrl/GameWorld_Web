@@ -68,8 +68,8 @@ export default function GamesBrowser({ games }: Props) {
   return (
     <div className="flex flex-col gap-0 text-gray-900">
 
-      {/* ── 피처드 배너 ─────────────────────────────────────────────── */}
-      {(() => { const f = games.find((g) => g.isFeatured); return f ? <FeaturedGameBanner game={f} /> : null; })()}
+      {/* ── 피처드 캐러셀 ───────────────────────────────────────────── */}
+      {(() => { const f = games.filter((g) => g.isFeatured); return f.length > 0 ? <FeaturedGamesCarousel games={f} /> : null; })()}
 
       {/* ── 검색바 ──────────────────────────────────────────────────── */}
       <div className="relative mb-5">
