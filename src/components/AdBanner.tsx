@@ -27,9 +27,10 @@ const UNIT_IDS: Record<AdSlot, string> = {
 };
 
 const SIZES: Record<AdSlot, { w: string; h: string }> = {
-  leaderboard: { w: "728", h: "90"  },
-  banner:      { w: "320", h: "50"  },
-  skyscraper:  { w: "160", h: "600" },
+  leaderboard:     { w: "728", h: "90"  },
+  banner:          { w: "320", h: "50"  },
+  skyscraper:      { w: "160", h: "600" },
+  skyscraperRight: { w: "160", h: "600" },
 };
 
 const SLOT_CLASSES: Record<AdSlot, string> = {
