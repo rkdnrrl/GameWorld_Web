@@ -52,6 +52,9 @@ export default function DevelopPage() {
   const [updatingSlug, setUpdatingSlug] = useState<string | null>(null);
   const [perGameMsg, setPerGameMsg] = useState<Record<string, { ok: boolean; text: string }>>({});
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+  const [cancelConfirmSlug, setCancelConfirmSlug] = useState<string | null>(null);  // 취소 확인 중인 slug
+  const [cancelKind, setCancelKind] = useState<"submission" | "update" | null>(null);
+  const [cancelingSlug, setCancelingSlug] = useState<string | null>(null);
 
   useEffect(() => {
     if (!session.getToken()) router.replace("/login");
@@ -129,6 +132,55 @@ export default function DevelopPage() {
       setPerGameMsg((m) => ({ ...m, [slugTarget]: { ok: false, text: t("errorNetwork") } }));
     } finally {
       setUpdatingSlug(null);
+    }
+  }
+
+  async function onCancelUpdate(slug: string) {
+    const tk = session.getToken();
+    if (!tk) return;
+    setCancelingSlug(slug);
+    try {
+      const res = await fetch(`/api/games/${slug}/pending-update`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${tk}` },
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({})) as { error?: { message?: string } };
+        setPerGameMsg((m) => ({ ...m, [slug]: { ok: false, text: d.error?.message || "취소 실패" } }));
+      } else {
+        setPerGameMsg((m) => ({ ...m, [slug]: { ok: true, text: "업데이트가 취소됐습니다." } }));
+        void loadMyGames();
+      }
+    } catch {
+      setPerGameMsg((m) => ({ ...m, [slug]: { ok: false, text: "네트워크 오류" } }));
+    } finally {
+      setCancelingSlug(null);
+      setCancelConfirmSlug(null);
+      setCancelKind(null);
+    }
+  }
+
+  async function onCancelSubmission(slug: string) {
+    const tk = session.getToken();
+    if (!tk) return;
+    setCancelingSlug(slug);
+    try {
+      const res = await fetch(`/api/games/${slug}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${tk}` },
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({})) as { error?: { message?: string } };
+        setPerGameMsg((m) => ({ ...m, [slug]: { ok: false, text: d.error?.message || "취소 실패" } }));
+      } else {
+        setMyGames((prev) => prev.filter((g) => g.slug !== slug));
+      }
+    } catch {
+      setPerGameMsg((m) => ({ ...m, [slug]: { ok: false, text: "네트워크 오류" } }));
+    } finally {
+      setCancelingSlug(null);
+      setCancelConfirmSlug(null);
+      setCancelKind(null);
     }
   }
 
@@ -387,7 +439,9 @@ export default function DevelopPage() {
             {myGames.map((g) => {
               const msg = perGameMsg[g.slug];
               const isUpdating = updatingSlug === g.slug;
+              const isCanceling = cancelingSlug === g.slug;
               const hasPending = !!g.pendingStoragePath;
+              const isConfirming = cancelConfirmSlug === g.slug;
               return (
                 <li
                   key={g.slug}
@@ -468,8 +522,57 @@ export default function DevelopPage() {
                       >
                         {isUpdating ? t("updating") : t("updateButton")}
                       </label>
+
+                      {/* 취소 버튼 */}
+                      {hasPending && (
+                        <button
+                          onClick={() => { setCancelConfirmSlug(g.slug); setCancelKind("update"); }}
+                          disabled={isCanceling || isUpdating}
+                          className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:bg-zinc-800 dark:text-red-400"
+                        >
+                          업데이트 취소
+                        </button>
+                      )}
+                      {!hasPending && g.status === "pending" && (
+                        <button
+                          onClick={() => { setCancelConfirmSlug(g.slug); setCancelKind("submission"); }}
+                          disabled={isCanceling || isUpdating}
+                          className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:bg-zinc-800 dark:text-red-400"
+                        >
+                          배포 취소
+                        </button>
+                      )}
                     </div>
                   </div>
+                  {/* 취소 확인 패널 */}
+                  {isConfirming && (
+                    <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/20">
+                      <p className="text-xs text-red-800 dark:text-red-300">
+                        {cancelKind === "update"
+                          ? `"${g.title}"의 검수 대기 중인 업데이트를 취소합니다. 라이브 버전은 유지됩니다.`
+                          : `"${g.title}"의 배포 신청을 취소하고 삭제합니다. 이 작업은 되돌릴 수 없습니다.`}
+                      </p>
+                      <div className="mt-2 flex justify-end gap-2">
+                        <button
+                          onClick={() => { setCancelConfirmSlug(null); setCancelKind(null); }}
+                          className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
+                        >
+                          돌아가기
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (cancelKind === "update") void onCancelUpdate(g.slug);
+                            else void onCancelSubmission(g.slug);
+                          }}
+                          disabled={isCanceling}
+                          className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+                        >
+                          {isCanceling ? "처리 중…" : cancelKind === "update" ? "업데이트 취소 확인" : "배포 취소 확인"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {msg && (
                     <div
                       className={`mt-3 rounded-md p-2 text-xs ${
