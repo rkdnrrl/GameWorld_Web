@@ -6,7 +6,7 @@ import { session, SESSION_CHANGE_EVENT } from "@/lib/api";
 
 const SM_BREAKPOINT = 640; // Tailwind sm: 640px
 
-type AdSlot = "leaderboard" | "banner" | "skyscraper";
+type AdSlot = "leaderboard" | "banner" | "skyscraper" | "skyscraperRight";
 
 /**
  * Kakao AdFit 배너 광고.
