@@ -193,6 +193,7 @@ const rooms = await mp.getRooms();
 - `slug` — optional override. Defaults to `window.__ALP_GAME_SLUG__` (auto-set by the platform).
 - Returns `[]` if no rooms are active.
 - Rooms with 0 players are automatically removed from the list (within 2 minutes).
+- `hasPassword: true` means the room requires a password. The actual password is never exposed.
 
 **Lobby UI example:**
 ```js
