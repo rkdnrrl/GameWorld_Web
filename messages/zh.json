@@ -192,7 +192,12 @@
     "gameCount": "{count}款游戏",
     "playNow": "立即游玩",
     "onlineCount": "{count}人在线",
-    "noInfo": "无信息"
+    "noInfo": "无信息",
+    "kindOfficial": "官方",
+    "kindCommunity": "社区",
+    "noRating": "暂无评分",
+    "loginToRate": "登录后评分",
+    "plays": "{count}次游玩"
   },
   "AuthCallback": {
     "processing": "正在处理认证...",

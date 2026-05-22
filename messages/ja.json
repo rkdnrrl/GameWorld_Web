@@ -192,7 +192,12 @@
     "gameCount": "{count}本のゲーム",
     "playNow": "プレイする",
     "onlineCount": "{count}人プレイ中",
-    "noInfo": "情報なし"
+    "noInfo": "情報なし",
+    "kindOfficial": "公式",
+    "kindCommunity": "コミュニティ",
+    "noRating": "まだ評価なし",
+    "loginToRate": "ログインして評価",
+    "plays": "{count}プレイ"
   },
   "AuthCallback": {
     "processing": "認証処理中...",

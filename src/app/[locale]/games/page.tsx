@@ -58,14 +58,17 @@ export default async function GamesPage() {
         <AdBanner slot="skyscraper" />
       </div>
 
-      <section className="mx-auto w-full max-w-[1400px] min-w-0 px-4 py-8 sm:px-6 sm:py-12">
-        {/* 모바일 상단 광고 */}
-        <div className="mb-6 lg:hidden">
-          <AdBanner slot="banner" />
-        </div>
+      {/* 다크 게이밍 배경 */}
+      <div className="min-h-screen bg-zinc-950">
+        <section className="mx-auto w-full max-w-[1400px] min-w-0 px-4 py-8 sm:px-6 sm:py-12">
+          {/* 모바일 상단 광고 */}
+          <div className="mb-6 lg:hidden">
+            <AdBanner slot="banner" />
+          </div>
 
-        <GamesBrowser games={games} />
-      </section>
+          <GamesBrowser games={games} />
+        </section>
+      </div>
     </>
   );
 }

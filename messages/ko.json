@@ -192,7 +192,12 @@
     "gameCount": "{count}개의 게임",
     "playNow": "플레이하기",
     "onlineCount": "{count}명 접속 중",
-    "noInfo": "정보 없음"
+    "noInfo": "정보 없음",
+    "kindOfficial": "공식",
+    "kindCommunity": "커뮤니티",
+    "noRating": "평점 없음",
+    "loginToRate": "로그인 후 평가 가능",
+    "plays": "{count}플레이"
   },
   "AuthCallback": {
     "processing": "인증 처리 중...",

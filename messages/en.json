@@ -192,7 +192,12 @@
     "gameCount": "{count} games",
     "playNow": "Play Now",
     "onlineCount": "{count} online",
-    "noInfo": "No info"
+    "noInfo": "No info",
+    "kindOfficial": "Official",
+    "kindCommunity": "Community",
+    "noRating": "No ratings yet",
+    "loginToRate": "Login to rate",
+    "plays": "{count} plays"
   },
   "AuthCallback": {
     "processing": "Processing authentication...",
