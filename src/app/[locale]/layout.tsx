@@ -5,7 +5,6 @@ import Script from "next/script";
 import "../globals.css";
 import BackendConnectionBanner from "@/components/BackendConnectionBanner";
 import Header from "@/components/Header";
-import AdBanner from "@/components/AdBanner";
 import SessionExpiredBanner from "@/components/SessionExpiredBanner";
 import SessionRefresher from "@/components/SessionRefresher";
 import CharacterIframe from "@/components/CharacterIframe";
