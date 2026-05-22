@@ -164,6 +164,11 @@ export default async function GameDetailPage({
           </div>
         </div>
 
+        {/* ── 스크린샷 갤러리 ── */}
+        {game.screenshots && game.screenshots.length > 0 && (
+          <GameScreenshots screenshots={game.screenshots} />
+        )}
+
         {/* ── 데모 영상 ── */}
         {game.demoVideoUrl && (
           <div className="mt-5 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-200">
