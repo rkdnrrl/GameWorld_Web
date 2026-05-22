@@ -21,6 +21,7 @@ type GameData = {
   category: GameCategory;
   tags: string[];
   thumbnailUrl: string | null;
+  demoVideoUrl: string | null;
   playCount: number;
   url: string;
   publishedAt: string | null;
