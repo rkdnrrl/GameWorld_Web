@@ -85,10 +85,20 @@ export default async function MultiplayGuide() {
           ALP 플랫폼의 <strong className="text-white">ALPMultiplayer SDK</strong>를 사용해
           게임에 실시간 멀티플레이를 3단계로 추가하세요.
         </p>
-        <div className="mt-4 flex flex-wrap gap-2 text-sm">
-          {["Supabase Realtime", "Broadcast", "Presence", "자동 방 격리"].map((tag) => (
-            <span key={tag} className="rounded-full bg-white/20 px-3 py-0.5">{tag}</span>
-          ))}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2 text-sm">
+            {["Supabase Realtime", "Broadcast", "Presence", "자동 방 격리"].map((tag) => (
+              <span key={tag} className="rounded-full bg-white/20 px-3 py-0.5">{tag}</span>
+            ))}
+          </div>
+          {/* AI 가이드 다운로드 */}
+          <a
+            href="/alp-multiplayer-sdk.md"
+            download="alp-multiplayer-sdk.md"
+            className="flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/25"
+          >
+            🤖 AI 가이드 다운로드
+          </a>
         </div>
       </div>
 
@@ -439,6 +449,13 @@ mp.send("move", { x: 150, y: 300 });`}</Code>
         >
           ← 개발 홈
         </Link>
+        <a
+          href="/alp-multiplayer-sdk.md"
+          download="alp-multiplayer-sdk.md"
+          className="rounded-lg border border-violet-300 bg-violet-50 px-4 py-2 text-sm text-violet-700 hover:bg-violet-100 dark:border-violet-700 dark:bg-violet-950/30 dark:text-violet-300"
+        >
+          🤖 AI 가이드 다운로드 (.md)
+        </a>
         <a
           href="https://supabase.com/docs/guides/realtime"
           target="_blank"
