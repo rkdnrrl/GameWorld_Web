@@ -41,6 +41,9 @@ export default function DevelopPage() {
   const [category, setCategory] = useState<Category>("other");
   const [tagsRaw, setTagsRaw] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [thumbnail, setThumbnail] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const [demoVideo, setDemoVideo] = useState<File | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<UploadResult | null>(null);
@@ -52,9 +55,12 @@ export default function DevelopPage() {
   const [updatingSlug, setUpdatingSlug] = useState<string | null>(null);
   const [perGameMsg, setPerGameMsg] = useState<Record<string, { ok: boolean; text: string }>>({});
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
-  const [cancelConfirmSlug, setCancelConfirmSlug] = useState<string | null>(null);  // 취소 확인 중인 slug
+  const [cancelConfirmSlug, setCancelConfirmSlug] = useState<string | null>(null);
   const [cancelKind, setCancelKind] = useState<"submission" | "update" | null>(null);
   const [cancelingSlug, setCancelingSlug] = useState<string | null>(null);
+  // 미디어 단독 수정
+  const [mediaEditSlug,    setMediaEditSlug]    = useState<string | null>(null);
+  const [updatingMediaSlug, setUpdatingMediaSlug] = useState<string | null>(null);
 
   useEffect(() => {
     if (!session.getToken()) router.replace("/login");
@@ -184,6 +190,35 @@ export default function DevelopPage() {
     }
   }
 
+  async function onUpdateMedia(slugTarget: string, thumb: File | null, video: File | null) {
+    const tk = session.getToken();
+    if (!tk || (!thumb && !video)) return;
+    setUpdatingMediaSlug(slugTarget);
+    const fd = new FormData();
+    if (thumb) fd.append("thumbnail", thumb);
+    if (video) fd.append("demoVideo",  video);
+    try {
+      const res = await fetch(`/api/games/${slugTarget}/media`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${tk}` },
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({})) as { ok?: boolean; error?: { message?: string } };
+      setPerGameMsg((m) => ({
+        ...m,
+        [slugTarget]: {
+          ok: !!data.ok,
+          text: data.ok ? "미디어가 업데이트됐습니다." : (data.error?.message || "업로드 실패"),
+        },
+      }));
+      if (data.ok) setMediaEditSlug(null);
+    } catch {
+      setPerGameMsg((m) => ({ ...m, [slugTarget]: { ok: false, text: "네트워크 오류" } }));
+    } finally {
+      setUpdatingMediaSlug(null);
+    }
+  }
+
   function onFileChange(e: ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null;
     setFile(f);
@@ -192,6 +227,21 @@ export default function DevelopPage() {
     } else {
       setErrorMsg(null);
     }
+  }
+
+  function onThumbnailChange(e: ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null;
+    setThumbnail(f);
+    setThumbnailPreview(null);
+    if (f) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setThumbnailPreview(ev.target?.result as string ?? null);
+      reader.readAsDataURL(f);
+    }
+  }
+
+  function onDemoVideoChange(e: ChangeEvent<HTMLInputElement>) {
+    setDemoVideo(e.target.files?.[0] ?? null);
   }
 
   async function onSubmit(e: FormEvent) {
@@ -229,6 +279,8 @@ export default function DevelopPage() {
       .map((s) => s.trim())
       .filter(Boolean);
     if (tagList.length > 0) fd.append("tags", JSON.stringify(tagList));
+    if (thumbnail)  fd.append("thumbnail", thumbnail);
+    if (demoVideo)  fd.append("demoVideo",  demoVideo);
 
     setSubmitting(true);
     try {
@@ -248,15 +300,12 @@ export default function DevelopPage() {
         return;
       }
       setResult(data as UploadResult);
-      setSlug("");
-      setTitle("");
-      setDescription("");
-      setEmoji("🎮");
-      setCategory("other");
-      setTagsRaw("");
-      setFile(null);
-      const inputEl = document.getElementById("gamezip-input") as HTMLInputElement | null;
-      if (inputEl) inputEl.value = "";
+      setSlug(""); setTitle(""); setDescription(""); setEmoji("🎮");
+      setCategory("other"); setTagsRaw(""); setFile(null);
+      setThumbnail(null); setThumbnailPreview(null); setDemoVideo(null);
+      (document.getElementById("gamezip-input") as HTMLInputElement | null)?.value && ((document.getElementById("gamezip-input") as HTMLInputElement).value = "");
+      (document.getElementById("thumbnail-input") as HTMLInputElement | null)?.value && ((document.getElementById("thumbnail-input") as HTMLInputElement).value = "");
+      (document.getElementById("video-input") as HTMLInputElement | null)?.value && ((document.getElementById("video-input") as HTMLInputElement).value = "");
     } catch {
       setErrorMsg(t("errorNetwork"));
     } finally {
@@ -359,6 +408,42 @@ export default function DevelopPage() {
             className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900"
           />
           <p className="mt-1 text-right text-xs text-zinc-500">{description.length} / 2000</p>
+        </div>
+
+        {/* ── 썸네일 이미지 ── */}
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            🖼 썸네일 이미지 <span className="font-normal text-zinc-500">(선택 · JPG/PNG/WebP · 최대 5MB)</span>
+          </label>
+          <input
+            id="thumbnail-input"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={onThumbnailChange}
+            disabled={submitting}
+            className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-zinc-700 hover:file:bg-zinc-200 disabled:opacity-60 dark:file:bg-zinc-800 dark:file:text-zinc-200"
+          />
+          {thumbnailPreview && (
+            <img src={thumbnailPreview} alt="preview" className="mt-2 h-32 w-auto rounded-lg object-cover ring-1 ring-zinc-200" />
+          )}
+        </div>
+
+        {/* ── 데모 영상 ── */}
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            🎬 데모 영상 <span className="font-normal text-zinc-500">(선택 · MP4/WebM · 최대 200MB)</span>
+          </label>
+          <input
+            id="video-input"
+            type="file"
+            accept="video/mp4,video/webm"
+            onChange={onDemoVideoChange}
+            disabled={submitting}
+            className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-zinc-700 hover:file:bg-zinc-200 disabled:opacity-60 dark:file:bg-zinc-800 dark:file:text-zinc-200"
+          />
+          {demoVideo && (
+            <p className="mt-1 text-xs text-zinc-500">{demoVideo.name} · {(demoVideo.size / 1024 / 1024).toFixed(1)} MB</p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -546,6 +631,66 @@ export default function DevelopPage() {
                       )}
                     </div>
                   </div>
+                  {/* 미디어 수정 버튼 */}
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMediaEditSlug((prev) => prev === g.slug ? null : g.slug)}
+                      className="text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 underline"
+                    >
+                      🖼 썸네일 · 영상 수정
+                    </button>
+                  </div>
+
+                  {/* 미디어 수정 패널 */}
+                  {mediaEditSlug === g.slug && (() => {
+                    let localThumb: File | null = null;
+                    let localVideo: File | null = null;
+                    return (
+                      <div className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 p-4 space-y-3 dark:border-zinc-700 dark:bg-zinc-800/40">
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                            🖼 썸네일 (JPG/PNG/WebP · 5MB↓)
+                          </label>
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={(e) => { localThumb = e.target.files?.[0] ?? null; }}
+                            className="block w-full text-xs file:mr-2 file:rounded file:border-0 file:bg-zinc-200 file:px-2 file:py-1 file:text-xs dark:file:bg-zinc-700"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                            🎬 데모 영상 (MP4/WebM · 200MB↓)
+                          </label>
+                          <input
+                            type="file"
+                            accept="video/mp4,video/webm"
+                            onChange={(e) => { localVideo = e.target.files?.[0] ?? null; }}
+                            className="block w-full text-xs file:mr-2 file:rounded file:border-0 file:bg-zinc-200 file:px-2 file:py-1 file:text-xs dark:file:bg-zinc-700"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            disabled={updatingMediaSlug === g.slug}
+                            onClick={() => void onUpdateMedia(g.slug, localThumb, localVideo)}
+                            className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            {updatingMediaSlug === g.slug ? "업로드 중…" : "업로드"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setMediaEditSlug(null)}
+                            className="rounded border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+                          >
+                            닫기
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* 취소 확인 패널 */}
                   {isConfirming && (
                     <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/20">
