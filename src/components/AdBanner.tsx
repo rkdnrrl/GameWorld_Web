@@ -40,6 +40,8 @@ const SLOT_CLASSES: Record<AdSlot, string> = {
 export default function AdBanner({ slot = "leaderboard", className = "" }: { slot?: AdSlot; className?: string }) {
   const t = useTranslations("AdBanner");
   const [subscribed, setSubscribed] = useState<boolean | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const check = () => setSubscribed(!!session.getUser()?.isSubscribed);
@@ -48,8 +50,23 @@ export default function AdBanner({ slot = "leaderboard", className = "" }: { slo
     return () => window.removeEventListener(SESSION_CHANGE_EVENT, check);
   }, []);
 
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < SM_BREAKPOINT);
+    onResize();
+    setMounted(true);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   // 구독자 광고 미노출
   if (subscribed) return null;
+
+  // Kakao AdFit은 DOM에 있는 ins 요소를 전부 탐색하므로
+  // 현재 뷰포트에서 실제로 보이는 슬롯만 렌더링 (hidden 상태 ins 방지)
+  if (mounted) {
+    if (slot === "leaderboard" && isMobile)  return null; // 모바일에서 PC 배너 제거
+    if (slot === "banner"      && !isMobile) return null; // PC에서 모바일 배너 제거
+  }
 
   const unitId = UNIT_IDS[slot];
   const { w, h } = SIZES[slot];
