@@ -87,8 +87,31 @@ export default function GamesBrowser({ games }: Props) {
         </a>
       )}
 
-      {/* ── 정렬 / 카운트 ───────────────────────────────────────────── */}
-      <div className="mb-5 flex items-center justify-between">
+      {/* ── 카테고리 + 정렬 드롭다운 ───────────────────────────────── */}
+      <div className="mb-5 flex items-center gap-2">
+        {/* 카테고리 */}
+        <div className="relative">
+          <select value={activeCat} onChange={(e) => setActiveCat(e.target.value as GameCategory | "all")}
+            className="appearance-none cursor-pointer rounded border border-gray-300 bg-white py-1.5 pl-3 pr-8 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none"
+          >
+            <option value="all">{CAT_ICON.all} {t("filterAll")} ({games.length})</option>
+            {FILTER_CATEGORIES.map((cat) => {
+              const n = counts.get(cat) ?? 0;
+              if (n === 0) return null;
+              return (
+                <option key={cat} value={cat}>
+                  {CAT_ICON[cat]} {catLabel(cat)} ({n})
+                </option>
+              );
+            })}
+          </select>
+          <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+            width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+            <path d="m6 9 6 6 6-6"/>
+          </svg>
+        </div>
+
+        {/* 정렬 */}
         <div className="relative">
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
             className="appearance-none cursor-pointer rounded border border-gray-300 bg-white py-1.5 pl-3 pr-8 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none"
@@ -102,7 +125,8 @@ export default function GamesBrowser({ games }: Props) {
             <path d="m6 9 6 6 6-6"/>
           </svg>
         </div>
-        <span className="text-sm text-gray-500">{t("gameCount", { count: filtered.length })}</span>
+
+        <span className="ml-auto text-sm text-gray-500">{t("gameCount", { count: filtered.length })}</span>
       </div>
 
       {/* ── 카드 그리드 ─────────────────────────────────────────────── */}
