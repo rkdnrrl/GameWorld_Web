@@ -60,9 +60,6 @@ export default function GamesBrowser({ games }: Props) {
   const lastGame     = lastGameId ? games.find((g) => g.id === lastGameId) ?? null : null;
   const lastGameHref = lastGame ? gameHrefWithToken(lastGame.url, token) || lastGame.url : "";
 
-  const tabs = (["all", ...FILTER_CATEGORIES] as (GameCategory | "all")[])
-    .filter((c) => c === "all" || (counts.get(c as GameCategory) ?? 0) > 0);
-
   return (
     <div className="flex flex-col gap-0 text-gray-900">
 
