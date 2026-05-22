@@ -24,6 +24,9 @@ export default function OperatorPendingGamesPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [rejectUpdateFor, setRejectUpdateFor] = useState<string | null>(null);
   const [rejectUpdateReason, setRejectUpdateReason] = useState("");
+  const [pendingMedia, setPendingMedia] = useState<UgcGame[] | null>(null);
+  const [rejectMediaFor, setRejectMediaFor] = useState<string | null>(null);
+  const [rejectMediaReason, setRejectMediaReason] = useState("");
 
   // 미리보기 URL 의 token 쿼리는 client mount 후에만 채움 (SSR 시 localStorage 없음).
   const [previewToken, setPreviewToken] = useState<string | null>(null);
