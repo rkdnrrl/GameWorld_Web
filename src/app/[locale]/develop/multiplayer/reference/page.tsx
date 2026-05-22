@@ -1,6 +1,7 @@
+import React from "react";
 import { Link } from "@/i18n/navigation";
 
-function Chip({ children, color = "zinc" }: { children: string; color?: "violet" | "green" | "red" | "zinc" | "yellow" }) {
+function Chip({ children, color = "zinc" }: { children: React.ReactNode; color?: "violet" | "green" | "red" | "zinc" | "yellow" }) {
   const colors = {
     violet: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
     green:  "bg-green-100  text-green-700  dark:bg-green-900/40  dark:text-green-300",
