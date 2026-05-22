@@ -423,6 +423,112 @@ export default function OperatorPendingGamesPage() {
           </ul>
         )}
       </section>
+
+      {/* ── 미디어 단독 검수 대기 ── */}
+      <section className="mt-12 border-t border-zinc-200 pt-8 dark:border-zinc-800">
+        <h2 className="text-lg font-semibold">🖼 미디어 검수 대기</h2>
+        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">썸네일·데모영상 단독 수정 신청 목록입니다.</p>
+
+        {pendingMedia === null ? (
+          <p className="mt-4 text-sm text-zinc-500">{tCommon("loading")}</p>
+        ) : pendingMedia.length === 0 ? (
+          <p className="mt-4 text-sm text-zinc-500">대기 중인 미디어 검수가 없습니다.</p>
+        ) : (
+          <ul className="mt-4 space-y-4">
+            {pendingMedia.map((g) => (
+              <li key={g.slug}
+                className="rounded-xl border border-sky-200 bg-sky-50/40 p-4 dark:border-sky-800 dark:bg-sky-950/20">
+                <div className="flex items-start gap-4">
+                  {/* 현재 vs 대기 중 썸네일 비교 */}
+                  <div className="flex shrink-0 gap-3">
+                    {g.thumbnailUrl && (
+                      <div className="text-center">
+                        <p className="mb-1 text-[10px] text-zinc-400">현재</p>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={g.thumbnailUrl} alt="current" className="h-16 w-28 rounded-lg object-cover ring-1 ring-zinc-200" />
+                      </div>
+                    )}
+                    {g.pendingThumbnailUrl && (
+                      <div className="text-center">
+                        <p className="mb-1 text-[10px] text-blue-600 font-medium">신청</p>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={g.pendingThumbnailUrl} alt="pending" className="h-16 w-28 rounded-lg object-cover ring-2 ring-blue-400" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <h3 className="font-medium text-zinc-900 dark:text-zinc-100">{g.title}</h3>
+                      <code className="text-xs text-zinc-500">{g.slug}</code>
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-3 text-[10px] text-zinc-500">
+                      {g.pendingThumbnailUrl && <span>🖼 썸네일 신청</span>}
+                      {g.pendingDemoVideoUrl && (
+                        <a href={g.pendingDemoVideoUrl} target="_blank" rel="noreferrer"
+                          className="text-blue-600 hover:underline">🎬 영상 미리보기</a>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-zinc-400">
+                      {g.pendingMediaAt && `신청: ${new Date(g.pendingMediaAt).toLocaleString()}`}
+                    </p>
+                  </div>
+
+                  <div className="flex shrink-0 flex-col gap-2">
+                    <button
+                      onClick={() => void onApproveMedia(g.slug)}
+                      disabled={actingSlug !== null}
+                      className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                    >
+                      {actingSlug === g.slug ? tCommon("processingEllipsis") : "승인"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setRejectMediaFor(rejectMediaFor === g.slug ? null : g.slug);
+                        setRejectMediaReason("");
+                        setActionError(null);
+                      }}
+                      disabled={actingSlug !== null}
+                      className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-700 dark:bg-zinc-800 dark:text-red-300"
+                    >
+                      거절
+                    </button>
+                  </div>
+                </div>
+
+                {rejectMediaFor === g.slug && (
+                  <div className="mt-4 rounded-md border border-red-200 bg-red-50/50 p-3 dark:border-red-800 dark:bg-red-950/20">
+                    <label className="mb-1 block text-xs font-medium text-red-800 dark:text-red-300">거절 사유</label>
+                    <textarea
+                      value={rejectMediaReason}
+                      onChange={(e) => setRejectMediaReason(e.target.value)}
+                      rows={2}
+                      maxLength={500}
+                      placeholder="거절 사유를 입력하세요..."
+                      className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm dark:border-red-700 dark:bg-zinc-900"
+                    />
+                    <div className="mt-2 flex justify-end gap-2">
+                      <button
+                        onClick={() => { setRejectMediaFor(null); setRejectMediaReason(""); }}
+                        className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
+                      >
+                        {tCommon("cancel")}
+                      </button>
+                      <button
+                        onClick={() => void onRejectMedia(g.slug)}
+                        disabled={actingSlug !== null || !rejectMediaReason.trim()}
+                        className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+                      >
+                        {actingSlug === g.slug ? tCommon("processingEllipsis") : "거절 확인"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
