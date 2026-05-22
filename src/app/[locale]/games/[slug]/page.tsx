@@ -26,6 +26,9 @@ type GameData = {
   playCount: number;
   url: string;
   publishedAt: string | null;
+  ownerNickname: string | null;
+  ratingAvg: number;
+  ratingCount: number;
 };
 
 async function getGame(slug: string): Promise<GameData | null> {
