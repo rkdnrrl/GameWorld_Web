@@ -43,6 +43,8 @@ export default async function LocaleLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full min-w-0 flex-col overflow-x-hidden bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+        {/* Kakao AdFit SDK — 전체 페이지에서 kakao_ad_area 자동 탐지 */}
+        <Script src="//t1.daumcdn.net/kas/static/ba.min.js" strategy="afterInteractive" />
         <NextIntlClientProvider messages={messages}>
           <AirnuriTokenReceiver />
           <AirnuriSocialMount />
