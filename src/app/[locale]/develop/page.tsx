@@ -51,6 +51,7 @@ export default function DevelopPage() {
   const [myGamesLoading, setMyGamesLoading] = useState(false);
   const [updatingSlug, setUpdatingSlug] = useState<string | null>(null);
   const [perGameMsg, setPerGameMsg] = useState<Record<string, { ok: boolean; text: string }>>({});
+  const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
 
   useEffect(() => {
     if (!session.getToken()) router.replace("/login");
@@ -417,18 +418,36 @@ export default function DevelopPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       {/* 테스트 플레이 버튼 */}
-                      <a
-                        href={
-                          hasPending || g.status !== "published"
-                            ? `https://play.airliveplay.com/_preview/${g.slug}/`
-                            : `https://play.airliveplay.com/${g.slug}/`
-                        }
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-md border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-900/40"
-                      >
-                        {hasPending ? "🔍 업데이트 미리보기" : "▶ 테스트 플레이"}
-                      </a>
+                      {(() => {
+                        const testUrl = hasPending || g.status !== "published"
+                          ? `https://play.airliveplay.com/_preview/${g.slug}/`
+                          : `https://play.airliveplay.com/${g.slug}/`;
+                        const label = hasPending ? "🔍 업데이트 미리보기" : "▶ 테스트 플레이";
+                        return (
+                          <>
+                            <a
+                              href={testUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="rounded-md border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-900/40"
+                            >
+                              {label}
+                            </a>
+                            <button
+                              onClick={() => {
+                                void navigator.clipboard.writeText(testUrl).then(() => {
+                                  setCopiedSlug(g.slug);
+                                  setTimeout(() => setCopiedSlug(null), 2000);
+                                });
+                              }}
+                              title="테스트 URL 복사 — 다른 사람에게 공유해 같이 테스트하세요"
+                              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                            >
+                              {copiedSlug === g.slug ? "✓ 복사됨" : "🔗 링크 복사"}
+                            </button>
+                          </>
+                        );
+                      })()}
                       <input
                         id={`reupload-${g.slug}`}
                         type="file"
