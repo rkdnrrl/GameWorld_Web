@@ -664,6 +664,14 @@ export const api = {
     });
   },
 
+  /** 운영자: hidden 게임 다시 공개 → status=published */
+  operatorUnhideGame(token: string, slug: string) {
+    return request<{ game: UgcGame }>(`/api/operator/games/${encodeURIComponent(slug)}/unhide`, {
+      method: "POST",
+      headers: authHeaders(token),
+    });
+  },
+
   /** 운영자: 검수 대기 중인 재업로드 목록 */
   operatorListPendingUpdates(token: string) {
     return request<{ games: UgcGame[] }>("/api/operator/games/pending-updates", {
