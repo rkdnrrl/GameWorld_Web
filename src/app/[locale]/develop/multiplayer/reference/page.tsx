@@ -166,6 +166,18 @@ await mp.joinRoom(...);      // 방 입장`}</Block>
               </div>
             </div>
 
+            {/* isHost */}
+            <div className="flex flex-col gap-1 rounded-lg bg-amber-50 px-4 py-3 dark:bg-amber-950/20 sm:flex-row sm:items-start sm:gap-4">
+              <div className="shrink-0">
+                <Chip color="yellow">isHost()</Chip>
+              </div>
+              <div className="text-sm text-zinc-600 dark:text-zinc-400">
+                방의 최초 입장자(호스트)인지 반환합니다. <strong className="text-zinc-800 dark:text-zinc-200">몬스터 AI·충돌 판정은 호스트만 실행</strong>하고 결과를 send()로 브로드캐스트하세요.
+                <br />
+                <span className="text-xs text-zinc-400">호스트 퇴장 → onPlayers() 재호출 → 다시 isHost() 확인</span>
+              </div>
+            </div>
+
             {/* getRooms */}
             <div className="flex flex-col gap-1 rounded-lg bg-zinc-50 px-4 py-3 dark:bg-zinc-800 sm:flex-row sm:items-start sm:gap-4">
               <div className="shrink-0">

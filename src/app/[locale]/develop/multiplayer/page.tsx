@@ -132,6 +132,7 @@ export default async function MultiplayGuide() {
             ["quickstart", "시작하기 (3단계)"],
             ["api", "API 레퍼런스"],
             ["full-example", "완성 예시"],
+            ["game-objects", "게임 오브젝트 동기화 (몬스터·투사체)"],
             ["room-list", "방 목록 (로비)"],
             ["limits", "권장 인원 & 팁"],
             ["faq", "자주 묻는 질문"],
@@ -290,6 +291,15 @@ mp.send("move", { x: 150, y: 300 });`}</Code>
         desc="방을 퇴장합니다. 다른 플레이어의 onPlayers()에서 자동으로 제거됩니다. 페이지 이탈 시 자동 처리됩니다."
       />
 
+      <ApiMethod
+        signature="isHost()"
+        returns="boolean"
+        desc="현재 클라이언트가 방의 호스트(가장 먼저 입장한 플레이어)인지 반환합니다. 호스트만 몬스터 AI·충돌 판정 등 게임 오브젝트를 제어하고 결과를 브로드캐스트해야 합니다. 호스트 퇴장 시 onPlayers()가 재호출되므로 그 시점에 다시 확인하세요."
+        params={[
+          { name: "playerInfo.id", type: "string (필수)", desc: "joinRoom()에 넘긴 playerInfo에 id 필드가 있어야 isHost() 판별이 가능합니다." },
+        ]}
+      />
+
       {/* 4. 완성 예시 */}
       <Section id="full-example" title="완성 예시" sub="플레이어가 서로의 위치를 실시간으로 볼 수 있는 최소 예시" />
       <Code>{`<!DOCTYPE html>
@@ -366,7 +376,109 @@ mp.send("move", { x: 150, y: 300 });`}</Code>
 </body>
 </html>`}</Code>
 
-      {/* 5. 방 목록 (로비) */}
+      {/* 5. 게임 오브젝트 동기화 */}
+      <Section id="game-objects" title="게임 오브젝트 동기화" sub="몬스터·투사체·함정 등 플레이어가 아닌 오브젝트를 동기화하는 방법" />
+
+      <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-800 dark:bg-amber-950/30">
+        <p className="font-semibold text-amber-700 dark:text-amber-300">⚠️ 흔한 실수</p>
+        <p className="mt-1 text-zinc-600 dark:text-zinc-400">
+          모든 클라이언트가 독립적으로 몬스터 AI를 실행하면 위치가 서로 달라집니다.
+          반드시 <strong>한 클라이언트(호스트)만</strong> 오브젝트를 제어하고 나머지는 받아서 렌더링해야 합니다.
+        </p>
+      </div>
+
+      <p className="mb-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+        <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">mp.isHost()</code>는 현재 방에서
+        가장 먼저 입장한 플레이어(호스트)인지 반환합니다.
+        호스트가 퇴장하면 <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">onPlayers()</code>가
+        재호출되므로 그 시점에 다시 확인하면 됩니다.
+      </p>
+
+      <Code>{`// ── 호스트: 몬스터 AI 실행 + 위치 브로드캐스트 ──────────────
+function gameTick() {
+  if (mp.isHost()) {
+    // 몬스터 AI 업데이트 (위치, 체력 등)
+    for (const m of monsters.values()) {
+      m.x += m.vx;
+      m.y += m.vy;
+      mp.send('monster-move', { id: m.id, x: m.x, y: m.y, hp: m.hp });
+    }
+  }
+  // 렌더링은 모든 클라이언트가 동일하게
+  render();
+  requestAnimationFrame(gameTick);
+}
+
+// ── 모든 클라이언트: 호스트가 보낸 위치를 받아 렌더링 ──────
+// predict: true — 몬스터도 플레이어처럼 부드러운 보간 적용
+mp.on('monster-move', (p) => {
+  const m = monsters.get(p.id);
+  if (m) { m.x = p.x; m.y = p.y; m.hp = p.hp; }
+}, { predict: true });
+
+// ── 호스트 교체: 기존 호스트가 나가면 자동으로 다음 플레이어가 호스트 ──
+mp.onPlayers((players) => {
+  // 이 콜백이 호출될 때 mp.isHost()가 이미 새 값으로 업데이트됨
+  console.log(mp.isHost() ? '내가 호스트가 됐습니다' : '호스트 아님');
+});`}</Code>
+
+      <p className="mb-3 mt-6 font-semibold text-sm text-zinc-700 dark:text-zinc-200">공격·투사체 동기화</p>
+      <Code>{`// ── 공격 발사: 호스트만 판정, 클라이언트는 시각 효과만 ─────
+
+// 모든 클라이언트: 공격 이벤트 전송 (내가 쐈다는 신호)
+function fireProjectile(x, y, dir) {
+  // 로컬 시각 효과 (즉시 표시)
+  spawnEffect(x, y);
+  // 호스트에게 알림
+  mp.send('fire', { shooterId: myId, x, y, dir });
+}
+
+// 호스트만: 피격 판정 후 결과를 브로드캐스트
+mp.on('fire', ({ shooterId, x, y, dir }) => {
+  if (!mp.isHost()) return;   // 호스트가 아니면 무시
+
+  const bullet = spawnBullet(x, y, dir);
+  bullets.push(bullet);
+  mp.send('bullet-spawn', { id: bullet.id, x, y, dir });
+});
+
+// 호스트: 매 프레임 총알 이동 + 피격 체크
+function updateBullets() {
+  if (!mp.isHost()) return;
+  for (const b of bullets) {
+    b.x += Math.cos(b.dir) * b.speed;
+    b.y += Math.sin(b.dir) * b.speed;
+    const hit = checkHit(b);
+    if (hit) {
+      mp.send('hit', { targetId: hit.id, damage: b.damage });
+      bullets.splice(bullets.indexOf(b), 1);
+    } else {
+      mp.send('bullet-move', { id: b.id, x: b.x, y: b.y });
+    }
+  }
+}
+
+// 모든 클라이언트: 피격 결과 수신
+mp.on('hit', ({ targetId, damage }) => {
+  const target = getEntity(targetId);
+  if (target) target.hp -= damage;
+});`}</Code>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+        {[
+          { icon: "👑", title: "호스트가 하는 것", items: ["몬스터 AI 실행", "충돌 판정", "피격 판정", "결과 브로드캐스트"] },
+          { icon: "🖥️", title: "모든 클라이언트가 하는 것", items: ["호스트 데이터 수신", "위치 보간 (predict:true)", "렌더링", "내 입력 전송"] },
+        ].map(({ icon, title, items }) => (
+          <div key={title} className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+            <p className="mb-2 font-semibold">{icon} {title}</p>
+            <ul className="space-y-1 text-xs text-zinc-500">
+              {items.map((item) => <li key={item}>• {item}</li>)}
+            </ul>
+          </div>
+        ))}
+      </div>
+
+      {/* 6. 방 목록 (로비) */}
       <Section id="room-list" title="방 목록 (로비)" sub="현재 열려 있는 방 목록을 가져와 로비 화면을 만드세요" />
       <p className="mb-4 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
         <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">ALPMultiplayer.getRooms()</code>를 호출하면
