@@ -43,7 +43,10 @@ export default function OperatorPendingGamesPage() {
       });
     api.operatorListPendingUpdates(tk)
       .then((res) => setPendingUpdates(res.games))
-      .catch(() => { /* 부수적 — 표시 안 함 */ });
+      .catch(() => {});
+    api.operatorListPendingMedia(tk)
+      .then((res) => setPendingMedia(res.games))
+      .catch(() => {});
   }
 
   useEffect(() => {
@@ -57,6 +60,9 @@ export default function OperatorPendingGamesPage() {
       });
     api.operatorListPendingUpdates(tk)
       .then((res) => setPendingUpdates(res.games))
+      .catch(() => {});
+    api.operatorListPendingMedia(tk)
+      .then((res) => setPendingMedia(res.games))
       .catch(() => {});
   }, [router, t]);
 
