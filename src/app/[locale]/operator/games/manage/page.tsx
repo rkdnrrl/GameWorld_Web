@@ -83,9 +83,7 @@ export default function OperatorManageGamesPage() {
       // 피처드 상태 업데이트
       setGames((prev) => prev?.map((g) => ({
         ...g,
-        isFeatured: currentlyFeatured
-          ? false                                        // 해제: 모두 false
-          : g.slug === slug,                            // 설정: 이 게임만 true
+        isFeatured: g.slug === slug ? !currentlyFeatured : g.isFeatured,
       })) ?? null);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "설정 실패");
