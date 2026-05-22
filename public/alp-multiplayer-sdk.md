@@ -176,6 +176,87 @@ window.addEventListener('beforeunload', () => mp.leave());
 
 ---
 
+---
+
+## Voice Chat
+
+WebRTC P2P voice between players in the same room. Audio flows directly between browsers — no server cost.
+
+### `await mp.joinVoice(options?)` → `Promise<MediaStream>`
+Request microphone permission and connect to all players currently in the room.
+
+```js
+await mp.joinRoom('room1', { id: myId, name: 'Player' });
+
+// Join voice (triggers browser microphone permission popup)
+const stream = await mp.joinVoice();
+
+// Optional: start muted
+await mp.joinVoice({ muted: true });
+
+// Optional: custom ICE servers (add TURN for strict NAT environments)
+await mp.joinVoice({
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'turn:your-turn-server.com', username: 'user', credential: 'pass' },
+  ],
+});
+```
+
+New players who call `joinVoice()` after you automatically receive a connection request.
+
+---
+
+### `mp.setMuted(muted)` → `void`
+Mute/unmute the local microphone. The WebRTC connection stays active.
+
+```js
+mp.setMuted(true);   // mute
+mp.setMuted(false);  // unmute
+```
+
+---
+
+### `mp.leaveVoice()` → `void`
+Disconnect from voice chat and stop the microphone. Called automatically by `mp.leave()`.
+
+---
+
+### `mp.onVoiceState(callback)` → `this`
+Called when a peer's voice connection changes state.
+
+```js
+mp.onVoiceState(({ type, peerId }) => {
+  if (type === 'joined') console.log(peerId + ' joined voice');
+  if (type === 'left')   console.log(peerId + ' left voice');
+});
+```
+
+**Complete voice UI example:**
+```js
+let muted = false;
+
+await mp.joinVoice();
+
+mp.onVoiceState(({ type, peerId }) => {
+  updateVoiceUI(peerId, type === 'joined');
+});
+
+document.getElementById('mute-btn').addEventListener('click', () => {
+  muted = !muted;
+  mp.setMuted(muted);
+  document.getElementById('mute-btn').textContent = muted ? '🔇' : '🎙️';
+});
+```
+
+**Notes:**
+- Audio is P2P — does not pass through Cloudflare Workers/DO, no extra cost
+- Mesh topology: each player connects to every other player → recommended max **10 players**
+- For corporate/school networks with strict NAT, a TURN server may be required
+- `mp.leave()` automatically calls `leaveVoice()`
+
+---
+
 ### `mp.isHost()` → `boolean`
 Returns `true` if this client is the **host** (first player to join the room).
 
