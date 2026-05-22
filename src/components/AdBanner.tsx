@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { session, SESSION_CHANGE_EVENT } from "@/lib/api";
 
+const SM_BREAKPOINT = 640; // Tailwind sm: 640px
+
 type AdSlot = "leaderboard" | "banner" | "skyscraper";
 
 /**
