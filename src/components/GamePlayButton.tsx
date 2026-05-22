@@ -29,7 +29,13 @@ export default function GamePlayButton({ gameId, gameUrl }: { gameId: string; ga
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      onClick={() => saveLastGameId(gameId)}
+      onClick={() => {
+        saveLastGameId(gameId);
+        // 플레이 카운트 +1 (fire-and-forget)
+        fetch(`${(process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/+$/, "")}/api/games/${gameId}/play`, {
+          method: "POST",
+        }).catch(() => {});
+      }}
       className="inline-flex items-center gap-2 rounded-xl bg-[#0170bd] px-8 py-3.5 text-base font-bold text-white shadow-md transition-all hover:bg-blue-700 hover:shadow-lg active:scale-95"
     >
       {t("play")}
