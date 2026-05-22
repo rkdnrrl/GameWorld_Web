@@ -18,7 +18,7 @@ type DevGame = {
 async function getDeveloperGames(nickname: string): Promise<{ nickname: string; games: DevGame[] } | null> {
   try {
     const base = process.env.BACKEND_URL || "http://localhost:4000";
-    const res  = await fetch(`${base}/api/developer/${encodeURIComponent(nickname)}`, { next: { revalidate: 60 } });
+    const res  = await fetch(`${base}/api/games/developer/${encodeURIComponent(nickname)}`, { next: { revalidate: 30 } });
     if (!res.ok) return null;
     return await res.json();
   } catch { return null; }
