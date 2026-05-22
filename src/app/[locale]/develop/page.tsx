@@ -18,13 +18,46 @@ type MyGame = {
   emoji: string;
   kind: string;
   status: string;
+  category: string;
   version: number;
   updatedAt: string;
+  thumbnailUrl?: string | null;
   pendingStoragePath?: string | null;
   pendingVersion?: number | null;
   pendingUploadedAt?: string | null;
   pendingRejectReason?: string | null;
+  pendingThumbnailUrl?: string | null;
+  pendingDemoVideoUrl?: string | null;
+  pendingMediaAt?: string | null;
+  pendingMediaRejectReason?: string | null;
 };
+
+const CAT_BG: Record<string, string> = {
+  earn:      "from-amber-400 to-orange-500",
+  multiplay: "from-sky-500 to-blue-600",
+  decorate:  "from-pink-400 to-rose-500",
+  other:     "from-violet-500 to-purple-600",
+};
+
+function CardPreview({ title, emoji, category, thumbnailUrl }: {
+  title: string; emoji: string; category: string; thumbnailUrl: string | null;
+}) {
+  const gradient = CAT_BG[category] ?? CAT_BG.other;
+  return (
+    <div className="w-44 overflow-hidden rounded-xl bg-white shadow ring-1 ring-zinc-200">
+      <div className={`relative flex aspect-video items-center justify-center bg-gradient-to-br ${gradient}`}>
+        {thumbnailUrl
+          ? <img src={thumbnailUrl} alt={title} className="h-full w-full object-cover" /> // eslint-disable-line @next/next/no-img-element
+          : <span className="text-4xl drop-shadow">{emoji || "🎮"}</span>
+        }
+      </div>
+      <div className="p-2">
+        <p className="text-xs font-semibold text-gray-900 line-clamp-1">{title || "(제목 없음)"}</p>
+        <p className="mt-0.5 text-[10px] capitalize text-zinc-400">{category}</p>
+      </div>
+    </div>
+  );
+}
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const CATEGORIES = ["earn", "multiplay", "decorate", "other"] as const;
@@ -204,19 +237,44 @@ export default function DevelopPage() {
         headers: { Authorization: `Bearer ${tk}` },
         body: fd,
       });
-      const data = await res.json().catch(() => ({})) as { ok?: boolean; error?: { message?: string } };
-      setPerGameMsg((m) => ({
-        ...m,
-        [slugTarget]: {
-          ok: !!data.ok,
-          text: data.ok ? "미디어가 업데이트됐습니다." : (data.error?.message || "업로드 실패"),
-        },
-      }));
-      if (data.ok) setMediaEditSlug(null);
+      const data = await res.json().catch(() => ({})) as { ok?: boolean; pending?: boolean; error?: { message?: string } };
+      if (data.ok) {
+        setPerGameMsg((m) => ({
+          ...m,
+          [slugTarget]: {
+            ok: true,
+            text: data.pending ? "검수 신청됐습니다. 운영자 승인 후 적용됩니다." : "미디어가 업데이트됐습니다.",
+          },
+        }));
+        setMediaEditSlug(null);
+        void loadMyGames();
+      } else {
+        setPerGameMsg((m) => ({ ...m, [slugTarget]: { ok: false, text: data.error?.message || "업로드 실패" } }));
+      }
     } catch {
       setPerGameMsg((m) => ({ ...m, [slugTarget]: { ok: false, text: "네트워크 오류" } }));
     } finally {
       setUpdatingMediaSlug(null);
+    }
+  }
+
+  async function onCancelMedia(slugTarget: string) {
+    const tk = session.getToken();
+    if (!tk) return;
+    try {
+      const res = await fetch(`/api/games/${slugTarget}/pending-media`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${tk}` },
+      });
+      if (res.ok) {
+        setPerGameMsg((m) => ({ ...m, [slugTarget]: { ok: true, text: "미디어 검수 신청이 취소됐습니다." } }));
+        void loadMyGames();
+      } else {
+        const d = await res.json().catch(() => ({})) as { error?: { message?: string } };
+        setPerGameMsg((m) => ({ ...m, [slugTarget]: { ok: false, text: d.error?.message || "취소 실패" } }));
+      }
+    } catch {
+      setPerGameMsg((m) => ({ ...m, [slugTarget]: { ok: false, text: "네트워크 오류" } }));
     }
   }
 
@@ -415,6 +473,12 @@ export default function DevelopPage() {
           {thumbnailPreview && (
             <img src={thumbnailPreview} alt="preview" className="mt-2 h-32 w-auto rounded-lg object-cover ring-1 ring-zinc-200" />
           )}
+        </div>
+
+        {/* ── 카드 미리보기 ── */}
+        <div>
+          <p className="mb-2 text-xs font-medium text-zinc-500">📋 카드 미리보기</p>
+          <CardPreview title={title} emoji={emoji || "🎮"} category={category} thumbnailUrl={thumbnailPreview} />
         </div>
 
         {/* ── 데모 영상 ── */}
@@ -635,8 +699,8 @@ export default function DevelopPage() {
                       )}
                     </div>
                   </div>
-                  {/* 미디어 수정 버튼 */}
-                  <div className="mt-2 flex items-center gap-2">
+                  {/* 미디어 수정 버튼 + 검수 대기 뱃지 */}
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => setMediaEditSlug((prev) => prev === g.slug ? null : g.slug)}
@@ -644,6 +708,16 @@ export default function DevelopPage() {
                     >
                       🖼 썸네일 · 영상 수정
                     </button>
+                    {g.pendingMediaAt && (
+                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
+                        미디어 검수 대기 중
+                      </span>
+                    )}
+                    {g.pendingMediaRejectReason && !g.pendingMediaAt && (
+                      <span className="text-[10px] text-red-500">
+                        미디어 거절: {g.pendingMediaRejectReason}
+                      </span>
+                    )}
                   </div>
 
                   {/* 미디어 수정 패널 */}
@@ -652,9 +726,39 @@ export default function DevelopPage() {
                     let localVideo: File | null = null;
                     return (
                       <div className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 p-4 space-y-3 dark:border-zinc-700 dark:bg-zinc-800/40">
+                        {/* 현재/대기 중 카드 미리보기 */}
+                        <div className="flex items-start gap-4">
+                          <div>
+                            <p className="mb-1 text-[10px] text-zinc-500">
+                              {g.pendingThumbnailUrl ? "🔄 검수 대기 중" : "현재"}
+                            </p>
+                            <CardPreview
+                              title={g.title}
+                              emoji={g.emoji || "🎮"}
+                              category={g.category || "other"}
+                              thumbnailUrl={g.pendingThumbnailUrl ?? g.thumbnailUrl ?? null}
+                            />
+                          </div>
+                        </div>
+
+                        {/* 검수 대기 중이면 취소 버튼 표시 */}
+                        {g.pendingMediaAt && (
+                          <div className="rounded border border-blue-200 bg-blue-50 p-2 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300">
+                            <p className="font-medium">운영자 검수 대기 중입니다.</p>
+                            <p className="mt-0.5 text-[10px]">승인 후 적용됩니다. 새 파일을 올리면 기존 대기 중인 파일이 교체됩니다.</p>
+                            <button
+                              type="button"
+                              onClick={() => void onCancelMedia(g.slug)}
+                              className="mt-2 rounded border border-red-300 bg-white px-2 py-1 text-[10px] text-red-600 hover:bg-red-50 dark:border-red-700 dark:bg-zinc-800 dark:text-red-400"
+                            >
+                              검수 신청 취소
+                            </button>
+                          </div>
+                        )}
+
                         <div>
                           <label className="mb-1 block text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                            🖼 썸네일 (JPG/PNG/WebP · 5MB↓)
+                            🖼 새 썸네일 (JPG/PNG/WebP · 5MB↓)
                           </label>
                           <input
                             type="file"
@@ -665,7 +769,7 @@ export default function DevelopPage() {
                         </div>
                         <div>
                           <label className="mb-1 block text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                            🎬 데모 영상 (MP4/WebM · 200MB↓)
+                            🎬 새 데모 영상 (MP4/WebM · 200MB↓)
                           </label>
                           <input
                             type="file"
@@ -674,6 +778,7 @@ export default function DevelopPage() {
                             className="block w-full text-xs file:mr-2 file:rounded file:border-0 file:bg-zinc-200 file:px-2 file:py-1 file:text-xs dark:file:bg-zinc-700"
                           />
                         </div>
+                        <p className="text-[10px] text-zinc-400">파일을 올리면 운영자 검수 후 적용됩니다.</p>
                         <div className="flex gap-2">
                           <button
                             type="button"
@@ -681,7 +786,7 @@ export default function DevelopPage() {
                             onClick={() => void onUpdateMedia(g.slug, localThumb, localVideo)}
                             className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                           >
-                            {updatingMediaSlug === g.slug ? "업로드 중…" : "업로드"}
+                            {updatingMediaSlug === g.slug ? "업로드 중…" : "검수 신청"}
                           </button>
                           <button
                             type="button"
