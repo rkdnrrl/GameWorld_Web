@@ -176,6 +176,49 @@ window.addEventListener('beforeunload', () => mp.leave());
 
 ---
 
+### `mp.isHost()` → `boolean`
+Returns `true` if this client is the **host** (first player to join the room).
+
+**Only the host should run game object logic** (monster AI, collision, hit detection) and broadcast results. All other clients just receive and render.
+
+```js
+function gameTick() {
+  if (mp.isHost()) {
+    // Run monster AI, update positions
+    for (const m of monsters) {
+      m.x += m.vx; m.y += m.vy;
+      mp.send('monster', { id: m.id, x: m.x, y: m.y, hp: m.hp });
+    }
+    // Run hit detection
+    for (const b of bullets) {
+      const hit = checkCollision(b, monsters);
+      if (hit) mp.send('hit', { targetId: hit.id, damage: b.damage });
+    }
+  }
+  render();
+  requestAnimationFrame(gameTick);
+}
+
+// All clients: receive monster positions from host
+mp.on('monster', (p) => {
+  const m = monsters.get(p.id);
+  if (m) { m.x = p.x; m.y = p.y; m.hp = p.hp; }
+}, { predict: true });
+
+// When host leaves, next player becomes host automatically
+mp.onPlayers(() => {
+  if (mp.isHost()) console.log('I am now the host');
+});
+```
+
+**Requirements:**
+- `playerInfo` passed to `joinRoom()` must have an `id` field for host detection to work
+- If no `id` field, `isHost()` always returns `false`
+
+**Common mistake:** Running monster AI on all clients → positions diverge. Always gate with `if (mp.isHost())`.
+
+---
+
 ### `ALPMultiplayer.getRooms(slug?)` → `Promise<{id: string, count: number}[]>`
 Fetch the list of currently active rooms for this game. **Static method — no instance needed.**
 
