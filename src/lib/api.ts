@@ -691,6 +691,33 @@ export const api = {
     );
   },
 
+  /** 운영자: 미디어 단독 검수 대기 목록 */
+  operatorListPendingMedia(token: string) {
+    return request<{ games: UgcGame[] }>("/api/operator/games/pending-media", {
+      headers: authHeaders(token),
+    });
+  },
+
+  /** 운영자: 미디어 승인 → staging → live */
+  operatorApproveMedia(token: string, slug: string) {
+    return request<{ ok: true; game: UgcGame }>(
+      `/api/operator/games/${encodeURIComponent(slug)}/approve-media`,
+      { method: "POST", headers: authHeaders(token) },
+    );
+  },
+
+  /** 운영자: 미디어 거절 → staging 폐기 + 사유 저장 */
+  operatorRejectMedia(token: string, slug: string, reason: string) {
+    return request<{ ok: true; game: UgcGame }>(
+      `/api/operator/games/${encodeURIComponent(slug)}/reject-media`,
+      {
+        method: "POST",
+        headers: { ...authHeaders(token), "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      },
+    );
+  },
+
   /** 운영자: 모든 게임 목록 (상태·종류 무관, 관리용) */
   operatorListAllGames(token: string) {
     return request<{ games: UgcGame[] }>("/api/operator/games/all", {
