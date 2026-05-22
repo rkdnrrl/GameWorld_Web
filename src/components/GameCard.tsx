@@ -134,7 +134,7 @@ export default function GameCard({ game }: { game: Game }) {
   return (
     <a
       href={href}
-      onClick={() => saveLastGameId(game.id)}
+      onClick={() => { /* lastGame은 Play 버튼에서 기록 */ }}
       className="group flex flex-col overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:ring-gray-300"
     >
       {/* ── 썸네일 ────────────────────────────────────────────────── */}
