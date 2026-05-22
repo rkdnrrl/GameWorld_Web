@@ -100,6 +100,12 @@ export default async function MultiplayGuide() {
           >
             ▶ 데모 플레이
           </a>
+          <Link
+            href="/develop/multiplayer/reference"
+            className="flex items-center gap-2 rounded-lg bg-white/25 px-4 py-2 text-sm font-bold text-white hover:bg-white/35"
+          >
+            ⚡ 빠른 참조
+          </Link>
           <a
             href="/multi-arena.zip"
             download="multi-arena.zip"
