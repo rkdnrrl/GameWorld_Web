@@ -60,9 +60,6 @@ export default async function GamesPage() {
 
       <div className="min-h-screen bg-[#f5f5f5]">
         <section className="mx-auto w-full max-w-[1400px] min-w-0 px-4 py-8 sm:px-6 sm:py-10">
-          <div className="mb-6 lg:hidden">
-            <AdBanner slot="banner" />
-          </div>
           <GamesBrowser games={games} />
         </section>
       </div>
