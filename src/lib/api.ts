@@ -99,6 +99,7 @@ export type UgcGame = {
   createdAt: string;
   updatedAt: string;
   publishedAt: string | null;
+  isFeatured: boolean;
 };
 
 export type EquipmentItem = {
