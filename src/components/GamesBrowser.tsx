@@ -55,7 +55,7 @@ export default function GamesBrowser({ games }: Props) {
     if (sortBy === "popular") list = [...list].sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0));
     if (sortBy === "rating")  list = [...list].sort((a, b) => (b.ratingAvg  ?? 0) - (a.ratingAvg  ?? 0));
     return list;
-  }, [games, activeCat, query, sortBy]);
+  }, [games, activeCat, sortBy]);
 
   const lastGame     = lastGameId ? games.find((g) => g.id === lastGameId) ?? null : null;
   const lastGameHref = lastGame ? gameHrefWithToken(lastGame.url, token) || lastGame.url : "";
