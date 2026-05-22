@@ -36,8 +36,8 @@ const SIZES: Record<AdSlot, { w: string; h: string }> = {
 const SLOT_CLASSES: Record<AdSlot, string> = {
   leaderboard:     "mx-auto hidden w-full max-w-[728px] justify-center sm:flex",
   banner:          "mx-auto flex w-full max-w-[320px] justify-center sm:hidden",
-  skyscraper:      "hidden w-[160px] flex-shrink-0 justify-center min-[1800px]:flex",
-  skyscraperRight: "hidden w-[160px] flex-shrink-0 justify-center min-[1800px]:flex",
+  skyscraper:      "flex w-[160px] flex-shrink-0 justify-center",
+  skyscraperRight: "flex w-[160px] flex-shrink-0 justify-center",
 };
 
 export default function AdBanner({ slot = "leaderboard", className = "" }: { slot?: AdSlot; className?: string }) {
