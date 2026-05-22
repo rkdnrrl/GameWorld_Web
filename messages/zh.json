@@ -186,7 +186,13 @@
     "worldMapDesc": "也可以操作角色走入建筑物来开始游戏。",
     "worldMapOpen": "打开世界地图",
     "worldMapClose": "关闭世界地图",
-    "emptyResult": "没有匹配的游戏。"
+    "emptyResult": "没有匹配的游戏。",
+    "sortDefault": "默认",
+    "sortPopular": "最受欢迎",
+    "gameCount": "{count}款游戏",
+    "playNow": "立即游玩",
+    "onlineCount": "{count}人在线",
+    "noInfo": "无信息"
   },
   "AuthCallback": {
     "processing": "正在处理认证...",

@@ -186,7 +186,13 @@
     "worldMapDesc": "캐릭터를 조작해 건물에 들어가는 방식으로도 게임을 시작할 수 있어요.",
     "worldMapOpen": "월드맵 열기",
     "worldMapClose": "월드맵 닫기",
-    "emptyResult": "검색 결과가 없습니다."
+    "emptyResult": "검색 결과가 없습니다.",
+    "sortDefault": "기본순",
+    "sortPopular": "인기순",
+    "gameCount": "{count}개의 게임",
+    "playNow": "플레이하기",
+    "onlineCount": "{count}명 접속 중",
+    "noInfo": "정보 없음"
   },
   "AuthCallback": {
     "processing": "인증 처리 중...",

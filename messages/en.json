@@ -186,7 +186,13 @@
     "worldMapDesc": "Walk a character into buildings to launch a game.",
     "worldMapOpen": "Open world map",
     "worldMapClose": "Close world map",
-    "emptyResult": "No matching games."
+    "emptyResult": "No matching games.",
+    "sortDefault": "Default",
+    "sortPopular": "Most Popular",
+    "gameCount": "{count} games",
+    "playNow": "Play Now",
+    "onlineCount": "{count} online",
+    "noInfo": "No info"
   },
   "AuthCallback": {
     "processing": "Processing authentication...",

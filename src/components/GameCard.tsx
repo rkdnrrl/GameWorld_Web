@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { SESSION_CHANGE_EVENT, session } from "@/lib/api";
 import { saveLastGameId } from "@/lib/lastGame";
 
@@ -22,17 +23,31 @@ export type Game = {
   category?: GameCategory;
 };
 
-function occupancyMeterColor(ratio: number): string {
-  const t = Math.min(1, Math.max(0, ratio));
-  // 낮음: 초록 → 중간: 황색 → 높음: 주황 → 포화: 빨강
-  const hue = 125 * (1 - t);
-  return `hsl(${hue} 78% ${42 + t * 6}%)`;
+// 카테고리별 썸네일 그라디언트
+const CAT_GRADIENT: Record<string, string> = {
+  earn:      "from-amber-400 to-orange-500",
+  multiplay: "from-blue-500 to-cyan-500",
+  decorate:  "from-pink-500 to-rose-400",
+  other:     "from-violet-500 to-purple-600",
+};
+
+// 카테고리 뱃지 색
+const CAT_BADGE: Record<string, string> = {
+  earn:      "bg-amber-500/90",
+  multiplay: "bg-blue-500/90",
+  decorate:  "bg-pink-500/90",
+  other:     "bg-violet-500/90",
+};
+
+function catKey(cat: GameCategory): "categoryEarn" | "categoryMultiplay" | "categoryDecorate" | "categoryOther" {
+  switch (cat) {
+    case "earn":      return "categoryEarn";
+    case "multiplay": return "categoryMultiplay";
+    case "decorate":  return "categoryDecorate";
+    default:          return "categoryOther";
+  }
 }
 
-/**
- * Nginx `location /게임/` + `proxy_pass .../` 와 맞추기 위해,
- * 로그인 시 링크는 `.../게임/?token=` 형태로 만든다 (`.../게임?token` 은 location 에 안 걸릴 수 있음).
- */
 function gameHrefWithToken(baseUrl: string, token: string): string {
   let u = String(baseUrl || "").trim();
   if (!u) return u;
@@ -40,22 +55,18 @@ function gameHrefWithToken(baseUrl: string, token: string): string {
   let hash = "";
   if (hashIdx !== -1) {
     hash = u.slice(hashIdx);
-    u = u.slice(0, hashIdx);
+    u    = u.slice(0, hashIdx);
   }
-  /** 싱글플레이 정적 호스트에서 `config.js` 없이 열릴 때 — 백엔드 베이스 URL */
   const standaloneApi = (process.env.NEXT_PUBLIC_STANDALONE_GAMES_API_URL ?? "").trim();
-  const apiQ = standaloneApi
-    ? `&platformApi=${encodeURIComponent(standaloneApi)}`
-    : "";
+  const apiQ = standaloneApi ? `&platformApi=${encodeURIComponent(standaloneApi)}` : "";
   const qIdx = u.indexOf("?");
-  if (qIdx !== -1) {
-    return `${u}&token=${encodeURIComponent(token)}${apiQ}${hash}`;
-  }
+  if (qIdx !== -1) return `${u}&token=${encodeURIComponent(token)}${apiQ}${hash}`;
   const root = u.replace(/\/+$/, "") + "/";
   return `${root}?token=${encodeURIComponent(token)}${apiQ}${hash}`;
 }
 
 export default function GameCard({ game }: { game: Game }) {
+  const t = useTranslations("Games");
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,110 +76,105 @@ export default function GameCard({ game }: { game: Game }) {
     return () => window.removeEventListener(SESSION_CHANGE_EVENT, sync);
   }, []);
 
-  const href = token ? gameHrefWithToken(game.url, token) : game.url;
+  const href    = token ? gameHrefWithToken(game.url, token) : game.url;
+  const cat     = (game.category ?? "other") as GameCategory;
+  const gradient = CAT_GRADIENT[cat] ?? CAT_GRADIENT.other;
+  const badge    = CAT_BADGE[cat]    ?? CAT_BADGE.other;
 
-  const maxCap =
-    game.maxPlayers ??
-    (game.id === "cube-multiplay" ? 100 : null);
+  const maxCap  = game.maxPlayers ?? (game.id === "cube-multiplay" ? 100 : null);
   const current = game.players;
-  const ratio =
-    maxCap !== null && maxCap > 0 && current !== null
-      ? Math.min(1, current / maxCap)
-      : null;
-
-  const fillPercent =
-    ratio === null
-      ? 0
-      : ratio <= 0
-        ? 0
-        : Math.min(100, Math.max(ratio * 100, 2));
+  const ratio   = maxCap && maxCap > 0 && current !== null
+    ? Math.min(1, current / maxCap)
+    : null;
 
   return (
     <a
       href={href}
       onClick={() => saveLastGameId(game.id)}
-      className="group flex min-w-0 max-w-full flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white transition-all hover:-translate-y-1 hover:border-blue-500 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-blue-500"
+      className="group flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
     >
-      <div className="relative flex h-40 items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 text-6xl">
-        {game.emoji}
-        {maxCap === null && (
-          <div className="absolute left-2 right-2 top-2 flex max-w-[calc(100%-1rem)] items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-[10px] text-white backdrop-blur-sm sm:left-auto sm:right-3 sm:top-3 sm:max-w-none sm:px-2.5 sm:text-xs">
-            <span
-              className={`h-1.5 w-1.5 shrink-0 rounded-full ${game.players !== null ? "bg-green-400" : "bg-zinc-400"}`}
-            />
-            <span className="min-w-0 truncate">
-              {game.players !== null
-                ? `${game.players}명 플레이 중`
-                : "정보 없음"}
-            </span>
-          </div>
+      {/* 썸네일 */}
+      <div className={`relative flex h-44 items-center justify-center overflow-hidden bg-gradient-to-br ${gradient}`}>
+        {/* 배경 장식 원 */}
+        <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10" />
+        <div className="pointer-events-none absolute -bottom-6 -left-6 h-24 w-24 rounded-full bg-black/10" />
+
+        {/* 이모지 */}
+        <span className="relative text-7xl drop-shadow-lg transition-transform duration-300 group-hover:scale-110">
+          {game.emoji}
+        </span>
+
+        {/* 호버 오버레이 — 플레이 버튼 */}
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 backdrop-blur-[2px] transition-opacity duration-200 group-hover:opacity-100">
+          <span className="rounded-full bg-white px-5 py-2 text-sm font-bold text-zinc-900 shadow-lg">
+            ▶ {t("playNow")}
+          </span>
+        </div>
+
+        {/* 카테고리 뱃지 */}
+        <span className={`absolute left-3 top-3 rounded-full ${badge} px-2.5 py-0.5 text-xs font-semibold text-white backdrop-blur-sm`}>
+          {t(catKey(cat))}
+        </span>
+
+        {/* 접속자 뱃지 */}
+        {current !== null ? (
+          <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-black/40 px-2.5 py-0.5 text-xs text-white backdrop-blur-sm">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green-400" />
+            {t("onlineCount", { count: current })}
+          </span>
+        ) : (
+          <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-black/40 px-2.5 py-0.5 text-xs text-white/70 backdrop-blur-sm">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400" />
+            {t("noInfo")}
+          </span>
         )}
       </div>
-      <div className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
-        <h2 className="break-words text-base font-semibold tracking-tight sm:text-lg">
+
+      {/* 카드 바디 */}
+      <div className="flex flex-1 flex-col p-4">
+        <h2 className="line-clamp-1 text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           {game.title}
         </h2>
-        <p className="mt-1 break-words text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-1 line-clamp-2 text-sm text-zinc-500 dark:text-zinc-400">
           {game.description}
         </p>
+
+        {/* 접속률 바 (maxCap 있는 경우) */}
         {maxCap !== null && (
-          <div className="mt-4 space-y-2">
-            <div className="flex items-baseline justify-between gap-2 text-sm">
-              <span className="font-medium text-zinc-800 dark:text-zinc-100">
-                동시 접속
-              </span>
-              <span className="tabular-nums text-zinc-600 dark:text-zinc-400">
-                {current !== null ? (
-                  <>
-                    <span className="font-semibold text-zinc-900 dark:text-zinc-50">
-                      {current}
-                    </span>
-                    <span> / {maxCap}명</span>
-                  </>
-                ) : (
-                  <span>— / {maxCap}명</span>
-                )}
+          <div className="mt-3">
+            <div className="mb-1 flex justify-between text-xs text-zinc-400">
+              <span>동시 접속</span>
+              <span className="font-medium tabular-nums">
+                {current !== null ? `${current} / ${maxCap}` : `— / ${maxCap}`}
               </span>
             </div>
-            <div
-              className="h-2.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
-              title={
-                ratio !== null
-                  ? `접속률 ${Math.round(ratio * 100)}%`
-                  : "현재 인원 정보 없음"
-              }
-            >
-              <div
-                className="h-full rounded-full transition-[width,background-color] duration-500 ease-out"
-                style={{
-                  width: `${fillPercent}%`,
-                  backgroundColor:
-                    ratio !== null
-                      ? occupancyMeterColor(ratio)
-                      : "rgb(161 161 170)",
-                }}
-              />
+            <div className="h-1.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+              {ratio !== null && (
+                <div
+                  className="h-full rounded-full transition-[width,background-color] duration-500"
+                  style={{
+                    width: `${Math.max(ratio * 100, ratio > 0 ? 2 : 0)}%`,
+                    backgroundColor: `hsl(${125 * (1 - ratio)} 78% 45%)`,
+                  }}
+                />
+              )}
             </div>
-            <p className="break-words text-xs text-zinc-500 dark:text-zinc-400">
-              최대 동시 접속 {maxCap}명 · 인원이 많아질수록 게이지가 붉어집니다
-            </p>
           </div>
         )}
-        <div
-          className={`flex flex-wrap gap-1.5 ${maxCap !== null ? "mt-4" : "mt-3"}`}
-        >
-          {game.tags.map((tag) => (
-            <span
-              key={tag}
-              className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
-        <div className="mt-4 flex items-center text-sm font-medium text-blue-600 group-hover:translate-x-1 group-hover:transition-transform">
-          플레이하기 →
-        </div>
+
+        {/* 태그 */}
+        {game.tags.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1">
+            {game.tags.slice(0, 3).map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </a>
   );
