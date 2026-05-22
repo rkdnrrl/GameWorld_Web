@@ -219,9 +219,14 @@ export default function DevelopPage() {
           <h1 className="text-2xl font-semibold">{t("title")}</h1>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{t("subtitle")}</p>
         </div>
-        <Link href="/" className="text-sm text-blue-600 hover:underline dark:text-blue-400">
-          {t("backHome")}
-        </Link>
+        <div className="flex gap-3">
+          <Link href="/develop/multiplayer" className="rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100 dark:border-violet-700 dark:bg-violet-950/30 dark:text-violet-300 dark:hover:bg-violet-900/40">
+            🎮 멀티플레이 가이드
+          </Link>
+          <Link href="/" className="text-sm text-blue-600 hover:underline dark:text-blue-400">
+            {t("backHome")}
+          </Link>
+        </div>
       </div>
 
       <div className="mb-6 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
