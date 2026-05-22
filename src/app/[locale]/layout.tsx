@@ -52,10 +52,6 @@ export default async function LocaleLayout({
           <CharacterIframe />
           <Header />
           <BackendConnectionBanner enabled={showBackendConnectionBanner} />
-          <div className="w-full py-2">
-            <AdBanner slot="leaderboard" />
-            <AdBanner slot="banner" />
-          </div>
           <main className="flex w-full min-w-0 max-w-full flex-1 flex-col overflow-x-hidden">
             {children}
           </main>
