@@ -473,7 +473,9 @@ export default function DevelopPage() {
                     <div className="flex items-center gap-2">
                       {/* 테스트 플레이 버튼 */}
                       {(() => {
-                        const testUrl = hasPending || g.status !== "published"
+                        // hasPending: 업데이트 파일이 staging에 있음 → /_preview/
+                        // 그 외(첫 업로드 pending 포함): 파일이 games/{slug}/에 있음 → 라이브 URL
+                        const testUrl = hasPending
                           ? `https://play.airliveplay.com/_preview/${g.slug}/`
                           : `https://play.airliveplay.com/${g.slug}/`;
                         const label = hasPending ? "🔍 업데이트 미리보기" : "▶ 테스트 플레이";
