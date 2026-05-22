@@ -383,8 +383,8 @@ mp.send("move", { x: 150, y: 300 });`}</Code>
 
       <div className="space-y-2">
         {[
-          { icon: "📨", text: "send()는 50ms 간격으로 호출하세요. 위치·상태처럼 자주 바뀌는 값에 적합합니다." },
-          { icon: "🔄", text: "다른 플레이어 위치가 뚝뚝 끊긴다면 lerp 보간을 적용하세요. 전체 예시 코드를 참고하세요." },
+          { icon: "📨", text: "send()는 키 입력 시 즉시 + 16ms 간격으로 호출하세요. 위치처럼 자주 바뀌는 값에 적합합니다." },
+          { icon: "🎯", text: "다른 플레이어 위치를 부드럽게 표시하려면 on()에 { predict: true } 옵션을 사용하세요. SDK가 인터폴레이션 버퍼로 자동 처리합니다." },
           { icon: "🏠", text: "같은 방에 들어가려면 roomId를 똑같이 맞추세요. 다른 roomId면 별개의 방입니다." },
         ].map(({ icon, text }) => (
           <div key={text} className="flex gap-2 rounded-lg bg-zinc-50 px-4 py-3 text-sm dark:bg-zinc-900">
@@ -408,7 +408,7 @@ mp.send("move", { x: 150, y: 300 });`}</Code>
           },
           {
             q: "내가 보낸 이벤트가 나에게도 오나요?",
-            a: "아닙니다. SDK는 broadcast: { self: false }로 설정되어 자기 자신에게는 전달되지 않습니다. 내 상태는 로컬에서 직접 관리하세요.",
+            a: "아닙니다. send()로 보낸 이벤트는 자기 자신에게 전달되지 않습니다. 내 상태는 로컬에서 직접 관리하세요.",
           },
           {
             q: "게임 상태(DB 저장)는 어떻게 하나요?",
@@ -442,12 +442,12 @@ mp.send("move", { x: 150, y: 300 });`}</Code>
           🤖 AI 가이드 다운로드 (.md)
         </a>
         <a
-          href="https://supabase.com/docs/guides/realtime"
+          href="https://developers.cloudflare.com/durable-objects/"
           target="_blank"
           rel="noreferrer"
           className="rounded-lg border border-zinc-300 px-4 py-2 text-sm hover:bg-zinc-100 dark:border-zinc-600 dark:hover:bg-zinc-800"
         >
-          Supabase Realtime 공식 문서 ↗
+          Cloudflare Durable Objects 문서 ↗
         </a>
       </div>
     </div>
