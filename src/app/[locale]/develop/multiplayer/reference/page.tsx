@@ -63,18 +63,17 @@ export default function MultiplayReference() {
         </div>
 
         {/* ── 2. 순서 주의 ── */}
-        <div className="rounded-xl border border-yellow-300 bg-yellow-50 p-5 dark:border-yellow-700 dark:bg-yellow-950/30">
-          <h2 className="mb-3 flex items-center gap-2 font-bold text-yellow-800 dark:text-yellow-300">
-            <span className="text-lg">⚠️</span> 콜백 등록 순서
+        <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+          <h2 className="mb-3 flex items-center gap-2 font-bold">
+            <span className="text-lg">📋</span> 권장 순서
           </h2>
           <Block>{`const mp = new ALPMultiplayer();
 
-// ✅ 이 순서대로
-mp.on('이벤트', 처리함수);  // 1st
-mp.onPlayers(처리함수);      // 2nd
-await mp.joinRoom(...);      // 3rd ← 마지막`}</Block>
-          <p className="mt-2 text-xs text-yellow-700 dark:text-yellow-400">
-            <code>onPlayers</code>를 joinRoom 뒤에 쓰면 작동 안 합니다.
+mp.on('이벤트', 처리함수);  // 콜백 먼저 등록 (권장)
+mp.onPlayers(처리함수);      // joinRoom 전후 어디서든 가능
+await mp.joinRoom(...);      // 방 입장`}</Block>
+          <p className="mt-2 text-xs text-zinc-400">
+            순서 제한 없음. 단, 콜백을 먼저 등록하는 것이 일반적입니다.
           </p>
         </div>
 
@@ -117,7 +116,7 @@ await mp.joinRoom(...);      // 3rd ← 마지막`}</Block>
               <div className="text-sm text-zinc-600 dark:text-zinc-400">
                 누군가 들어오거나 나갈 때 호출됩니다. 현재 접속자 배열을 받습니다.
                 <br />
-                <span className="text-xs text-yellow-600 dark:text-yellow-400">⚠ joinRoom 전에만 사용 가능</span>
+                <span className="text-xs text-zinc-400">joinRoom 전후 어디서든 가능</span>
               </div>
             </div>
 
@@ -251,7 +250,7 @@ other.y += (other.ty - other.y) * 0.2;
           <h2 className="mb-3 font-bold">흔한 실수</h2>
           <div className="grid gap-2 sm:grid-cols-2">
             {[
-              { bad: "joinRoom() 후 onPlayers() 호출", fix: "onPlayers()를 joinRoom() 앞으로 이동" },
+              { bad: "send() 반환값을 await로 기다림", fix: "send()는 void 반환. await 불필요" },
               { bad: "매 프레임 send() 호출 (60회/초)", fix: "50ms 타이머로 스로틀 처리" },
               { bad: "받은 위치로 바로 점프", fix: "lerp로 서서히 따라가게 처리" },
               { bad: "내 이벤트가 나한테도 올 것이라 가정", fix: "send()는 자신에게 전달되지 않음. 로컬에서 직접 처리" },

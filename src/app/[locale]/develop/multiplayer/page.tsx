@@ -86,7 +86,7 @@ export default async function MultiplayGuide() {
           게임에 실시간 멀티플레이를 3단계로 추가하세요.
         </p>
         <div className="flex flex-wrap gap-2 text-sm">
-          {["Supabase Realtime", "Broadcast", "Presence", "자동 방 격리"].map((tag) => (
+          {["Durable Objects WebSocket", "Broadcast", "Presence", "자동 방 격리"].map((tag) => (
             <span key={tag} className="rounded-full bg-white/20 px-3 py-0.5">{tag}</span>
           ))}
         </div>
@@ -145,18 +145,18 @@ export default async function MultiplayGuide() {
       {/* 1. 작동 원리 */}
       <Section id="how-it-works" title="작동 원리" />
       <p className="mb-4 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-        게임은 <strong>정적 파일</strong>(HTML/JS)로 R2에 호스팅되지만, 브라우저에서 Supabase Realtime에
-        직접 연결해 실시간 데이터를 주고받습니다.
-        SDK가 자격증명을 자동으로 주입하므로 게임 개발자는 별도 서버 없이 멀티플레이를 구현할 수 있습니다.
+        게임은 <strong>정적 파일</strong>(HTML/JS)로 R2에 호스팅됩니다.
+        플레이어의 브라우저가 Cloudflare의 <strong>Durable Objects</strong>에 WebSocket으로 직접 연결해
+        실시간 데이터를 주고받습니다. 별도 서버 없이 멀티플레이를 구현할 수 있습니다.
       </p>
       <Code>{`게임 HTML
-  └─ <script src="/_alp/sdk.js">   ← Cloudflare Worker가 Supabase 키 주입
+  └─ <script src="/_alp/sdk.js">   ← Cloudflare Worker가 SDK 제공
        └─ ALPMultiplayer 클래스
 
 게임 JS
   └─ new ALPMultiplayer()
        └─ joinRoom("room1")
-            └─ Supabase Realtime  ←→  다른 플레이어의 브라우저`}</Code>
+            └─ WebSocket → GameRoom (Durable Object)  ←→  다른 플레이어의 브라우저`}</Code>
 
       <div className="mt-4 grid grid-cols-3 gap-3 text-center text-sm">
         {[
@@ -190,11 +190,10 @@ export default async function MultiplayGuide() {
 
       <div className="mb-2 flex items-center gap-2">
         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-600 text-xs font-bold text-white">2</span>
-        <span className="font-semibold">joinRoom() 전에 콜백 등록</span>
+        <span className="font-semibold">콜백 등록</span>
       </div>
       <Code>{`const mp = new ALPMultiplayer();
 
-// ⚠️ 반드시 joinRoom() 보다 먼저 등록해야 합니다
 mp.on("move", (payload) => {
   // 다른 플레이어의 이벤트 수신
   console.log("상대방 이동:", payload);
@@ -209,21 +208,14 @@ mp.onPlayers((players) => {
         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-600 text-xs font-bold text-white">3</span>
         <span className="font-semibold">방 입장 후 이벤트 전송</span>
       </div>
-      <Code>{`// 콜백 등록 후 await joinRoom()
-await mp.joinRoom("room1", {
+      <Code>{`await mp.joinRoom("room1", {
   userId: "플레이어-고유-ID",
   name:   "플레이어1",
-  x: 100, y: 200        // Presence에 등록할 초기 정보 (자유 형식)
+  x: 100, y: 200        // 다른 플레이어가 onPlayers()로 받을 초기 정보
 });
 
 // 이제 이벤트를 보낼 수 있습니다
 mp.send("move", { x: 150, y: 300 });`}</Code>
-
-      <div className="mt-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-300">
-        <strong>⚠️ 중요:</strong> <code>mp.onPlayers()</code>는 반드시 <code>joinRoom()</code>보다 먼저 호출해야 합니다.
-        Supabase Realtime은 <code>subscribe()</code> 이후 Presence 리스너 추가를 허용하지 않기 때문에,
-        SDK가 내부적으로 큐잉하여 올바른 순서로 등록합니다.
-      </div>
 
       {/* 3. API 레퍼런스 */}
       <Section id="api" title="API 레퍼런스" />
@@ -231,7 +223,7 @@ mp.send("move", { x: 150, y: 300 });`}</Code>
       <ApiMethod
         signature="joinRoom(roomId, playerInfo?)"
         returns="Promise<void>"
-        desc="지정한 방에 입장하고 Presence에 내 정보를 등록합니다. SDK가 Supabase CDN을 자동으로 로드합니다."
+        desc="지정한 방에 입장하고 Presence에 내 정보를 등록합니다. Cloudflare Durable Objects에 WebSocket으로 연결합니다."
         params={[
           { name: "roomId",     type: "string", desc: "방 이름 (같은 slug + roomId면 같은 방에 연결됨)" },
           { name: "playerInfo", type: "object?", desc: "Presence에 등록할 내 정보 (자유 형식 JSON). 다른 플레이어가 onPlayers()로 수신." },
@@ -251,7 +243,7 @@ mp.send("move", { x: 150, y: 300 });`}</Code>
       <ApiMethod
         signature="onPlayers(callback)"
         returns="this"
-        desc="방 접속자 목록이 변경될 때마다 호출됩니다. 반드시 joinRoom() 전에 호출해야 합니다."
+        desc="방 접속자 목록이 변경될 때마다 호출됩니다. joinRoom() 전후 어느 시점에도 호출 가능합니다."
         params={[
           { name: "callback", type: "(players: object[]) => void", desc: "players는 각 플레이어의 playerInfo 배열 (퇴장한 플레이어는 자동 제거됨)" },
         ]}
@@ -259,7 +251,7 @@ mp.send("move", { x: 150, y: 300 });`}</Code>
 
       <ApiMethod
         signature="send(event, payload)"
-        returns="Promise<void>"
+        returns="void"
         desc="같은 방의 다른 모든 플레이어에게 이벤트를 전송합니다. 자기 자신에게는 전달되지 않습니다."
         params={[
           { name: "event",   type: "string", desc: "이벤트 이름" },
@@ -269,7 +261,7 @@ mp.send("move", { x: 150, y: 300 });`}</Code>
 
       <ApiMethod
         signature="updatePlayer(info)"
-        returns="Promise<void>"
+        returns="void"
         desc="Presence에 등록된 내 정보를 업데이트합니다. 다른 플레이어의 onPlayers() 콜백이 재호출됩니다."
         params={[
           { name: "info", type: "object", desc: "업데이트할 정보 (이전 정보를 완전히 교체)" },
@@ -409,8 +401,8 @@ mp.send("move", { x: 150, y: 300 });`}</Code>
       <div className="space-y-4">
         {[
           {
-            q: "onPlayers()를 joinRoom() 후에 호출하면 왜 안 되나요?",
-            a: "Supabase Realtime은 subscribe() 이후 Presence 리스너 등록을 허용하지 않습니다. SDK가 내부적으로 큐잉하여 joinRoom() 시점에 subscribe() 전에 등록하므로, 반드시 joinRoom() 전에 호출해야 합니다.",
+            q: "onPlayers()는 joinRoom() 전에 호출해야 하나요?",
+            a: "아닙니다. joinRoom() 전후 어느 시점에도 호출 가능합니다. 이미 방에 입장한 상태에서 onPlayers()를 등록하면 현재 접속자 목록을 즉시 전달받습니다.",
           },
           {
             q: "방이 자동으로 생성/삭제되나요?",

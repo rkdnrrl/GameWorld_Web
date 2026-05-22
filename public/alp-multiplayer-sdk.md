@@ -9,9 +9,10 @@
 ## Platform Overview
 
 - Games are **static HTML/JS files** hosted on Cloudflare R2 at `play.airliveplay.com/{slug}/`
-- Multiplayer is handled by **Supabase Realtime** via `window.ALPMultiplayer`
-- The SDK is injected at `/_alp/sdk.js` by the Cloudflare Worker — no npm install, no bundler
-- Channel isolation: `game:{slug}:{roomId}` — games never cross-contaminate
+- Multiplayer is handled by **Cloudflare Durable Objects** via WebSocket
+- Each room = one Durable Object instance. No hard concurrent connection limit.
+- The SDK is served at `/_alp/sdk.js` by the Cloudflare Worker — no npm install, no bundler
+- WebSocket endpoint: `wss://play.airliveplay.com/_alp/ws?room={slug}:{roomId}`
 
 ---
 
@@ -24,24 +25,26 @@
 </head>
 ```
 
-The Worker injects `window.__ALP_SUPABASE_URL__`, `window.__ALP_SUPABASE_ANON_KEY__`,
-and `window.__ALP_GAME_SLUG__` automatically. Do NOT hardcode credentials.
+The Worker serves the SDK automatically. No credentials needed in game code.
 
 ---
 
-## Critical Call Order
+## Call Order
 
-```
-WRONG ❌                          CORRECT ✅
-──────────────────────────────    ──────────────────────────────
-mp = new ALPMultiplayer()         mp = new ALPMultiplayer()
-await mp.joinRoom(...)            mp.on('move', handler)       ← FIRST
-mp.on('move', handler)            mp.onPlayers(handler)        ← FIRST
-mp.onPlayers(handler)             await mp.joinRoom(...)       ← LAST
+No strict ordering requirement. All methods can be called before or after `joinRoom()`.
+
+```js
+const mp = new ALPMultiplayer();
+
+// Register callbacks (recommended before joinRoom, but not required)
+mp.on('move', handler);
+mp.onPlayers(handler);
+
+// Join room last
+await mp.joinRoom('room1', playerInfo);
 ```
 
-`onPlayers()` uses Supabase Presence, which must be registered before `subscribe()`.
-The SDK queues callbacks internally — but only if called before `joinRoom()`.
+If `onPlayers()` is registered after `joinRoom()`, it immediately receives the current player list.
 
 ---
 
@@ -56,7 +59,7 @@ Creates a multiplayer instance. One instance = one room connection.
 Register a broadcast listener. Safe to call before OR after `joinRoom()`.
 
 ```js
-mp.on('move',   (payload) => { /* payload = what the sender passed to send() */ });
+mp.on('move',   (payload) => { /* payload = what sender passed to send() */ });
 mp.on('attack', (payload) => { });
 mp.on('chat',   ({ text }) => { });
 ```
@@ -65,7 +68,7 @@ mp.on('chat',   ({ text }) => { });
 
 ### `mp.onPlayers(callback)` → `this`
 Called whenever the room's player list changes (join / leave / disconnect).
-**Must be called before `joinRoom()`.**
+Can be called before OR after `joinRoom()`.
 
 ```js
 mp.onPlayers((players) => {
@@ -78,11 +81,11 @@ mp.onPlayers((players) => {
 ---
 
 ### `await mp.joinRoom(roomId, playerInfo?)` → `Promise<void>`
-Connect to the room. Loads Supabase JS from CDN on first call.
+Connect to the room via WebSocket to Cloudflare Durable Objects.
 
 ```js
 await mp.joinRoom('room1', {
-  id:    crypto.randomUUID(),   // required for de-duplication
+  id:    crypto.randomUUID(),   // recommended for de-duplication
   name:  'Player 1',
   color: '#ff6b6b',
   x: 100, y: 200               // any extra fields you need
@@ -90,12 +93,12 @@ await mp.joinRoom('room1', {
 ```
 
 - `roomId` — string, shared by players who want to be in the same room
-- `playerInfo` — any JSON-serializable object; broadcasted to others via Presence
-- Channel name: `game:{window.__ALP_GAME_SLUG__}:{roomId}`
+- `playerInfo` — any JSON-serializable object; sent to others via Presence
+- Channel: `game:{window.__ALP_GAME_SLUG__}:{roomId}`
 
 ---
 
-### `mp.send(event, payload)` → `Promise<void>`
+### `mp.send(event, payload)` → `void`
 Broadcast an event to **all other players** in the room. Does NOT fire on sender.
 
 ```js
@@ -115,20 +118,21 @@ function maybeSend(event, payload) {
 }
 ```
 
+Note: `send()` returns `void`, not a Promise. Do not `await` it.
+
 ---
 
-### `await mp.updatePlayer(info)` → `Promise<void>`
+### `mp.updatePlayer(info)` → `void`
 Replace the current player's Presence info. Triggers `onPlayers()` on all clients.
 
 ```js
-await mp.updatePlayer({ id: myId, name: 'Player 1', score: 42 });
+mp.updatePlayer({ id: myId, name: 'Player 1', score: 42 });
 ```
 
 ---
 
 ### `await mp.leave()` → `Promise<void>`
 Disconnect from the room. Automatically triggers `onPlayers()` on all other clients.
-Call on page unload or when the player exits:
 
 ```js
 window.addEventListener('beforeunload', () => mp.leave());
@@ -158,7 +162,6 @@ window.addEventListener('beforeunload', () => mp.leave());
     async function main() {
       const mp = new ALPMultiplayer();
 
-      // 1. Register callbacks BEFORE joinRoom
       mp.on('move', ({ id, x, y, color }) => {
         const o = others.get(id);
         if (o) { o.tx = x; o.ty = y; }
@@ -170,15 +173,12 @@ window.addEventListener('beforeunload', () => mp.leave());
         for (const id of others.keys()) if (!live.has(id)) others.delete(id);
       });
 
-      // 2. Join room
       await mp.joinRoom('room1', { id: myId, color: myColor, x: myX, y: myY });
 
-      // 3. Input
       const keys = new Set();
       window.addEventListener('keydown', e => keys.add(e.code));
       window.addEventListener('keyup',   e => keys.delete(e.code));
 
-      // 4. Game loop
       let lastSend = 0;
       function loop(now) {
         const spd = 3;
@@ -232,7 +232,7 @@ other.tx = payload.x;
 other.ty = payload.y;
 
 // Every frame (requestAnimationFrame):
-other.x += (other.tx - other.x) * 0.2;   // factor 0.2 = ~8 frames to reach target
+other.x += (other.tx - other.x) * 0.2;
 other.y += (other.ty - other.y) * 0.2;
 
 // Render at other.x, other.y (not tx/ty)
@@ -242,19 +242,19 @@ other.y += (other.ty - other.y) * 0.2;
 
 ## Limits
 
-| Item | Free plan | Pro plan |
-|------|-----------|----------|
-| Total concurrent connections | 200 | 500 |
-| Messages / second (total) | 500 | 2,500 |
-| Per-channel player limit | none* | none* |
-| Max message size | 2 MB | 2 MB |
-
-*Effectively limited by the total connection ceiling.
+| Item | Value |
+|------|-------|
+| Concurrent connections | No hard limit (Durable Objects scale automatically) |
+| Messages / second | Max 20 per player (50ms throttle) |
+| Max message size | 1 MB |
+| Cost model | $5/month base + usage (very cheap at small scale) |
 
 Recommended players per room by game type:
 - Turn-based (board, puzzle): up to 50
 - Co-op / exploration: up to 20
 - Real-time action: up to 10
+
+Multiple rooms per game are supported. Player limits above are per room.
 
 ---
 
@@ -262,39 +262,32 @@ Recommended players per room by game type:
 
 | Mistake | Fix |
 |---------|-----|
-| `onPlayers()` called after `joinRoom()` | Always call before `joinRoom()` |
-| Sending every frame (60/sec) | Throttle to 20/sec (50 ms) |
+| `await mp.send(...)` | `send()` returns void, not a Promise |
 | Jumping to received position directly | Lerp: `x += (tx - x) * 0.2` each frame |
+| Sending every frame (60/sec) | Throttle to 20/sec (50ms) |
 | Reacting to your own `send()` | SDK sets `self: false` — you won't receive your own events |
-| Hardcoding Supabase credentials | Use `window.__ALP_SUPABASE_URL__` injected by SDK |
+
+---
+
+## Window Globals (set by SDK)
+
+| Variable | Value |
+|----------|-------|
+| `window.__ALP_GAME_SLUG__` | Current game slug (from URL path) |
+| `window.__ALP_PLATFORM_API__` | Platform API base URL |
+| `window.ALPMultiplayer` | The multiplayer class |
 
 ---
 
 ## Platform APIs (for persistent data)
 
-These are HTTP APIs on the platform backend (`window.__ALP_PLATFORM_API__`).
-Multiplayer realtime uses ALPMultiplayer above; use these for save data.
+Use these for save data. Auth header required: `Authorization: Bearer {token}`
 
 ```
-GET  /api/game-state/{slug}          → { data: {} }
-PUT  /api/game-state/{slug}          body: { data: {...} }   (full replace)
-PATCH /api/game-state/{slug}         body: { data: {...} }   (shallow merge)
+GET   /api/game-state/{slug}   → { data: {} }
+PUT   /api/game-state/{slug}   body: { data: {...} }   (full replace)
+PATCH /api/game-state/{slug}   body: { data: {...} }   (shallow merge)
 
-GET  /api/catches/inventory          → { items: [...] }
-POST /api/inventory                  → add item to shared inventory
+GET   /api/catches/inventory   → { items: [...] }
+POST  /api/inventory           → add item to shared inventory
 ```
-
-Auth header required: `Authorization: Bearer {token}`
-Token available from parent frame via postMessage or `window.__ALP_TOKEN__`.
-
----
-
-## Window Globals (injected by SDK)
-
-| Variable | Value |
-|----------|-------|
-| `window.__ALP_SUPABASE_URL__` | Supabase project URL |
-| `window.__ALP_SUPABASE_ANON_KEY__` | Supabase anon (public) key |
-| `window.__ALP_GAME_SLUG__` | Current game slug (from URL path) |
-| `window.__ALP_PLATFORM_API__` | Platform API base URL |
-| `window.ALPMultiplayer` | The multiplayer class |
