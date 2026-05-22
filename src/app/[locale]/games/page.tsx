@@ -49,13 +49,23 @@ export default async function GamesPage() {
   const games = await getGames();
 
   return (
-    <section className="mx-auto w-full max-w-[1400px] min-w-0 px-4 py-8 sm:px-6 sm:py-12">
-      {/* 모바일 상단 광고 */}
-      <div className="mb-6 lg:hidden">
-        <AdBanner slot="banner" />
+    <>
+      {/* 뷰포트 좌우 고정 스카이스크래퍼 광고 (데스크톱 전용) */}
+      <div className="fixed left-0 top-1/2 z-30 -translate-y-1/2">
+        <AdBanner slot="skyscraper" />
+      </div>
+      <div className="fixed right-0 top-1/2 z-30 -translate-y-1/2">
+        <AdBanner slot="skyscraper" />
       </div>
 
-      <GamesBrowser games={games} />
-    </section>
+      <section className="mx-auto w-full max-w-[1400px] min-w-0 px-4 py-8 sm:px-6 sm:py-12">
+        {/* 모바일 상단 광고 */}
+        <div className="mb-6 lg:hidden">
+          <AdBanner slot="banner" />
+        </div>
+
+        <GamesBrowser games={games} />
+      </section>
+    </>
   );
 }
