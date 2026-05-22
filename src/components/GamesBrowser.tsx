@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import GameCard, { type Game, type GameCategory } from "@/components/GameCard";
 import DungeonHomeScene from "@/components/DungeonHomeScene";
-import AdBanner from "@/components/AdBanner";
 import { SESSION_CHANGE_EVENT, session } from "@/lib/api";
 import { loadLastGameId, saveLastGameId } from "@/lib/lastGame";
 
