@@ -49,20 +49,27 @@ export default async function GamesPage() {
   const games = await getGames();
 
   return (
-    <>
-      {/* 뷰포트 좌우 고정 스카이스크래퍼 광고 (데스크톱 전용) */}
-      <div className="fixed left-0 top-1/2 z-30 -translate-y-1/2">
-        <AdBanner slot="skyscraper" />
-      </div>
-      <div className="fixed right-0 top-1/2 z-30 -translate-y-1/2">
-        <AdBanner slot="skyscraperRight" />
+    <div className="flex min-h-screen items-start bg-[#f5f5f5]">
+
+      {/* 왼쪽 스카이스크래퍼 — 레이아웃 흐름 안에 있어 컨텐츠를 밀어냄 */}
+      <div className="hidden w-[160px] shrink-0 sm:block">
+        <div className="sticky top-4 flex justify-center pt-4">
+          <AdBanner slot="skyscraper" />
+        </div>
       </div>
 
-      <div className="min-h-screen bg-[#f5f5f5]">
-        <section className="mx-auto w-full max-w-[1400px] min-w-0 px-4 py-8 sm:px-6 sm:py-10">
-          <GamesBrowser games={games} />
-        </section>
+      {/* 메인 컨텐츠 */}
+      <section className="min-w-0 flex-1 px-4 py-8 sm:px-6 sm:py-10">
+        <GamesBrowser games={games} />
+      </section>
+
+      {/* 오른쪽 스카이스크래퍼 */}
+      <div className="hidden w-[160px] shrink-0 sm:block">
+        <div className="sticky top-4 flex justify-center pt-4">
+          <AdBanner slot="skyscraperRight" />
+        </div>
       </div>
-    </>
+
+    </div>
   );
 }
