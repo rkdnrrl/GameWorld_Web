@@ -112,7 +112,8 @@ export default function GameCard({ game }: { game: Game }) {
     return () => window.removeEventListener(SESSION_CHANGE_EVENT, sync);
   }, []);
 
-  const href = token ? gameHrefWithToken(game.url, token) : game.url;
+  // 카드 클릭 → 상세 페이지 (게임 실행은 상세 페이지에서)
+  const href = `/games/${game.id}`;
   const cat  = (game.category ?? "other") as GameCategory;
 
   async function handleRate(rating: number) {
