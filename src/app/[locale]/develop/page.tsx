@@ -44,6 +44,7 @@ export default function DevelopPage() {
   const [thumbnail, setThumbnail] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [demoVideo, setDemoVideo] = useState<File | null>(null);
+  const [screenshots, setScreenshots] = useState<File[]>([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<UploadResult | null>(null);
@@ -281,6 +282,7 @@ export default function DevelopPage() {
     if (tagList.length > 0) fd.append("tags", JSON.stringify(tagList));
     if (thumbnail)  fd.append("thumbnail", thumbnail);
     if (demoVideo)  fd.append("demoVideo",  demoVideo);
+    screenshots.forEach((f) => fd.append("screenshots", f));
 
     setSubmitting(true);
     try {
@@ -444,6 +446,21 @@ export default function DevelopPage() {
           {demoVideo && (
             <p className="mt-1 text-xs text-zinc-500">{demoVideo.name} · {(demoVideo.size / 1024 / 1024).toFixed(1)} MB</p>
           )}
+        </div>
+
+        {/* ── 스크린샷 ── */}
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            📸 스크린샷 <span className="font-normal text-zinc-500">(선택 · 최대 5장 · JPG/PNG/WebP · 각 5MB↓)</span>
+          </label>
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+            disabled={submitting}
+            onChange={(e) => setScreenshots(Array.from(e.target.files ?? []).slice(0, 5))}
+            className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-zinc-700 hover:file:bg-zinc-200 disabled:opacity-60 dark:file:bg-zinc-800 dark:file:text-zinc-200"
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
