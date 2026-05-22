@@ -68,6 +68,9 @@ export default function GamesBrowser({ games }: Props) {
   return (
     <div className="flex flex-col gap-0 text-gray-900">
 
+      {/* ── 피처드 배너 ─────────────────────────────────────────────── */}
+      {(() => { const f = games.find((g) => g.isFeatured); return f ? <FeaturedGameBanner game={f} /> : null; })()}
+
       {/* ── 검색바 ──────────────────────────────────────────────────── */}
       <div className="relative mb-5">
         <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
