@@ -1,6 +1,7 @@
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "../globals.css";
 import BackendConnectionBanner from "@/components/BackendConnectionBanner";
 import Header from "@/components/Header";
