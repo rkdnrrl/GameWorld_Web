@@ -115,7 +115,11 @@ export default async function GameDetailPage({
             {/* 제작자 */}
             {game.ownerNickname && (
               <p className="mb-3 text-sm text-gray-500">
-                제작자: <span className="font-medium text-gray-700">{game.ownerNickname}</span>
+                제작자:{" "}
+                <Link href={`/developer/${encodeURIComponent(game.ownerNickname)}`}
+                  className="font-medium text-blue-600 hover:underline">
+                  {game.ownerNickname}
+                </Link>
               </p>
             )}
 
