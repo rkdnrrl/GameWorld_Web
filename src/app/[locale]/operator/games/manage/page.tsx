@@ -18,6 +18,7 @@ export default function OperatorManageGamesPage() {
 
   const [actingSlug, setActingSlug] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [downloadingSlug, setDownloadingSlug] = useState<string | null>(null);
 
   // 삭제 확인: slug 를 정확히 입력해야 활성화
   const [deleteFor, setDeleteFor] = useState<string | null>(null);
@@ -40,6 +41,33 @@ export default function OperatorManageGamesPage() {
   }
 
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  async function onDownload(slug: string) {
+    const tk = session.getToken();
+    if (!tk) return;
+    setDownloadingSlug(slug);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/operator/games/${slug}/download`, {
+        headers: { Authorization: `Bearer ${tk}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: { message?: string } };
+        throw new Error(data.error?.message || "다운로드 실패");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${slug}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "다운로드 실패");
+    } finally {
+      setDownloadingSlug(null);
+    }
+  }
 
   async function onDelete(slug: string) {
     const tk = session.getToken();
