@@ -15,12 +15,15 @@ type UploadResult = {
 type MyGame = {
   slug: string;
   title: string;
+  description?: string | null;
   emoji: string;
   kind: string;
   status: string;
   category: string;
+  tags?: unknown;
   version: number;
   updatedAt: string;
+  publishedAt?: string | null;
   thumbnailUrl?: string | null;
   pendingStoragePath?: string | null;
   pendingVersion?: number | null;
@@ -39,6 +42,11 @@ const CAT_BG: Record<string, string> = {
   other:     "from-violet-500 to-purple-600",
 };
 
+const CAT_LABEL: Record<string, string> = {
+  earn: "돈 버는 게임", multiplay: "멀티플레이 게임",
+  decorate: "꾸미기 게임", other: "기타",
+};
+
 function CardPreview({ title, emoji, category, thumbnailUrl }: {
   title: string; emoji: string; category: string; thumbnailUrl: string | null;
 }) {
@@ -53,7 +61,101 @@ function CardPreview({ title, emoji, category, thumbnailUrl }: {
       </div>
       <div className="p-2">
         <p className="text-xs font-semibold text-gray-900 line-clamp-1">{title || "(제목 없음)"}</p>
-        <p className="mt-0.5 text-[10px] capitalize text-zinc-400">{category}</p>
+        <p className="mt-0.5 text-[10px] capitalize text-zinc-400">{CAT_LABEL[category] ?? category}</p>
+      </div>
+    </div>
+  );
+}
+
+function DetailPreviewModal({ title, description, emoji, category, tags, thumbnailUrl, ownerNickname, publishedAt, onClose }: {
+  title: string; description: string; emoji: string; category: string;
+  tags: string[]; thumbnailUrl: string | null; ownerNickname?: string;
+  publishedAt?: string | null; onClose: () => void;
+}) {
+  const gradient = CAT_BG[category] ?? CAT_BG.other;
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
+      onClick={onClose}>
+      <div className="relative my-8 w-full max-w-2xl rounded-2xl bg-[#f5f5f5] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}>
+
+        {/* 미리보기 배너 */}
+        <div className="flex items-center justify-between rounded-t-2xl bg-amber-100 px-4 py-2.5 text-xs font-medium text-amber-900">
+          <span>📋 상세 페이지 미리보기</span>
+          <button type="button" onClick={onClose} className="rounded-full bg-amber-200 px-2 py-0.5 hover:bg-amber-300">닫기 ✕</button>
+        </div>
+
+        <div className="p-4">
+          <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-200">
+
+            {/* 썸네일 */}
+            <div className={`relative flex h-52 items-center justify-center overflow-hidden bg-gradient-to-br ${gradient}`}>
+              <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10" />
+              <div className="pointer-events-none absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-black/10" />
+              {thumbnailUrl
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={thumbnailUrl} alt={title} className="h-full w-full object-cover" />
+                : <span className="relative text-7xl drop-shadow-lg">{emoji || "🎮"}</span>
+              }
+            </div>
+
+            {/* 정보 영역 */}
+            <div className="p-6">
+              <div className="mb-3 flex flex-wrap gap-2">
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
+                  {CAT_LABEL[category] ?? "기타"}
+                </span>
+              </div>
+
+              <h1 className="mb-1 text-2xl font-bold text-gray-900">{title || "(제목 없음)"}</h1>
+
+              {ownerNickname && (
+                <p className="mb-3 text-sm text-gray-500">
+                  제작자: <span className="font-medium text-blue-600">{ownerNickname}</span>
+                </p>
+              )}
+
+              {/* 별점 — 미리보기용 정적 표시 */}
+              <div className="mb-4">
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <span className="text-lg text-gray-300">★★★★★</span>
+                  <span>아직 평점이 없습니다</span>
+                </div>
+              </div>
+
+              {description && (
+                <p className="mb-5 whitespace-pre-line text-sm leading-relaxed text-gray-600">
+                  {description}
+                </p>
+              )}
+
+              {tags.length > 0 && (
+                <div className="mb-5 flex flex-wrap gap-1.5">
+                  {tags.map((tag) => (
+                    <span key={tag} className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-500">{tag}</span>
+                  ))}
+                </div>
+              )}
+
+              <div className="mb-6 flex flex-wrap gap-4 text-sm text-gray-400">
+                {publishedAt && <span>📅 {new Date(publishedAt).toLocaleDateString("ko-KR")}</span>}
+              </div>
+
+              <div className="flex gap-3">
+                <div className="rounded-xl bg-[#0170bd] px-6 py-3 text-sm font-semibold text-white opacity-70">
+                  ▶ 게임 시작
+                </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-gray-200 bg-white text-xl text-gray-300">
+                  ♡
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p className="mt-3 text-center text-[10px] text-zinc-400">
+            실제 게임 상세 페이지와 유사합니다. 댓글·평점은 실제 페이지에서 확인하세요.
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -95,6 +197,9 @@ export default function DevelopPage() {
   // 미디어 단독 수정
   const [mediaEditSlug,    setMediaEditSlug]    = useState<string | null>(null);
   const [updatingMediaSlug, setUpdatingMediaSlug] = useState<string | null>(null);
+  // 상세 미리보기
+  const [showDetailPreview, setShowDetailPreview] = useState(false);
+  const [detailPreviewGame, setDetailPreviewGame] = useState<MyGame | null>(null);
 
   useEffect(() => {
     if (!session.getToken()) router.replace("/login");
@@ -475,10 +580,19 @@ export default function DevelopPage() {
           )}
         </div>
 
-        {/* ── 카드 미리보기 ── */}
+        {/* ── 미리보기 ── */}
         <div>
-          <p className="mb-2 text-xs font-medium text-zinc-500">📋 카드 미리보기</p>
-          <CardPreview title={title} emoji={emoji || "🎮"} category={category} thumbnailUrl={thumbnailPreview} />
+          <p className="mb-2 text-xs font-medium text-zinc-500">📋 미리보기</p>
+          <div className="flex flex-wrap items-end gap-4">
+            <CardPreview title={title} emoji={emoji || "🎮"} category={category} thumbnailUrl={thumbnailPreview} />
+            <button
+              type="button"
+              onClick={() => setShowDetailPreview(true)}
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+            >
+              🖥 상세 페이지 미리보기
+            </button>
+          </div>
         </div>
 
         {/* ── 데모 영상 ── */}
@@ -642,6 +756,13 @@ export default function DevelopPage() {
                             >
                               {label}
                             </a>
+                            <button
+                              onClick={() => { setDetailPreviewGame(g); }}
+                              title="게임 상세 페이지가 어떻게 보일지 미리보기"
+                              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                            >
+                              🖥 상세 미리보기
+                            </button>
                             <button
                               onClick={() => {
                                 void navigator.clipboard.writeText(testUrl).then(() => {
@@ -846,6 +967,33 @@ export default function DevelopPage() {
           </ul>
         )}
       </section>
+
+      {/* ── 새 게임 폼: 상세 페이지 미리보기 모달 ── */}
+      {showDetailPreview && (
+        <DetailPreviewModal
+          title={title}
+          description={description}
+          emoji={emoji || "🎮"}
+          category={category}
+          tags={tagsRaw.split(",").map((s) => s.trim()).filter(Boolean)}
+          thumbnailUrl={thumbnailPreview}
+          onClose={() => setShowDetailPreview(false)}
+        />
+      )}
+
+      {/* ── 기존 게임: 상세 페이지 미리보기 모달 ── */}
+      {detailPreviewGame && (
+        <DetailPreviewModal
+          title={detailPreviewGame.title}
+          description={detailPreviewGame.description ?? ""}
+          emoji={detailPreviewGame.emoji || "🎮"}
+          category={detailPreviewGame.category}
+          tags={Array.isArray(detailPreviewGame.tags) ? (detailPreviewGame.tags as string[]) : []}
+          thumbnailUrl={detailPreviewGame.pendingThumbnailUrl ?? detailPreviewGame.thumbnailUrl ?? null}
+          publishedAt={detailPreviewGame.publishedAt}
+          onClose={() => setDetailPreviewGame(null)}
+        />
+      )}
     </div>
   );
 }
