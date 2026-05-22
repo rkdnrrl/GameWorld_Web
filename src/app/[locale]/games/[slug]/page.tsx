@@ -27,6 +27,7 @@ type GameData = {
   demoVideoUrl: string | null;
   playCount: number;
   likeCount: number;
+  screenshots: string[];
   url: string;
   publishedAt: string | null;
   ownerNickname: string | null;
