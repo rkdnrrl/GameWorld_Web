@@ -48,11 +48,9 @@ export default function GamesBrowser({ games }: Props) {
   }, [games]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
     let list = games.filter((g) => {
       if (activeCat !== "all" && (g.category ?? "other") !== activeCat) return false;
-      if (!q) return true;
-      return `${g.title} ${g.description} ${g.tags.join(" ")}`.toLowerCase().includes(q);
+      return true;
     });
     if (sortBy === "popular") list = [...list].sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0));
     if (sortBy === "rating")  list = [...list].sort((a, b) => (b.ratingAvg  ?? 0) - (a.ratingAvg  ?? 0));
