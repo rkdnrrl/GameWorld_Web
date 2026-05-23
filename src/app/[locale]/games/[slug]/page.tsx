@@ -53,9 +53,12 @@ export default async function GameDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const t    = await getTranslations("GameDetail");
-  const tg   = await getTranslations("Games");
-  const game = await getGame(slug);
+  const t      = await getTranslations("GameDetail");
+  const tg     = await getTranslations("Games");
+  const locale = await getLocale();
+  const game   = await getGame(slug);
+  const localTitle = game?.titlesI18n?.[locale] || game?.title;
+  const localDesc  = game?.descriptionsI18n?.[locale] || game?.description;
 
   if (!game) {
     return (
