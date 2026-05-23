@@ -865,7 +865,8 @@
   "MultiplayGuide": {
     "nav": "多人游戏指南",
     "heroTitle": "多人游戏指南",
-    "heroSub": "使用 ALP 平台的 ALPMultiplayer SDK，只需3步即可为游戏添加实时多人功能。",
+    "heroSubPre": "使用 ALP 平台的",
+    "heroSubPost": "，只需3步即可为游戏添加实时多人功能。",
     "tagAutoIsolation": "房间自动隔离",
     "btnDemo": "▶ 试玩演示",
     "btnRef": "⚡ 快速参考",

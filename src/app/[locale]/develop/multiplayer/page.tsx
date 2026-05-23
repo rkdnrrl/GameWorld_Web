@@ -121,9 +121,7 @@ export default async function MultiplayGuide() {
         <div className="mb-2 text-3xl">🎮</div>
         <h1 className="text-3xl font-bold">{td("heroTitle")}</h1>
         <p className="mt-2 text-violet-200">
-          ALP {td("heroSub").split("ALPMultiplayer SDK")[0]}
-          <strong className="text-white">ALPMultiplayer SDK</strong>
-          {td("heroSub").split("ALPMultiplayer SDK")[1]}
+          {td("heroSubPre")} <strong className="text-white">ALPMultiplayer SDK</strong>{td("heroSubPost")}
         </p>
         <div className="flex flex-wrap gap-2 text-sm mt-3">
           {["Durable Objects WebSocket", "Broadcast", "Presence", td("tagAutoIsolation")].map((tag) => (

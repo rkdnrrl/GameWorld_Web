@@ -865,7 +865,8 @@
   "MultiplayGuide": {
     "nav": "Multiplayer Guide",
     "heroTitle": "Multiplayer Guide",
-    "heroSub": "Add real-time multiplayer to your game in 3 steps using the ALP platform's ALPMultiplayer SDK.",
+    "heroSubPre": "Add real-time multiplayer in 3 steps using the ALP platform's",
+    "heroSubPost": ".",
     "tagAutoIsolation": "Auto Room Isolation",
     "btnDemo": "▶ Demo Play",
     "btnRef": "⚡ Quick Reference",

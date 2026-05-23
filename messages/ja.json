@@ -865,7 +865,8 @@
   "MultiplayGuide": {
     "nav": "マルチプレイガイド",
     "heroTitle": "マルチプレイガイド",
-    "heroSub": "ALP プラットフォームの ALPMultiplayer SDK を使って、ゲームにリアルタイムマルチプレイを3ステップで追加しましょう。",
+    "heroSubPre": "ALP プラットフォームの",
+    "heroSubPost": "を使って、ゲームにリアルタイムマルチプレイを3ステップで追加しましょう。",
     "tagAutoIsolation": "ルーム自動分離",
     "btnDemo": "▶ デモプレイ",
     "btnRef": "⚡ クイックリファレンス",

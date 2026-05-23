@@ -865,7 +865,8 @@
   "MultiplayGuide": {
     "nav": "멀티플레이 가이드",
     "heroTitle": "멀티플레이 가이드",
-    "heroSub": "ALP 플랫폼의 ALPMultiplayer SDK를 사용해 게임에 실시간 멀티플레이를 3단계로 추가하세요.",
+    "heroSubPre": "ALP 플랫폼의",
+    "heroSubPost": "를 사용해 게임에 실시간 멀티플레이를 3단계로 추가하세요.",
     "tagAutoIsolation": "자동 방 격리",
     "btnDemo": "▶ 데모 플레이",
     "btnRef": "⚡ 빠른 참조",
