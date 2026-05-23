@@ -96,11 +96,13 @@ export default function Home() {
       fetch("/api/announcements?limit=6").then(r => r.json()).catch(() => ({ items: [] })),
       fetch("/api/community?limit=10&sort=createdAt").then(r => r.json()).catch(() => ({ items: [] })),
       fetch("/api/community?limit=5&sort=views").then(r => r.json()).catch(() => ({ items: [] })),
-    ]).then(([gd, nd, pd, hd]) => {
+      fetch("/api/genres").then(r => r.json()).catch(() => ({ genres: [] })),
+    ]).then(([gd, nd, pd, hd, gnd]) => {
       setGames(gd.games ?? []);
       setNotices(nd.items ?? []);
       setPosts(pd.items ?? []);
       setHotPosts(hd.items ?? []);
+      setGenres(gnd.genres ?? []);
       setDataReady(true);
     });
   }, []);
