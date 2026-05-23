@@ -3,6 +3,7 @@
 import { Link } from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
 import React, { useEffect, useState } from "react";
+import { type GameCategory } from "@/lib/api";
 import { api, session, ApiError, type UgcGame } from "@/lib/api";
 import { useTranslations } from "next-intl";
 
@@ -24,6 +25,7 @@ export default function OperatorManageGamesPage() {
   const [deleteFor, setDeleteFor] = useState<string | null>(null);
   const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
   // 운영자 직접 메타 수정
+  const [categories, setCategories] = useState<GameCategory[]>([]);
   const [metaEditGame, setMetaEditGame] = useState<UgcGame | null>(null);
   const [metaForm, setMetaForm] = useState({ title: "", description: "", emoji: "", category: "", tagsRaw: "" });
   const [metaSubmitting, setMetaSubmitting] = useState(false);
@@ -32,6 +34,8 @@ export default function OperatorManageGamesPage() {
   const [filterKind, setFilterKind] = useState<"all" | "official" | "community">("all");
   const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "published" | "rejected" | "hidden">("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => { void api.getCategories().then((r) => setCategories(r.categories)).catch(() => {}); }, []);
 
   function load() {
     const tk = session.getToken();
@@ -427,10 +431,9 @@ export default function OperatorManageGamesPage() {
                   <label className="mb-1 block text-xs text-zinc-500">카테고리</label>
                   <select value={metaForm.category} onChange={(e) => setMetaForm((f) => ({ ...f, category: e.target.value }))}
                     className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white">
-                    <option value="earn">돈 버는 게임</option>
-                    <option value="multiplay">멀티플레이</option>
-                    <option value="decorate">꾸미기</option>
-                    <option value="other">기타</option>
+                    {categories.map((c) => (
+                      <option key={c.slug} value={c.slug}>{c.emoji} {c.labelKo}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="flex-1">
