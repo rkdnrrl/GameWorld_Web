@@ -77,12 +77,45 @@ export default function OperatorManageGamesPage() {
     }
   }
 
+  const [featuredModal, setFeaturedModal] = useState<UgcGame | null>(null);
+  const [featuredText,  setFeaturedText]  = useState("");
+  const [featureSaving, setFeatureSaving] = useState(false);
+
+  function openFeaturedModal(g: UgcGame) {
+    setFeaturedText((g as UgcGame & { featuredText?: string }).featuredText ?? "");
+    setFeaturedModal(g);
+  }
+
+  async function onSubmitFeatured(e: React.FormEvent) {
+    e.preventDefault();
+    if (!featuredModal) return;
+    const tk = session.getToken();
+    if (!tk) return;
+    setFeatureSaving(true);
+    try {
+      const res = await fetch(`/api/operator/games/${featuredModal.slug}/feature`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ text: featuredText }),
+      });
+      if (!res.ok) throw new Error("설정 실패");
+      setGames((prev) => prev?.map((g) => g.slug === featuredModal.slug
+        ? { ...g, isFeatured: true, featuredText } : g
+      ) ?? null);
+      setFeaturedModal(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "설정 실패");
+    } finally {
+      setFeatureSaving(false);
+    }
+  }
+
   async function onToggleFeatured(slug: string, currentlyFeatured: boolean) {
     const tk = session.getToken();
     if (!tk) return;
     setActingSlug(slug);
     try {
-      const method  = currentlyFeatured ? "DELETE" : "POST";
+      const method = currentlyFeatured ? "DELETE" : "POST";
       const res = await fetch(`/api/operator/games/${slug}/feature`, {
         method,
         headers: { Authorization: `Bearer ${tk}` },
@@ -326,17 +359,27 @@ export default function OperatorManageGamesPage() {
                 <div className="flex shrink-0 flex-col gap-2">
                   {/* 피처드 토글 */}
                   {g.status === "published" && (
-                    <button
-                      onClick={() => onToggleFeatured(g.slug, !!g.isFeatured)}
-                      disabled={actingSlug !== null}
-                      className={`rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-60 ${
-                        g.isFeatured
-                          ? "border-yellow-400 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 dark:border-yellow-600 dark:bg-yellow-950/30 dark:text-yellow-300"
-                          : "border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
-                      }`}
-                    >
-                      {g.isFeatured ? "⭐ 피처드 해제" : "☆ 피처드 설정"}
-                    </button>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => openFeaturedModal(g)}
+                        disabled={actingSlug !== null}
+                        className={`flex-1 rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-60 ${
+                          g.isFeatured
+                            ? "border-yellow-400 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 dark:border-yellow-600 dark:bg-yellow-950/30 dark:text-yellow-300"
+                            : "border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                        }`}
+                      >
+                        {g.isFeatured ? "⭐ 피처드 수정" : "☆ 피처드 설정"}
+                      </button>
+                      {g.isFeatured && (
+                        <button
+                          onClick={() => void onToggleFeatured(g.slug, true)}
+                          disabled={actingSlug !== null}
+                          className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-500 hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-600 dark:bg-zinc-800"
+                          title="피처드 해제"
+                        >✕</button>
+                      )}
+                    </div>
                   )}
                   {/* official ↔ community 전환 */}
                   <button
@@ -427,6 +470,36 @@ export default function OperatorManageGamesPage() {
             </li>
           ))}
         </ul>
+      )}
+
+      {/* ── 피처드 설정 모달 ── */}
+      {featuredModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setFeaturedModal(null)}>
+          <form onSubmit={(e) => void onSubmitFeatured(e)} onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl dark:bg-zinc-900">
+            <h3 className="mb-1 text-base font-bold text-zinc-900 dark:text-white">⭐ 피처드 설정</h3>
+            <p className="mb-4 text-xs text-zinc-500">
+              <span className="font-semibold">{featuredModal.title}</span> — 캐러셀 우측에 표시될 소개 문구 (최대 300자)
+            </p>
+            <textarea
+              rows={5}
+              value={featuredText}
+              onChange={(e) => setFeaturedText(e.target.value)}
+              maxLength={300}
+              placeholder="이 게임의 특별한 점을 소개해보세요. 캐러셀 배너 오른쪽에 표시됩니다."
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white"
+            />
+            <p className="mt-1 text-right text-[10px] text-zinc-400">{featuredText.length}/300</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setFeaturedModal(null)}
+                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300">취소</button>
+              <button type="submit" disabled={featureSaving}
+                className="rounded-lg bg-yellow-500 px-4 py-2 text-sm font-semibold text-white hover:bg-yellow-600 disabled:opacity-50">
+                {featureSaving ? "저장 중…" : "⭐ 피처드 설정"}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
       {/* ── 운영자 직접 메타 수정 모달 ── */}

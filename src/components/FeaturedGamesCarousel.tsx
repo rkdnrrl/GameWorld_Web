@@ -88,6 +88,15 @@ export default function FeaturedGamesCarousel({ games }: { games: Game[] }) {
                 <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" />
               </div>
 
+              {/* 우측 피처드 설명 */}
+              {game.featuredText && (
+                <div className="absolute right-0 top-0 hidden h-full w-[42%] items-center justify-center p-8 sm:flex">
+                  <div className="rounded-2xl bg-black/50 px-6 py-5 backdrop-blur-md">
+                    <p className="text-sm leading-relaxed text-white/90 sm:text-base">{game.featuredText}</p>
+                  </div>
+                </div>
+              )}
+
               {/* 텍스트 컨텐츠 */}
               <div className="relative flex min-h-[300px] flex-col justify-end p-8 sm:min-h-[380px] sm:max-w-[58%]">
                 <span className="mb-3 w-fit rounded-full bg-white/20 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
