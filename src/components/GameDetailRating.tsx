@@ -11,7 +11,7 @@ export default function GameDetailRating({
   initialAvg: number;
   initialCount: number;
 }) {
-  const t = useTranslations("Games");
+  const t = useTranslations("GameDetail");
   const [avg,     setAvg]     = useState(initialAvg);
   const [count,   setCount]   = useState(initialCount);
   const [hovered, setHovered] = useState(0);
