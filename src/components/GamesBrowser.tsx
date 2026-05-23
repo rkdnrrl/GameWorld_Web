@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import GameCard, { type Game, type GameCategory } from "@/components/GameCard";
 import AdBanner from "@/components/AdBanner";
 import FeaturedGamesCarousel from "@/components/FeaturedGamesCarousel";
+import { useLocale } from "next-intl";
 import { SESSION_CHANGE_EVENT, session, api, type GameCategory as ApiCategory } from "@/lib/api";
 import { loadLastGameId, saveLastGameId } from "@/lib/lastGame";
 
@@ -20,7 +21,8 @@ function gameHrefWithToken(baseUrl: string, token: string | null): string {
 }
 
 export default function GamesBrowser({ games }: Props) {
-  const t = useTranslations("Games");
+  const t      = useTranslations("Games");
+  const locale = useLocale();
 
   const [query,      setQuery]     = useState("");
   const [activeCat,  setActiveCat] = useState<GameCategory | "all">("all");
@@ -60,7 +62,9 @@ export default function GamesBrowser({ games }: Props) {
     let list = games.filter((g) => {
       if (activeCat !== "all" && (g.category ?? "other") !== activeCat) return false;
       if (!q) return true;
-      return `${g.title} ${g.description} ${g.tags.join(" ")}`.toLowerCase().includes(q);
+      const title = (g as Game & { titlesI18n?: Record<string,string> }).titlesI18n?.[locale] || g.title;
+      const desc  = (g as Game & { descriptionsI18n?: Record<string,string> }).descriptionsI18n?.[locale] || g.description;
+      return `${title} ${desc} ${g.tags.join(" ")}`.toLowerCase().includes(q);
     });
     if (sortBy === "popular") list = [...list].sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0));
     else if (sortBy === "rating") list = [...list].sort((a, b) => (b.ratingAvg ?? 0) - (a.ratingAvg ?? 0));

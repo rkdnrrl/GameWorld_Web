@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { SESSION_CHANGE_EVENT, session } from "@/lib/api";
 import { saveLastGameId } from "@/lib/lastGame";
@@ -108,8 +108,11 @@ function Stars({
 
 // ── 카드 ─────────────────────────────────────────────────────────────────────
 export default function GameCard({ game }: { game: Game }) {
-  const t = useTranslations("Games");
+  const t      = useTranslations("Games");
+  const locale = useLocale();
   const router = useRouter();
+  const localTitle = game.titlesI18n?.[locale] || game.title;
+  const localDesc  = game.descriptionsI18n?.[locale] || game.description;
   const [token,       setToken]       = useState<string | null>(null);
   const [ratingAvg,   setRatingAvg]   = useState(game.ratingAvg   ?? 0);
   const [ratingCount, setRatingCount] = useState(game.ratingCount ?? 0);
@@ -151,7 +154,7 @@ export default function GameCard({ game }: { game: Game }) {
         {game.thumbnailUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={game.thumbnailUrl} alt={game.title}
+            src={game.thumbnailUrl} alt={localTitle}
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
@@ -197,7 +200,7 @@ export default function GameCard({ game }: { game: Game }) {
 
         {/* 타이틀 */}
         <h2 className="line-clamp-2 text-[13px] font-semibold leading-snug text-gray-900">
-          {game.title}
+          {localTitle}
         </h2>
 
         {/* 개발자 이름 */}
