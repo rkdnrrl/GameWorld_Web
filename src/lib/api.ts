@@ -100,6 +100,7 @@ export type UgcGame = {
   kind: "official" | "community";
   status: "pending" | "published" | "rejected" | "hidden";
   category: "earn" | "multiplay" | "decorate" | "other";
+  genre: string | null;
   storagePath: string;
   externalUrl: string | null;
   thumbnailUrl: string | null;
