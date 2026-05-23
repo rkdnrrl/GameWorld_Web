@@ -719,7 +719,10 @@
     "mediaApplied": "メディアが更新されました。",
     "mediaPending": "審査申請しました。運営者承認後に反映されます。",
     "mediaUploadFail": "アップロード失敗",
-    "mediaCancelSuccess": "メディア審査申請を取り消しました。"
+    "mediaCancelSuccess": "メディア審査申請を取り消しました。",
+    "chooseFile": "ファイルを選択",
+    "noFileSelected": "未選択",
+    "filesSelected": "{n}件選択"
   },
   "ManageGames": {
     "breadcrumb": "運営 · ゲーム管理",

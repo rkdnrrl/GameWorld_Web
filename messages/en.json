@@ -719,7 +719,10 @@
     "mediaApplied": "Media updated.",
     "mediaPending": "Submitted for review. Will be applied after operator approval.",
     "mediaUploadFail": "Upload failed",
-    "mediaCancelSuccess": "Media review submission cancelled."
+    "mediaCancelSuccess": "Media review submission cancelled.",
+    "chooseFile": "Choose File",
+    "noFileSelected": "No file selected",
+    "filesSelected": "{n} files selected"
   },
   "ManageGames": {
     "breadcrumb": "Operator · Game Management",

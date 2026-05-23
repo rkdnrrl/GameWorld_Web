@@ -719,7 +719,10 @@
     "mediaApplied": "미디어가 업데이트됐습니다.",
     "mediaPending": "검수 신청됐습니다. 운영자 승인 후 적용됩니다.",
     "mediaUploadFail": "업로드 실패",
-    "mediaCancelSuccess": "미디어 검수 신청이 취소됐습니다."
+    "mediaCancelSuccess": "미디어 검수 신청이 취소됐습니다.",
+    "chooseFile": "파일 선택",
+    "noFileSelected": "선택된 파일 없음",
+    "filesSelected": "{n}개 선택됨"
   },
   "ManageGames": {
     "breadcrumb": "운영자 · 게임 관리",

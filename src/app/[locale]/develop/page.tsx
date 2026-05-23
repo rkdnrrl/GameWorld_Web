@@ -157,6 +157,34 @@ function DetailPreviewModal({ title, description, emoji, category, tags, thumbna
   );
 }
 
+/** 네이티브 file input을 숨기고 커스텀 버튼을 표시하는 래퍼 */
+function FileInput({ id, accept, multiple, disabled, onChange, fileName, chooseLabel, noFileLabel, variant = "primary" }: {
+  id: string;
+  accept: string;
+  multiple?: boolean;
+  disabled?: boolean;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  fileName?: string | null;
+  chooseLabel: string;
+  noFileLabel: string;
+  variant?: "primary" | "secondary";
+}) {
+  const btnCls = variant === "primary"
+    ? "rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 cursor-pointer"
+    : "rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-60 cursor-pointer dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200";
+  return (
+    <div className="flex items-center gap-3">
+      <label htmlFor={id} className={btnCls} style={disabled ? { pointerEvents: "none", opacity: 0.6 } : {}}>
+        {chooseLabel}
+      </label>
+      <input id={id} type="file" accept={accept} multiple={multiple} disabled={disabled} onChange={onChange} className="sr-only" />
+      <span className="text-sm text-zinc-500 dark:text-zinc-400 truncate max-w-xs">
+        {fileName || noFileLabel}
+      </span>
+    </div>
+  );
+}
+
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 type Category = string;
 const LANGS = ["ko", "en", "ja", "zh"] as const;
@@ -594,19 +622,16 @@ export default function DevelopPage() {
       <form onSubmit={(e) => void onSubmit(e)} className="space-y-5">
         <div>
           <label className="mb-1 block text-sm font-medium">{t("fieldGamezip")}</label>
-          <input
+          <FileInput
             id="gamezip-input"
-            type="file"
             accept=".zip,application/zip"
             onChange={onFileChange}
             disabled={submitting}
-            className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-blue-600 file:px-3 file:py-2 file:text-white hover:file:bg-blue-700 disabled:opacity-60"
+            fileName={file ? `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB` : null}
+            chooseLabel={t("chooseFile")}
+            noFileLabel={t("noFileSelected")}
+            variant="primary"
           />
-          {file && (
-            <p className="mt-1 text-xs text-zinc-500">
-              {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB
-            </p>
-          )}
         </div>
 
         <div>
@@ -657,13 +682,15 @@ export default function DevelopPage() {
           <label className="mb-1 block text-sm font-medium">
             {t("fieldThumbnail")} <span className="font-normal text-zinc-500">{t("thumbnailHint")}</span>
           </label>
-          <input
+          <FileInput
             id="thumbnail-input"
-            type="file"
             accept="image/jpeg,image/png,image/webp"
             onChange={onThumbnailChange}
             disabled={submitting}
-            className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-zinc-700 hover:file:bg-zinc-200 disabled:opacity-60 dark:file:bg-zinc-800 dark:file:text-zinc-200"
+            fileName={thumbnail?.name ?? null}
+            chooseLabel={t("chooseFile")}
+            noFileLabel={t("noFileSelected")}
+            variant="secondary"
           />
           {thumbnailPreview && (
             <img src={thumbnailPreview} alt="preview" className="mt-2 h-32 w-auto rounded-lg object-cover ring-1 ring-zinc-200" />
@@ -691,17 +718,16 @@ export default function DevelopPage() {
           <label className="mb-1 block text-sm font-medium">
             {t("fieldDemoVideo")} <span className="font-normal text-zinc-500">{t("demoVideoHint")}</span>
           </label>
-          <input
+          <FileInput
             id="video-input"
-            type="file"
             accept="video/mp4,video/webm"
             onChange={onDemoVideoChange}
             disabled={submitting}
-            className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-zinc-700 hover:file:bg-zinc-200 disabled:opacity-60 dark:file:bg-zinc-800 dark:file:text-zinc-200"
+            fileName={demoVideo ? `${demoVideo.name} · ${(demoVideo.size / 1024 / 1024).toFixed(1)} MB` : null}
+            chooseLabel={t("chooseFile")}
+            noFileLabel={t("noFileSelected")}
+            variant="secondary"
           />
-          {demoVideo && (
-            <p className="mt-1 text-xs text-zinc-500">{demoVideo.name} · {(demoVideo.size / 1024 / 1024).toFixed(1)} MB</p>
-          )}
         </div>
 
         {/* ── 스크린샷 ── */}
@@ -709,13 +735,16 @@ export default function DevelopPage() {
           <label className="mb-1 block text-sm font-medium">
             {t("fieldScreenshots")} <span className="font-normal text-zinc-500">{t("screenshotsHint")}</span>
           </label>
-          <input
-            type="file"
+          <FileInput
+            id="screenshots-input"
             accept="image/jpeg,image/png,image/webp"
             multiple
             disabled={submitting}
             onChange={(e) => setScreenshots(Array.from(e.target.files ?? []).slice(0, 5))}
-            className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-zinc-700 hover:file:bg-zinc-200 disabled:opacity-60 dark:file:bg-zinc-800 dark:file:text-zinc-200"
+            fileName={screenshots.length > 0 ? t("filesSelected", { n: screenshots.length }) : null}
+            chooseLabel={t("chooseFile")}
+            noFileLabel={t("noFileSelected")}
+            variant="secondary"
           />
         </div>
 
@@ -1090,16 +1119,18 @@ export default function DevelopPage() {
                 )}
                 <div className="space-y-2">
                   <div>
-                    <label className="mb-1 block text-xs text-zinc-500">{t("metaNewThumb")}</label>
-                    <input type="file" accept="image/jpeg,image/png,image/webp"
+                    <p className="mb-1 text-xs text-zinc-500">{t("metaNewThumb")}</p>
+                    <FileInput id="meta-thumb-input" accept="image/jpeg,image/png,image/webp"
                       onChange={(e) => setMetaThumb(e.target.files?.[0] ?? null)}
-                      className="block w-full text-xs file:mr-2 file:rounded file:border-0 file:bg-zinc-200 file:px-2 file:py-1 file:text-xs dark:file:bg-zinc-700" />
+                      fileName={metaThumb?.name ?? null}
+                      chooseLabel={t("chooseFile")} noFileLabel={t("noFileSelected")} variant="secondary" />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs text-zinc-500">{t("metaNewVideo")}</label>
-                    <input type="file" accept="video/mp4,video/webm"
+                    <p className="mb-1 text-xs text-zinc-500">{t("metaNewVideo")}</p>
+                    <FileInput id="meta-video-input" accept="video/mp4,video/webm"
                       onChange={(e) => setMetaVideo(e.target.files?.[0] ?? null)}
-                      className="block w-full text-xs file:mr-2 file:rounded file:border-0 file:bg-zinc-200 file:px-2 file:py-1 file:text-xs dark:file:bg-zinc-700" />
+                      fileName={metaVideo?.name ?? null}
+                      chooseLabel={t("chooseFile")} noFileLabel={t("noFileSelected")} variant="secondary" />
                   </div>
                 </div>
               </div>

@@ -719,7 +719,10 @@
     "mediaApplied": "媒体已更新。",
     "mediaPending": "已提交审核，运营者批准后生效。",
     "mediaUploadFail": "上传失败",
-    "mediaCancelSuccess": "已取消媒体审核申请。"
+    "mediaCancelSuccess": "已取消媒体审核申请。",
+    "chooseFile": "选择文件",
+    "noFileSelected": "未选择文件",
+    "filesSelected": "已选择{n}个"
   },
   "ManageGames": {
     "breadcrumb": "运营 · 游戏管理",
