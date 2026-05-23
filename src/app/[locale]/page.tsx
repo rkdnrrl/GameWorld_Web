@@ -46,11 +46,7 @@ interface PostItem {
 
 // ─── 유틸 ─────────────────────────────────────────────────────────────────────
 
-type Category = "all" | "earn" | "multiplay" | "decorate" | "other";
-
-const CAT_EMOJI: Record<string, string> = {
-  earn: "💰", multiplay: "🎮", decorate: "🏠", other: "🎲",
-};
+interface GenreItem { slug: string; labelKo: string; labelEn: string; emoji: string; }
 
 function timeShort(iso: string, t: (k: string, v?: Record<string, string | number>) => string) {
   const diff = (Date.now() - new Date(iso).getTime()) / 1000;
