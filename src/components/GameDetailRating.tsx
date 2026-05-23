@@ -81,7 +81,7 @@ export default function GameDetailRating({
       {/* 내 평점 입력 */}
       {token ? (
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500">{myRating > 0 ? "내 평점:" : "평가하기:"}</span>
+          <span className="text-sm text-gray-500">{myRating > 0 ? t("ratingMine") : t("ratingLabel")}</span>
           <div className="flex">
             {[1, 2, 3, 4, 5].map((n) => (
               <button
