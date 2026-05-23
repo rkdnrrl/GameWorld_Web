@@ -824,7 +824,7 @@ export const api = {
   },
 
   /** 운영자: 메타 직접 수정 (검수 없이 즉시 반영) */
-  operatorEditMeta(token: string, slug: string, data: { title?: string; description?: string; emoji?: string; category?: string; tags?: string[] }) {
+  operatorEditMeta(token: string, slug: string, data: { title?: string; description?: string; emoji?: string; category?: string; tags?: string[]; titlesI18n?: Record<string,string>; descriptionsI18n?: Record<string,string> }) {
     return request<{ ok: true; game: UgcGame }>(`/api/operator/games/${encodeURIComponent(slug)}/meta`, {
       method: "PATCH",
       headers: { ...authHeaders(token), "Content-Type": "application/json" },
