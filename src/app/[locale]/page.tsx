@@ -111,7 +111,7 @@ export default function Home() {
   const featured     = games.filter(g => g.isFeatured).slice(0, 3);
   const filteredGames = cat === "all"
     ? games
-    : games.filter(g => g.category === cat);
+    : games.filter(g => g.genre === cat);
   const latestGames  = filteredGames.slice(0, 9);
   const hotGames     = [...games].sort((a, b) => b.playCount - a.playCount).slice(0, 7);
 
