@@ -95,7 +95,7 @@ export default async function GameDetailPage({
             <div className="pointer-events-none absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-black/10" />
             {game.thumbnailUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={game.thumbnailUrl} alt={game.title} className="h-full w-full object-cover" />
+              <img src={game.thumbnailUrl} alt={localTitle} className="h-full w-full object-cover" />
             ) : (
               <span className="relative text-8xl drop-shadow-lg">{game.emoji}</span>
             )}
