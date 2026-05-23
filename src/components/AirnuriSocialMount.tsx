@@ -64,15 +64,15 @@ export default function AirnuriSocialMount() {
     // SDK 마운트
     mountSdk();
 
-    // 현재 세션에 유저가 있으면 즉시 ensure
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) ensureUser(session.user, session.access_token);
-    });
-
-    // 로그인 / 토큰 갱신 시 ensure 재호출
+    // INITIAL_SESSION: 구독 시작 시 현재 세션으로 1회 호출 (getSession 중복 제거)
+    // SIGNED_IN: 명시적 로그인
+    // TOKEN_REFRESHED: 토큰 갱신
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.user) {
+        if (
+          (event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "TOKEN_REFRESHED") &&
+          session?.user
+        ) {
           ensureUser(session.user, session.access_token);
         }
       },
