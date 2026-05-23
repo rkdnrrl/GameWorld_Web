@@ -139,9 +139,9 @@ export default async function GameDetailPage({
             </div>
 
             {/* 설명 */}
-            {game.description && (
+            {localDesc && (
               <p className="mb-5 whitespace-pre-line text-sm leading-relaxed text-gray-600">
-                {game.description}
+                {localDesc}
               </p>
             )}
 
