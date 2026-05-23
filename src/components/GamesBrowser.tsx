@@ -5,14 +5,11 @@ import { useTranslations } from "next-intl";
 import GameCard, { type Game, type GameCategory } from "@/components/GameCard";
 import AdBanner from "@/components/AdBanner";
 import FeaturedGamesCarousel from "@/components/FeaturedGamesCarousel";
-import { SESSION_CHANGE_EVENT, session } from "@/lib/api";
+import { SESSION_CHANGE_EVENT, session, api, type GameCategory as ApiCategory } from "@/lib/api";
 import { loadLastGameId, saveLastGameId } from "@/lib/lastGame";
 
 type Props = { games: Game[] };
-const FILTER_CATEGORIES: GameCategory[] = ["earn", "multiplay", "decorate", "other"];
-const CAT_ICON: Record<string, string> = {
-  all: "🎮", earn: "💰", multiplay: "👥", decorate: "🎨", other: "🎲",
-};
+const DEFAULT_ICON = "🎮";
 
 function gameHrefWithToken(baseUrl: string, token: string | null): string {
   const u = String(baseUrl || "").trim();
