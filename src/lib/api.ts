@@ -112,6 +112,7 @@ export type UgcGame = {
   pendingMediaRejectReason: string | null;
   titlesI18n: Record<string, string> | null;
   descriptionsI18n: Record<string, string> | null;
+  featuredTextsI18n: Record<string, string> | null;
   pendingTitle: string | null;
   pendingDescription: string | null;
   pendingEmoji: string | null;
