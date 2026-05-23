@@ -119,7 +119,15 @@
     "official": "공식",
     "community": "커뮤니티",
     "online": "명 접속",
-    "loading": "불러오는 중…"
+    "loading": "불러오는 중…",
+    "noticeBadge": "공지",
+    "gameCategoryHeader": "🎮 게임 카테고리",
+    "communityFree": "자유",
+    "communityQna": "질문",
+    "communityTips": "팁",
+    "communityShowcase": "자랑",
+    "devCardDesc": "누구든 게임을 만들어\n올릴 수 있어요 🚀",
+    "devCardCta": "개발자로 시작하기 →"
   },
   "Login": {
     "title": "로그인",

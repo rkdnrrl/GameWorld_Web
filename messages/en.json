@@ -119,7 +119,15 @@
     "official": "Official",
     "community": "Community",
     "online": "online",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "noticeBadge": "Notice",
+    "gameCategoryHeader": "🎮 Categories",
+    "communityFree": "General",
+    "communityQna": "Q&A",
+    "communityTips": "Tips",
+    "communityShowcase": "Showcase",
+    "devCardDesc": "Anyone can publish\na game here 🚀",
+    "devCardCta": "Become a Developer →"
   },
   "Login": {
     "title": "Login",

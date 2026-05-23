@@ -51,11 +51,11 @@ const CAT_EMOJI: Record<string, string> = {
   earn: "💰", multiplay: "🎮", decorate: "🏠", other: "🎲",
 };
 
-function timeShort(iso: string) {
+function timeShort(iso: string, t: (k: string, v?: Record<string, string | number>) => string) {
   const diff = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (diff < 3600)  return `${Math.floor(diff / 60)}분 전`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
-  return `${Math.floor(diff / 86400)}일 전`;
+  if (diff < 3600)  return t("minutesAgo", { n: Math.floor(diff / 60) });
+  if (diff < 86400) return t("hoursAgo",   { n: Math.floor(diff / 3600) });
+  return t("daysAgo", { n: Math.floor(diff / 86400) });
 }
 
 function fmtDate(iso: string) {
@@ -133,7 +133,7 @@ export default function Home() {
         <div className="bg-[#1a1f36] px-4 py-1.5">
           <div className="mx-auto flex max-w-[1280px] items-center gap-3 overflow-hidden">
             <span className="shrink-0 rounded bg-blue-500 px-1.5 py-0.5 text-[0.65rem] font-bold text-white">
-              공지
+              {t("noticeBadge")}
             </span>
             <div className="flex gap-6 overflow-x-auto whitespace-nowrap scrollbar-none text-[0.78rem] text-gray-300">
               {notices.slice(0, 3).map(n => (
@@ -155,7 +155,7 @@ export default function Home() {
           {/* 게임 카테고리 */}
           <div className="mb-4 rounded bg-white shadow-sm">
             <div className="border-b border-gray-200 px-3 py-2">
-              <span className="text-xs font-bold text-gray-700">🎮 게임 카테고리</span>
+              <span className="text-xs font-bold text-gray-700">{t("gameCategoryHeader")}</span>
             </div>
             <ul className="py-1">
               {([
@@ -363,12 +363,15 @@ export default function Home() {
                   <tbody className="divide-y divide-gray-100">
                     {posts.map(p => {
                       const CAT_LABEL: Record<string, string> = {
-                        free: "자유", qna: "질문", tips: "팁", showcase: "자랑",
+                        free:     t("communityFree"),
+                        qna:      t("communityQna"),
+                        tips:     t("communityTips"),
+                        showcase: t("communityShowcase"),
                       };
                       const CAT_COLOR: Record<string, string> = {
-                        free: "text-blue-600 bg-blue-50",
-                        qna:  "text-amber-600 bg-amber-50",
-                        tips: "text-green-600 bg-green-50",
+                        free:     "text-blue-600 bg-blue-50",
+                        qna:      "text-amber-600 bg-amber-50",
+                        tips:     "text-green-600 bg-green-50",
                         showcase: "text-purple-600 bg-purple-50",
                       };
                       return (
@@ -392,7 +395,7 @@ export default function Home() {
                             )}
                           </td>
                           <td className="py-2 pr-3 text-gray-400 whitespace-nowrap w-[4.5rem] text-right hidden sm:table-cell">
-                            {timeShort(p.createdAt)}
+                            {timeShort(p.createdAt, t)}
                           </td>
                         </tr>
                       );
@@ -494,14 +497,14 @@ export default function Home() {
           {/* 플랫폼 정보 카드 */}
           <div className="rounded bg-gradient-to-br from-blue-600 to-purple-700 p-4 text-white shadow-sm">
             <p className="mb-1 text-xs font-bold opacity-80">ALP Platform</p>
-            <p className="mb-3 text-sm font-semibold leading-snug">
-              누구든 게임을 만들어<br />올릴 수 있어요 🚀
+            <p className="mb-3 whitespace-pre-line text-sm font-semibold leading-snug">
+              {t("devCardDesc")}
             </p>
             <Link
               href="/develop"
               className="block rounded bg-white/20 px-3 py-1.5 text-center text-xs font-semibold hover:bg-white/30 transition-colors"
             >
-              개발자로 시작하기 →
+              {t("devCardCta")}
             </Link>
           </div>
         </aside>

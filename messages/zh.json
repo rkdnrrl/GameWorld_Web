@@ -119,7 +119,15 @@
     "official": "官方",
     "community": "社区",
     "online": "人在线",
-    "loading": "加载中…"
+    "loading": "加载中…",
+    "noticeBadge": "公告",
+    "gameCategoryHeader": "🎮 游戏分类",
+    "communityFree": "自由",
+    "communityQna": "提问",
+    "communityTips": "攻略",
+    "communityShowcase": "炫耀",
+    "devCardDesc": "任何人都可以\n发布游戏 🚀",
+    "devCardCta": "成为开发者 →"
   },
   "Login": {
     "title": "登录",
