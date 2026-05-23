@@ -20,6 +20,7 @@ type MyGame = {
   kind: string;
   status: string;
   category: string;
+  genre?: string | null;
   tags?: unknown;
   version: number;
   updatedAt: string;
