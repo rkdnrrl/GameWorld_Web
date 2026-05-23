@@ -1,4 +1,4 @@
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import Link from "next/link";
 import GamePlayButton    from "@/components/GamePlayButton";
 import GameComments     from "@/components/GameComments";
