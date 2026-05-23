@@ -281,6 +281,7 @@ export default function DevelopPage() {
     setMetaForm({
       emoji: g.emoji,
       category: g.category,
+      genre: g.genre ?? "",
       tagsRaw: Array.isArray(g.tags) ? (g.tags as string[]).join(", ") : "",
     });
     setMetaI18nTitles({ ko: gi.titlesI18n?.ko ?? g.title, en: gi.titlesI18n?.en ?? "", ja: gi.titlesI18n?.ja ?? "", zh: gi.titlesI18n?.zh ?? "" });
@@ -306,6 +307,7 @@ export default function DevelopPage() {
           description: metaI18nDescs.ko || metaI18nDescs.en || "",
           emoji: metaForm.emoji,
           category: metaForm.category,
+          genre: metaForm.genre || undefined,
           tags,
           titlesI18n: metaI18nTitles,
           descriptionsI18n: metaI18nDescs,
