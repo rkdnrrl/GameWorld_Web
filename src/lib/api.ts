@@ -71,6 +71,16 @@ export type SignupResponse =
   | AuthResponse
   | { requiresEmailConfirmation: true; email: string; message: string };
 
+/** 게임 카테고리(장르) */
+export type GameGenre = {
+  slug: string;
+  labelKo: string;
+  labelEn: string;
+  emoji: string;
+  sortOrder: number;
+  createdAt: string;
+};
+
 /** UGC 플랫폼 — games 테이블 한 행 */
 export type GameCategory = {
   slug: string;
