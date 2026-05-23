@@ -774,7 +774,7 @@ export const api = {
   },
 
   /** 유저: 메타데이터 수정 신청 (검수 대기) */
-  submitPendingMeta(token: string, slug: string, data: { title?: string; description?: string; emoji?: string; category?: string; tags?: string[] }) {
+  submitPendingMeta(token: string, slug: string, data: { title?: string; description?: string; emoji?: string; category?: string; tags?: string[]; titlesI18n?: Record<string,string>; descriptionsI18n?: Record<string,string> }) {
     return request<{ ok: true; game: UgcGame }>(`/api/games/${encodeURIComponent(slug)}/pending-meta`, {
       method: "PATCH",
       headers: { ...authHeaders(token), "Content-Type": "application/json" },
