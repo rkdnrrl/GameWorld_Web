@@ -49,8 +49,13 @@ const CAT_TEXT: Record<string, string> = {
   other:     "text-violet-600",
 };
 
+// 동적 카테고리 폴백용 (i18n 키 없는 경우)
 const STATIC_CAT_LABEL: Record<string, string> = {
   earn:"돈 버는 게임", multiplay:"멀티플레이", decorate:"꾸미기", other:"기타",
+};
+const CAT_I18N_KEY: Record<string, string> = {
+  earn: "categoryEarn", multiplay: "categoryMultiplay",
+  decorate: "categoryDecorate", other: "categoryOther",
 };
 
 function gameHrefWithToken(baseUrl: string, token: string): string {
@@ -189,7 +194,7 @@ export default function GameCard({ game }: { game: Game }) {
         {/* 카테고리 + 공식 뱃지 */}
         <div className="flex items-center gap-1.5">
           <span className={`text-[11px] font-medium ${CAT_TEXT[cat] ?? CAT_TEXT.other}`}>
-            {STATIC_CAT_LABEL[cat] ?? cat}
+            {CAT_I18N_KEY[cat] ? t(CAT_I18N_KEY[cat] as Parameters<typeof t>[0]) : (STATIC_CAT_LABEL[cat] ?? cat)}
           </span>
           {game.kind === "official" && (
             <span className="rounded bg-indigo-100 px-1.5 py-px text-[10px] font-semibold text-indigo-600">

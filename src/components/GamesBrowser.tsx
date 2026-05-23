@@ -110,7 +110,9 @@ export default function GamesBrowser({ games }: Props) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600">{t("continueLabel")}</p>
-            <p className="truncate text-sm font-semibold text-gray-900">{lastGame.title}</p>
+            <p className="truncate text-sm font-semibold text-gray-900">
+              {(lastGame as Game & { titlesI18n?: Record<string,string> }).titlesI18n?.[locale] || lastGame.title}
+            </p>
           </div>
           <span className="shrink-0 rounded bg-[#0170bd] px-4 py-2 text-xs font-semibold text-white transition-colors group-hover:bg-blue-700">
             {t("continueButton")}
