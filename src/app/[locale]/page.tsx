@@ -12,6 +12,7 @@ interface GameItem {
   description: string;
   emoji: string;
   category: string;
+  genre?: string | null;
   kind: "official" | "community";
   thumbnailUrl: string | null;
   playCount: number;
