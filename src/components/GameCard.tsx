@@ -195,6 +195,29 @@ export default function GameCard({ game }: { game: Game }) {
           {game.title}
         </h2>
 
+        {/* 개발자 이름 */}
+        {game.ownerNickname && (
+          <span
+            role="link"
+            tabIndex={0}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              router.push(`/developer/${encodeURIComponent(game.ownerNickname!)}`);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                e.stopPropagation();
+                router.push(`/developer/${encodeURIComponent(game.ownerNickname!)}`);
+              }
+            }}
+            className="w-fit cursor-pointer text-[11px] text-gray-400 hover:text-blue-600 hover:underline"
+          >
+            {game.ownerNickname}
+          </span>
+        )}
+
         {/* 별점 */}
         <Stars avg={ratingAvg} count={ratingCount} canRate={!!token} onRate={handleRate} />
 
