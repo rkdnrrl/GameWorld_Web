@@ -218,7 +218,7 @@ export default function DevelopPage() {
 
   // 메타 수정 모달
   const [metaEditGame, setMetaEditGame] = useState<MyGame | null>(null);
-  const [metaForm, setMetaForm] = useState({ title: "", description: "", emoji: "", category: "", tagsRaw: "" });
+  const [metaForm, setMetaForm] = useState({ emoji: "", category: "", tagsRaw: "" });
   const [metaLang, setMetaLang] = useState<Lang>("ko");
   const [metaI18nTitles, setMetaI18nTitles] = useState<Record<Lang, string>>({ ko: "", en: "", ja: "", zh: "" });
   const [metaI18nDescs,  setMetaI18nDescs]  = useState<Record<Lang, string>>({ ko: "", en: "", ja: "", zh: "" });
@@ -259,8 +259,6 @@ export default function DevelopPage() {
   function openMetaEdit(g: MyGame) {
     const gi = g as MyGame & { titlesI18n?: Record<string,string>; descriptionsI18n?: Record<string,string> };
     setMetaForm({
-      title: g.title,
-      description: g.description ?? "",
       emoji: g.emoji,
       category: g.category,
       tagsRaw: Array.isArray(g.tags) ? (g.tags as string[]).join(", ") : "",
@@ -281,11 +279,11 @@ export default function DevelopPage() {
     setMetaSubmitting(true);
     try {
       const tags = metaForm.tagsRaw.split(",").map((s) => s.trim()).filter(Boolean);
-      const primaryTitle = metaI18nTitles.ko || metaI18nTitles.en || metaI18nTitles.ja || metaI18nTitles.zh || metaForm.title;
+      const primaryTitle = metaI18nTitles.ko || metaI18nTitles.en || metaI18nTitles.ja || metaI18nTitles.zh;
       await import("@/lib/api").then(({ api }) =>
         api.submitPendingMeta(tk, metaEditGame.slug, {
           title: primaryTitle,
-          description: metaI18nDescs.ko || metaI18nDescs.en || metaForm.description,
+          description: metaI18nDescs.ko || metaI18nDescs.en || "",
           emoji: metaForm.emoji,
           category: metaForm.category,
           tags,
