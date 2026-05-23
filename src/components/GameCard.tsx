@@ -26,6 +26,7 @@ export type Game = {
   ratingAvg?: number | null;
   ratingCount?: number | null;
   isFeatured?: boolean;
+  ownerNickname?: string | null;
 };
 
 // 카테고리별 색상 (썸네일 bg + 텍스트)
