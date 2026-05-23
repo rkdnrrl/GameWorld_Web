@@ -100,19 +100,19 @@ export default function OperatorCategoriesPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-8 p-6">
       <div>
-        <h1 className="text-xl font-bold text-zinc-900 dark:text-white">🗂 카테고리 관리</h1>
-        <p className="mt-1 text-sm text-zinc-500">게임 카테고리를 추가·수정·삭제합니다. 삭제 시 해당 카테고리를 사용 중인 게임이 없어야 합니다.</p>
+        <h1 className="text-xl font-bold text-zinc-900 dark:text-white">🗂 게임 유형 관리</h1>
+        <p className="mt-1 text-sm text-zinc-500">게임 유형을 추가·수정·삭제합니다. 삭제 시 해당 유형을 사용 중인 게임이 없어야 합니다.</p>
       </div>
 
       {err && <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950/30 dark:text-red-400">{err}</p>}
 
       {/* 카테고리 목록 */}
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300">현재 카테고리</h2>
+        <h2 className="mb-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300">현재 게임 유형</h2>
         {cats === null ? (
           <p className="text-sm text-zinc-400">로딩 중…</p>
         ) : cats.length === 0 ? (
-          <p className="text-sm text-zinc-400">카테고리가 없습니다.</p>
+          <p className="text-sm text-zinc-400">게임 유형이 없습니다.</p>
         ) : (
           <ul className="divide-y divide-zinc-100 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-700">
             {cats.map((cat) => (
@@ -145,7 +145,7 @@ export default function OperatorCategoriesPage() {
 
       {/* 카테고리 추가 */}
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300">새 카테고리 추가</h2>
+        <h2 className="mb-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300">새 게임 유형 추가</h2>
         <form onSubmit={(e) => void onAdd(e)} className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 space-y-3 dark:border-zinc-700 dark:bg-zinc-800/40">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -192,7 +192,7 @@ export default function OperatorCategoriesPage() {
           {addErr && <p className="text-xs text-red-500">{addErr}</p>}
           <button type="submit" disabled={adding}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
-            {adding ? "추가 중…" : "+ 카테고리 추가"}
+            {adding ? "추가 중…" : "+ 게임 유형 추가"}
           </button>
         </form>
       </section>
@@ -203,7 +203,7 @@ export default function OperatorCategoriesPage() {
           <form onSubmit={(e) => void onEdit(e)} onClick={(e) => e.stopPropagation()}
             className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-zinc-900">
             <h3 className="mb-4 text-base font-bold text-zinc-900 dark:text-white">
-              카테고리 수정 — <code className="font-mono text-sm">{editCat.slug}</code>
+              게임 유형 수정 —<code className="font-mono text-sm">{editCat.slug}</code>
             </h3>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
@@ -246,9 +246,9 @@ export default function OperatorCategoriesPage() {
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setDeleteConfirm(null)}>
           <div className="rounded-xl bg-white p-6 shadow-xl dark:bg-zinc-900" onClick={(e) => e.stopPropagation()}>
-            <p className="mb-1 font-semibold text-zinc-800 dark:text-white">카테고리 삭제</p>
+            <p className="mb-1 font-semibold text-zinc-800 dark:text-white">게임 유형 삭제</p>
             <p className="mb-4 text-sm text-zinc-500">
-              <code className="font-mono">{deleteConfirm}</code> 을 삭제합니다. 이 카테고리를 사용 중인 게임이 있으면 삭제할 수 없습니다.
+              <code className="font-mono">{deleteConfirm}</code> 을 삭제합니다. 이 유형을 사용 중인 게임이 있으면 삭제할 수 없습니다.
             </p>
             <div className="flex justify-end gap-2">
               <button onClick={() => setDeleteConfirm(null)}
