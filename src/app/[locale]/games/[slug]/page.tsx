@@ -159,10 +159,10 @@ export default async function GameDetailPage({
             {/* 통계 */}
             <div className="mb-6 flex flex-wrap gap-4 text-sm text-gray-400">
               {game.playCount > 0 && (
-                <span>👁 {game.playCount.toLocaleString()} 플레이</span>
+                <span>👁 {t("plays", { count: game.playCount.toLocaleString() })}</span>
               )}
               {game.publishedAt && (
-                <span>📅 {new Date(game.publishedAt).toLocaleDateString("ko-KR")}</span>
+                <span>📅 {new Date(game.publishedAt).toLocaleDateString(locale)}</span>
               )}
             </div>
 
