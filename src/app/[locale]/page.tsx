@@ -85,7 +85,8 @@ export default function Home() {
   const [notices, setNotices]       = useState<AnnouncementItem[]>([]);
   const [posts, setPosts]           = useState<PostItem[]>([]);
   const [hotPosts, setHotPosts]     = useState<PostItem[]>([]);
-  const [cat, setCat]               = useState<Category>("all");
+  const [genres, setGenres]         = useState<GenreItem[]>([]);
+  const [cat, setCat]               = useState<string>("all");
   const [dataReady, setDataReady]   = useState(false);
 
   // ── 데이터 로드 ──
