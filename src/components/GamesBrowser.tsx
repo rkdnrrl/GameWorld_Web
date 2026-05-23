@@ -63,7 +63,8 @@ export default function GamesBrowser({ games }: Props) {
       return `${g.title} ${g.description} ${g.tags.join(" ")}`.toLowerCase().includes(q);
     });
     if (sortBy === "popular") list = [...list].sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0));
-    if (sortBy === "rating")  list = [...list].sort((a, b) => (b.ratingAvg  ?? 0) - (a.ratingAvg  ?? 0));
+    else if (sortBy === "rating") list = [...list].sort((a, b) => (b.ratingAvg ?? 0) - (a.ratingAvg ?? 0));
+    else list = [...list].sort((a, b) => (a.kind === "official" ? 0 : 1) - (b.kind === "official" ? 0 : 1));
     return list;
   }, [games, activeCat, query, sortBy]);
 
