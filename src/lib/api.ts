@@ -766,6 +766,37 @@ export const api = {
     return request<{ categories: GameCategory[] }>("/api/categories");
   },
 
+  /** 장르 목록 (공개) */
+  getGenres() {
+    return request<{ genres: GameGenre[] }>("/api/genres");
+  },
+
+  /** 운영자: 장르 추가 */
+  operatorCreateGenre(token: string, data: { slug: string; labelKo: string; labelEn: string; emoji?: string; sortOrder?: number }) {
+    return request<{ ok: true; genre: GameGenre }>("/api/operator/genres", {
+      method: "POST",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  /** 운영자: 장르 수정 */
+  operatorUpdateGenre(token: string, slug: string, data: { labelKo?: string; labelEn?: string; emoji?: string; sortOrder?: number }) {
+    return request<{ ok: true; genre: GameGenre }>(`/api/operator/genres/${encodeURIComponent(slug)}`, {
+      method: "PATCH",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  /** 운영자: 장르 삭제 */
+  operatorDeleteGenre(token: string, slug: string) {
+    return request<{ ok: true }>(`/api/operator/genres/${encodeURIComponent(slug)}`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+    });
+  },
+
   /** 운영자: 카테고리 추가 */
   operatorCreateCategory(token: string, data: { slug: string; labelKo: string; labelEn: string; emoji?: string; sortOrder?: number }) {
     return request<{ ok: true; category: GameCategory }>("/api/operator/categories", {
