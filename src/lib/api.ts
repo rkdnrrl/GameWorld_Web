@@ -733,6 +733,37 @@ export const api = {
     );
   },
 
+  /** 카테고리 목록 (공개) */
+  getCategories() {
+    return request<{ categories: GameCategory[] }>("/api/categories");
+  },
+
+  /** 운영자: 카테고리 추가 */
+  operatorCreateCategory(token: string, data: { slug: string; labelKo: string; labelEn: string; emoji?: string; sortOrder?: number }) {
+    return request<{ ok: true; category: GameCategory }>("/api/operator/categories", {
+      method: "POST",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  /** 운영자: 카테고리 수정 */
+  operatorUpdateCategory(token: string, slug: string, data: { labelKo?: string; labelEn?: string; emoji?: string; sortOrder?: number }) {
+    return request<{ ok: true; category: GameCategory }>(`/api/operator/categories/${encodeURIComponent(slug)}`, {
+      method: "PATCH",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  /** 운영자: 카테고리 삭제 */
+  operatorDeleteCategory(token: string, slug: string) {
+    return request<{ ok: true }>(`/api/operator/categories/${encodeURIComponent(slug)}`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+    });
+  },
+
   /** 유저: 메타데이터 수정 신청 (검수 대기) */
   submitPendingMeta(token: string, slug: string, data: { title?: string; description?: string; emoji?: string; category?: string; tags?: string[] }) {
     return request<{ ok: true; game: UgcGame }>(`/api/games/${encodeURIComponent(slug)}/pending-meta`, {
