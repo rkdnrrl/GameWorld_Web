@@ -2,7 +2,7 @@
 
 import { Link } from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { api, session, ApiError, type UgcGame } from "@/lib/api";
 import { useTranslations } from "next-intl";
 
@@ -23,6 +23,10 @@ export default function OperatorManageGamesPage() {
   // 삭제 확인: slug 를 정확히 입력해야 활성화
   const [deleteFor, setDeleteFor] = useState<string | null>(null);
   const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
+  // 운영자 직접 메타 수정
+  const [metaEditGame, setMetaEditGame] = useState<UgcGame | null>(null);
+  const [metaForm, setMetaForm] = useState({ title: "", description: "", emoji: "", category: "", tagsRaw: "" });
+  const [metaSubmitting, setMetaSubmitting] = useState(false);
 
   // 필터
   const [filterKind, setFilterKind] = useState<"all" | "official" | "community">("all");
@@ -88,6 +92,38 @@ export default function OperatorManageGamesPage() {
       setActionError(err instanceof Error ? err.message : "설정 실패");
     } finally {
       setActingSlug(null);
+    }
+  }
+
+  function openMetaEdit(g: UgcGame) {
+    setMetaForm({
+      title: g.title,
+      description: g.description ?? "",
+      emoji: g.emoji,
+      category: g.category,
+      tagsRaw: Array.isArray(g.tags) ? (g.tags as string[]).join(", ") : "",
+    });
+    setMetaEditGame(g);
+  }
+
+  async function onOperatorMeta(e: React.FormEvent) {
+    e.preventDefault();
+    if (!metaEditGame) return;
+    const tk = session.getToken();
+    if (!tk) return;
+    setMetaSubmitting(true);
+    try {
+      const tags = metaForm.tagsRaw.split(",").map((s) => s.trim()).filter(Boolean);
+      const res = await api.operatorEditMeta(tk, metaEditGame.slug, {
+        title: metaForm.title, description: metaForm.description,
+        emoji: metaForm.emoji, category: metaForm.category, tags,
+      });
+      setGames((prev) => prev?.map((g) => g.slug === metaEditGame.slug ? { ...g, ...res.game } : g) ?? null);
+      setMetaEditGame(null);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "수정 실패");
+    } finally {
+      setMetaSubmitting(false);
     }
   }
 
@@ -282,6 +318,13 @@ export default function OperatorManageGamesPage() {
                       {g.isFeatured ? "⭐ 피처드 해제" : "☆ 피처드 설정"}
                     </button>
                   )}
+                  {/* 정보 직접 수정 */}
+                  <button
+                    onClick={() => openMetaEdit(g)}
+                    className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+                  >
+                    ✏️ 정보 수정
+                  </button>
                   {/* 공개/비공개 토글 */}
                   {(g.status === "published" || g.status === "hidden") && (
                     <button
@@ -352,6 +395,62 @@ export default function OperatorManageGamesPage() {
             </li>
           ))}
         </ul>
+      )}
+
+      {/* ── 운영자 직접 메타 수정 모달 ── */}
+      {metaEditGame && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setMetaEditGame(null)}>
+          <form onSubmit={(e) => void onOperatorMeta(e)} onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl dark:bg-zinc-900">
+            <h3 className="mb-1 text-base font-bold text-zinc-900 dark:text-white">✏️ 정보 직접 수정</h3>
+            <p className="mb-4 text-xs text-zinc-500">운영자 수정은 검수 없이 즉시 반영됩니다 — <span className="font-semibold">{metaEditGame.slug}</span></p>
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <div className="w-16">
+                  <label className="mb-1 block text-xs text-zinc-500">이모지</label>
+                  <input value={metaForm.emoji} onChange={(e) => setMetaForm((f) => ({ ...f, emoji: e.target.value }))}
+                    className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-center text-lg dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
+                </div>
+                <div className="flex-1">
+                  <label className="mb-1 block text-xs text-zinc-500">제목</label>
+                  <input required value={metaForm.title} onChange={(e) => setMetaForm((f) => ({ ...f, title: e.target.value }))}
+                    className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-zinc-500">설명</label>
+                <textarea rows={3} value={metaForm.description} onChange={(e) => setMetaForm((f) => ({ ...f, description: e.target.value }))}
+                  className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="mb-1 block text-xs text-zinc-500">카테고리</label>
+                  <select value={metaForm.category} onChange={(e) => setMetaForm((f) => ({ ...f, category: e.target.value }))}
+                    className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white">
+                    <option value="earn">돈 버는 게임</option>
+                    <option value="multiplay">멀티플레이</option>
+                    <option value="decorate">꾸미기</option>
+                    <option value="other">기타</option>
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="mb-1 block text-xs text-zinc-500">태그 (쉼표 구분)</label>
+                  <input value={metaForm.tagsRaw} onChange={(e) => setMetaForm((f) => ({ ...f, tagsRaw: e.target.value }))}
+                    placeholder="퍼즐, 액션"
+                    className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
+                </div>
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setMetaEditGame(null)}
+                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300">취소</button>
+              <button type="submit" disabled={metaSubmitting}
+                className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50">
+                {metaSubmitting ? "저장 중…" : "즉시 반영"}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
     </div>
   );

@@ -33,6 +33,13 @@ type MyGame = {
   pendingDemoVideoUrl?: string | null;
   pendingMediaAt?: string | null;
   pendingMediaRejectReason?: string | null;
+  pendingTitle?: string | null;
+  pendingDescription?: string | null;
+  pendingEmoji?: string | null;
+  pendingCategory?: string | null;
+  pendingTags?: string[] | null;
+  pendingMetaAt?: string | null;
+  pendingMetaRejectReason?: string | null;
 };
 
 const CAT_BG: Record<string, string> = {
@@ -201,6 +208,11 @@ export default function DevelopPage() {
   const [showDetailPreview, setShowDetailPreview] = useState(false);
   const [detailPreviewGame, setDetailPreviewGame] = useState<MyGame | null>(null);
   const [myToken, setMyToken] = useState<string | null>(null);
+  // 메타 수정 모달
+  const [metaEditGame, setMetaEditGame] = useState<MyGame | null>(null);
+  const [metaForm, setMetaForm] = useState({ title: "", description: "", emoji: "", category: "", tagsRaw: "" });
+  const [metaSubmitting, setMetaSubmitting] = useState(false);
+  const [metaCancelConfirm, setMetaCancelConfirm] = useState<string | null>(null);
 
   useEffect(() => { setMyToken(session.getToken()); }, []);
 
@@ -229,6 +241,51 @@ export default function DevelopPage() {
   useEffect(() => {
     void loadMyGames();
   }, []);
+
+  function openMetaEdit(g: MyGame) {
+    setMetaForm({
+      title: g.title,
+      description: g.description ?? "",
+      emoji: g.emoji,
+      category: g.category,
+      tagsRaw: Array.isArray(g.tags) ? (g.tags as string[]).join(", ") : "",
+    });
+    setMetaEditGame(g);
+  }
+
+  async function onSubmitMeta(e: React.FormEvent) {
+    e.preventDefault();
+    if (!metaEditGame) return;
+    const tk = session.getToken();
+    if (!tk) return;
+    setMetaSubmitting(true);
+    try {
+      const tags = metaForm.tagsRaw.split(",").map((s) => s.trim()).filter(Boolean);
+      await import("@/lib/api").then(({ api }) =>
+        api.submitPendingMeta(tk, metaEditGame.slug, {
+          title: metaForm.title,
+          description: metaForm.description,
+          emoji: metaForm.emoji,
+          category: metaForm.category,
+          tags,
+        })
+      );
+      await loadMyGames();
+      setMetaEditGame(null);
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setMetaSubmitting(false);
+    }
+  }
+
+  async function onCancelMeta(slug: string) {
+    const tk = session.getToken();
+    if (!tk) return;
+    await import("@/lib/api").then(({ api }) => api.cancelPendingMeta(tk, slug));
+    setMetaCancelConfirm(null);
+    await loadMyGames();
+  }
 
   async function onReupload(slugTarget: string, picked: File) {
     const tk = session.getToken();
@@ -833,8 +890,15 @@ export default function DevelopPage() {
                       )}
                     </div>
                   </div>
-                  {/* 미디어 수정 버튼 + 검수 대기 뱃지 */}
+                  {/* 수정 버튼들 + 검수 대기 뱃지 */}
                   <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openMetaEdit(g)}
+                      className="text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 underline"
+                    >
+                      ✏️ 정보 수정
+                    </button>
                     <button
                       type="button"
                       onClick={() => setMediaEditSlug((prev) => prev === g.slug ? null : g.slug)}
@@ -842,6 +906,15 @@ export default function DevelopPage() {
                     >
                       🖼 썸네일 · 영상 수정
                     </button>
+                    {g.pendingMetaAt && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                        정보 수정 검수 대기 중
+                        <button onClick={() => setMetaCancelConfirm(g.slug)} className="ml-1 opacity-60 hover:opacity-100">✕</button>
+                      </span>
+                    )}
+                    {g.pendingMetaRejectReason && !g.pendingMetaAt && (
+                      <span className="text-[10px] text-red-500">정보 수정 거절: {g.pendingMetaRejectReason}</span>
+                    )}
                     {g.pendingMediaAt && (
                       <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
                         미디어 검수 대기 중
@@ -1006,6 +1079,82 @@ export default function DevelopPage() {
           publishedAt={detailPreviewGame.publishedAt}
           onClose={() => setDetailPreviewGame(null)}
         />
+      )}
+
+      {/* ── 메타 수정 모달 ── */}
+      {metaEditGame && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setMetaEditGame(null)}>
+          <form
+            onSubmit={(e) => void onSubmitMeta(e)}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl dark:bg-zinc-900"
+          >
+            <h3 className="mb-4 text-base font-bold text-zinc-900 dark:text-white">✏️ 게임 정보 수정 — {metaEditGame.slug}</h3>
+            <p className="mb-4 rounded bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+              수정 내용은 운영자 검수 후 반영됩니다.
+            </p>
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <div className="w-16">
+                  <label className="mb-1 block text-xs text-zinc-500">이모지</label>
+                  <input value={metaForm.emoji} onChange={(e) => setMetaForm((f) => ({ ...f, emoji: e.target.value }))}
+                    className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-center text-lg dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
+                </div>
+                <div className="flex-1">
+                  <label className="mb-1 block text-xs text-zinc-500">제목</label>
+                  <input required value={metaForm.title} onChange={(e) => setMetaForm((f) => ({ ...f, title: e.target.value }))}
+                    className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-zinc-500">설명</label>
+                <textarea rows={3} value={metaForm.description} onChange={(e) => setMetaForm((f) => ({ ...f, description: e.target.value }))}
+                  className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="mb-1 block text-xs text-zinc-500">카테고리</label>
+                  <select value={metaForm.category} onChange={(e) => setMetaForm((f) => ({ ...f, category: e.target.value }))}
+                    className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white">
+                    <option value="earn">돈 버는 게임</option>
+                    <option value="multiplay">멀티플레이</option>
+                    <option value="decorate">꾸미기</option>
+                    <option value="other">기타</option>
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="mb-1 block text-xs text-zinc-500">태그 (쉼표 구분)</label>
+                  <input value={metaForm.tagsRaw} onChange={(e) => setMetaForm((f) => ({ ...f, tagsRaw: e.target.value }))}
+                    placeholder="퍼즐, 액션, 멀티"
+                    className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
+                </div>
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setMetaEditGame(null)}
+                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300">
+                취소
+              </button>
+              <button type="submit" disabled={metaSubmitting}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+                {metaSubmitting ? "신청 중…" : "검수 신청"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ── 메타 취소 확인 ── */}
+      {metaCancelConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setMetaCancelConfirm(null)}>
+          <div className="rounded-xl bg-white p-6 shadow-xl dark:bg-zinc-900" onClick={(e) => e.stopPropagation()}>
+            <p className="mb-4 text-sm text-zinc-700 dark:text-zinc-300">정보 수정 신청을 취소할까요?</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setMetaCancelConfirm(null)} className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600">닫기</button>
+              <button onClick={() => void onCancelMeta(metaCancelConfirm)} className="rounded bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700">취소 확인</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

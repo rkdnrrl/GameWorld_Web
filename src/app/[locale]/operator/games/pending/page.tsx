@@ -464,6 +464,60 @@ export default function OperatorPendingGamesPage() {
         <h2 className="text-lg font-semibold">🖼 미디어 검수 대기</h2>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">썸네일·데모영상 단독 수정 신청 목록입니다.</p>
 
+        {/* ── 정보 수정 검수 ── */}
+        {pendingMeta !== null && pendingMeta.length > 0 && (
+          <section className="rounded-xl border border-amber-200 bg-amber-50/50 p-6 dark:border-amber-800 dark:bg-amber-950/20">
+            <h2 className="mb-4 text-base font-bold text-amber-900 dark:text-amber-200">✏️ 정보 수정 검수 대기 ({pendingMeta.length})</h2>
+            <ul className="space-y-4">
+              {pendingMeta.map((g) => (
+                <li key={g.slug} className="rounded-lg border border-amber-200 bg-white p-4 dark:border-amber-800 dark:bg-zinc-900">
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="font-semibold text-zinc-800 dark:text-white">{g.slug}</span>
+                    <span className="text-xs text-zinc-400">{g.pendingMetaAt ? new Date(g.pendingMetaAt).toLocaleString("ko") : ""}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="mb-1 text-xs font-medium text-zinc-500">현재</p>
+                      <p><span className="text-zinc-400 text-xs">제목:</span> {g.title}</p>
+                      <p><span className="text-zinc-400 text-xs">이모지:</span> {g.emoji}</p>
+                      <p><span className="text-zinc-400 text-xs">카테고리:</span> {g.category}</p>
+                      <p className="text-xs text-zinc-400 mt-1 line-clamp-2">{g.description}</p>
+                    </div>
+                    <div className="rounded-md bg-amber-50 p-2 dark:bg-amber-950/30">
+                      <p className="mb-1 text-xs font-medium text-amber-700 dark:text-amber-300">신청 내용</p>
+                      {g.pendingTitle && <p><span className="text-zinc-400 text-xs">제목:</span> {g.pendingTitle}</p>}
+                      {g.pendingEmoji && <p><span className="text-zinc-400 text-xs">이모지:</span> {g.pendingEmoji}</p>}
+                      {g.pendingCategory && <p><span className="text-zinc-400 text-xs">카테고리:</span> {g.pendingCategory}</p>}
+                      {g.pendingDescription && <p className="text-xs text-zinc-400 mt-1 line-clamp-2">{g.pendingDescription}</p>}
+                      {g.pendingTags && <p className="text-xs text-zinc-400">태그: {(g.pendingTags as string[]).join(", ")}</p>}
+                    </div>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <button onClick={() => void onApproveMeta(g.slug)} disabled={actingSlug !== null}
+                      className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60">
+                      {actingSlug === g.slug ? "처리 중…" : "✓ 승인"}
+                    </button>
+                    <button onClick={() => setRejectMetaFor(g.slug)}
+                      className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-700 dark:bg-zinc-800 dark:text-red-400">
+                      거절
+                    </button>
+                  </div>
+                  {rejectMetaFor === g.slug && (
+                    <div className="mt-3 space-y-2">
+                      <textarea rows={2} placeholder="거절 사유" value={rejectMetaReason} onChange={(e) => setRejectMetaReason(e.target.value)}
+                        className="w-full rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
+                      <button onClick={() => void onRejectMeta(g.slug)} disabled={actingSlug !== null || !rejectMetaReason.trim()}
+                        className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60">
+                        거절 확인
+                      </button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {pendingMedia === null ? (
           <p className="mt-4 text-sm text-zinc-500">{tCommon("loading")}</p>
         ) : pendingMedia.length === 0 ? (
