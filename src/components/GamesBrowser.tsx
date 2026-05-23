@@ -46,8 +46,11 @@ export default function GamesBrowser({ games }: Props) {
     cat === "all" ? DEFAULT_ICON : (categories.find((c) => c.slug === cat)?.emoji ?? DEFAULT_ICON);
 
   const counts = useMemo(() => {
-    const c = new Map<GameCategory, number>();
-    for (const g of games) c.set((g.category ?? "other") as GameCategory, (c.get((g.category ?? "other") as GameCategory) ?? 0) + 1);
+    const c = new Map<string, number>();
+    for (const g of games) {
+      const cat = g.category ?? "other";
+      c.set(cat, (c.get(cat) ?? 0) + 1);
+    }
     return c;
   }, [games]);
 
