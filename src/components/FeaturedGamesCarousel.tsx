@@ -125,9 +125,9 @@ export default function FeaturedGamesCarousel({ games }: { games: Game[] }) {
                 <h2 className="mb-2 text-3xl font-bold leading-tight text-white drop-shadow-lg sm:text-4xl">
                   {game.titlesI18n?.[locale] || game.title}
                 </h2>
-                {game.description && (
+                {(game.descriptionsI18n?.[locale] || game.description) && (
                   <p className="mb-5 line-clamp-2 text-sm text-white/70 sm:text-base">
-                    {game.description}
+                    {game.descriptionsI18n?.[locale] || game.description}
                   </p>
                 )}
                 <div className="flex flex-wrap gap-3">
