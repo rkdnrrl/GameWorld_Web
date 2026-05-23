@@ -57,8 +57,8 @@ export default async function GameDetailPage({
   const tg     = await getTranslations("Games");
   const locale = await getLocale();
   const game   = await getGame(slug);
-  const localTitle = game?.titlesI18n?.[locale] || game?.title;
-  const localDesc  = game?.descriptionsI18n?.[locale] || game?.description;
+  const localTitle = game?.titlesI18n?.[locale] || game?.titlesI18n?.['en'] || game?.title;
+  const localDesc  = game?.descriptionsI18n?.[locale] || game?.descriptionsI18n?.['en'] || game?.description;
 
   if (!game) {
     return (
