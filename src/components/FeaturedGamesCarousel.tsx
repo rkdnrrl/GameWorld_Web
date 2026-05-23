@@ -99,17 +99,21 @@ export default function FeaturedGamesCarousel({ games }: { games: Game[] }) {
                 <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" />
               </div>
 
-              {/* 우측 피처드 설명 */}
+              {/* 피처드 텍스트 — 운영자가 설정한 위치에 표시 */}
               {game.featuredText && (
-                <div className="absolute right-0 top-0 hidden h-full w-[44%] items-center justify-center p-10 sm:flex">
-                  <div className="relative max-w-xs text-right">
-                    {/* 장식 따옴표 */}
-                    <span className="absolute -top-6 right-0 text-5xl font-black leading-none text-white/15 select-none">"</span>
-                    <p className="text-xl font-black leading-snug tracking-tight text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)] sm:text-2xl">
-                      {game.featuredText}
-                    </p>
-                    <span className="absolute -bottom-6 left-0 text-5xl font-black leading-none text-white/15 select-none rotate-180">"</span>
-                  </div>
+                <div
+                  className="absolute hidden sm:block pointer-events-none"
+                  style={{
+                    left: `${game.featuredTextX ?? 75}%`,
+                    top: `${game.featuredTextY ?? 50}%`,
+                    transform: "translate(-50%, -50%)",
+                    maxWidth: "36%",
+                    zIndex: 5,
+                  }}
+                >
+                  <p className="text-center text-xl font-black leading-snug tracking-tight text-white drop-shadow-[0_2px_16px_rgba(0,0,0,0.9)] sm:text-2xl">
+                    {game.featuredText}
+                  </p>
                 </div>
               )}
 

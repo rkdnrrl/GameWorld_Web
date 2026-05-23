@@ -79,10 +79,15 @@ export default function OperatorManageGamesPage() {
 
   const [featuredModal, setFeaturedModal] = useState<UgcGame | null>(null);
   const [featuredText,  setFeaturedText]  = useState("");
+  const [featuredX,     setFeaturedX]     = useState(75);
+  const [featuredY,     setFeaturedY]     = useState(50);
   const [featureSaving, setFeatureSaving] = useState(false);
 
   function openFeaturedModal(g: UgcGame) {
-    setFeaturedText((g as UgcGame & { featuredText?: string }).featuredText ?? "");
+    const gg = g as UgcGame & { featuredText?: string; featuredTextX?: number; featuredTextY?: number };
+    setFeaturedText(gg.featuredText ?? "");
+    setFeaturedX(gg.featuredTextX ?? 75);
+    setFeaturedY(gg.featuredTextY ?? 50);
     setFeaturedModal(g);
   }
 
@@ -96,7 +101,7 @@ export default function OperatorManageGamesPage() {
       const res = await fetch(`/api/operator/games/${featuredModal.slug}/feature`, {
         method: "POST",
         headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ text: featuredText }),
+        body: JSON.stringify({ text: featuredText, x: featuredX, y: featuredY }),
       });
       if (!res.ok) throw new Error("설정 실패");
       setGames((prev) => prev?.map((g) => g.slug === featuredModal.slug
@@ -478,15 +483,46 @@ export default function OperatorManageGamesPage() {
           <form onSubmit={(e) => void onSubmitFeatured(e)} onClick={(e) => e.stopPropagation()}
             className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl dark:bg-zinc-900">
             <h3 className="mb-1 text-base font-bold text-zinc-900 dark:text-white">⭐ 피처드 설정</h3>
-            <p className="mb-4 text-xs text-zinc-500">
-              <span className="font-semibold">{featuredModal.title}</span> — 캐러셀 우측에 표시될 소개 문구 (최대 300자)
+            <p className="mb-3 text-xs text-zinc-500">
+              <span className="font-semibold">{featuredModal.title}</span> — 배너 위에서 텍스트를 드래그해 위치를 조정하세요
             </p>
+
+            {/* 배너 미리보기 + 드래그 */}
+            <div
+              className="relative mb-3 w-full overflow-hidden rounded-xl bg-zinc-800 select-none"
+              style={{ aspectRatio: "21/9" }}
+              onPointerMove={(e) => {
+                if (e.buttons !== 1) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                setFeaturedX(Math.round(Math.max(5, Math.min(95, (e.clientX - rect.left) / rect.width * 100))));
+                setFeaturedY(Math.round(Math.max(5, Math.min(95, (e.clientY - rect.top) / rect.height * 100))));
+              }}
+            >
+              {featuredModal.thumbnailUrl
+                ? <img src={featuredModal.thumbnailUrl} alt="" className="h-full w-full object-cover pointer-events-none" /> // eslint-disable-line @next/next/no-img-element
+                : <div className="h-full w-full bg-gradient-to-br from-zinc-700 to-zinc-900" />
+              }
+              <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/20 to-transparent pointer-events-none" />
+              {featuredText && (
+                <div
+                  className="absolute cursor-grab active:cursor-grabbing"
+                  style={{ left: `${featuredX}%`, top: `${featuredY}%`, transform: "translate(-50%,-50%)" }}
+                  onPointerDown={(e) => e.currentTarget.parentElement?.setPointerCapture(e.pointerId)}
+                >
+                  <p className="whitespace-pre-wrap text-center text-sm font-black text-white drop-shadow-[0_1px_8px_rgba(0,0,0,1)] sm:text-base">
+                    {featuredText}
+                  </p>
+                  <div className="mt-1 text-center text-[9px] text-white/40">({featuredX}%, {featuredY}%)</div>
+                </div>
+              )}
+            </div>
+
             <textarea
-              rows={5}
+              rows={3}
               value={featuredText}
               onChange={(e) => setFeaturedText(e.target.value)}
               maxLength={300}
-              placeholder="이 게임의 특별한 점을 소개해보세요. 캐러셀 배너 오른쪽에 표시됩니다."
+              placeholder="소개 문구를 입력하면 미리보기에서 드래그로 위치를 조정할 수 있어요"
               className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white"
             />
             <p className="mt-1 text-right text-[10px] text-zinc-400">{featuredText.length}/300</p>
