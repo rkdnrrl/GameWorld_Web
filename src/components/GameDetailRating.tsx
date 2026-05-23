@@ -44,7 +44,7 @@ export default function GameDetailRating({
         setAvg(d.avg);
         setCount(d.count);
         setMyRating(rating);
-        setMessage("평점이 등록됐습니다!");
+        setMessage(t("ratingDone"));
         setTimeout(() => setMessage(""), 2500);
       }
     } finally {
