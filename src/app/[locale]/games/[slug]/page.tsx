@@ -19,6 +19,8 @@ type GameData = {
   slug: string;
   title: string;
   description: string | null;
+  titlesI18n?: Record<string, string> | null;
+  descriptionsI18n?: Record<string, string> | null;
   emoji: string;
   kind: string;
   category: GameCategory;
