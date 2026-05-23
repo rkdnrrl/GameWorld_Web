@@ -496,6 +496,9 @@ export default function DevelopPage() {
           <Link href="/develop/multiplayer" className="rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100 dark:border-violet-700 dark:bg-violet-950/30 dark:text-violet-300 dark:hover:bg-violet-900/40">
             🎮 멀티플레이 가이드
           </Link>
+          <Link href="/develop/inventory" className="rounded-lg border border-teal-300 bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-700 hover:bg-teal-100 dark:border-teal-700 dark:bg-teal-950/30 dark:text-teal-300 dark:hover:bg-teal-900/40">
+            🎒 공유 인벤토리 가이드
+          </Link>
           <Link href="/" className="text-sm text-blue-600 hover:underline dark:text-blue-400">
             {t("backHome")}
           </Link>
