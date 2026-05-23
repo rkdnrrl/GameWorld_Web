@@ -13,7 +13,7 @@ const CAT_GRADIENT: Record<string, string> = {
   other:     "from-violet-600 to-purple-700",
 };
 const CAT_LABEL: Record<string, string> = {
-  earn: "리워드 게임", multiplay: "멀티플레이", decorate: "꾸미기", other: "기타",
+  earn: "돈 버는 게임", multiplay: "멀티플레이", decorate: "꾸미기", other: "기타",
 };
 
 function gameHrefWithToken(url: string, token: string | null): string {
@@ -100,7 +100,7 @@ export default function FeaturedGamesCarousel({ games }: { games: Game[] }) {
               {/* 텍스트 컨텐츠 */}
               <div className="relative flex min-h-[300px] flex-col justify-end p-8 sm:min-h-[380px] sm:max-w-[58%]">
                 <span className="mb-3 w-fit rounded-full bg-white/20 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
-                  {CAT_LABEL[cat] ?? "기타"}
+                  {CAT_LABEL[cat] ?? cat}
                 </span>
                 <h2 className="mb-2 text-3xl font-bold leading-tight text-white drop-shadow-lg sm:text-4xl">
                   {game.title}

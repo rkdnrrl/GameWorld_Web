@@ -40,8 +40,9 @@ export default function GamesBrowser({ games }: Props) {
 
   const catLabel = (cat: GameCategory | "all") => {
     if (cat === "all") return t("filterAll");
-    return categories.find((c) => c.slug === cat)?.labelKo ?? cat;
+    return categories.find((c) => c.slug === cat)?.labelKo ?? STATIC_CAT_LABEL[cat] ?? cat;
   };
+  const STATIC_CAT_LABEL: Record<string,string> = {earn:"돈 버는 게임",multiplay:"멀티플레이",decorate:"꾸미기",other:"기타"};
   const catIcon = (cat: string) =>
     cat === "all" ? DEFAULT_ICON : (categories.find((c) => c.slug === cat)?.emoji ?? DEFAULT_ICON);
 
