@@ -49,13 +49,9 @@ const CAT_BG: Record<string, string> = {
   other:     "from-violet-500 to-purple-600",
 };
 
-const CAT_LABEL: Record<string, string> = {
-  earn: "돈 버는 게임", multiplay: "멀티플레이 게임",
-  decorate: "꾸미기 게임", other: "기타",
-};
-
-function CardPreview({ title, emoji, category, thumbnailUrl }: {
+function CardPreview({ title, emoji, category, thumbnailUrl, noTitle, catLabel }: {
   title: string; emoji: string; category: string; thumbnailUrl: string | null;
+  noTitle: string; catLabel: string;
 }) {
   const gradient = CAT_BG[category] ?? CAT_BG.other;
   return (
@@ -67,35 +63,38 @@ function CardPreview({ title, emoji, category, thumbnailUrl }: {
         }
       </div>
       <div className="p-2">
-        <p className="text-xs font-semibold text-gray-900 line-clamp-1">{title || "(제목 없음)"}</p>
-        <p className="mt-0.5 text-[10px] capitalize text-zinc-400">{CAT_LABEL[category] ?? category}</p>
+        <p className="text-xs font-semibold text-gray-900 line-clamp-1">{title || noTitle}</p>
+        <p className="mt-0.5 text-[10px] capitalize text-zinc-400">{catLabel}</p>
       </div>
     </div>
   );
 }
 
-function DetailPreviewModal({ title, description, emoji, category, tags, thumbnailUrl, ownerNickname, publishedAt, onClose }: {
+function DetailPreviewModal({ title, description, emoji, category, tags, thumbnailUrl, ownerNickname, publishedAt, onClose, td }: {
   title: string; description: string; emoji: string; category: string;
   tags: string[]; thumbnailUrl: string | null; ownerNickname?: string;
   publishedAt?: string | null; onClose: () => void;
+  td: (k: string) => string;
 }) {
   const gradient = CAT_BG[category] ?? CAT_BG.other;
+  const catLabel = {
+    earn: td("catLabelEarn"), multiplay: td("catLabelMultiplay"),
+    decorate: td("catLabelDecorate"), other: td("catLabelOther"),
+  }[category] ?? category;
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
       onClick={onClose}>
       <div className="relative my-8 w-full max-w-2xl rounded-2xl bg-[#f5f5f5] shadow-2xl"
         onClick={(e) => e.stopPropagation()}>
 
-        {/* 미리보기 배너 */}
         <div className="flex items-center justify-between rounded-t-2xl bg-amber-100 px-4 py-2.5 text-xs font-medium text-amber-900">
-          <span>📋 상세 페이지 미리보기</span>
-          <button type="button" onClick={onClose} className="rounded-full bg-amber-200 px-2 py-0.5 hover:bg-amber-300">닫기 ✕</button>
+          <span>{td("previewBanner")}</span>
+          <button type="button" onClick={onClose} className="rounded-full bg-amber-200 px-2 py-0.5 hover:bg-amber-300">{td("previewClose")}</button>
         </div>
 
         <div className="p-4">
           <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-200">
 
-            {/* 썸네일 */}
             <div className={`relative flex h-52 items-center justify-center overflow-hidden bg-gradient-to-br ${gradient}`}>
               <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10" />
               <div className="pointer-events-none absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-black/10" />
@@ -106,34 +105,28 @@ function DetailPreviewModal({ title, description, emoji, category, tags, thumbna
               }
             </div>
 
-            {/* 정보 영역 */}
             <div className="p-6">
               <div className="mb-3 flex flex-wrap gap-2">
-                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
-                  {CAT_LABEL[category] ?? "기타"}
-                </span>
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">{catLabel}</span>
               </div>
 
-              <h1 className="mb-1 text-2xl font-bold text-gray-900">{title || "(제목 없음)"}</h1>
+              <h1 className="mb-1 text-2xl font-bold text-gray-900">{title || td("noTitle")}</h1>
 
               {ownerNickname && (
                 <p className="mb-3 text-sm text-gray-500">
-                  제작자: <span className="font-medium text-blue-600">{ownerNickname}</span>
+                  {td("previewMaker")} <span className="font-medium text-blue-600">{ownerNickname}</span>
                 </p>
               )}
 
-              {/* 별점 — 미리보기용 정적 표시 */}
               <div className="mb-4">
                 <div className="flex items-center gap-2 text-sm text-gray-400">
                   <span className="text-lg text-gray-300">★★★★★</span>
-                  <span>아직 평점이 없습니다</span>
+                  <span>{td("noRating")}</span>
                 </div>
               </div>
 
               {description && (
-                <p className="mb-5 whitespace-pre-line text-sm leading-relaxed text-gray-600">
-                  {description}
-                </p>
+                <p className="mb-5 whitespace-pre-line text-sm leading-relaxed text-gray-600">{description}</p>
               )}
 
               {tags.length > 0 && (
@@ -145,23 +138,19 @@ function DetailPreviewModal({ title, description, emoji, category, tags, thumbna
               )}
 
               <div className="mb-6 flex flex-wrap gap-4 text-sm text-gray-400">
-                {publishedAt && <span>📅 {new Date(publishedAt).toLocaleDateString("ko-KR")}</span>}
+                {publishedAt && <span>📅 {new Date(publishedAt).toLocaleDateString()}</span>}
               </div>
 
               <div className="flex gap-3">
                 <div className="rounded-xl bg-[#0170bd] px-6 py-3 text-sm font-semibold text-white opacity-70">
-                  ▶ 게임 시작
+                  {td("playButton")}
                 </div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-gray-200 bg-white text-xl text-gray-300">
-                  ♡
-                </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-gray-200 bg-white text-xl text-gray-300">♡</div>
               </div>
             </div>
           </div>
 
-          <p className="mt-3 text-center text-[10px] text-zinc-400">
-            실제 게임 상세 페이지와 유사합니다. 댓글·평점은 실제 페이지에서 확인하세요.
-          </p>
+          <p className="mt-3 text-center text-[10px] text-zinc-400">{td("previewNote")}</p>
         </div>
       </div>
     </div>
@@ -375,13 +364,13 @@ export default function DevelopPage() {
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({})) as { error?: { message?: string } };
-        setPerGameMsg((m) => ({ ...m, [slug]: { ok: false, text: d.error?.message || "취소 실패" } }));
+        setPerGameMsg((m) => ({ ...m, [slug]: { ok: false, text: d.error?.message || t("cancelFail") } }));
       } else {
-        setPerGameMsg((m) => ({ ...m, [slug]: { ok: true, text: "업데이트가 취소됐습니다." } }));
+        setPerGameMsg((m) => ({ ...m, [slug]: { ok: true, text: t("cancelUpdateSuccess") } }));
         void loadMyGames();
       }
     } catch {
-      setPerGameMsg((m) => ({ ...m, [slug]: { ok: false, text: "네트워크 오류" } }));
+      setPerGameMsg((m) => ({ ...m, [slug]: { ok: false, text: t("errorNetwork") } }));
     } finally {
       setCancelingSlug(null);
       setCancelConfirmSlug(null);
@@ -400,12 +389,12 @@ export default function DevelopPage() {
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({})) as { error?: { message?: string } };
-        setPerGameMsg((m) => ({ ...m, [slug]: { ok: false, text: d.error?.message || "취소 실패" } }));
+        setPerGameMsg((m) => ({ ...m, [slug]: { ok: false, text: d.error?.message || t("cancelFail") } }));
       } else {
         setMyGames((prev) => prev.filter((g) => g.slug !== slug));
       }
     } catch {
-      setPerGameMsg((m) => ({ ...m, [slug]: { ok: false, text: "네트워크 오류" } }));
+      setPerGameMsg((m) => ({ ...m, [slug]: { ok: false, text: t("errorNetwork") } }));
     } finally {
       setCancelingSlug(null);
       setCancelConfirmSlug(null);
@@ -432,16 +421,16 @@ export default function DevelopPage() {
           ...m,
           [slugTarget]: {
             ok: true,
-            text: data.pending ? "검수 신청됐습니다. 운영자 승인 후 적용됩니다." : "미디어가 업데이트됐습니다.",
+            text: data.pending ? t("mediaPending") : t("mediaApplied"),
           },
         }));
         setMediaEditSlug(null);
         void loadMyGames();
       } else {
-        setPerGameMsg((m) => ({ ...m, [slugTarget]: { ok: false, text: data.error?.message || "업로드 실패" } }));
+        setPerGameMsg((m) => ({ ...m, [slugTarget]: { ok: false, text: data.error?.message || t("mediaUploadFail") } }));
       }
     } catch {
-      setPerGameMsg((m) => ({ ...m, [slugTarget]: { ok: false, text: "네트워크 오류" } }));
+      setPerGameMsg((m) => ({ ...m, [slugTarget]: { ok: false, text: t("errorNetwork") } }));
     } finally {
       setUpdatingMediaSlug(null);
     }
@@ -456,14 +445,14 @@ export default function DevelopPage() {
         headers: { Authorization: `Bearer ${tk}` },
       });
       if (res.ok) {
-        setPerGameMsg((m) => ({ ...m, [slugTarget]: { ok: true, text: "미디어 검수 신청이 취소됐습니다." } }));
+        setPerGameMsg((m) => ({ ...m, [slugTarget]: { ok: true, text: t("mediaCancelSuccess") } }));
         void loadMyGames();
       } else {
         const d = await res.json().catch(() => ({})) as { error?: { message?: string } };
-        setPerGameMsg((m) => ({ ...m, [slugTarget]: { ok: false, text: d.error?.message || "취소 실패" } }));
+        setPerGameMsg((m) => ({ ...m, [slugTarget]: { ok: false, text: d.error?.message || t("cancelFail") } }));
       }
     } catch {
-      setPerGameMsg((m) => ({ ...m, [slugTarget]: { ok: false, text: "네트워크 오류" } }));
+      setPerGameMsg((m) => ({ ...m, [slugTarget]: { ok: false, text: t("errorNetwork") } }));
     }
   }
 
@@ -575,16 +564,16 @@ export default function DevelopPage() {
         </div>
         <div className="flex gap-3">
           <Link href="/develop/profile" className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300 dark:hover:bg-indigo-900/40">
-            👤 프로필 편집
+            {t("navProfile")}
           </Link>
           <Link href="/develop/stats" className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-900/40">
-            📊 통계 보기
+            {t("navStats")}
           </Link>
           <Link href="/develop/multiplayer" className="rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100 dark:border-violet-700 dark:bg-violet-950/30 dark:text-violet-300 dark:hover:bg-violet-900/40">
-            🎮 멀티플레이 가이드
+            {t("navMultiplayer")}
           </Link>
           <Link href="/develop/inventory" className="rounded-lg border border-teal-300 bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-700 hover:bg-teal-100 dark:border-teal-700 dark:bg-teal-950/30 dark:text-teal-300 dark:hover:bg-teal-900/40">
-            🎒 공유 인벤토리 가이드
+            {t("navInventory")}
           </Link>
           <Link href="/" className="text-sm text-blue-600 hover:underline dark:text-blue-400">
             {t("backHome")}
@@ -644,7 +633,7 @@ export default function DevelopPage() {
           </div>
           <input
             type="text"
-            placeholder={`제목 (${LANG_LABEL[titleLang]})`}
+            placeholder={`${t("titlePlaceholder")} (${LANG_LABEL[titleLang]})`}
             value={i18nTitles[titleLang]}
             onChange={(e) => setI18nTitles((p) => ({ ...p, [titleLang]: e.target.value }))}
             maxLength={120}
@@ -652,7 +641,7 @@ export default function DevelopPage() {
             className="mb-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900"
           />
           <textarea
-            placeholder={`설명 (${LANG_LABEL[titleLang]})`}
+            placeholder={`${t("descPlaceholder")} (${LANG_LABEL[titleLang]})`}
             value={i18nDescs[titleLang]}
             onChange={(e) => setI18nDescs((p) => ({ ...p, [titleLang]: e.target.value }))}
             maxLength={2000}
@@ -666,7 +655,7 @@ export default function DevelopPage() {
         {/* ── 썸네일 이미지 ── */}
         <div>
           <label className="mb-1 block text-sm font-medium">
-            🖼 썸네일 이미지 <span className="font-normal text-zinc-500">(선택 · JPG/PNG/WebP · 최대 5MB)</span>
+            {t("fieldThumbnail")} <span className="font-normal text-zinc-500">{t("thumbnailHint")}</span>
           </label>
           <input
             id="thumbnail-input"
@@ -683,15 +672,16 @@ export default function DevelopPage() {
 
         {/* ── 미리보기 ── */}
         <div>
-          <p className="mb-2 text-xs font-medium text-zinc-500">📋 미리보기</p>
+          <p className="mb-2 text-xs font-medium text-zinc-500">{t("previewCard")}</p>
           <div className="flex flex-wrap items-end gap-4">
-            <CardPreview title={title} emoji={emoji || "🎮"} category={category} thumbnailUrl={thumbnailPreview} />
+            <CardPreview title={title} emoji={emoji || "🎮"} category={category} thumbnailUrl={thumbnailPreview}
+              noTitle={t("noTitle")} catLabel={({ earn: t("catLabelEarn"), multiplay: t("catLabelMultiplay"), decorate: t("catLabelDecorate"), other: t("catLabelOther") }[category] ?? category)} />
             <button
               type="button"
               onClick={() => setShowDetailPreview(true)}
               className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
             >
-              🖥 상세 페이지 미리보기
+              {t("previewDetailBtn")}
             </button>
           </div>
         </div>
@@ -699,7 +689,7 @@ export default function DevelopPage() {
         {/* ── 데모 영상 ── */}
         <div>
           <label className="mb-1 block text-sm font-medium">
-            🎬 데모 영상 <span className="font-normal text-zinc-500">(선택 · MP4/WebM · 최대 200MB)</span>
+            {t("fieldDemoVideo")} <span className="font-normal text-zinc-500">{t("demoVideoHint")}</span>
           </label>
           <input
             id="video-input"
@@ -717,7 +707,7 @@ export default function DevelopPage() {
         {/* ── 스크린샷 ── */}
         <div>
           <label className="mb-1 block text-sm font-medium">
-            📸 스크린샷 <span className="font-normal text-zinc-500">(선택 · 최대 5장 · JPG/PNG/WebP · 각 5MB↓)</span>
+            {t("fieldScreenshots")} <span className="font-normal text-zinc-500">{t("screenshotsHint")}</span>
           </label>
           <input
             type="file"
@@ -847,7 +837,7 @@ export default function DevelopPage() {
                           ? `https://play.airliveplay.com/_preview/${g.slug}/`
                           : `https://play.airliveplay.com/${g.slug}/`;
                         const testUrl = myToken ? `${baseUrl}?token=${myToken}` : baseUrl;
-                        const label = hasPending ? "🔍 업데이트 미리보기" : "▶ 테스트 플레이";
+                        const label = hasPending ? t("previewUpdate") : t("testPlay");
                         return (
                           <>
                             <a
@@ -860,10 +850,9 @@ export default function DevelopPage() {
                             </a>
                             <button
                               onClick={() => { setDetailPreviewGame(g); }}
-                              title="게임 상세 페이지가 어떻게 보일지 미리보기"
                               className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
                             >
-                              🖥 상세 미리보기
+                              {t("detailPreview")}
                             </button>
                             <button
                               onClick={() => {
@@ -872,10 +861,9 @@ export default function DevelopPage() {
                                   setTimeout(() => setCopiedSlug(null), 2000);
                                 });
                               }}
-                              title="테스트 URL 복사 — 다른 사람에게 공유해 같이 테스트하세요"
                               className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
                             >
-                              {copiedSlug === g.slug ? "✓ 복사됨" : "🔗 링크 복사"}
+                              {copiedSlug === g.slug ? t("linkCopied") : t("copyLink")}
                             </button>
                           </>
                         );
@@ -908,7 +896,7 @@ export default function DevelopPage() {
                           disabled={isCanceling || isUpdating}
                           className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:bg-zinc-800 dark:text-red-400"
                         >
-                          업데이트 취소
+                          {t("cancelUpdate")}
                         </button>
                       )}
                       {!hasPending && g.status === "pending" && (
@@ -917,7 +905,7 @@ export default function DevelopPage() {
                           disabled={isCanceling || isUpdating}
                           className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:bg-zinc-800 dark:text-red-400"
                         >
-                          배포 취소
+                          {t("cancelSubmission")}
                         </button>
                       )}
                     </div>
@@ -929,19 +917,19 @@ export default function DevelopPage() {
                       onClick={() => openMetaEdit(g)}
                       className="text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 underline"
                     >
-                      ✏️ 정보 수정
+                      {t("editMeta")}
                     </button>
                     {(g.pendingMetaAt || g.pendingMediaAt) && (
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-                        검수 대기 중
+                        {t("pendingReview")}
                         <button onClick={() => setMetaCancelConfirm(g.slug)} className="ml-1 opacity-60 hover:opacity-100">✕</button>
                       </span>
                     )}
                     {g.pendingMetaRejectReason && !g.pendingMetaAt && (
-                      <span className="text-[10px] text-red-500">정보 수정 거절: {g.pendingMetaRejectReason}</span>
+                      <span className="text-[10px] text-red-500">{t("metaRejectPrefix")} {g.pendingMetaRejectReason}</span>
                     )}
                     {g.pendingMediaRejectReason && !g.pendingMediaAt && (
-                      <span className="text-[10px] text-red-500">미디어 거절: {g.pendingMediaRejectReason}</span>
+                      <span className="text-[10px] text-red-500">{t("mediaRejectPrefix")} {g.pendingMediaRejectReason}</span>
                     )}
                   </div>
 
@@ -951,15 +939,15 @@ export default function DevelopPage() {
                     <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/20">
                       <p className="text-xs text-red-800 dark:text-red-300">
                         {cancelKind === "update"
-                          ? `"${g.title}"의 검수 대기 중인 업데이트를 취소합니다. 라이브 버전은 유지됩니다.`
-                          : `"${g.title}"의 배포 신청을 취소하고 삭제합니다. 이 작업은 되돌릴 수 없습니다.`}
+                          ? t("cancelUpdateConfirm", { title: g.title })
+                          : t("cancelSubmissionConfirm", { title: g.title })}
                       </p>
                       <div className="mt-2 flex justify-end gap-2">
                         <button
                           onClick={() => { setCancelConfirmSlug(null); setCancelKind(null); }}
                           className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
                         >
-                          돌아가기
+                          {t("goBack")}
                         </button>
                         <button
                           onClick={() => {
@@ -969,7 +957,7 @@ export default function DevelopPage() {
                           disabled={isCanceling}
                           className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
                         >
-                          {isCanceling ? "처리 중…" : cancelKind === "update" ? "업데이트 취소 확인" : "배포 취소 확인"}
+                          {isCanceling ? t("processing") : cancelKind === "update" ? t("confirmCancelUpdate") : t("confirmCancelSubmission")}
                         </button>
                       </div>
                     </div>
@@ -1003,6 +991,7 @@ export default function DevelopPage() {
           tags={tagsRaw.split(",").map((s) => s.trim()).filter(Boolean)}
           thumbnailUrl={thumbnailPreview}
           onClose={() => setShowDetailPreview(false)}
+          td={t}
         />
       )}
 
@@ -1017,6 +1006,7 @@ export default function DevelopPage() {
           thumbnailUrl={detailPreviewGame.pendingThumbnailUrl ?? detailPreviewGame.thumbnailUrl ?? null}
           publishedAt={detailPreviewGame.publishedAt}
           onClose={() => setDetailPreviewGame(null)}
+          td={t}
         />
       )}
 
@@ -1028,38 +1018,38 @@ export default function DevelopPage() {
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl dark:bg-zinc-900"
           >
-            <h3 className="mb-4 text-base font-bold text-zinc-900 dark:text-white">✏️ 게임 정보 수정 — {metaEditGame.slug}</h3>
+            <h3 className="mb-4 text-base font-bold text-zinc-900 dark:text-white">{t("metaEditTitle")} — {metaEditGame.slug}</h3>
             <p className="mb-4 rounded bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-              수정 내용은 운영자 검수 후 반영됩니다.
+              {t("metaEditNotice")}
             </p>
             <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
               <div className="flex gap-2">
                 <div className="w-16">
-                  <label className="mb-1 block text-xs text-zinc-500">이모지</label>
+                  <label className="mb-1 block text-xs text-zinc-500">{t("metaFieldEmoji")}</label>
                   <input value={metaForm.emoji} onChange={(e) => setMetaForm((f) => ({ ...f, emoji: e.target.value }))}
                     className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-center text-lg dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
                 </div>
                 <div className="flex-1">
                   <div className="mb-1 flex items-center justify-between">
-                    <label className="text-xs text-zinc-500">제목 / 설명</label>
+                    <label className="text-xs text-zinc-500">{t("metaFieldTitleDesc")}</label>
                     <select value={metaLang} onChange={(e) => setMetaLang(e.target.value as Lang)}
                       className="rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-[10px] dark:border-zinc-600 dark:bg-zinc-800 dark:text-white">
                       {LANGS.map((l) => <option key={l} value={l}>{LANG_LABEL[l]}</option>)}
                     </select>
                   </div>
                   <input value={metaI18nTitles[metaLang]} onChange={(e) => setMetaI18nTitles((p) => ({ ...p, [metaLang]: e.target.value }))}
-                    placeholder={`제목 (${LANG_LABEL[metaLang]})`}
+                    placeholder={`${t("titlePlaceholder")} (${LANG_LABEL[metaLang]})`}
                     className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
                 </div>
               </div>
               <div>
                 <textarea rows={3} value={metaI18nDescs[metaLang]} onChange={(e) => setMetaI18nDescs((p) => ({ ...p, [metaLang]: e.target.value }))}
-                  placeholder={`설명 (${LANG_LABEL[metaLang]})`}
+                  placeholder={`${t("descPlaceholder")} (${LANG_LABEL[metaLang]})`}
                   className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
               </div>
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <label className="mb-1 block text-xs text-zinc-500">카테고리</label>
+                  <label className="mb-1 block text-xs text-zinc-500">{t("metaFieldCategory")}</label>
                   <select value={metaForm.category} onChange={(e) => setMetaForm((f) => ({ ...f, category: e.target.value }))}
                     className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white">
                     {categories.map((c) => (
@@ -1068,19 +1058,19 @@ export default function DevelopPage() {
                   </select>
                 </div>
                 <div className="flex-1">
-                  <label className="mb-1 block text-xs text-zinc-500">태그 (쉼표 구분)</label>
+                  <label className="mb-1 block text-xs text-zinc-500">{t("metaFieldTags")}</label>
                   <input value={metaForm.tagsRaw} onChange={(e) => setMetaForm((f) => ({ ...f, tagsRaw: e.target.value }))}
-                    placeholder="퍼즐, 액션, 멀티"
+                    placeholder={t("metaTagsPlaceholder")}
                     className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
                 </div>
               </div>
 
               {/* 썸네일 / 영상 */}
               <div className="border-t border-zinc-200 pt-3 dark:border-zinc-700">
-                <p className="mb-2 text-xs font-medium text-zinc-500">🖼 썸네일 · 🎬 데모 영상</p>
+                <p className="mb-2 text-xs font-medium text-zinc-500">{t("metaMediaSection")}</p>
                 {metaEditGame && (metaEditGame.pendingThumbnailUrl || metaEditGame.thumbnailUrl) && (
                   <div className="mb-2">
-                    <p className="mb-1 text-[10px] text-zinc-400">{metaEditGame.pendingThumbnailUrl ? "검수 대기 중 썸네일" : "현재 썸네일"}</p>
+                    <p className="mb-1 text-[10px] text-zinc-400">{metaEditGame.pendingThumbnailUrl ? t("metaThumbPending") : t("metaThumbCurrent")}</p>
                     <CardPreview
                       title={metaEditGame.title}
                       emoji={metaEditGame.emoji || "🎮"}
@@ -1091,20 +1081,20 @@ export default function DevelopPage() {
                 )}
                 {metaEditGame?.pendingMediaAt && (
                   <div className="mb-2 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300">
-                    미디어 검수 대기 중 —{" "}
+                    {t("metaMediaPending")} —{" "}
                     <button type="button" onClick={() => void onCancelMedia(metaEditGame.slug).then(() => void loadMyGames())}
-                      className="underline hover:no-underline">취소</button>
+                      className="underline hover:no-underline">{t("metaMediaCancelLink")}</button>
                   </div>
                 )}
                 <div className="space-y-2">
                   <div>
-                    <label className="mb-1 block text-xs text-zinc-500">새 썸네일 (JPG/PNG/WebP · 5MB↓)</label>
+                    <label className="mb-1 block text-xs text-zinc-500">{t("metaNewThumb")}</label>
                     <input type="file" accept="image/jpeg,image/png,image/webp"
                       onChange={(e) => setMetaThumb(e.target.files?.[0] ?? null)}
                       className="block w-full text-xs file:mr-2 file:rounded file:border-0 file:bg-zinc-200 file:px-2 file:py-1 file:text-xs dark:file:bg-zinc-700" />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs text-zinc-500">새 데모 영상 (MP4/WebM · 200MB↓)</label>
+                    <label className="mb-1 block text-xs text-zinc-500">{t("metaNewVideo")}</label>
                     <input type="file" accept="video/mp4,video/webm"
                       onChange={(e) => setMetaVideo(e.target.files?.[0] ?? null)}
                       className="block w-full text-xs file:mr-2 file:rounded file:border-0 file:bg-zinc-200 file:px-2 file:py-1 file:text-xs dark:file:bg-zinc-700" />
@@ -1115,11 +1105,11 @@ export default function DevelopPage() {
             <div className="mt-5 flex justify-end gap-2">
               <button type="button" onClick={() => setMetaEditGame(null)}
                 className="rounded-lg border border-zinc-300 px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300">
-                취소
+                {t("metaCancel")}
               </button>
               <button type="submit" disabled={metaSubmitting}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
-                {metaSubmitting ? "신청 중…" : "검수 신청"}
+                {metaSubmitting ? t("metaSubmitting") : t("metaSubmit")}
               </button>
             </div>
           </form>
@@ -1130,10 +1120,10 @@ export default function DevelopPage() {
       {metaCancelConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setMetaCancelConfirm(null)}>
           <div className="rounded-xl bg-white p-6 shadow-xl dark:bg-zinc-900" onClick={(e) => e.stopPropagation()}>
-            <p className="mb-4 text-sm text-zinc-700 dark:text-zinc-300">정보 수정 신청을 취소할까요?</p>
+            <p className="mb-4 text-sm text-zinc-700 dark:text-zinc-300">{t("metaCancelConfirmMsg")}</p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setMetaCancelConfirm(null)} className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600">닫기</button>
-              <button onClick={() => void onCancelMeta(metaCancelConfirm)} className="rounded bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700">취소 확인</button>
+              <button onClick={() => setMetaCancelConfirm(null)} className="rounded border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600">{t("metaCancelClose")}</button>
+              <button onClick={() => void onCancelMeta(metaCancelConfirm)} className="rounded bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700">{t("metaCancelConfirmBtn")}</button>
             </div>
           </div>
         </div>
