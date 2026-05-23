@@ -116,7 +116,7 @@ export default async function GameDetailPage({
             </div>
 
             {/* 제목 */}
-            <h1 className="mb-1 text-2xl font-bold text-gray-900 sm:text-3xl">{game.title}</h1>
+            <h1 className="mb-1 text-2xl font-bold text-gray-900 sm:text-3xl">{localTitle}</h1>
 
             {/* 제작자 */}
             {game.ownerNickname && (
