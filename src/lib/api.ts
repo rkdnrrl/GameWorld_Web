@@ -814,6 +814,15 @@ export const api = {
     });
   },
 
+  /** 운영자: community ↔ official 전환 */
+  operatorSetKind(token: string, slug: string, kind: "official" | "community") {
+    return request<{ ok: true; game: UgcGame }>(`/api/operator/games/${encodeURIComponent(slug)}/set-kind`, {
+      method: "POST",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify({ kind }),
+    });
+  },
+
   /** 운영자: 메타 직접 수정 (검수 없이 즉시 반영) */
   operatorEditMeta(token: string, slug: string, data: { title?: string; description?: string; emoji?: string; category?: string; tags?: string[] }) {
     return request<{ ok: true; game: UgcGame }>(`/api/operator/games/${encodeURIComponent(slug)}/meta`, {
