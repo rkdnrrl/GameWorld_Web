@@ -50,6 +50,9 @@ export default function OperatorPendingGamesPage() {
     api.operatorListPendingMedia(tk)
       .then((res) => setPendingMedia(res.games))
       .catch(() => {});
+    api.operatorListPendingMeta(tk)
+      .then((res) => setPendingMeta(res.games))
+      .catch(() => {});
   }
 
   useEffect(() => {
@@ -66,6 +69,9 @@ export default function OperatorPendingGamesPage() {
       .catch(() => {});
     api.operatorListPendingMedia(tk)
       .then((res) => setPendingMedia(res.games))
+      .catch(() => {});
+    api.operatorListPendingMeta(tk)
+      .then((res) => setPendingMeta(res.games))
       .catch(() => {});
   }, [router, t]);
 
