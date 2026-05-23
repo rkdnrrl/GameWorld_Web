@@ -726,6 +726,56 @@ export const api = {
     );
   },
 
+  /** 유저: 메타데이터 수정 신청 (검수 대기) */
+  submitPendingMeta(token: string, slug: string, data: { title?: string; description?: string; emoji?: string; category?: string; tags?: string[] }) {
+    return request<{ ok: true; game: UgcGame }>(`/api/games/${encodeURIComponent(slug)}/pending-meta`, {
+      method: "PATCH",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  /** 유저: 메타 수정 신청 취소 */
+  cancelPendingMeta(token: string, slug: string) {
+    return request<{ ok: true }>(`/api/games/${encodeURIComponent(slug)}/pending-meta`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+    });
+  },
+
+  /** 운영자: 메타 검수 대기 목록 */
+  operatorListPendingMeta(token: string) {
+    return request<{ games: UgcGame[] }>("/api/operator/games/pending-meta", {
+      headers: authHeaders(token),
+    });
+  },
+
+  /** 운영자: 메타 수정 승인 */
+  operatorApproveMeta(token: string, slug: string) {
+    return request<{ ok: true; game: UgcGame }>(`/api/operator/games/${encodeURIComponent(slug)}/approve-meta`, {
+      method: "POST",
+      headers: authHeaders(token),
+    });
+  },
+
+  /** 운영자: 메타 수정 거부 */
+  operatorRejectMeta(token: string, slug: string, reason: string) {
+    return request<{ ok: true; game: UgcGame }>(`/api/operator/games/${encodeURIComponent(slug)}/reject-meta`, {
+      method: "POST",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  /** 운영자: 메타 직접 수정 (검수 없이 즉시 반영) */
+  operatorEditMeta(token: string, slug: string, data: { title?: string; description?: string; emoji?: string; category?: string; tags?: string[] }) {
+    return request<{ ok: true; game: UgcGame }>(`/api/operator/games/${encodeURIComponent(slug)}/meta`, {
+      method: "PATCH",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
   /** 운영자: 모든 게임 목록 (상태·종류 무관, 관리용) */
   operatorListAllGames(token: string) {
     return request<{ games: UgcGame[] }>("/api/operator/games/all", {
