@@ -26,6 +26,7 @@ export type Game = {
   ratingAvg?: number | null;
   ratingCount?: number | null;
   isFeatured?: boolean;
+  featuredText?: string | null;
   ownerNickname?: string | null;
 };
 
