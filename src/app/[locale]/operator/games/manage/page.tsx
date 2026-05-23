@@ -26,9 +26,12 @@ export default function OperatorManageGamesPage() {
   const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
   // 운영자 직접 메타 수정
   const [categories, setCategories] = useState<GameCategory[]>([]);
-  const [metaEditGame, setMetaEditGame] = useState<UgcGame | null>(null);
-  const [metaForm, setMetaForm] = useState({ title: "", description: "", emoji: "", category: "", tagsRaw: "" });
-  const [metaSubmitting, setMetaSubmitting] = useState(false);
+  const [metaEditGame,    setMetaEditGame]    = useState<UgcGame | null>(null);
+  const [metaForm,        setMetaForm]        = useState({ emoji: "", category: "", tagsRaw: "" });
+  const [metaLang,        setMetaLang]        = useState<Lang>("ko");
+  const [metaI18nTitles,  setMetaI18nTitles]  = useState<Record<Lang,string>>({ ko:"", en:"", ja:"", zh:"" });
+  const [metaI18nDescs,   setMetaI18nDescs]   = useState<Record<Lang,string>>({ ko:"", en:"", ja:"", zh:"" });
+  const [metaSubmitting,  setMetaSubmitting]  = useState(false);
 
   // 필터
   const [filterKind, setFilterKind] = useState<"all" | "official" | "community">("all");
@@ -166,13 +169,11 @@ export default function OperatorManageGamesPage() {
   }
 
   function openMetaEdit(g: UgcGame) {
-    setMetaForm({
-      title: g.title,
-      description: g.description ?? "",
-      emoji: g.emoji,
-      category: g.category,
-      tagsRaw: Array.isArray(g.tags) ? (g.tags as string[]).join(", ") : "",
-    });
+    const gg = g as UgcGame & { titlesI18n?: Record<string,string>; descriptionsI18n?: Record<string,string> };
+    setMetaForm({ emoji: g.emoji, category: g.category, tagsRaw: Array.isArray(g.tags) ? (g.tags as string[]).join(", ") : "" });
+    setMetaI18nTitles({ ko: gg.titlesI18n?.ko ?? g.title, en: gg.titlesI18n?.en ?? "", ja: gg.titlesI18n?.ja ?? "", zh: gg.titlesI18n?.zh ?? "" });
+    setMetaI18nDescs({ ko: gg.descriptionsI18n?.ko ?? g.description ?? "", en: gg.descriptionsI18n?.en ?? "", ja: gg.descriptionsI18n?.ja ?? "", zh: gg.descriptionsI18n?.zh ?? "" });
+    setMetaLang("ko");
     setMetaEditGame(g);
   }
 
@@ -184,9 +185,12 @@ export default function OperatorManageGamesPage() {
     setMetaSubmitting(true);
     try {
       const tags = metaForm.tagsRaw.split(",").map((s) => s.trim()).filter(Boolean);
+      const primaryTitle = metaI18nTitles.ko || metaI18nTitles.en || metaI18nTitles.ja || metaI18nTitles.zh;
       const res = await api.operatorEditMeta(tk, metaEditGame.slug, {
-        title: metaForm.title, description: metaForm.description,
+        title: primaryTitle,
+        description: metaI18nDescs.ko || metaI18nDescs.en || "",
         emoji: metaForm.emoji, category: metaForm.category, tags,
+        titlesI18n: metaI18nTitles, descriptionsI18n: metaI18nDescs,
       });
       setGames((prev) => prev?.map((g) => g.slug === metaEditGame.slug ? { ...g, ...res.game } : g) ?? null);
       setMetaEditGame(null);
@@ -571,14 +575,23 @@ export default function OperatorManageGamesPage() {
                     className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-center text-lg dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
                 </div>
                 <div className="flex-1">
-                  <label className="mb-1 block text-xs text-zinc-500">제목</label>
-                  <input required value={metaForm.title} onChange={(e) => setMetaForm((f) => ({ ...f, title: e.target.value }))}
+                  <div className="mb-1 flex items-center justify-between">
+                    <label className="text-xs text-zinc-500">제목 / 설명</label>
+                    <select value={metaLang} onChange={(e) => setMetaLang(e.target.value as Lang)}
+                      className="rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-[10px] dark:border-zinc-600 dark:bg-zinc-800 dark:text-white">
+                      {LANGS.map((l) => <option key={l} value={l}>{LANG_LABEL[l]}</option>)}
+                    </select>
+                  </div>
+                  <input value={metaI18nTitles[metaLang]}
+                    onChange={(e) => setMetaI18nTitles((p) => ({ ...p, [metaLang]: e.target.value }))}
+                    placeholder={`제목 (${LANG_LABEL[metaLang]})`}
                     className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
                 </div>
               </div>
               <div>
-                <label className="mb-1 block text-xs text-zinc-500">설명</label>
-                <textarea rows={3} value={metaForm.description} onChange={(e) => setMetaForm((f) => ({ ...f, description: e.target.value }))}
+                <textarea rows={3} value={metaI18nDescs[metaLang]}
+                  onChange={(e) => setMetaI18nDescs((p) => ({ ...p, [metaLang]: e.target.value }))}
+                  placeholder={`설명 (${LANG_LABEL[metaLang]})`}
                   className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
               </div>
               <div className="flex gap-2">
