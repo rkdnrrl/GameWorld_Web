@@ -99,6 +99,22 @@ export default function OperatorManageGamesPage() {
     }
   }
 
+  async function onToggleKind(slug: string, currentKind: string) {
+    const tk = session.getToken();
+    if (!tk) return;
+    const newKind = currentKind === "official" ? "community" : "official";
+    setActingSlug(slug);
+    setActionError(null);
+    try {
+      const res = await api.operatorSetKind(tk, slug, newKind);
+      setGames((prev) => prev?.map((g) => g.slug === slug ? { ...g, kind: res.game.kind } : g) ?? null);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "변경 실패");
+    } finally {
+      setActingSlug(null);
+    }
+  }
+
   function openMetaEdit(g: UgcGame) {
     setMetaForm({
       title: g.title,
@@ -322,6 +338,18 @@ export default function OperatorManageGamesPage() {
                       {g.isFeatured ? "⭐ 피처드 해제" : "☆ 피처드 설정"}
                     </button>
                   )}
+                  {/* official ↔ community 전환 */}
+                  <button
+                    onClick={() => void onToggleKind(g.slug, g.kind)}
+                    disabled={actingSlug !== null}
+                    className={`rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-60 ${
+                      g.kind === "official"
+                        ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                        : "border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                    }`}
+                  >
+                    {g.kind === "official" ? "⭐ 공식" : "커뮤니티 → 공식"}
+                  </button>
                   {/* 정보 직접 수정 */}
                   <button
                     onClick={() => openMetaEdit(g)}
