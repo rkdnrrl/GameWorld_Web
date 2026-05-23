@@ -25,21 +25,25 @@ export default function GamesBrowser({ games }: Props) {
   const [query,      setQuery]     = useState("");
   const [activeCat,  setActiveCat] = useState<GameCategory | "all">("all");
   const [sortBy,     setSortBy]    = useState<"default" | "popular" | "rating">("default");
-  const [lastGameId, setLastGameId] = useState<string | null>(null);
-  const [token,      setToken]     = useState<string | null>(null);
+  const [lastGameId,  setLastGameId]  = useState<string | null>(null);
+  const [token,       setToken]       = useState<string | null>(null);
+  const [categories,  setCategories]  = useState<ApiCategory[]>([]);
 
   useEffect(() => {
     setLastGameId(loadLastGameId());
     const sync = () => setToken(session.getToken());
     sync();
     window.addEventListener(SESSION_CHANGE_EVENT, sync);
+    void api.getCategories().then((r) => setCategories(r.categories)).catch(() => {});
     return () => window.removeEventListener(SESSION_CHANGE_EVENT, sync);
   }, []);
 
   const catLabel = (cat: GameCategory | "all") => {
-    const m = { earn: "categoryEarn", multiplay: "categoryMultiplay", decorate: "categoryDecorate", other: "categoryOther" } as const;
-    return cat === "all" ? t("filterAll") : t(m[cat]);
+    if (cat === "all") return t("filterAll");
+    return categories.find((c) => c.slug === cat)?.labelKo ?? cat;
   };
+  const catIcon = (cat: string) =>
+    cat === "all" ? DEFAULT_ICON : (categories.find((c) => c.slug === cat)?.emoji ?? DEFAULT_ICON);
 
   const counts = useMemo(() => {
     const c = new Map<GameCategory, number>();
