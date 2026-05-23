@@ -95,14 +95,13 @@ export default function OperatorManageGamesPage() {
   const setFeaturedText = (v: string) => setFeaturedTextsMap((p) => ({ ...p, [featuredLang]: v }));
 
   function openFeaturedModal(g: UgcGame) {
-    const gg = g as UgcGame & { featuredText?: string; featuredTextX?: number; featuredTextY?: number; featuredTextsI18n?: Record<string,string> };
     const map = { ko: "", en: "", ja: "", zh: "" } as Record<Lang, string>;
-    if (gg.featuredTextsI18n) LANGS.forEach((l) => { map[l] = gg.featuredTextsI18n![l] ?? ""; });
-    else if (gg.featuredText) map.ko = gg.featuredText;
+    if (g.featuredTextsI18n) LANGS.forEach((l) => { map[l] = g.featuredTextsI18n![l] ?? ""; });
+    else if (g.featuredText) map.ko = g.featuredText;
     setFeaturedTextsMap(map);
     setFeaturedLang("ko");
-    setFeaturedX(gg.featuredTextX ?? 75);
-    setFeaturedY(gg.featuredTextY ?? 50);
+    setFeaturedX(g.featuredTextX ?? 75);
+    setFeaturedY(g.featuredTextY ?? 50);
     setFeaturedModal(g);
   }
 
