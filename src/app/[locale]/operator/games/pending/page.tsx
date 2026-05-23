@@ -279,7 +279,7 @@ export default function OperatorPendingGamesPage() {
                   <p className="mt-2 text-xs text-zinc-500">
                     {t("uploadedAt", { date: new Date(g.createdAt).toLocaleString() })}
                     {" · "}
-                    {t("category")}: {t(`category_${g.category}` as const)}
+                    {t("category")}: {({earn:"돈 버는 게임",multiplay:"멀티플레이",decorate:"꾸미기",other:"기타"} as Record<string,string>)[g.category] ?? g.category}
                     {g.ownerUserId && (
                       <>
                         {" · "}
@@ -384,7 +384,7 @@ export default function OperatorPendingGamesPage() {
                     <p className="mt-2 text-xs text-zinc-500">
                       {g.pendingUploadedAt && t("uploadedAt", { date: new Date(g.pendingUploadedAt).toLocaleString() })}
                       {" · "}
-                      {t("category")}: {t(`category_${g.category}` as const)}
+                      {t("category")}: {({earn:"돈 버는 게임",multiplay:"멀티플레이",decorate:"꾸미기",other:"기타"} as Record<string,string>)[g.category] ?? g.category}
                     </p>
                     <p className="mt-1 text-xs">
                       <a
