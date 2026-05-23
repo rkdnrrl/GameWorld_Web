@@ -170,14 +170,21 @@ function DetailPreviewModal({ title, description, emoji, category, tags, thumbna
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 type Category = string;
+const LANGS = ["ko", "en", "ja", "zh"] as const;
+type Lang = typeof LANGS[number];
+const LANG_LABEL: Record<Lang, string> = { ko: "🇰🇷 한국어", en: "🇺🇸 English", ja: "🇯🇵 日本語", zh: "🇨🇳 中文" };
 
 export default function DevelopPage() {
   const router = useRouter();
   const t = useTranslations("Develop");
 
   const [slug, setSlug] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const [titleLang, setTitleLang] = useState<Lang>("ko");
+  const [i18nTitles, setI18nTitles] = useState<Record<Lang, string>>({ ko: "", en: "", ja: "", zh: "" });
+  const [i18nDescs,  setI18nDescs]  = useState<Record<Lang, string>>({ ko: "", en: "", ja: "", zh: "" });
+  // 기존 title/description — i18nTitles.ko와 동기
+  const title = i18nTitles.ko || i18nTitles.en || i18nTitles.ja || i18nTitles.zh;
+  const description = i18nDescs[titleLang];
   const [emoji, setEmoji] = useState("🎮");
   const [category, setCategory] = useState<Category>("other");
   const [tagsRaw, setTagsRaw] = useState("");
@@ -212,6 +219,9 @@ export default function DevelopPage() {
   // 메타 수정 모달
   const [metaEditGame, setMetaEditGame] = useState<MyGame | null>(null);
   const [metaForm, setMetaForm] = useState({ title: "", description: "", emoji: "", category: "", tagsRaw: "" });
+  const [metaLang, setMetaLang] = useState<Lang>("ko");
+  const [metaI18nTitles, setMetaI18nTitles] = useState<Record<Lang, string>>({ ko: "", en: "", ja: "", zh: "" });
+  const [metaI18nDescs,  setMetaI18nDescs]  = useState<Record<Lang, string>>({ ko: "", en: "", ja: "", zh: "" });
   const [metaThumb, setMetaThumb] = useState<File | null>(null);
   const [metaVideo, setMetaVideo] = useState<File | null>(null);
   const [metaSubmitting, setMetaSubmitting] = useState(false);
@@ -247,6 +257,7 @@ export default function DevelopPage() {
   }, []);
 
   function openMetaEdit(g: MyGame) {
+    const gi = g as MyGame & { titlesI18n?: Record<string,string>; descriptionsI18n?: Record<string,string> };
     setMetaForm({
       title: g.title,
       description: g.description ?? "",
@@ -254,6 +265,9 @@ export default function DevelopPage() {
       category: g.category,
       tagsRaw: Array.isArray(g.tags) ? (g.tags as string[]).join(", ") : "",
     });
+    setMetaI18nTitles({ ko: gi.titlesI18n?.ko ?? g.title, en: gi.titlesI18n?.en ?? "", ja: gi.titlesI18n?.ja ?? "", zh: gi.titlesI18n?.zh ?? "" });
+    setMetaI18nDescs({ ko: gi.descriptionsI18n?.ko ?? g.description ?? "", en: gi.descriptionsI18n?.en ?? "", ja: gi.descriptionsI18n?.ja ?? "", zh: gi.descriptionsI18n?.zh ?? "" });
+    setMetaLang("ko");
     setMetaThumb(null);
     setMetaVideo(null);
     setMetaEditGame(g);
@@ -267,13 +281,16 @@ export default function DevelopPage() {
     setMetaSubmitting(true);
     try {
       const tags = metaForm.tagsRaw.split(",").map((s) => s.trim()).filter(Boolean);
+      const primaryTitle = metaI18nTitles.ko || metaI18nTitles.en || metaI18nTitles.ja || metaI18nTitles.zh || metaForm.title;
       await import("@/lib/api").then(({ api }) =>
         api.submitPendingMeta(tk, metaEditGame.slug, {
-          title: metaForm.title,
-          description: metaForm.description,
+          title: primaryTitle,
+          description: metaI18nDescs.ko || metaI18nDescs.en || metaForm.description,
           emoji: metaForm.emoji,
           category: metaForm.category,
           tags,
+          titlesI18n: metaI18nTitles,
+          descriptionsI18n: metaI18nDescs,
         })
       );
       if (metaThumb || metaVideo) {
@@ -495,7 +512,8 @@ export default function DevelopPage() {
       setErrorMsg(t("errorFileTooLarge", { mb: MAX_UPLOAD_BYTES / 1024 / 1024 }));
       return;
     }
-    if (!slug.trim() || !title.trim()) {
+    const primaryTitle = title.trim();
+    if (!slug.trim() || !primaryTitle) {
       setErrorMsg(t("errorMissingMeta"));
       return;
     }
@@ -503,8 +521,10 @@ export default function DevelopPage() {
     const fd = new FormData();
     fd.append("gamezip", file);
     fd.append("slug", slug.trim().toLowerCase());
-    fd.append("title", title.trim());
-    fd.append("description", description.trim());
+    fd.append("title", primaryTitle);
+    fd.append("description", (i18nDescs.ko || i18nDescs.en || i18nDescs.ja || i18nDescs.zh).trim());
+    fd.append("titlesI18n", JSON.stringify(i18nTitles));
+    fd.append("descriptionsI18n", JSON.stringify(i18nDescs));
     fd.append("emoji", emoji.trim() || "🎮");
     fd.append("category", category);
     const tagList = tagsRaw
@@ -534,7 +554,7 @@ export default function DevelopPage() {
         return;
       }
       setResult(data as UploadResult);
-      setSlug(""); setTitle(""); setDescription(""); setEmoji("🎮");
+      setSlug(""); setI18nTitles({ko:"",en:"",ja:"",zh:""}); setI18nDescs({ko:"",en:"",ja:"",zh:""}); setEmoji("🎮");
       setCategory("other"); setTagsRaw(""); setFile(null);
       setThumbnail(null); setThumbnailPreview(null); setDemoVideo(null);
       (document.getElementById("gamezip-input") as HTMLInputElement | null)?.value && ((document.getElementById("gamezip-input") as HTMLInputElement).value = "");
@@ -615,29 +635,34 @@ export default function DevelopPage() {
           <p className="mt-1 text-xs text-zinc-500">{t("slugHelp")}</p>
         </div>
 
+        {/* 제목 / 설명 — 언어별 */}
         <div>
-          <label className="mb-1 block text-sm font-medium">{t("fieldTitle")}</label>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="text-sm font-medium">{t("fieldTitle")} / {t("fieldDescription")}</label>
+            <select value={titleLang} onChange={(e) => setTitleLang(e.target.value as Lang)}
+              className="rounded border border-zinc-300 bg-white px-2 py-0.5 text-xs dark:border-zinc-600 dark:bg-zinc-900">
+              {LANGS.map((l) => <option key={l} value={l}>{LANG_LABEL[l]}</option>)}
+            </select>
+          </div>
           <input
             type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            placeholder={`제목 (${LANG_LABEL[titleLang]})`}
+            value={i18nTitles[titleLang]}
+            onChange={(e) => setI18nTitles((p) => ({ ...p, [titleLang]: e.target.value }))}
             maxLength={120}
             disabled={submitting}
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900"
+            className="mb-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900"
           />
-        </div>
-
-        <div>
-          <label className="mb-1 block text-sm font-medium">{t("fieldDescription")}</label>
           <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            placeholder={`설명 (${LANG_LABEL[titleLang]})`}
+            value={i18nDescs[titleLang]}
+            onChange={(e) => setI18nDescs((p) => ({ ...p, [titleLang]: e.target.value }))}
             maxLength={2000}
-            rows={4}
+            rows={3}
             disabled={submitting}
             className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900"
           />
-          <p className="mt-1 text-right text-xs text-zinc-500">{description.length} / 2000</p>
+          <p className="mt-1 text-right text-xs text-zinc-500">{i18nDescs[titleLang].length} / 2000</p>
         </div>
 
         {/* ── 썸네일 이미지 ── */}
@@ -1017,14 +1042,21 @@ export default function DevelopPage() {
                     className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-center text-lg dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
                 </div>
                 <div className="flex-1">
-                  <label className="mb-1 block text-xs text-zinc-500">제목</label>
-                  <input required value={metaForm.title} onChange={(e) => setMetaForm((f) => ({ ...f, title: e.target.value }))}
+                  <div className="mb-1 flex items-center justify-between">
+                    <label className="text-xs text-zinc-500">제목 / 설명</label>
+                    <select value={metaLang} onChange={(e) => setMetaLang(e.target.value as Lang)}
+                      className="rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-[10px] dark:border-zinc-600 dark:bg-zinc-800 dark:text-white">
+                      {LANGS.map((l) => <option key={l} value={l}>{LANG_LABEL[l]}</option>)}
+                    </select>
+                  </div>
+                  <input value={metaI18nTitles[metaLang]} onChange={(e) => setMetaI18nTitles((p) => ({ ...p, [metaLang]: e.target.value }))}
+                    placeholder={`제목 (${LANG_LABEL[metaLang]})`}
                     className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
                 </div>
               </div>
               <div>
-                <label className="mb-1 block text-xs text-zinc-500">설명</label>
-                <textarea rows={3} value={metaForm.description} onChange={(e) => setMetaForm((f) => ({ ...f, description: e.target.value }))}
+                <textarea rows={3} value={metaI18nDescs[metaLang]} onChange={(e) => setMetaI18nDescs((p) => ({ ...p, [metaLang]: e.target.value }))}
+                  placeholder={`설명 (${LANG_LABEL[metaLang]})`}
                   className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
               </div>
               <div className="flex gap-2">

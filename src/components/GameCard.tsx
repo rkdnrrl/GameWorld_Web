@@ -29,6 +29,9 @@ export type Game = {
   featuredText?: string | null;
   featuredTextX?: number | null;
   featuredTextY?: number | null;
+  titlesI18n?: Record<string, string> | null;
+  descriptionsI18n?: Record<string, string> | null;
+  featuredTextsI18n?: Record<string, string> | null;
   ownerNickname?: string | null;
 };
 

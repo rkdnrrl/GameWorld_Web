@@ -77,15 +77,27 @@ export default function OperatorManageGamesPage() {
     }
   }
 
-  const [featuredModal, setFeaturedModal] = useState<UgcGame | null>(null);
-  const [featuredText,  setFeaturedText]  = useState("");
-  const [featuredX,     setFeaturedX]     = useState(75);
-  const [featuredY,     setFeaturedY]     = useState(50);
-  const [featureSaving, setFeatureSaving] = useState(false);
+  const LANGS = ["ko", "en", "ja", "zh"] as const;
+  type Lang = typeof LANGS[number];
+  const LANG_LABEL: Record<Lang, string> = { ko: "🇰🇷 한국어", en: "🇺🇸 English", ja: "🇯🇵 日本語", zh: "🇨🇳 中文" };
+
+  const [featuredModal,    setFeaturedModal]    = useState<UgcGame | null>(null);
+  const [featuredLang,     setFeaturedLang]     = useState<Lang>("ko");
+  const [featuredTextsMap, setFeaturedTextsMap] = useState<Record<Lang, string>>({ ko: "", en: "", ja: "", zh: "" });
+  const [featuredX,        setFeaturedX]        = useState(75);
+  const [featuredY,        setFeaturedY]        = useState(50);
+  const [featureSaving,    setFeatureSaving]    = useState(false);
+  // 현재 언어 텍스트
+  const featuredText = featuredTextsMap[featuredLang];
+  const setFeaturedText = (v: string) => setFeaturedTextsMap((p) => ({ ...p, [featuredLang]: v }));
 
   function openFeaturedModal(g: UgcGame) {
-    const gg = g as UgcGame & { featuredText?: string; featuredTextX?: number; featuredTextY?: number };
-    setFeaturedText(gg.featuredText ?? "");
+    const gg = g as UgcGame & { featuredText?: string; featuredTextX?: number; featuredTextY?: number; featuredTextsI18n?: Record<string,string> };
+    const map = { ko: "", en: "", ja: "", zh: "" } as Record<Lang, string>;
+    if (gg.featuredTextsI18n) LANGS.forEach((l) => { map[l] = gg.featuredTextsI18n![l] ?? ""; });
+    else if (gg.featuredText) map.ko = gg.featuredText;
+    setFeaturedTextsMap(map);
+    setFeaturedLang("ko");
     setFeaturedX(gg.featuredTextX ?? 75);
     setFeaturedY(gg.featuredTextY ?? 50);
     setFeaturedModal(g);
@@ -101,7 +113,7 @@ export default function OperatorManageGamesPage() {
       const res = await fetch(`/api/operator/games/${featuredModal.slug}/feature`, {
         method: "POST",
         headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ text: featuredText, x: featuredX, y: featuredY }),
+        body: JSON.stringify({ text: featuredTextsMap.ko || featuredTextsMap.en || "", textsI18n: featuredTextsMap, x: featuredX, y: featuredY }),
       });
       if (!res.ok) throw new Error("설정 실패");
       setGames((prev) => prev?.map((g) => g.slug === featuredModal.slug
@@ -482,10 +494,16 @@ export default function OperatorManageGamesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setFeaturedModal(null)}>
           <form onSubmit={(e) => void onSubmitFeatured(e)} onClick={(e) => e.stopPropagation()}
             className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl dark:bg-zinc-900">
-            <h3 className="mb-1 text-base font-bold text-zinc-900 dark:text-white">⭐ 피처드 설정</h3>
-            <p className="mb-3 text-xs text-zinc-500">
-              <span className="font-semibold">{featuredModal.title}</span> — 배너 위에서 텍스트를 드래그해 위치를 조정하세요
-            </p>
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-zinc-900 dark:text-white">⭐ 피처드 설정</h3>
+                <p className="text-xs text-zinc-500">{featuredModal.title} — 드래그로 위치 조정</p>
+              </div>
+              <select value={featuredLang} onChange={(e) => setFeaturedLang(e.target.value as Lang)}
+                className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-800 dark:text-white">
+                {LANGS.map((l) => <option key={l} value={l}>{LANG_LABEL[l]}</option>)}
+              </select>
+            </div>
 
             {/* 배너 미리보기 + 드래그 */}
             <div

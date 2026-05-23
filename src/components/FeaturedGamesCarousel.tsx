@@ -99,8 +99,8 @@ export default function FeaturedGamesCarousel({ games }: { games: Game[] }) {
                 <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" />
               </div>
 
-              {/* 피처드 텍스트 — 운영자가 설정한 위치에 표시 */}
-              {game.featuredText && (
+              {/* 피처드 텍스트 — locale별 → fallback to featuredText */}
+              {(() => { const ft = game.featuredTextsI18n?.[locale] || game.featuredText; return ft && (
                 <div
                   className="absolute hidden sm:block pointer-events-none"
                   style={{
@@ -112,10 +112,10 @@ export default function FeaturedGamesCarousel({ games }: { games: Game[] }) {
                   }}
                 >
                   <p className="text-center text-xl font-black leading-snug tracking-tight text-white drop-shadow-[0_2px_16px_rgba(0,0,0,0.9)] sm:text-2xl">
-                    {game.featuredText}
+                    {ft}
                   </p>
                 </div>
-              )}
+              ); })()}
 
               {/* 텍스트 컨텐츠 — pl-14 로 좌측 화살표 버튼과 겹침 방지 */}
               <div className="relative flex min-h-[300px] flex-col justify-end p-8 pl-14 sm:min-h-[380px] sm:max-w-[58%]">
@@ -123,7 +123,7 @@ export default function FeaturedGamesCarousel({ games }: { games: Game[] }) {
                   {catLabel(cat)}
                 </span>
                 <h2 className="mb-2 text-3xl font-bold leading-tight text-white drop-shadow-lg sm:text-4xl">
-                  {game.title}
+                  {game.titlesI18n?.[locale] || game.title}
                 </h2>
                 {game.description && (
                   <p className="mb-5 line-clamp-2 text-sm text-white/70 sm:text-base">
