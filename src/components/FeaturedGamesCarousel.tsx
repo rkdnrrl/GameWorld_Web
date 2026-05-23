@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { SESSION_CHANGE_EVENT, session } from "@/lib/api";
+import { SESSION_CHANGE_EVENT, session, api, type GameCategory as ApiCategory } from "@/lib/api";
 import { saveLastGameId } from "@/lib/lastGame";
 import type { Game } from "@/components/GameCard";
 
@@ -26,17 +26,22 @@ function gameHrefWithToken(url: string, token: string | null): string {
 const INTERVAL_MS = 5000;
 
 export default function FeaturedGamesCarousel({ games }: { games: Game[] }) {
-  const [current, setCurrent]  = useState(0);
-  const [paused,  setPaused]   = useState(false);
-  const [token,   setToken]    = useState<string | null>(null);
+  const [current,    setCurrent]    = useState(0);
+  const [paused,     setPaused]     = useState(false);
+  const [token,      setToken]      = useState<string | null>(null);
+  const [categories, setCategories] = useState<ApiCategory[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const sync = () => setToken(session.getToken());
     sync();
     window.addEventListener(SESSION_CHANGE_EVENT, sync);
+    void api.getCategories().then((r) => setCategories(r.categories)).catch(() => {});
     return () => window.removeEventListener(SESSION_CHANGE_EVENT, sync);
   }, []);
+
+  const catLabel = (slug: string) =>
+    categories.find((c) => c.slug === slug)?.labelKo ?? CAT_LABEL[slug] ?? slug;
 
   const next = useCallback(() => setCurrent((c) => (c + 1) % games.length), [games.length]);
   const prev = useCallback(() => setCurrent((c) => (c - 1 + games.length) % games.length), [games.length]);
@@ -97,10 +102,10 @@ export default function FeaturedGamesCarousel({ games }: { games: Game[] }) {
                 </div>
               )}
 
-              {/* 텍스트 컨텐츠 */}
-              <div className="relative flex min-h-[300px] flex-col justify-end p-8 sm:min-h-[380px] sm:max-w-[58%]">
+              {/* 텍스트 컨텐츠 — pl-14 로 좌측 화살표 버튼과 겹침 방지 */}
+              <div className="relative flex min-h-[300px] flex-col justify-end p-8 pl-14 sm:min-h-[380px] sm:max-w-[58%]">
                 <span className="mb-3 w-fit rounded-full bg-white/20 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
-                  {CAT_LABEL[cat] ?? cat}
+                  {catLabel(cat)}
                 </span>
                 <h2 className="mb-2 text-3xl font-bold leading-tight text-white drop-shadow-lg sm:text-4xl">
                   {game.title}
