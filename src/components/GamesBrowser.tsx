@@ -116,13 +116,13 @@ export default function GamesBrowser({ games }: Props) {
           <select value={activeCat} onChange={(e) => setActiveCat(e.target.value as GameCategory | "all")}
             className="appearance-none cursor-pointer rounded border border-gray-300 bg-white py-1.5 pl-3 pr-8 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none"
           >
-            <option value="all">{CAT_ICON.all} {t("filterAll")} ({games.length})</option>
-            {FILTER_CATEGORIES.map((cat) => {
-              const n = counts.get(cat) ?? 0;
+            <option value="all">{DEFAULT_ICON} {t("filterAll")} ({games.length})</option>
+            {categories.map((cat) => {
+              const n = counts.get(cat.slug) ?? 0;
               if (n === 0) return null;
               return (
-                <option key={cat} value={cat}>
-                  {CAT_ICON[cat]} {catLabel(cat)} ({n})
+                <option key={cat.slug} value={cat.slug}>
+                  {cat.emoji} {cat.labelKo} ({n})
                 </option>
               );
             })}
