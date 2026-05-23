@@ -223,6 +223,7 @@
     "ratingMine": "我的评分:",
     "ratingLabel": "评分:",
     "ratingDone": "评分已提交！",
+    "loginToRate": "登录后评分",
     "commentsTitle": "{count}条评论",
     "commentPlaceholder": "写下评论... (最多500字)",
     "commentSubmit": "发布",

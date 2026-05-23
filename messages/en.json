@@ -223,6 +223,7 @@
     "ratingMine": "My rating:",
     "ratingLabel": "Rate this:",
     "ratingDone": "Rating submitted!",
+    "loginToRate": "Login to rate",
     "commentsTitle": "{count} Comments",
     "commentPlaceholder": "Write a comment... (max 500 chars)",
     "commentSubmit": "Post",
