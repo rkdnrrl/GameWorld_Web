@@ -110,11 +110,15 @@ export type UgcGame = {
   pendingScreenshots: unknown;
   pendingMediaAt: string | null;
   pendingMediaRejectReason: string | null;
+  titlesI18n: Record<string, string> | null;
+  descriptionsI18n: Record<string, string> | null;
   pendingTitle: string | null;
   pendingDescription: string | null;
   pendingEmoji: string | null;
   pendingCategory: string | null;
   pendingTags: string[] | null;
+  pendingTitlesI18n: Record<string, string> | null;
+  pendingDescriptionsI18n: Record<string, string> | null;
   pendingMetaAt: string | null;
   pendingMetaRejectReason: string | null;
   createdAt: string;
