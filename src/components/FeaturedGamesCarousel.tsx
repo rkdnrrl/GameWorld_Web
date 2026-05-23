@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useTranslations, useLocale } from "next-intl";
 import { SESSION_CHANGE_EVENT, session, api, type GameCategory as ApiCategory } from "@/lib/api";
 import { saveLastGameId } from "@/lib/lastGame";
 import type { Game } from "@/components/GameCard";
@@ -26,6 +27,8 @@ function gameHrefWithToken(url: string, token: string | null): string {
 const INTERVAL_MS = 5000;
 
 export default function FeaturedGamesCarousel({ games }: { games: Game[] }) {
+  const t      = useTranslations("Games");
+  const locale = useLocale();
   const [current,    setCurrent]    = useState(0);
   const [paused,     setPaused]     = useState(false);
   const [token,      setToken]      = useState<string | null>(null);
@@ -40,8 +43,11 @@ export default function FeaturedGamesCarousel({ games }: { games: Game[] }) {
     return () => window.removeEventListener(SESSION_CHANGE_EVENT, sync);
   }, []);
 
-  const catLabel = (slug: string) =>
-    categories.find((c) => c.slug === slug)?.labelKo ?? CAT_LABEL[slug] ?? slug;
+  const catLabel = (slug: string) => {
+    const cat = categories.find((c) => c.slug === slug);
+    if (cat) return locale === "ko" ? cat.labelKo : cat.labelEn;
+    return CAT_LABEL[slug] ?? slug;
+  };
 
   const next = useCallback(() => setCurrent((c) => (c + 1) % games.length), [games.length]);
   const prev = useCallback(() => setCurrent((c) => (c - 1 + games.length) % games.length), [games.length]);
@@ -128,13 +134,13 @@ export default function FeaturedGamesCarousel({ games }: { games: Game[] }) {
                     onClick={() => saveLastGameId(game.id)}
                     className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-bold text-gray-900 shadow-md transition hover:bg-gray-100 hover:shadow-lg active:scale-95"
                   >
-                    ▶ 게임 시작
+                    {t("featuredPlay")}
                   </a>
                   <Link
                     href={`/games/${game.id}`}
                     className="inline-flex items-center gap-2 rounded-xl border border-white/40 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20"
                   >
-                    자세히 보기
+                    {t("featuredDetails")}
                   </Link>
                 </div>
               </div>

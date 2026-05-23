@@ -205,6 +205,8 @@
     "noInfo": "정보 없음",
     "kindOfficial": "공식",
     "kindCommunity": "커뮤니티",
+    "featuredPlay": "▶ 게임 시작",
+    "featuredDetails": "자세히 보기",
     "noRating": "평점 없음",
     "loginToRate": "로그인 후 평가 가능",
     "plays": "{count}플레이"

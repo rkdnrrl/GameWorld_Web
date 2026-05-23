@@ -205,6 +205,8 @@
     "noInfo": "No info",
     "kindOfficial": "Official",
     "kindCommunity": "Community",
+    "featuredPlay": "▶ Play",
+    "featuredDetails": "More Details",
     "noRating": "No ratings yet",
     "loginToRate": "Login to rate",
     "plays": "{count} plays"

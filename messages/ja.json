@@ -205,6 +205,8 @@
     "noInfo": "情報なし",
     "kindOfficial": "公式",
     "kindCommunity": "コミュニティ",
+    "featuredPlay": "▶ プレイ",
+    "featuredDetails": "詳しく見る",
     "noRating": "まだ評価なし",
     "loginToRate": "ログインして評価",
     "plays": "{count}プレイ"

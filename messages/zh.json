@@ -205,6 +205,8 @@
     "noInfo": "无信息",
     "kindOfficial": "官方",
     "kindCommunity": "社区",
+    "featuredPlay": "▶ 开始游戏",
+    "featuredDetails": "查看详情",
     "noRating": "暂无评分",
     "loginToRate": "登录后评分",
     "plays": "{count}次游玩"
