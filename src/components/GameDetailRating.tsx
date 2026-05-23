@@ -71,10 +71,10 @@ export default function GameDetailRating({
         {count > 0 ? (
           <span className="text-sm text-gray-500">
             <span className="text-lg font-semibold text-gray-800">{avg.toFixed(1)}</span>
-            &nbsp;/ 5점 &nbsp;·&nbsp; {count}명 평가
+            &nbsp;{t("ratingScore", { avg: "", count }).replace(/^[\s·]+/, "")}
           </span>
         ) : (
-          <span className="text-sm text-gray-400">아직 평점이 없습니다</span>
+          <span className="text-sm text-gray-400">{t("ratingNone")}</span>
         )}
       </div>
 
