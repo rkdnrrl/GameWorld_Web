@@ -6,7 +6,7 @@ import { useRouter } from "@/i18n/navigation";
 import { SESSION_CHANGE_EVENT, session } from "@/lib/api";
 import { saveLastGameId } from "@/lib/lastGame";
 
-export type GameCategory = "earn" | "multiplay" | "decorate" | "other";
+export type GameCategory = string;
 
 export type Game = {
   id: string;
