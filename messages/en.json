@@ -85,7 +85,17 @@
     "tagline": "A multiplayer game platform to enjoy with friends",
     "browsGames": "Browse Games",
     "signup": "Sign Up",
-    "dungeonHint": "Move: Arrows / WASD · D-pad on mobile · Walk into a building's door to enter the game"
+    "dungeonHint": "Move: Arrows / WASD · D-pad on mobile · Walk into a building's door to enter the game",
+    "heroTitle": "Play Together,\nGrow Together",
+    "heroSub": "Enjoy official and community games on ALP, and use items you earn across the entire platform.",
+    "feat1Title": "Shared Inventory",
+    "feat1Desc": "Fish caught in the fishing game can be used in cooking. Items carry across games.",
+    "feat2Title": "Community Games",
+    "feat2Desc": "Anyone can build and publish a game. Become a developer today.",
+    "feat3Title": "Play Together",
+    "feat3Desc": "Compete and cooperate with friends in real-time multiplayer games.",
+    "startNow": "Get Started",
+    "learnMore": "Learn More"
   },
   "Login": {
     "title": "Login",
