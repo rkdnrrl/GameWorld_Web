@@ -95,9 +95,14 @@ export default function FeaturedGamesCarousel({ games }: { games: Game[] }) {
 
               {/* 우측 피처드 설명 */}
               {game.featuredText && (
-                <div className="absolute right-0 top-0 hidden h-full w-[42%] items-center justify-center p-8 sm:flex">
-                  <div className="rounded-2xl bg-black/50 px-6 py-5 backdrop-blur-md">
-                    <p className="text-sm leading-relaxed text-white/90 sm:text-base">{game.featuredText}</p>
+                <div className="absolute right-0 top-0 hidden h-full w-[44%] items-center justify-center p-10 sm:flex">
+                  <div className="relative max-w-xs text-right">
+                    {/* 장식 따옴표 */}
+                    <span className="absolute -top-6 right-0 text-5xl font-black leading-none text-white/15 select-none">"</span>
+                    <p className="text-xl font-black leading-snug tracking-tight text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)] sm:text-2xl">
+                      {game.featuredText}
+                    </p>
+                    <span className="absolute -bottom-6 left-0 text-5xl font-black leading-none text-white/15 select-none rotate-180">"</span>
                   </div>
                 </div>
               )}
