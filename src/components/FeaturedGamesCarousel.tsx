@@ -108,10 +108,14 @@ export default function FeaturedGamesCarousel({ games }: { games: Game[] }) {
                     top: `${game.featuredTextY ?? 50}%`,
                     transform: "translate(-50%, -50%)",
                     maxWidth: "36%",
+                    width: "36%",
                     zIndex: 5,
                   }}
                 >
-                  <p className="text-center text-xl font-black leading-snug tracking-tight text-white drop-shadow-[0_2px_16px_rgba(0,0,0,0.9)] sm:text-2xl">
+                  <p
+                    className="text-center font-black leading-snug tracking-tight text-white drop-shadow-[0_2px_16px_rgba(0,0,0,0.9)] whitespace-pre-line"
+                    style={{ fontSize: "clamp(0.65rem, 2vw, 1.5rem)" }}
+                  >
                     {ft}
                   </p>
                 </div>
