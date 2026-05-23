@@ -928,6 +928,7 @@
     "toc8": "FAQ",
     "s1Title": "How It Works",
     "s1Desc": "Games are hosted as static files (HTML/JS) on R2. Each player's browser connects directly to Cloudflare's Durable Objects via WebSocket to exchange real-time data. No separate server needed.",
+    "s1Code": "Game HTML\n  └─ <script src=\"/_alp/sdk.js\">   ← Cloudflare Worker SDK\n       └─ ALPMultiplayer class\n\nGame JS\n  └─ new ALPMultiplayer()\n       └─ joinRoom(\"room1\")\n            └─ WebSocket → GameRoom (Durable Object)  ←→  other players",
     "feat1Title": "Broadcast",
     "feat1Desc": "Real-time event delivery\n(move, attack, chat, etc.)",
     "feat2Title": "Presence",

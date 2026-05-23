@@ -928,6 +928,7 @@
     "toc8": "よくある質問",
     "s1Title": "仕組み",
     "s1Desc": "ゲームは静的ファイル(HTML/JS)としてR2にホスティングされます。プレイヤーのブラウザがCloudflareのDurable ObjectsへWebSocketで直接接続し、リアルタイムデータを送受信します。別途サーバー不要でマルチプレイを実装できます。",
+    "s1Code": "ゲーム HTML\n  └─ <script src=\"/_alp/sdk.js\">   ← Cloudflare Worker SDK\n       └─ ALPMultiplayer class\n\nゲーム JS\n  └─ new ALPMultiplayer()\n       └─ joinRoom(\"room1\")\n            └─ WebSocket → GameRoom (Durable Object)  ←→  other players",
     "feat1Title": "Broadcast",
     "feat1Desc": "リアルタイムイベント配信\n(移動・攻撃・チャット等)",
     "feat2Title": "Presence",

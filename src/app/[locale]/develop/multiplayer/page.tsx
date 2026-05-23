@@ -165,14 +165,7 @@ export default async function MultiplayGuide() {
       <p className="mb-4 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
         {td("s1Desc")}
       </p>
-      <Code>{`게임 HTML
-  └─ <script src="/_alp/sdk.js">   ← Cloudflare Worker SDK
-       └─ ALPMultiplayer class
-
-게임 JS
-  └─ new ALPMultiplayer()
-       └─ joinRoom("room1")
-            └─ WebSocket → GameRoom (Durable Object)  ←→  other players`}</Code>
+      <Code>{td("s1Code")}</Code>
 
       <div className="mt-4 grid grid-cols-3 gap-3 text-center text-sm">
         {feats.map((c) => (
