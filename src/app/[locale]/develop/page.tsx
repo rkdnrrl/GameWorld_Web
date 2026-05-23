@@ -1076,6 +1076,8 @@ export default function DevelopPage() {
                       emoji={metaEditGame.emoji || "🎮"}
                       category={metaEditGame.category || "other"}
                       thumbnailUrl={metaEditGame.pendingThumbnailUrl ?? metaEditGame.thumbnailUrl ?? null}
+                      noTitle={t("noTitle")}
+                      catLabel={({ earn: t("catLabelEarn"), multiplay: t("catLabelMultiplay"), decorate: t("catLabelDecorate"), other: t("catLabelOther") }[metaEditGame.category] ?? metaEditGame.category)}
                     />
                   </div>
                 )}
