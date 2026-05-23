@@ -117,7 +117,9 @@ export default function OperatorPendingGamesPage() {
     setActingSlug(slug); setActionError(null);
     try {
       await api.operatorApproveMeta(tk, slug);
+      // 메타와 함께 제출된 미디어도 서버에서 함께 승인되므로 두 목록에서 모두 제거
       setPendingMeta((prev) => prev?.filter((g) => g.slug !== slug) ?? null);
+      setPendingMedia((prev) => prev?.filter((g) => g.slug !== slug) ?? null);
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "승인 실패");
     } finally { setActingSlug(null); }
