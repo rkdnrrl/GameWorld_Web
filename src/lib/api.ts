@@ -126,6 +126,9 @@ export type UgcGame = {
   updatedAt: string;
   publishedAt: string | null;
   isFeatured: boolean;
+  featuredText: string | null;
+  featuredTextX: number | null;
+  featuredTextY: number | null;
 };
 
 export type EquipmentItem = {
