@@ -71,7 +71,7 @@ export default function GameDetailRating({
         {count > 0 ? (
           <span className="text-sm text-gray-500">
             <span className="text-lg font-semibold text-gray-800">{avg.toFixed(1)}</span>
-            &nbsp;{t("ratingScore", { avg: "", count }).replace(/^[\s·]+/, "")}
+            {" "}{t("ratingScore", { count })}
           </span>
         ) : (
           <span className="text-sm text-gray-400">{t("ratingNone")}</span>
