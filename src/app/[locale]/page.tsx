@@ -238,24 +238,28 @@ export default function Home() {
           {/* ── 카테고리 탭 + 최신 게임 ── */}
           <section className="mb-4">
             <div className="mb-3 flex items-center justify-between border-b-2 border-blue-600 pb-0">
-              <div className="flex">
-                {([
-                  { key: "all", label: t("catAll") },
-                  { key: "earn", label: t("catEarn") },
-                  { key: "multiplay", label: t("catMultiplay") },
-                  { key: "decorate", label: t("catDecorate") },
-                  { key: "other", label: t("catOther") },
-                ] as { key: Category; label: string }[]).map(({ key, label }) => (
+              <div className="flex flex-wrap">
+                <button
+                  onClick={() => setCat("all")}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-[2px] ${
+                    cat === "all"
+                      ? "border-blue-600 text-blue-700 bg-white"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {t("catAll")}
+                </button>
+                {genres.map((g) => (
                   <button
-                    key={key}
-                    onClick={() => setCat(key)}
+                    key={g.slug}
+                    onClick={() => setCat(g.slug)}
                     className={`px-3 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-[2px] ${
-                      cat === key
+                      cat === g.slug
                         ? "border-blue-600 text-blue-700 bg-white"
                         : "border-transparent text-gray-500 hover:text-gray-700"
                     }`}
                   >
-                    {label}
+                    {g.emoji} {locale === "ko" ? g.labelKo : g.labelEn}
                   </button>
                 ))}
               </div>
