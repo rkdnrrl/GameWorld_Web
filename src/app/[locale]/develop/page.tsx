@@ -200,6 +200,9 @@ export default function DevelopPage() {
   // 상세 미리보기
   const [showDetailPreview, setShowDetailPreview] = useState(false);
   const [detailPreviewGame, setDetailPreviewGame] = useState<MyGame | null>(null);
+  const [myToken, setMyToken] = useState<string | null>(null);
+
+  useEffect(() => { setMyToken(session.getToken()); }, []);
 
   useEffect(() => {
     if (!session.getToken()) router.replace("/login");
@@ -751,9 +754,10 @@ export default function DevelopPage() {
                       {(() => {
                         // hasPending: 업데이트 파일이 staging에 있음 → /_preview/
                         // 그 외(첫 업로드 pending 포함): 파일이 games/{slug}/에 있음 → 라이브 URL
-                        const testUrl = hasPending
+                        const baseUrl = hasPending
                           ? `https://play.airliveplay.com/_preview/${g.slug}/`
                           : `https://play.airliveplay.com/${g.slug}/`;
+                        const testUrl = myToken ? `${baseUrl}?token=${myToken}` : baseUrl;
                         const label = hasPending ? "🔍 업데이트 미리보기" : "▶ 테스트 플레이";
                         return (
                           <>
