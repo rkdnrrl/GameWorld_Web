@@ -1,4 +1,8 @@
-import Link from "next/link";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { Link } from "@/i18n/navigation";
 import type { GameCategory } from "@/components/GameCard";
 import DeveloperProfileEdit from "@/components/DeveloperProfileEdit";
 
@@ -23,24 +27,33 @@ type DevProfile = {
   games: DevGame[];
 };
 
-async function getDeveloper(nickname: string): Promise<DevProfile | null> {
-  try {
-    const base = process.env.BACKEND_URL || "http://localhost:4000";
-    const res  = await fetch(`${base}/api/games/developer/${encodeURIComponent(nickname)}`, { next: { revalidate: 30 } });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch { return null; }
-}
+export default function DeveloperPage() {
+  const params  = useParams();
+  const nickname = decodeURIComponent(String(params?.nickname ?? ""));
 
-export default async function DeveloperPage({
-  params,
-}: { params: Promise<{ nickname: string }> }) {
-  const { nickname } = await params;
-  const data = await getDeveloper(nickname);
+  const [data,    setData]    = useState<DevProfile | null | false>(null); // null=로딩, false=없음
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!nickname) { setData(false); setLoading(false); return; }
+    fetch(`/api/games/developer/${encodeURIComponent(nickname)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: DevProfile | null) => setData(d ?? false))
+      .catch(() => setData(false))
+      .finally(() => setLoading(false));
+  }, [nickname]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center bg-[#f5f5f5]">
+        <p className="text-gray-400">불러오는 중…</p>
+      </div>
+    );
+  }
 
   if (!data) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 bg-gray-50">
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 bg-[#f5f5f5]">
         <p className="text-lg text-gray-500">개발자를 찾을 수 없습니다.</p>
         <Link href="/games" className="text-sm text-blue-600 hover:underline">← 게임 목록</Link>
       </div>
@@ -78,7 +91,7 @@ export default async function DeveloperPage({
                 <span className="rounded-full bg-indigo-100 px-3 py-0.5 text-xs font-semibold text-indigo-600">
                   개발자
                 </span>
-                {/* 내 프로필이면 편집 버튼 (클라이언트 컴포넌트) */}
+                {/* 내 프로필이면 편집 링크 */}
                 <DeveloperProfileEdit
                   nickname={data.nickname}
                   initialBio={data.bio}
@@ -87,7 +100,7 @@ export default async function DeveloperPage({
               </div>
 
               {data.bio && (
-                <p className="mt-2 text-sm leading-relaxed text-gray-600 whitespace-pre-line">
+                <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-gray-600">
                   {data.bio}
                 </p>
               )}
@@ -97,7 +110,7 @@ export default async function DeveloperPage({
                 {data.websiteUrl && (
                   <a href={data.websiteUrl} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-1 text-blue-600 hover:underline">
-                    🔗 {data.websiteUrl.replace(/^https?:\/\//, '')}
+                    🔗 {data.websiteUrl.replace(/^https?:\/\//, "")}
                   </a>
                 )}
               </div>
@@ -109,7 +122,7 @@ export default async function DeveloperPage({
         <h2 className="mb-4 text-lg font-semibold text-gray-800">출시한 게임</h2>
 
         {data.games.length === 0 ? (
-          <p className="text-center text-gray-400 py-16">아직 출시된 게임이 없습니다.</p>
+          <p className="py-16 text-center text-gray-400">아직 출시된 게임이 없습니다.</p>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {data.games.map((g) => {
@@ -121,15 +134,16 @@ export default async function DeveloperPage({
                   <div className={`relative flex aspect-video items-center justify-center overflow-hidden bg-gradient-to-br ${gradient}`}>
                     {g.thumbnailUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={g.thumbnailUrl} alt={g.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                      <img src={g.thumbnailUrl} alt={g.title}
+                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                     ) : (
                       <span className="text-5xl drop-shadow transition-transform duration-300 group-hover:scale-110">{g.emoji}</span>
                     )}
                   </div>
                   <div className="p-4">
-                    <h3 className="font-semibold text-gray-900 line-clamp-1">{g.title}</h3>
+                    <h3 className="line-clamp-1 font-semibold text-gray-900">{g.title}</h3>
                     {g.description && (
-                      <p className="mt-1 text-xs text-gray-500 line-clamp-2">{g.description}</p>
+                      <p className="mt-1 line-clamp-2 text-xs text-gray-500">{g.description}</p>
                     )}
                     <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-400">
                       {g.ratingCount > 0 && <span>⭐ {g.ratingAvg.toFixed(1)}</span>}
