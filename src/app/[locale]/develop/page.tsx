@@ -204,6 +204,7 @@ export default function DevelopPage() {
   const description = i18nDescs[titleLang];
   const [emoji, setEmoji] = useState("🎮");
   const [category, setCategory] = useState<Category>("other");
+  const [genre, setGenre] = useState<string>("");
   const [tagsRaw, setTagsRaw] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [thumbnail, setThumbnail] = useState<File | null>(null);
@@ -232,10 +233,11 @@ export default function DevelopPage() {
   const [detailPreviewGame, setDetailPreviewGame] = useState<MyGame | null>(null);
   const [myToken, setMyToken] = useState<string | null>(null);
   const [categories, setCategories] = useState<GameCategory[]>([]);
+  const [genreList, setGenreList] = useState<import("@/lib/api").GameGenre[]>([]);
 
   // 메타 수정 모달
   const [metaEditGame, setMetaEditGame] = useState<MyGame | null>(null);
-  const [metaForm, setMetaForm] = useState({ emoji: "", category: "", tagsRaw: "" });
+  const [metaForm, setMetaForm] = useState({ emoji: "", category: "", genre: "", tagsRaw: "" });
   const [metaLang, setMetaLang] = useState<Lang>("ko");
   const [metaI18nTitles, setMetaI18nTitles] = useState<Record<Lang, string>>({ ko: "", en: "", ja: "", zh: "" });
   const [metaI18nDescs,  setMetaI18nDescs]  = useState<Record<Lang, string>>({ ko: "", en: "", ja: "", zh: "" });
@@ -246,6 +248,7 @@ export default function DevelopPage() {
 
   useEffect(() => { setMyToken(session.getToken()); }, []);
   useEffect(() => { void api.getCategories().then((r) => setCategories(r.categories)).catch(() => {}); }, []);
+  useEffect(() => { void api.getGenres().then((r) => setGenreList(r.genres)).catch(() => {}); }, []);
 
   useEffect(() => {
     if (!session.getToken()) router.replace("/login");
@@ -542,6 +545,7 @@ export default function DevelopPage() {
     fd.append("descriptionsI18n", JSON.stringify(i18nDescs));
     fd.append("emoji", emoji.trim() || "🎮");
     fd.append("category", category);
+    if (genre) fd.append("genre", genre);
     const tagList = tagsRaw
       .split(",")
       .map((s) => s.trim())
@@ -748,7 +752,7 @@ export default function DevelopPage() {
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
             <label className="mb-1 block text-sm font-medium">{t("fieldCategory")}</label>
             <select
@@ -759,6 +763,20 @@ export default function DevelopPage() {
             >
               {categories.map((c) => (
                 <option key={c.slug} value={c.slug}>{c.emoji} {c.labelKo}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">{t("fieldGenre")}</label>
+            <select
+              value={genre}
+              onChange={(e) => setGenre(e.target.value)}
+              disabled={submitting}
+              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-900"
+            >
+              <option value="">{t("fieldGenreNone")}</option>
+              {genreList.map((g) => (
+                <option key={g.slug} value={g.slug}>{g.emoji} {g.labelKo}</option>
               ))}
             </select>
           </div>
@@ -1083,6 +1101,16 @@ export default function DevelopPage() {
                     className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white">
                     {categories.map((c) => (
                       <option key={c.slug} value={c.slug}>{c.emoji} {c.labelKo}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="mb-1 block text-xs text-zinc-500">{t("metaFieldGenre")}</label>
+                  <select value={metaForm.genre} onChange={(e) => setMetaForm((f) => ({ ...f, genre: e.target.value }))}
+                    className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white">
+                    <option value="">{t("fieldGenreNone")}</option>
+                    {genreList.map((g) => (
+                      <option key={g.slug} value={g.slug}>{g.emoji} {g.labelKo}</option>
                     ))}
                   </select>
                 </div>
