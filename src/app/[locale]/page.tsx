@@ -152,36 +152,6 @@ export default function Home() {
         {/* ─────── LEFT SIDEBAR ─────── */}
         <aside className="hidden w-44 shrink-0 lg:block">
 
-          {/* 게임 카테고리 */}
-          <div className="mb-4 rounded bg-white shadow-sm">
-            <div className="border-b border-gray-200 px-3 py-2">
-              <span className="text-xs font-bold text-gray-700">{t("gameCategoryHeader")}</span>
-            </div>
-            <ul className="py-1">
-              {([
-                { key: "all", label: t("catAll"), emoji: "📋" },
-                { key: "earn", label: t("catEarn"), emoji: CAT_EMOJI.earn },
-                { key: "multiplay", label: t("catMultiplay"), emoji: CAT_EMOJI.multiplay },
-                { key: "decorate", label: t("catDecorate"), emoji: CAT_EMOJI.decorate },
-                { key: "other", label: t("catOther"), emoji: CAT_EMOJI.other },
-              ] as { key: Category; label: string; emoji: string }[]).map(({ key, label, emoji }) => (
-                <li key={key}>
-                  <button
-                    onClick={() => setCat(key)}
-                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors ${
-                      cat === key
-                        ? "bg-blue-50 font-semibold text-blue-700"
-                        : "text-gray-600 hover:bg-gray-50"
-                    }`}
-                  >
-                    <span>{emoji}</span>
-                    <span>{label}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-
           {/* 인기 게임 TOP */}
           <div className="rounded bg-white shadow-sm">
             <div className="border-b border-gray-200 px-3 py-2">
