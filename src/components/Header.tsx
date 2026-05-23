@@ -21,6 +21,7 @@ export default function Header() {
 
   const [loggedIn, setLoggedIn] = useState(false);
   const [coins, setCoins] = useState<number | null>(null);
+  const [alpCoins, setAlpCoins] = useState<number | null>(null);
   const [operatorAccess, setOperatorAccess] = useState(false);
   // 만료 임박 경고 (분 단위, null=정상)
   const [expiryWarningMins, setExpiryWarningMins] = useState<number | null>(null);
@@ -33,7 +34,9 @@ export default function Header() {
       if (!res.ok) return;
       const data = await res.json();
       const c = data?.user?.coins;
+      const ac = data?.user?.alpCoins;
       setCoins(typeof c === "number" ? c : null);
+      setAlpCoins(typeof ac === "number" ? ac : null);
       setOperatorAccess(!!data?.user?.operatorAccess);
     } catch {
       // 무시
@@ -50,6 +53,7 @@ export default function Header() {
       fetchCoins(token);
     } else {
       setCoins(null);
+      setAlpCoins(null);
       setOperatorAccess(false);
       setExpiryWarningMins(null);
     }
@@ -161,6 +165,14 @@ export default function Header() {
               <Link href="/inventory" className="shrink-0 whitespace-nowrap hover:text-blue-600">
                 {t("inventory")}
               </Link>
+            )}
+            {loggedIn && typeof alpCoins === "number" && (
+              <span className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-600 sm:max-w-[11rem] sm:px-3 sm:text-sm dark:bg-violet-900/30 dark:text-violet-400">
+                <span className="shrink-0">💎</span>
+                <span className="min-w-0 truncate tabular-nums">
+                  {alpCoins.toLocaleString()}
+                </span>
+              </span>
             )}
             {loggedIn && typeof coins === "number" && (
               <span className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full bg-yellow-50 px-2 py-1 text-xs font-semibold text-yellow-600 sm:max-w-[11rem] sm:px-3 sm:text-sm dark:bg-yellow-900/30 dark:text-yellow-400">
