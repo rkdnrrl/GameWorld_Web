@@ -199,6 +199,7 @@
     "emptyResult": "没有匹配的游戏。",
     "sortDefault": "默认",
     "sortPopular": "最受欢迎",
+    "sortRating": "⭐ 评分最高",
     "gameCount": "{count}款游戏",
     "playNow": "立即游玩",
     "onlineCount": "{count}人在线",

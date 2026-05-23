@@ -199,6 +199,7 @@
     "emptyResult": "No matching games.",
     "sortDefault": "Default",
     "sortPopular": "Most Popular",
+    "sortRating": "⭐ Top Rated",
     "gameCount": "{count} games",
     "playNow": "Play Now",
     "onlineCount": "{count} online",

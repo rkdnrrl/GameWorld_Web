@@ -199,6 +199,7 @@
     "emptyResult": "검색 결과가 없습니다.",
     "sortDefault": "기본순",
     "sortPopular": "인기순",
+    "sortRating": "⭐ 평점순",
     "gameCount": "{count}개의 게임",
     "playNow": "플레이하기",
     "onlineCount": "{count}명 접속 중",

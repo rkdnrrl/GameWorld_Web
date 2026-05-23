@@ -199,6 +199,7 @@
     "emptyResult": "該当するゲームがありません。",
     "sortDefault": "デフォルト",
     "sortPopular": "人気順",
+    "sortRating": "⭐ 評価順",
     "gameCount": "{count}本のゲーム",
     "playNow": "プレイする",
     "onlineCount": "{count}人プレイ中",

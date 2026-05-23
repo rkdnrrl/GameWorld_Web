@@ -151,7 +151,7 @@ export default function GamesBrowser({ games }: Props) {
           >
             <option value="default">{t("sortDefault")}</option>
             <option value="popular">{t("sortPopular")}</option>
-            <option value="rating">⭐ 평점순</option>
+            <option value="rating">{t("sortRating")}</option>
           </select>
           <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
             width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
