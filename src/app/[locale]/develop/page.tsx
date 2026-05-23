@@ -211,6 +211,8 @@ export default function DevelopPage() {
   // 메타 수정 모달
   const [metaEditGame, setMetaEditGame] = useState<MyGame | null>(null);
   const [metaForm, setMetaForm] = useState({ title: "", description: "", emoji: "", category: "", tagsRaw: "" });
+  const [metaThumb, setMetaThumb] = useState<File | null>(null);
+  const [metaVideo, setMetaVideo] = useState<File | null>(null);
   const [metaSubmitting, setMetaSubmitting] = useState(false);
   const [metaCancelConfirm, setMetaCancelConfirm] = useState<string | null>(null);
 
@@ -250,6 +252,8 @@ export default function DevelopPage() {
       category: g.category,
       tagsRaw: Array.isArray(g.tags) ? (g.tags as string[]).join(", ") : "",
     });
+    setMetaThumb(null);
+    setMetaVideo(null);
     setMetaEditGame(g);
   }
 
@@ -270,6 +274,9 @@ export default function DevelopPage() {
           tags,
         })
       );
+      if (metaThumb || metaVideo) {
+        await onUpdateMedia(metaEditGame.slug, metaThumb, metaVideo);
+      }
       await loadMyGames();
       setMetaEditGame(null);
     } catch (e) {
@@ -890,7 +897,7 @@ export default function DevelopPage() {
                       )}
                     </div>
                   </div>
-                  {/* 수정 버튼들 + 검수 대기 뱃지 */}
+                  {/* 수정 버튼 + 검수 대기 뱃지 */}
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <button
                       type="button"
@@ -899,113 +906,20 @@ export default function DevelopPage() {
                     >
                       ✏️ 정보 수정
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setMediaEditSlug((prev) => prev === g.slug ? null : g.slug)}
-                      className="text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 underline"
-                    >
-                      🖼 썸네일 · 영상 수정
-                    </button>
-                    {g.pendingMetaAt && (
+                    {(g.pendingMetaAt || g.pendingMediaAt) && (
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-                        정보 수정 검수 대기 중
+                        검수 대기 중
                         <button onClick={() => setMetaCancelConfirm(g.slug)} className="ml-1 opacity-60 hover:opacity-100">✕</button>
                       </span>
                     )}
                     {g.pendingMetaRejectReason && !g.pendingMetaAt && (
                       <span className="text-[10px] text-red-500">정보 수정 거절: {g.pendingMetaRejectReason}</span>
                     )}
-                    {g.pendingMediaAt && (
-                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
-                        미디어 검수 대기 중
-                      </span>
-                    )}
                     {g.pendingMediaRejectReason && !g.pendingMediaAt && (
-                      <span className="text-[10px] text-red-500">
-                        미디어 거절: {g.pendingMediaRejectReason}
-                      </span>
+                      <span className="text-[10px] text-red-500">미디어 거절: {g.pendingMediaRejectReason}</span>
                     )}
                   </div>
 
-                  {/* 미디어 수정 패널 */}
-                  {mediaEditSlug === g.slug && (() => {
-                    let localThumb: File | null = null;
-                    let localVideo: File | null = null;
-                    return (
-                      <div className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 p-4 space-y-3 dark:border-zinc-700 dark:bg-zinc-800/40">
-                        {/* 현재/대기 중 카드 미리보기 */}
-                        <div className="flex items-start gap-4">
-                          <div>
-                            <p className="mb-1 text-[10px] text-zinc-500">
-                              {g.pendingThumbnailUrl ? "🔄 검수 대기 중" : "현재"}
-                            </p>
-                            <CardPreview
-                              title={g.title}
-                              emoji={g.emoji || "🎮"}
-                              category={g.category || "other"}
-                              thumbnailUrl={g.pendingThumbnailUrl ?? g.thumbnailUrl ?? null}
-                            />
-                          </div>
-                        </div>
-
-                        {/* 검수 대기 중이면 취소 버튼 표시 */}
-                        {g.pendingMediaAt && (
-                          <div className="rounded border border-blue-200 bg-blue-50 p-2 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300">
-                            <p className="font-medium">운영자 검수 대기 중입니다.</p>
-                            <p className="mt-0.5 text-[10px]">승인 후 적용됩니다. 새 파일을 올리면 기존 대기 중인 파일이 교체됩니다.</p>
-                            <button
-                              type="button"
-                              onClick={() => void onCancelMedia(g.slug)}
-                              className="mt-2 rounded border border-red-300 bg-white px-2 py-1 text-[10px] text-red-600 hover:bg-red-50 dark:border-red-700 dark:bg-zinc-800 dark:text-red-400"
-                            >
-                              검수 신청 취소
-                            </button>
-                          </div>
-                        )}
-
-                        <div>
-                          <label className="mb-1 block text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                            🖼 새 썸네일 (JPG/PNG/WebP · 5MB↓)
-                          </label>
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            onChange={(e) => { localThumb = e.target.files?.[0] ?? null; }}
-                            className="block w-full text-xs file:mr-2 file:rounded file:border-0 file:bg-zinc-200 file:px-2 file:py-1 file:text-xs dark:file:bg-zinc-700"
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                            🎬 새 데모 영상 (MP4/WebM · 200MB↓)
-                          </label>
-                          <input
-                            type="file"
-                            accept="video/mp4,video/webm"
-                            onChange={(e) => { localVideo = e.target.files?.[0] ?? null; }}
-                            className="block w-full text-xs file:mr-2 file:rounded file:border-0 file:bg-zinc-200 file:px-2 file:py-1 file:text-xs dark:file:bg-zinc-700"
-                          />
-                        </div>
-                        <p className="text-[10px] text-zinc-400">파일을 올리면 운영자 검수 후 적용됩니다.</p>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            disabled={updatingMediaSlug === g.slug}
-                            onClick={() => void onUpdateMedia(g.slug, localThumb, localVideo)}
-                            className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                          >
-                            {updatingMediaSlug === g.slug ? "업로드 중…" : "검수 신청"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setMediaEditSlug(null)}
-                            className="rounded border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
-                          >
-                            닫기
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })()}
 
                   {/* 취소 확인 패널 */}
                   {isConfirming && (
@@ -1093,7 +1007,7 @@ export default function DevelopPage() {
             <p className="mb-4 rounded bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
               수정 내용은 운영자 검수 후 반영됩니다.
             </p>
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
               <div className="flex gap-2">
                 <div className="w-16">
                   <label className="mb-1 block text-xs text-zinc-500">이모지</label>
@@ -1127,6 +1041,43 @@ export default function DevelopPage() {
                   <input value={metaForm.tagsRaw} onChange={(e) => setMetaForm((f) => ({ ...f, tagsRaw: e.target.value }))}
                     placeholder="퍼즐, 액션, 멀티"
                     className="w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
+                </div>
+              </div>
+
+              {/* 썸네일 / 영상 */}
+              <div className="border-t border-zinc-200 pt-3 dark:border-zinc-700">
+                <p className="mb-2 text-xs font-medium text-zinc-500">🖼 썸네일 · 🎬 데모 영상</p>
+                {metaEditGame && (metaEditGame.pendingThumbnailUrl || metaEditGame.thumbnailUrl) && (
+                  <div className="mb-2">
+                    <p className="mb-1 text-[10px] text-zinc-400">{metaEditGame.pendingThumbnailUrl ? "검수 대기 중 썸네일" : "현재 썸네일"}</p>
+                    <CardPreview
+                      title={metaEditGame.title}
+                      emoji={metaEditGame.emoji || "🎮"}
+                      category={metaEditGame.category || "other"}
+                      thumbnailUrl={metaEditGame.pendingThumbnailUrl ?? metaEditGame.thumbnailUrl ?? null}
+                    />
+                  </div>
+                )}
+                {metaEditGame?.pendingMediaAt && (
+                  <div className="mb-2 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300">
+                    미디어 검수 대기 중 —{" "}
+                    <button type="button" onClick={() => void onCancelMedia(metaEditGame.slug).then(() => void loadMyGames())}
+                      className="underline hover:no-underline">취소</button>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <div>
+                    <label className="mb-1 block text-xs text-zinc-500">새 썸네일 (JPG/PNG/WebP · 5MB↓)</label>
+                    <input type="file" accept="image/jpeg,image/png,image/webp"
+                      onChange={(e) => setMetaThumb(e.target.files?.[0] ?? null)}
+                      className="block w-full text-xs file:mr-2 file:rounded file:border-0 file:bg-zinc-200 file:px-2 file:py-1 file:text-xs dark:file:bg-zinc-700" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-zinc-500">새 데모 영상 (MP4/WebM · 200MB↓)</label>
+                    <input type="file" accept="video/mp4,video/webm"
+                      onChange={(e) => setMetaVideo(e.target.files?.[0] ?? null)}
+                      className="block w-full text-xs file:mr-2 file:rounded file:border-0 file:bg-zinc-200 file:px-2 file:py-1 file:text-xs dark:file:bg-zinc-700" />
+                  </div>
                 </div>
               </div>
             </div>
