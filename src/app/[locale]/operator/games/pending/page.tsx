@@ -468,52 +468,149 @@ export default function OperatorPendingGamesPage() {
         {pendingMeta !== null && pendingMeta.length > 0 && (
           <section className="rounded-xl border border-amber-200 bg-amber-50/50 p-6 dark:border-amber-800 dark:bg-amber-950/20">
             <h2 className="mb-4 text-base font-bold text-amber-900 dark:text-amber-200">✏️ 정보 수정 검수 대기 ({pendingMeta.length})</h2>
-            <ul className="space-y-4">
-              {pendingMeta.map((g) => (
-                <li key={g.slug} className="rounded-lg border border-amber-200 bg-white p-4 dark:border-amber-800 dark:bg-zinc-900">
-                  <div className="mb-3 flex items-center justify-between">
-                    <span className="font-semibold text-zinc-800 dark:text-white">{g.slug}</span>
-                    <span className="text-xs text-zinc-400">{g.pendingMetaAt ? new Date(g.pendingMetaAt).toLocaleString("ko") : ""}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="mb-1 text-xs font-medium text-zinc-500">현재</p>
-                      <p><span className="text-zinc-400 text-xs">제목:</span> {g.title}</p>
-                      <p><span className="text-zinc-400 text-xs">이모지:</span> {g.emoji}</p>
-                      <p><span className="text-zinc-400 text-xs">카테고리:</span> {g.category}</p>
-                      <p className="text-xs text-zinc-400 mt-1 line-clamp-2">{g.description}</p>
+            <ul className="space-y-6">
+              {pendingMeta.map((g) => {
+                const LANGS = ["ko","en","ja","zh"] as const;
+                const LANG_LABEL: Record<string,string> = { ko:"🇰🇷 한국어", en:"🇺🇸 영어", ja:"🇯🇵 일본어", zh:"🇨🇳 중국어" };
+                const changed = (cur: unknown, nxt: unknown) => cur !== nxt && nxt != null;
+                const rowCls = (isChanged: boolean) =>
+                  `grid grid-cols-2 gap-2 rounded px-2 py-1.5 text-sm ${isChanged ? "bg-amber-50 dark:bg-amber-950/30" : ""}`;
+
+                const pendingTagsArr = g.pendingTags as string[] | null;
+                const curTagsArr = g.tags as string[] | null;
+                const tagsChanged = pendingTagsArr != null &&
+                  JSON.stringify(pendingTagsArr) !== JSON.stringify(curTagsArr);
+
+                return (
+                  <li key={g.slug} className="rounded-lg border border-amber-200 bg-white dark:border-amber-800 dark:bg-zinc-900 overflow-hidden">
+                    {/* 헤더 */}
+                    <div className="flex items-center justify-between bg-zinc-50 px-4 py-2 dark:bg-zinc-800">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs text-zinc-500">{g.slug}</span>
+                        <span className="text-base">{g.emoji}</span>
+                        <span className="font-semibold text-zinc-800 dark:text-white">{g.title}</span>
+                      </div>
+                      <span className="text-xs text-zinc-400">{g.pendingMetaAt ? new Date(g.pendingMetaAt).toLocaleString("ko") : ""}</span>
                     </div>
-                    <div className="rounded-md bg-amber-50 p-2 dark:bg-amber-950/30">
-                      <p className="mb-1 text-xs font-medium text-amber-700 dark:text-amber-300">신청 내용</p>
-                      {g.pendingTitle && <p><span className="text-zinc-400 text-xs">제목:</span> {g.pendingTitle}</p>}
-                      {g.pendingEmoji && <p><span className="text-zinc-400 text-xs">이모지:</span> {g.pendingEmoji}</p>}
-                      {g.pendingCategory && <p><span className="text-zinc-400 text-xs">카테고리:</span> {g.pendingCategory}</p>}
-                      {g.pendingDescription && <p className="text-xs text-zinc-400 mt-1 line-clamp-2">{g.pendingDescription}</p>}
-                      {g.pendingTags && <p className="text-xs text-zinc-400">태그: {(g.pendingTags as string[]).join(", ")}</p>}
+
+                    {/* 컬럼 헤더 */}
+                    <div className="grid grid-cols-2 gap-2 border-b border-zinc-100 px-4 py-1 text-xs font-semibold dark:border-zinc-700">
+                      <span className="text-zinc-500">현재</span>
+                      <span className="text-amber-700 dark:text-amber-400">→ 신청 내용</span>
                     </div>
-                  </div>
-                  <div className="mt-3 flex gap-2">
-                    <button onClick={() => void onApproveMeta(g.slug)} disabled={actingSlug !== null}
-                      className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60">
-                      {actingSlug === g.slug ? "처리 중…" : "✓ 승인"}
-                    </button>
-                    <button onClick={() => setRejectMetaFor(g.slug)}
-                      className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-700 dark:bg-zinc-800 dark:text-red-400">
-                      거절
-                    </button>
-                  </div>
-                  {rejectMetaFor === g.slug && (
-                    <div className="mt-3 space-y-2">
-                      <textarea rows={2} placeholder="거절 사유" value={rejectMetaReason} onChange={(e) => setRejectMetaReason(e.target.value)}
-                        className="w-full rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
-                      <button onClick={() => void onRejectMeta(g.slug)} disabled={actingSlug !== null || !rejectMetaReason.trim()}
-                        className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60">
-                        거절 확인
+
+                    <div className="space-y-0.5 px-4 py-3">
+                      {/* 제목 */}
+                      <div className={rowCls(changed(g.title, g.pendingTitle))}>
+                        <div><span className="mr-1 text-xs text-zinc-400">제목</span>{g.title}</div>
+                        <div className={changed(g.title, g.pendingTitle) ? "font-semibold text-amber-800 dark:text-amber-300" : "text-zinc-400"}>
+                          {g.pendingTitle ?? <span className="italic text-zinc-300">변경 없음</span>}
+                        </div>
+                      </div>
+
+                      {/* 이모지 */}
+                      <div className={rowCls(changed(g.emoji, g.pendingEmoji))}>
+                        <div><span className="mr-1 text-xs text-zinc-400">이모지</span>{g.emoji}</div>
+                        <div className={changed(g.emoji, g.pendingEmoji) ? "font-semibold text-amber-800 dark:text-amber-300" : "text-zinc-400"}>
+                          {g.pendingEmoji ?? <span className="italic text-zinc-300">변경 없음</span>}
+                        </div>
+                      </div>
+
+                      {/* 카테고리 */}
+                      <div className={rowCls(changed(g.category, g.pendingCategory))}>
+                        <div><span className="mr-1 text-xs text-zinc-400">카테고리</span>{g.category}</div>
+                        <div className={changed(g.category, g.pendingCategory) ? "font-semibold text-amber-800 dark:text-amber-300" : "text-zinc-400"}>
+                          {g.pendingCategory ?? <span className="italic text-zinc-300">변경 없음</span>}
+                        </div>
+                      </div>
+
+                      {/* 설명 */}
+                      <div className={`rounded px-2 py-1.5 ${changed(g.description, g.pendingDescription) ? "bg-amber-50 dark:bg-amber-950/30" : ""}`}>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="mb-0.5 block text-xs text-zinc-400">설명</span>
+                            <p className="whitespace-pre-wrap text-xs text-zinc-600 dark:text-zinc-400">{g.description || <span className="italic text-zinc-300">없음</span>}</p>
+                          </div>
+                          <div>
+                            {g.pendingDescription != null ? (
+                              <p className={`whitespace-pre-wrap text-xs ${changed(g.description, g.pendingDescription) ? "font-medium text-amber-800 dark:text-amber-300" : "text-zinc-400"}`}>
+                                {g.pendingDescription}
+                              </p>
+                            ) : (
+                              <p className="text-xs italic text-zinc-300">변경 없음</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 태그 */}
+                      <div className={rowCls(tagsChanged)}>
+                        <div>
+                          <span className="mr-1 text-xs text-zinc-400">태그</span>
+                          <span className="text-xs">{curTagsArr?.join(", ") || <span className="italic text-zinc-300">없음</span>}</span>
+                        </div>
+                        <div className={tagsChanged ? "text-xs font-semibold text-amber-800 dark:text-amber-300" : "text-xs text-zinc-400"}>
+                          {pendingTagsArr != null ? pendingTagsArr.join(", ") || "(없음)" : <span className="italic text-zinc-300">변경 없음</span>}
+                        </div>
+                      </div>
+
+                      {/* i18n 제목/설명 */}
+                      {LANGS.map((lang) => {
+                        const curT = g.titlesI18n?.[lang] ?? "";
+                        const newT = g.pendingTitlesI18n?.[lang] ?? "";
+                        const curD = g.descriptionsI18n?.[lang] ?? "";
+                        const newD = g.pendingDescriptionsI18n?.[lang] ?? "";
+                        const tChanged = g.pendingTitlesI18n != null && curT !== newT;
+                        const dChanged = g.pendingDescriptionsI18n != null && curD !== newD;
+                        if (!tChanged && !dChanged && !curT && !curD) return null;
+                        return (
+                          <div key={lang} className={`rounded px-2 py-1.5 ${(tChanged || dChanged) ? "bg-amber-50 dark:bg-amber-950/30" : ""}`}>
+                            <p className="mb-1 text-xs font-medium text-zinc-500">{LANG_LABEL[lang]}</p>
+                            {(curT || newT) && (
+                              <div className="grid grid-cols-2 gap-2 text-sm mb-0.5">
+                                <div><span className="mr-1 text-xs text-zinc-400">제목</span>{curT || <span className="italic text-zinc-300">없음</span>}</div>
+                                <div className={tChanged ? "font-semibold text-amber-800 dark:text-amber-300" : "text-zinc-400"}>
+                                  {newT || <span className="italic text-zinc-300">변경 없음</span>}
+                                </div>
+                              </div>
+                            )}
+                            {(curD || newD) && (
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <p className="whitespace-pre-wrap text-zinc-500">{curD || <span className="italic text-zinc-300">없음</span>}</p>
+                                <p className={`whitespace-pre-wrap ${dChanged ? "font-medium text-amber-800 dark:text-amber-300" : "text-zinc-400"}`}>
+                                  {newD || <span className="italic text-zinc-300">변경 없음</span>}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* 액션 버튼 */}
+                    <div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 px-4 py-3 dark:border-zinc-700">
+                      <button onClick={() => void onApproveMeta(g.slug)} disabled={actingSlug !== null}
+                        className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60">
+                        {actingSlug === g.slug ? "처리 중…" : "✓ 승인"}
                       </button>
+                      <button onClick={() => setRejectMetaFor(rejectMetaFor === g.slug ? null : g.slug)}
+                        className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-700 dark:bg-zinc-800 dark:text-red-400">
+                        거절
+                      </button>
+                      {rejectMetaFor === g.slug && (
+                        <div className="mt-2 w-full space-y-2">
+                          <textarea rows={2} placeholder="거절 사유" value={rejectMetaReason} onChange={(e) => setRejectMetaReason(e.target.value)}
+                            className="w-full rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-white" />
+                          <button onClick={() => void onRejectMeta(g.slug)} disabled={actingSlug !== null || !rejectMetaReason.trim()}
+                            className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60">
+                            거절 확인
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           </section>
         )}
