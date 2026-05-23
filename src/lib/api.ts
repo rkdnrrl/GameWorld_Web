@@ -72,6 +72,15 @@ export type SignupResponse =
   | { requiresEmailConfirmation: true; email: string; message: string };
 
 /** UGC 플랫폼 — games 테이블 한 행 */
+export type GameCategory = {
+  slug: string;
+  labelKo: string;
+  labelEn: string;
+  emoji: string;
+  sortOrder: number;
+  createdAt: string;
+};
+
 export type UgcGame = {
   slug: string;
   ownerUserId: string | null;
