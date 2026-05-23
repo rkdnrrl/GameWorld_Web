@@ -104,6 +104,7 @@ function Stars({
 // ── 카드 ─────────────────────────────────────────────────────────────────────
 export default function GameCard({ game }: { game: Game }) {
   const t = useTranslations("Games");
+  const router = useRouter();
   const [token,       setToken]       = useState<string | null>(null);
   const [ratingAvg,   setRatingAvg]   = useState(game.ratingAvg   ?? 0);
   const [ratingCount, setRatingCount] = useState(game.ratingCount ?? 0);
