@@ -183,7 +183,7 @@ export default async function GameDetailPage({
         {game.demoVideoUrl && (
           <div className="mt-5 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-200">
             <div className="p-4">
-              <h2 className="mb-3 text-sm font-semibold text-gray-700">🎬 데모 영상</h2>
+              <h2 className="mb-3 text-sm font-semibold text-gray-700">{t("demoVideo")}</h2>
               <video
                 src={game.demoVideoUrl}
                 controls
