@@ -64,8 +64,10 @@ export default function GamesBrowser({ games }: Props) {
     let list = games.filter((g) => {
       if (activeCat !== "all" && (g.category ?? "other") !== activeCat) return false;
       if (!q) return true;
-      const title = (g as Game & { titlesI18n?: Record<string,string> }).titlesI18n?.[locale] || g.title;
-      const desc  = (g as Game & { descriptionsI18n?: Record<string,string> }).descriptionsI18n?.[locale] || g.description;
+      const i18nTitle = (g as Game & { titlesI18n?: Record<string,string> }).titlesI18n;
+      const i18nDesc  = (g as Game & { descriptionsI18n?: Record<string,string> }).descriptionsI18n;
+      const title = i18nTitle?.[locale] || i18nTitle?.['en'] || g.title;
+      const desc  = i18nDesc?.[locale]  || i18nDesc?.['en']  || g.description;
       return `${title} ${desc} ${g.tags.join(" ")}`.toLowerCase().includes(q);
     });
     if (sortBy === "popular") list = [...list].sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0));
@@ -113,7 +115,7 @@ export default function GamesBrowser({ games }: Props) {
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600">{t("continueLabel")}</p>
             <p className="truncate text-sm font-semibold text-gray-900">
-              {(lastGame as Game & { titlesI18n?: Record<string,string> }).titlesI18n?.[locale] || lastGame.title}
+              {(lastGame as Game & { titlesI18n?: Record<string,string> }).titlesI18n?.[locale] || (lastGame as Game & { titlesI18n?: Record<string,string> }).titlesI18n?.['en'] || lastGame.title}
             </p>
           </div>
           <span className="shrink-0 rounded bg-[#0170bd] px-4 py-2 text-xs font-semibold text-white transition-colors group-hover:bg-blue-700">

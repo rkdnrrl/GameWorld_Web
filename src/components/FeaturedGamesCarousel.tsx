@@ -100,7 +100,7 @@ export default function FeaturedGamesCarousel({ games }: { games: Game[] }) {
               </div>
 
               {/* 피처드 텍스트 — locale별 → fallback to featuredText */}
-              {(() => { const ft = game.featuredTextsI18n?.[locale] || game.featuredText; return ft && (
+              {(() => { const ft = game.featuredTextsI18n?.[locale] || game.featuredTextsI18n?.['en'] || game.featuredText; return ft && (
                 <div
                   className="absolute hidden sm:block pointer-events-none"
                   style={{
@@ -123,11 +123,11 @@ export default function FeaturedGamesCarousel({ games }: { games: Game[] }) {
                   {catLabel(cat)}
                 </span>
                 <h2 className="mb-2 text-3xl font-bold leading-tight text-white drop-shadow-lg sm:text-4xl">
-                  {game.titlesI18n?.[locale] || game.title}
+                  {game.titlesI18n?.[locale] || game.titlesI18n?.['en'] || game.title}
                 </h2>
-                {(game.descriptionsI18n?.[locale] || game.description) && (
+                {(game.descriptionsI18n?.[locale] || game.descriptionsI18n?.['en'] || game.description) && (
                   <p className="mb-5 line-clamp-2 text-sm text-white/70 sm:text-base">
-                    {game.descriptionsI18n?.[locale] || game.description}
+                    {game.descriptionsI18n?.[locale] || game.descriptionsI18n?.['en'] || game.description}
                   </p>
                 )}
                 <div className="flex flex-wrap gap-3">

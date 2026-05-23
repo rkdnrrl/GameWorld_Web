@@ -116,8 +116,8 @@ export default function GameCard({ game }: { game: Game }) {
   const t      = useTranslations("Games");
   const locale = useLocale();
   const router = useRouter();
-  const localTitle = game.titlesI18n?.[locale] || game.title;
-  const localDesc  = game.descriptionsI18n?.[locale] || game.description;
+  const localTitle = game.titlesI18n?.[locale] || game.titlesI18n?.['en'] || game.title;
+  const localDesc  = game.descriptionsI18n?.[locale] || game.descriptionsI18n?.['en'] || game.description;
   const [token,       setToken]       = useState<string | null>(null);
   const [ratingAvg,   setRatingAvg]   = useState(game.ratingAvg   ?? 0);
   const [ratingCount, setRatingCount] = useState(game.ratingCount ?? 0);
