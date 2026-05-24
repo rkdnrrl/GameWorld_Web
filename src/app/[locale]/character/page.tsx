@@ -331,7 +331,13 @@ export default function CharacterPage() {
               <ambientLight intensity={0.5} />
               <directionalLight position={[5, 8, 5]} intensity={1.5} />
               {modelUrl
-                ? <CustomPreview url={modelUrl} userScale={modelScale} rotX={modelRotX} />
+                ? <CustomPreview
+                    url={modelUrl}
+                    userScale={modelScale}
+                    rotX={modelRotX}
+                    previewAnim={previewAnim === 'idle' ? idleAnim : walkAnim}
+                    onAnimationsLoaded={setAvailableAnims}
+                  />
                 : <BlockPreview appearance={appearance} />
               }
             </Canvas>
