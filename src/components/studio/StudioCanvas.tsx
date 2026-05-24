@@ -473,11 +473,10 @@ export default function StudioCanvas() {
         {/* 선택된 오브젝트 — 변환 값 표시 */}
         {selected && (
           <div style={{ marginBottom: 16, padding: '12px 14px', background: 'rgba(99,102,241,0.1)', borderRadius: 10, border: '1px solid rgba(99,102,241,0.2)' }}>
-            <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 10, fontWeight: 600 }}>선택됨: {selected.kind}</div>
+            <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 10, fontWeight: 600 }}>{t('selectedKind', { kind: selected.kind })}</div>
 
-            {/* 현재 모드에 해당하는 값만 입력창으로 표시 */}
             <AxisInputRow
-              label={mode === 'translate' ? '위치 (m)' : mode === 'rotate' ? '회전 (°)' : '크기 (m)'}
+              label={mode === 'translate' ? t('position') : mode === 'rotate' ? t('rotation') : t('scale')}
               values={
                 mode === 'translate' ? selected.position :
                 mode === 'rotate'    ? selected.rotation.map(r => Math.round(r * 180 / Math.PI)) as [number,number,number] :
@@ -493,10 +492,9 @@ export default function StudioCanvas() {
               onCommit={() => pushHistory(objects)}
             />
 
-            {/* 색상 (도형만) */}
             {selected.kind !== 'asset' && (
               <div style={{ marginBottom: 8 }}>
-                <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 3 }}>색상</div>
+                <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 3 }}>{t('color')}</div>
                 <input type="color" value={selected.color}
                   onChange={e => updateColor(selected.id, e.target.value)}
                   onBlur={() => pushHistory(objects)}
@@ -506,23 +504,23 @@ export default function StudioCanvas() {
 
             <button onClick={deleteSelected}
               style={{ width: '100%', background: 'rgba(239,68,68,0.2)', border: 'none', color: '#fca5a5', fontSize: 11, padding: '6px', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
-              🗑️ 삭제 (Del)
+              {t('delete')}
             </button>
           </div>
         )}
 
         <div style={{ fontSize: 11, opacity: 0.45, marginBottom: 16 }}>
-          오브젝트 {objects.length}개 · 히스토리 {hist.idx + 1}/{hist.stack.length}
+          {t('stats', { count: objects.length, idx: hist.idx + 1, total: hist.stack.length })}
         </div>
 
         <button onClick={save} disabled={saving}
           style={{ width: '100%', padding: '11px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#10b981,#06b6d4)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1, marginBottom: 8 }}>
-          {saving ? '저장 중…' : savedId ? '💾 업데이트' : '💾 저장'}
+          {saving ? t('saving') : savedId ? t('update') : t('save')}
         </button>
         {savedId && (
           <a href={`/world?id=${savedId}`} target="_blank" rel="noreferrer"
             style={{ display: 'block', textAlign: 'center', padding: '9px', borderRadius: 10, background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-            ▶ 플레이 테스트
+            {t('playTest')}
           </a>
         )}
       </div>
@@ -570,7 +568,7 @@ export default function StudioCanvas() {
         </Canvas>
 
         <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.55)', borderRadius: 20, padding: '6px 16px', color: '#fff', fontSize: 12, backdropFilter: 'blur(8px)' }}>
-          좌클릭 드래그: 회전 · 우클릭 드래그: 이동 · 휠: 확대/축소 · 클릭: 선택 · Del: 삭제 · Ctrl+Z/Y: 되돌리기
+          {t('hudHint')}
         </div>
       </div>
     </div>
