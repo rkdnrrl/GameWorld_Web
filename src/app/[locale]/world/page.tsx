@@ -2,19 +2,33 @@
 import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from '@/i18n/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useGameSocket } from '@/lib/world/useGameSocket';
 import { session } from '@/lib/api';
 
 const WorldCanvas = dynamic(() => import('@/components/world/WorldCanvas'), { ssr: false });
 
+interface MapObject {
+  id: string;
+  kind: 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset';
+  assetUrl?: string;
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale: [number, number, number];
+  color: string;
+}
+
 export default function WorldPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const worldIdParam = searchParams.get('id');
   const [character, setCharacter] = useState<Record<string, unknown> | null>(null);
   const [userId, setUserId]       = useState('');
   const [username, setUsername]   = useState('');
   const [ready, setReady]         = useState(false);
   const [chatOpen, setChatOpen]   = useState(false);
   const [chatInput, setChatInput] = useState('');
+  const [customObjects, setCustomObjects] = useState<MapObject[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
 
   const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
@@ -55,8 +69,19 @@ export default function WorldPage() {
     load();
   }, [API, router]);
 
+  /* 유저 제작 월드 로드 */
+  useEffect(() => {
+    if (!worldIdParam) return;
+    fetch(`${API}/api/worlds/${worldIdParam}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.world?.mapData?.objects) setCustomObjects(d.world.mapData.objects);
+      })
+      .catch(() => {});
+  }, [API, worldIdParam]);
+
   const { players, chatLog, connected, sendMove, sendChat } = useGameSocket({
-    worldId:   'default',
+    worldId:   worldIdParam || 'default',
     playerId:  userId,
     username,
     character: character ?? {},
@@ -91,6 +116,7 @@ export default function WorldPage() {
         character={character ?? {}}
         players={players}
         onMove={sendMove}
+        customObjects={customObjects}
       />
 
       {/* HUD — 상단 */}
