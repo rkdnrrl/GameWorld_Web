@@ -335,7 +335,7 @@ function Player({
 
       if (mesh.current && len > 0) {
         const target = Math.atan2(mx, mz);
-        mesh.current.rotation.y = THREE.MathUtils.lerp(mesh.current.rotation.y, target, 12 * dt);
+        mesh.current.rotation.y = lerpAngle(mesh.current.rotation.y, target, Math.min(1, 12 * dt));
       }
 
       const now = Date.now();
