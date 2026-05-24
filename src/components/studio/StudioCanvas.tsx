@@ -370,14 +370,14 @@ export default function StudioCanvas() {
       const res = savedId
         ? await fetch(`${API}/api/worlds/${savedId}`, { method: 'PATCH', headers, body })
         : await fetch(`${API}/api/worlds`, { method: 'POST', headers, body });
-      if (!res.ok) throw new Error('저장 실패');
+      if (!res.ok) throw new Error(t('saveFailed'));
       const d = await res.json();
       const newId = d.world?.id ?? savedId;
       if (newId && newId !== savedId) {
         setSavedId(newId);
         router.replace(`/studio?id=${newId}`);
       }
-      alert('저장됨');
+      alert(t('saved'));
     } catch (e) {
       alert((e as Error).message);
     } finally {
