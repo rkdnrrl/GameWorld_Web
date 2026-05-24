@@ -127,8 +127,8 @@ export default function AssetsPage() {
       <div style={{ padding: '20px 32px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 12 }}>
         <span style={{ fontSize: 26 }}>📦</span>
         <div>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>3D 에셋 라이브러리</h1>
-          <p style={{ margin: 0, fontSize: 13, opacity: 0.5 }}>FBX 파일 업로드 · 최대 {MAX_MB}MB</p>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>{t('title')}</h1>
+          <p style={{ margin: 0, fontSize: 13, opacity: 0.5 }}>{t('subtitle', { maxMb: MAX_MB })}</p>
         </div>
       </div>
 
