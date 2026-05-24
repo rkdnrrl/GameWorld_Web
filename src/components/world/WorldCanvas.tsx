@@ -262,7 +262,7 @@ function Player({
     const onMouseMove = (e: MouseEvent) => {
       if (!isLocked.current) return;
       camH.current -= e.movementX * 0.003;
-      camV.current  = Math.max(0.05, Math.min(1.3, camV.current - e.movementY * 0.003));
+      camV.current  = Math.max(0.05, Math.min(1.3, camV.current + e.movementY * 0.003));
     };
     const onLockChange = () => { isLocked.current = !!document.pointerLockElement; };
     const onClick = () => el.requestPointerLock();
