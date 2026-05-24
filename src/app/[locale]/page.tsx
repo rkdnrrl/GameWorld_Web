@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "@/i18n/navigation";
 import { useTranslations, useLocale } from "next-intl";
+import { session, SESSION_CHANGE_EVENT } from "@/lib/api";
 
 // ─── 타입 ─────────────────────────────────────────────────────────────────────
 
