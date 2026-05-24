@@ -298,8 +298,7 @@ function Player({
       lockRotations
       position={[0, 4, 0]}
       linearDamping={0.6}
-      ccd
-      enabledRotations={[false, false, false]}
+      interpolate={false}
     >
       <CapsuleCollider args={[0.35, 0.28]} />
       <group ref={mesh} position={[0, -0.35, 0]}>
