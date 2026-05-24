@@ -198,7 +198,7 @@ export default function CharacterPage() {
     setSaving(true);
     setError('');
     const fullAppearance = modelUrl
-      ? { ...appearance, modelUrl, modelScale }
+      ? { ...appearance, modelUrl, modelScale, fbxRotX: modelRotX }
       : appearance;
     try {
       const token = session.getToken();
