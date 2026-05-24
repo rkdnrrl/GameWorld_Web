@@ -424,6 +424,73 @@ export default function CharacterPage() {
               )}
             </div>
 
+            {/* 애니메이션 매핑 (GLB/FBX에 애니메이션이 있을 때만) */}
+            {modelUrl && availableAnims.length > 0 && (
+              <div style={{
+                marginBottom: 16, padding: '12px 14px',
+                background: 'rgba(16,185,129,0.08)', borderRadius: 12,
+                border: '1px solid rgba(16,185,129,0.2)',
+              }}>
+                <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginBottom: 8 }}>
+                  애니메이션 매핑 ({availableAnims.length}개 발견)
+                </div>
+
+                {/* 유휴 선택 */}
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, marginBottom: 3 }}>가만히 있을 때 (Idle)</div>
+                  <select
+                    value={idleAnim}
+                    onChange={e => { setIdleAnim(e.target.value); setPreviewAnim('idle'); }}
+                    onFocus={() => setPreviewAnim('idle')}
+                    style={{
+                      width: '100%', background: 'rgba(0,0,0,0.4)',
+                      border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
+                      color: '#fff', fontSize: 12, padding: '6px 10px', outline: 'none',
+                    }}
+                  >
+                    <option value="">— 없음 —</option>
+                    {availableAnims.map(name => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 걷기 선택 */}
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, marginBottom: 3 }}>움직일 때 (Walk)</div>
+                  <select
+                    value={walkAnim}
+                    onChange={e => { setWalkAnim(e.target.value); setPreviewAnim('walk'); }}
+                    onFocus={() => setPreviewAnim('walk')}
+                    style={{
+                      width: '100%', background: 'rgba(0,0,0,0.4)',
+                      border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
+                      color: '#fff', fontSize: 12, padding: '6px 10px', outline: 'none',
+                    }}
+                  >
+                    <option value="">— 없음 —</option>
+                    {availableAnims.map(name => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 프리뷰 토글 */}
+                <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+                  <button onClick={() => setPreviewAnim('idle')} style={{
+                    flex: 1, fontSize: 10, padding: '4px 0', borderRadius: 5, border: 'none',
+                    background: previewAnim === 'idle' ? '#10b981' : 'rgba(255,255,255,0.08)',
+                    color: '#fff', cursor: 'pointer', fontWeight: 600,
+                  }}>▶ Idle 미리보기</button>
+                  <button onClick={() => setPreviewAnim('walk')} style={{
+                    flex: 1, fontSize: 10, padding: '4px 0', borderRadius: 5, border: 'none',
+                    background: previewAnim === 'walk' ? '#10b981' : 'rgba(255,255,255,0.08)',
+                    color: '#fff', cursor: 'pointer', fontWeight: 600,
+                  }}>▶ Walk 미리보기</button>
+                </div>
+              </div>
+            )}
+
             {/* 블록 캐릭터 색상 (모델 없을 때만) */}
             {!modelUrl && (
               <>
