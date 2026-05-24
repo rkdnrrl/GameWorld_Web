@@ -175,7 +175,7 @@ export default function AssetsPage() {
               <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>
                 {t('dragHint')}
               </div>
-              <div style={{ fontSize: 13, opacity: 0.45 }}>FBX 파일만 · 최대 {MAX_MB}MB</div>
+              <div style={{ fontSize: 13, opacity: 0.45 }}>{t('fileTypeHint', { maxMb: MAX_MB })}</div>
             </>
           )}
         </div>
