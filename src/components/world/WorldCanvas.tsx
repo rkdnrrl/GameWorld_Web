@@ -338,7 +338,10 @@ function Player({
       const jumpJustPressed = jump && !jumpPrev.current;
       jumpPrev.current = jump;
       if (jumpJustPressed && onGround && !isCrouch && !isProne) {
-        body.current.setLinvel({ x: vel.x, y: 4.5, z: vel.z }, true);
+        // 7 m/s → 약 1.1m 점프, 공중 체공 시간 ~0.64초
+        body.current.setLinvel({ x: vel.x, y: 7, z: vel.z }, true);
+        // 애니메이션이 끊기지 않도록 최소 500ms 점프 상태 유지
+        jumpHoldUntil.current = Date.now() + 500;
       }
 
       // 캐릭터 회전 (엎드리기 중엔 회전 안 함)
@@ -348,12 +351,13 @@ function Player({
       }
 
       // 현재 애니메이션 상태 결정
-      const moving = len > 0;
+      const moving      = len > 0;
+      const inJumpHold  = Date.now() < jumpHoldUntil.current;
       let state: AnimState = 'idle';
-      if (!onGround)        state = 'jump';
-      else if (isProne)     state = 'prone';
-      else if (isCrouch)    state = 'crouch';
-      else if (moving)      state = sprint ? 'run' : 'walk';
+      if (!onGround || inJumpHold) state = 'jump';
+      else if (isProne)            state = 'prone';
+      else if (isCrouch)           state = 'crouch';
+      else if (moving)             state = sprint ? 'run' : 'walk';
       animStateRef.current = state;
 
       const now = Date.now();
