@@ -192,8 +192,8 @@ function AssetPickerModal({ onSelect, onClose }: {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, overflowY: 'auto' }}>
           {assets.map(a => {
-            const ext = a.modelUrl.split('.').pop()?.toUpperCase() || '';
-            const extColor: Record<string, string> = { FBX: '#f59e0b', GLB: '#10b981', GLTF: '#3b82f6', OBJ: '#8b5cf6' };
+            const ext = 'FBX';
+            const extColor: Record<string, string> = { FBX: '#f59e0b' };
             return (
               <button key={a.id} onClick={() => onSelect(a)} style={{
                 background: 'rgba(255,255,255,0.05)', border: '2px solid rgba(255,255,255,0.08)',
