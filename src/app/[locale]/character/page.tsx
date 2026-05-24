@@ -218,9 +218,9 @@ export default function CharacterPage() {
     setModelUrl(asset.modelUrl);
     setModelName(asset.name);
     setShowPicker(false);
+    setModelScale(1.0); // 자동 정규화(1.8m) 후 배율. 1.0 = 1.8m
     const ext = asset.modelUrl.split('.').pop()?.toLowerCase();
-    setModelScale(ext === 'glb' || ext === 'gltf' ? 1 : 0.01);
-    setModelRotX(ext === 'fbx' ? -Math.PI / 2 : 0); // FBX Z-up 기본 보정
+    setModelRotX(ext === 'fbx' ? -Math.PI / 2 : 0);
   };
 
   const handleSave = async () => {
