@@ -187,8 +187,8 @@ function AssetPickerModal({ onSelect, onClose }: {
 
         {!loading && assets.length === 0 && (
           <div style={{ color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: 24, fontSize: 13 }}>
-            업로드된 에셋이 없습니다.<br />
-            <a href="/assets" style={{ color: '#818cf8' }}>/assets 페이지</a>에서 FBX를 먼저 업로드하세요.
+            {t('noUploadedAssets')}<br />
+            <a href="/assets" style={{ color: '#818cf8' }}>/assets</a> {t('uploadAtAssets')}
           </div>
         )}
 
