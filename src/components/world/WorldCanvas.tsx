@@ -384,7 +384,6 @@ interface WorldCanvasProps {
 
 export default function WorldCanvas({ character, players, onMove }: WorldCanvasProps) {
   return (
-    <KeyboardControls map={KEY_MAP}>
       <Canvas
         shadows
         camera={{ fov: 60, near: 0.1, far: 600, position: [0, 8, 12] }}
