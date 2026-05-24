@@ -4,6 +4,7 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, TransformControls, Grid, Sky, Outlines } from '@react-three/drei';
 import * as THREE from 'three';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { session } from '@/lib/api';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type OrbitRef = any;
