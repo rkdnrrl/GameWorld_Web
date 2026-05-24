@@ -38,7 +38,9 @@ export function useGameSocket({ worldId, playerId, username, character, enabled 
   const connect = useCallback(() => {
     if (dead.current || !enabled) return;
 
-    const base = (process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001').replace(/^http/, 'ws');
+    // NEXT_PUBLIC_WS_URL 우선, 없으면 API_URL에서 프로토콜만 ws:// 로 교체
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const base = (process.env.NEXT_PUBLIC_WS_URL || apiUrl).replace(/^https/, 'wss').replace(/^http/, 'ws');
     const sock = new WebSocket(`${base}/ws/game`);
     ws.current = sock;
 
