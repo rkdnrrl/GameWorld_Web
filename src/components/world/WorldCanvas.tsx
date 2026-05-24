@@ -157,12 +157,13 @@ function CustomModel({ url, userScale, rotX, animStateRef, animNames, animTrims 
 
 /* ── 캐릭터 메쉬 (커스텀 or 블록형) ───── */
 function CharacterMesh({ appearance, animStateRef }: {
-  appearance: Record<string, string>;
+  appearance: Record<string, unknown>;
   animStateRef?: React.RefObject<AnimState>;
 }) {
-  const modelUrl   = appearance.modelUrl;
+  const modelUrl   = appearance.modelUrl as string | undefined;
   const userScale  = Number(appearance.modelScale) || 1.0;
   const rotX       = Number(appearance.fbxRotX ?? -Math.PI / 2);
+  const trims      = (appearance.animTrims ?? {}) as Partial<Record<AnimState, AnimTrim>>;
 
   if (modelUrl) {
     return (
@@ -172,17 +173,18 @@ function CharacterMesh({ appearance, animStateRef }: {
         rotX={rotX}
         animStateRef={animStateRef}
         animNames={{
-          idle:   appearance.idleAnim,
-          walk:   appearance.walkAnim,
-          run:    appearance.runAnim,
-          jump:   appearance.jumpAnim,
-          crouch: appearance.crouchAnim,
-          prone:  appearance.proneAnim,
+          idle:   appearance.idleAnim   as string | undefined,
+          walk:   appearance.walkAnim   as string | undefined,
+          run:    appearance.runAnim    as string | undefined,
+          jump:   appearance.jumpAnim   as string | undefined,
+          crouch: appearance.crouchAnim as string | undefined,
+          prone:  appearance.proneAnim  as string | undefined,
         }}
+        animTrims={trims}
       />
     );
   }
-  return <BlockMesh appearance={appearance} />;
+  return <BlockMesh appearance={appearance as Record<string, string>} />;
 }
 
 /* ── 블록형 기본 캐릭터 ─────────────────── */
