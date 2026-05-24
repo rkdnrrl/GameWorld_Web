@@ -282,7 +282,7 @@ export default function CharacterPage() {
               <ambientLight intensity={0.5} />
               <directionalLight position={[5, 8, 5]} intensity={1.5} />
               {modelUrl
-                ? <CustomPreview url={modelUrl} scale={modelScale} rotX={modelRotX} />
+                ? <CustomPreview url={modelUrl} userScale={modelScale} rotX={modelRotX} />
                 : <BlockPreview appearance={appearance} />
               }
             </Canvas>
