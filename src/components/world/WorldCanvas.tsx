@@ -260,7 +260,7 @@ function Player({
         const ray = new rapier.Ray({ x: posT.x, y: posT.y, z: posT.z }, { x: 0, y: -1, z: 0 });
         const hit = rWorld.castRay(ray, 1.3, true);
         if (hit && hit.timeOfImpact < 0.7) {
-          body.current.applyImpulse({ x: 0, y: 7, z: 0 }, true);
+          body.current.applyImpulse({ x: 0, y: 4.5, z: 0 }, true);
         }
       }
 
