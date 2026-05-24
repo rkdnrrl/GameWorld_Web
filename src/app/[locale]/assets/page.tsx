@@ -195,7 +195,7 @@ export default function AssetsPage() {
               <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>
                 클릭하거나 파일을 드래그하세요
               </div>
-              <div style={{ fontSize: 13, opacity: 0.45 }}>FBX · GLB · GLTF · OBJ · 최대 {MAX_MB}MB</div>
+              <div style={{ fontSize: 13, opacity: 0.45 }}>FBX 파일만 · 최대 {MAX_MB}MB</div>
             </>
           )}
         </div>
