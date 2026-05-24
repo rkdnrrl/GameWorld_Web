@@ -88,7 +88,10 @@ function CustomPreview({
     }
   }, [previewAnim, obj]);
 
-  useFrame((_, dt) => { if (g.current) g.current.rotation.y += dt * 0.6; });
+  useFrame((_, dt) => {
+    if (g.current) g.current.rotation.y += dt * 0.6;
+    mixer.current?.update(dt);
+  });
 
   if (!obj) return null;
   return (
