@@ -266,7 +266,7 @@ export default function AssetsPage() {
                           background: 'rgba(239,68,68,0.12)', color: '#fca5a5',
                         }}
                       >
-                        삭제
+                        {t('delete')}
                       </button>
                     </div>
                   </div>
