@@ -269,7 +269,7 @@ export default function CharacterPage() {
   };
 
   const handleSave = async () => {
-    if (!name.trim()) { setError('이름을 입력해주세요.'); return; }
+    if (!name.trim()) { setError(t('nameRequired')); return; }
     setSaving(true);
     setError('');
     const fullAppearance = modelUrl
