@@ -30,32 +30,63 @@ function autoNormalize(obj: THREE.Object3D, targetHeight = 1.8) {
 }
 
 /* ── 커스텀 모델 프리뷰 (명령형 로드) ───── */
-function CustomPreview({ url, userScale, rotX }: { url: string; userScale: number; rotX: number }) {
+function CustomPreview({
+  url, userScale, rotX, previewAnim, onAnimationsLoaded,
+}: {
+  url: string;
+  userScale: number;
+  rotX: number;
+  previewAnim?: string;
+  onAnimationsLoaded?: (names: string[]) => void;
+}) {
   const [obj, setObj] = useState<THREE.Object3D | null>(null);
-  const g = useRef<THREE.Group>(null);
+  const g     = useRef<THREE.Group>(null);
+  const mixer = useRef<THREE.AnimationMixer | null>(null);
+  const animClips = useRef<THREE.AnimationClip[]>([]);
 
   useEffect(() => {
     if (!url) return;
     let cancelled = false;
     const ext = url.split('.').pop()?.toLowerCase();
 
-    const onLoaded = (loaded: THREE.Object3D) => {
+    const onLoaded = (loaded: THREE.Object3D, anims: THREE.AnimationClip[] = []) => {
       if (cancelled) return;
       autoNormalize(loaded, 1.8);
+      animClips.current = anims;
+      if (anims.length) {
+        mixer.current = new THREE.AnimationMixer(loaded);
+      }
+      onAnimationsLoaded?.(anims.map(a => a.name));
       setObj(loaded);
     };
 
     if (ext === 'glb' || ext === 'gltf') {
       import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => {
-        new GLTFLoader().load(url, (gltf) => onLoaded(gltf.scene.clone(true)));
+        new GLTFLoader().load(url, (gltf) => onLoaded(gltf.scene.clone(true), gltf.animations ?? []));
       });
     } else {
       import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
-        new FBXLoader().load(url, onLoaded);
+        new FBXLoader().load(url, (fbx) => {
+          onLoaded(fbx, (fbx as unknown as { animations: THREE.AnimationClip[] }).animations ?? []);
+        });
       });
     }
-    return () => { cancelled = true; };
-  }, [url]);
+    return () => {
+      cancelled = true;
+      mixer.current?.stopAllAction();
+      mixer.current = null;
+    };
+  }, [url, onAnimationsLoaded]);
+
+  // 선택된 애니메이션만 재생
+  useEffect(() => {
+    if (!mixer.current) return;
+    mixer.current.stopAllAction();
+    if (previewAnim) {
+      const clip = animClips.current.find(c => c.name === previewAnim);
+      if (clip) mixer.current.clipAction(clip).play();
+    }
+  }, [previewAnim, obj]);
 
   useFrame((_, dt) => { if (g.current) g.current.rotation.y += dt * 0.6; });
 
