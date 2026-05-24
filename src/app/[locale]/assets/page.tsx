@@ -13,7 +13,7 @@ interface Asset {
   createdAt: string;
 }
 
-const ACCEPT = '.fbx,.glb,.gltf,.obj';
+const ACCEPT = '.fbx';
 const MAX_MB = 100;
 
 export default function AssetsPage() {
