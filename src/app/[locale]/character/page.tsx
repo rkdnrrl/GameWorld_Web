@@ -188,9 +188,9 @@ export default function CharacterPage() {
     setModelUrl(asset.modelUrl);
     setModelName(asset.name);
     setShowPicker(false);
-    // FBX 기본 스케일 vs GLB
     const ext = asset.modelUrl.split('.').pop()?.toLowerCase();
     setModelScale(ext === 'glb' || ext === 'gltf' ? 1 : 0.01);
+    setModelRotX(ext === 'fbx' ? -Math.PI / 2 : 0); // FBX Z-up 기본 보정
   };
 
   const handleSave = async () => {
