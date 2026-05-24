@@ -283,7 +283,8 @@ function Player({
     const tx   = p.x + dist * Math.sin(camH.current) * Math.cos(camV.current);
     const ty   = p.y + dist * Math.sin(camV.current) + 0.5;
     const tz   = p.z + dist * Math.cos(camH.current) * Math.cos(camV.current);
-    camera.position.lerp(new THREE.Vector3(tx, ty, tz), 1 - Math.pow(0.001, dt));
+    // 프레임레이트 독립적 lerp (0.05^dt ≈ 0.92/frame @60fps)
+    camera.position.lerp(new THREE.Vector3(tx, ty, tz), 1 - Math.pow(0.05, dt));
     camera.lookAt(p.x, p.y + 0.7, p.z);
   });
 
