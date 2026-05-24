@@ -120,7 +120,7 @@ function CustomModel({ url, userScale, rotX, animStateRef, animNames, animTrims 
       currentAction.current = null;
       currentState.current = null;
     };
-  }, [url, animNames]);
+  }, [url, animNames, animTrims]);
 
   // 단일 액션 크로스페이드 (state 바뀔 때만 전환)
   useFrame((_, dt) => {
