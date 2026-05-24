@@ -173,7 +173,7 @@ export default function AssetsPage() {
             <>
               <div style={{ fontSize: 48, marginBottom: 12 }}>🗂️</div>
               <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>
-                클릭하거나 파일을 드래그하세요
+                {t('dragHint')}
               </div>
               <div style={{ fontSize: 13, opacity: 0.45 }}>FBX 파일만 · 최대 {MAX_MB}MB</div>
             </>
