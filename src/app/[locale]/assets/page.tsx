@@ -18,6 +18,7 @@ const ACCEPT = '.fbx';
 const MAX_MB = 100;
 
 export default function AssetsPage() {
+  const t = useTranslations('Assets');
   const [assets, setAssets]       = useState<Asset[]>([]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress]   = useState(0);
