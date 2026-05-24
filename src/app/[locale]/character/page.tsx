@@ -262,11 +262,9 @@ export default function CharacterPage() {
     setModelName(asset.name);
     setShowPicker(false);
     setModelScale(1.0);
-    setModelRotX(-Math.PI / 2); // FBX Z-up 기본 보정
-    // 애니메이션 초기화
+    setModelRotX(-Math.PI / 2);
     setAvailableAnims([]);
-    setIdleAnim('');
-    setWalkAnim('');
+    setAnimMap({ idle: '', walk: '', run: '', jump: '', crouch: '', prone: '' });
   };
 
   const handleSave = async () => {
@@ -274,7 +272,15 @@ export default function CharacterPage() {
     setSaving(true);
     setError('');
     const fullAppearance = modelUrl
-      ? { ...appearance, modelUrl, modelScale, fbxRotX: modelRotX, idleAnim, walkAnim }
+      ? {
+          ...appearance, modelUrl, modelScale, fbxRotX: modelRotX,
+          idleAnim:   animMap.idle,
+          walkAnim:   animMap.walk,
+          runAnim:    animMap.run,
+          jumpAnim:   animMap.jump,
+          crouchAnim: animMap.crouch,
+          proneAnim:  animMap.prone,
+        }
       : appearance;
     try {
       const token = session.getToken();
