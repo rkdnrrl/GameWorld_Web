@@ -157,7 +157,16 @@ function CharacterMesh({ appearance, movingRef }: {
   const rotX       = Number(appearance.fbxRotX ?? (modelUrl?.endsWith('.fbx') ? -Math.PI / 2 : 0));
 
   if (modelUrl) {
-    return <CustomModel url={modelUrl} userScale={userScale} rotX={rotX} movingRef={movingRef} />;
+    return (
+      <CustomModel
+        url={modelUrl}
+        userScale={userScale}
+        rotX={rotX}
+        movingRef={movingRef}
+        idleName={appearance.idleAnim}
+        walkName={appearance.walkAnim}
+      />
+    );
   }
   return <BlockMesh appearance={appearance} />;
 }
