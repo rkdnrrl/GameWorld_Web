@@ -32,7 +32,7 @@ export function useGameSocket({ worldId, playerId, username, character, enabled 
   const [connected, setConnected] = useState(false);
 
   const ws     = useRef<WebSocket | null>(null);
-  const timer  = useRef<ReturnType<typeof setTimeout>>();
+  const timer  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const dead   = useRef(false);
 
   const connect = useCallback(() => {
