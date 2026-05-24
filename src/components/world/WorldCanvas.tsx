@@ -23,11 +23,13 @@ function autoNormalize(obj: THREE.Object3D, targetHeight = 1.8) {
   obj.position.y -= box2.min.y;
 }
 
-function CustomModel({ url, userScale, rotX, movingRef }: {
+function CustomModel({ url, userScale, rotX, movingRef, idleName, walkName }: {
   url: string;
   userScale: number;
   rotX: number;
   movingRef?: React.RefObject<boolean>;
+  idleName?: string;
+  walkName?: string;
 }) {
   const [obj, setObj]     = useState<THREE.Object3D | null>(null);
   const mixer             = useRef<THREE.AnimationMixer | null>(null);
