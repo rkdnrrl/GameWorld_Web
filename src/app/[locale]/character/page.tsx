@@ -307,16 +307,38 @@ export default function CharacterPage() {
                 {modelUrl ? '다른 모델 선택' : '📂 내 에셋에서 선택'}
               </button>
 
-              {/* 스케일 조정 (모델 선택된 경우) */}
+              {/* 스케일 / 회전 조정 */}
               {modelUrl && (
-                <div style={{ marginTop: 10 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>크기 조정</span>
-                    <span style={{ color: '#a5b4fc', fontSize: 11 }}>{modelScale.toFixed(3)}</span>
+                <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                      <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>크기</span>
+                      <span style={{ color: '#a5b4fc', fontSize: 11 }}>{modelScale.toFixed(3)}</span>
+                    </div>
+                    <input type="range" min={0.001} max={0.5} step={0.001}
+                      value={modelScale} onChange={e => setModelScale(Number(e.target.value))}
+                      style={{ width: '100%' }} />
                   </div>
-                  <input type="range" min={0.001} max={0.1} step={0.001}
-                    value={modelScale} onChange={e => setModelScale(Number(e.target.value))}
-                    style={{ width: '100%' }} />
+                  {ext === 'fbx' && (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                        <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>X 회전 (눕혀질 때 조정)</span>
+                        <span style={{ color: '#a5b4fc', fontSize: 11 }}>{Math.round(modelRotX * 180 / Math.PI)}°</span>
+                      </div>
+                      <input type="range" min={-Math.PI} max={Math.PI} step={0.01}
+                        value={modelRotX} onChange={e => setModelRotX(Number(e.target.value))}
+                        style={{ width: '100%' }} />
+                      <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                        {[0, -Math.PI/2, Math.PI/2, Math.PI].map(v => (
+                          <button key={v} onClick={() => setModelRotX(v)} style={{
+                            flex: 1, fontSize: 10, padding: '2px 0', borderRadius: 4, border: 'none',
+                            background: Math.abs(modelRotX - v) < 0.05 ? '#4f46e5' : 'rgba(255,255,255,0.1)',
+                            color: '#fff', cursor: 'pointer',
+                          }}>{Math.round(v * 180 / Math.PI)}°</button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
