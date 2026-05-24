@@ -88,6 +88,8 @@ export default function Home() {
   const [genres, setGenres]         = useState<GenreItem[]>([]);
   const [cat, setCat]               = useState<string>("all");
   const [dataReady, setDataReady]   = useState(false);
+  const [heroIdx, setHeroIdx]       = useState(0);
+  const [heroPaused, setHeroPaused] = useState(false);
 
   // ── 데이터 로드 ──
   useEffect(() => {
