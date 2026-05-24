@@ -58,7 +58,9 @@ function CustomPreview({ url, userScale, rotX }: { url: string; userScale: numbe
   if (!obj) return null;
   return (
     <group ref={g} position={[0, -1, 0]}>
-      <primitive object={obj} scale={userScale} rotation={[rotX, 0, 0]} />
+      <group scale={userScale} rotation={[rotX, 0, 0]}>
+        <primitive object={obj} />
+      </group>
     </group>
   );
 }
