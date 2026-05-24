@@ -233,7 +233,7 @@ function Player({
   onMove,
 }: {
   character: Record<string, unknown>;
-  onMove: (p: { x: number; y: number; z: number; rotY: number }) => void;
+  onMove: (p: { x: number; y: number; z: number; rotY: number; animState?: AnimState }) => void;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body      = useRef<any>(null);
@@ -262,8 +262,12 @@ function Player({
 
     // 키보드
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat) return;
       keys.current.add(e.code);
       if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+      // 토글 키
+      if (e.code === 'KeyC') { crouchRef.current = !crouchRef.current; if (crouchRef.current) proneRef.current = false; }
+      if (e.code === 'KeyZ') { proneRef.current  = !proneRef.current;  if (proneRef.current)  crouchRef.current = false; }
     };
     const onKeyUp = (e: KeyboardEvent) => keys.current.delete(e.code);
 
@@ -303,7 +307,11 @@ function Player({
       const sprint   = k.has('ShiftLeft');
       const vel  = body.current.linvel();
       const posT = body.current.translation();
-      const SPEED = (sprint as boolean) ? 9 : 5;
+
+      // 상태 기반 속도
+      const isCrouch = crouchRef.current;
+      const isProne  = proneRef.current;
+      const SPEED    = isProne ? 1.0 : isCrouch ? 2.5 : sprint ? 9 : 5;
 
       lastPos.current.set(posT.x, posT.y, posT.z);
 
@@ -319,30 +327,37 @@ function Player({
       if (len > 0) { mx /= len; mz /= len; }
       body.current.setLinvel({ x: mx * SPEED, y: vel.y, z: mz * SPEED }, true);
 
-      // 이동 중 여부 → 애니메이션 크로스페이드용
-      movingRef.current = len > 0;
+      // 지면 체크
+      const ray = new rapier.Ray({ x: posT.x, y: posT.y, z: posT.z }, { x: 0, y: -1, z: 0 });
+      const hit = rWorld.castRay(ray, 1.3, true);
+      const onGround = !!(hit && hit.timeOfImpact < 0.7);
 
-      // 점프: Space가 새로 눌렸을 때만 1번
+      // 점프: Space가 새로 눌렸을 때만 1번 (앉기/엎드리기 중엔 점프 금지)
       const jumpJustPressed = jump && !jumpPrev.current;
       jumpPrev.current = jump;
-      if (jumpJustPressed) {
-        const ray = new rapier.Ray({ x: posT.x, y: posT.y, z: posT.z }, { x: 0, y: -1, z: 0 });
-        const hit = rWorld.castRay(ray, 1.3, true);
-        if (hit && hit.timeOfImpact < 0.7) {
-          // 임펄스 대신 setLinvel로 정확히 4.5 m/s 수직 속도 → ~0.46m 점프
-          body.current.setLinvel({ x: vel.x, y: 4.5, z: vel.z }, true);
-        }
+      if (jumpJustPressed && onGround && !isCrouch && !isProne) {
+        body.current.setLinvel({ x: vel.x, y: 4.5, z: vel.z }, true);
       }
 
-      if (mesh.current && len > 0) {
+      // 캐릭터 회전 (엎드리기 중엔 회전 안 함)
+      if (mesh.current && len > 0 && !isProne) {
         const target = Math.atan2(mx, mz);
         mesh.current.rotation.y = lerpAngle(mesh.current.rotation.y, target, Math.min(1, 12 * dt));
       }
 
+      // 현재 애니메이션 상태 결정
+      const moving = len > 0;
+      let state: AnimState = 'idle';
+      if (!onGround)        state = 'jump';
+      else if (isProne)     state = 'prone';
+      else if (isCrouch)    state = 'crouch';
+      else if (moving)      state = sprint ? 'run' : 'walk';
+      animStateRef.current = state;
+
       const now = Date.now();
       if (now - lastSend.current > 50) {
         lastSend.current = now;
-        onMove({ x: posT.x, y: posT.y, z: posT.z, rotY: mesh.current?.rotation.y ?? 0 });
+        onMove({ x: posT.x, y: posT.y, z: posT.z, rotY: mesh.current?.rotation.y ?? 0, animState: state });
       }
       } catch { /* Rapier 초기화 중 에러 무시 */ }
     }
@@ -371,41 +386,48 @@ function Player({
     >
       <CapsuleCollider args={[0.35, 0.28]} />
       <group ref={mesh} position={[0, -0.35, 0]}>
-        <CharacterMesh appearance={appearance} movingRef={movingRef} />
+        <CharacterMesh appearance={appearance} animStateRef={animStateRef} />
       </group>
     </RigidBody>
   );
 }
 
 /* ── 원격 플레이어 ──────────────────────── */
-function RemotePlayerMesh({ player }: { player: RemotePlayer }) {
+function RemotePlayerMesh({ player }: { player: RemotePlayer & { animState?: AnimState } }) {
   const g    = useRef<THREE.Group>(null);
   const tPos = useRef(new THREE.Vector3(player.x, player.y, player.z));
   const tRot = useRef(player.rotY);
-  const lastUpdate = useRef(Date.now());
-  const movingRef  = useRef(false);
-  const prevTargetXZ = useRef({ x: player.x, z: player.z });
+  const lastUpdate     = useRef(Date.now());
+  const animStateRef   = useRef<AnimState>('idle');
+  const prevTargetXZ   = useRef({ x: player.x, z: player.z });
 
-  // 새 위치 수신 시: 직전 타겟과 비교해 이동 중인지 판단
+  // 서버에서 받은 animState 우선, 없으면 위치 변화로 판단
   useEffect(() => {
-    const dx = player.x - prevTargetXZ.current.x;
-    const dz = player.z - prevTargetXZ.current.z;
-    const moved = Math.hypot(dx, dz) > 0.02; // 2cm 이상 이동
-    if (moved) {
-      movingRef.current = true;
+    if (player.animState) {
+      animStateRef.current = player.animState;
       lastUpdate.current = Date.now();
+    } else {
+      const dx = player.x - prevTargetXZ.current.x;
+      const dz = player.z - prevTargetXZ.current.z;
+      const moved = Math.hypot(dx, dz) > 0.02;
+      if (moved) {
+        animStateRef.current = 'walk';
+        lastUpdate.current = Date.now();
+      }
     }
     prevTargetXZ.current = { x: player.x, z: player.z };
     tPos.current.set(player.x, player.y, player.z);
     tRot.current = player.rotY;
-  }, [player.x, player.y, player.z, player.rotY]);
+  }, [player.x, player.y, player.z, player.rotY, player.animState]);
 
   useFrame((_, dt) => {
     if (!g.current) return;
     g.current.position.lerp(tPos.current, 10 * dt);
     g.current.rotation.y = lerpAngle(g.current.rotation.y, tRot.current, Math.min(1, 10 * dt));
-    // 200ms 이상 위치 업데이트 없으면 idle 상태로
-    if (Date.now() - lastUpdate.current > 200) movingRef.current = false;
+    // 서버 animState 없을 때만: 200ms 이상 위치 업데이트 없으면 idle
+    if (!player.animState && Date.now() - lastUpdate.current > 200) {
+      animStateRef.current = 'idle';
+    }
   });
 
   const appearance = (player.character?.appearance ?? {}) as Record<string, string>;
@@ -413,7 +435,7 @@ function RemotePlayerMesh({ player }: { player: RemotePlayer }) {
   return (
     <group ref={g} position={[player.x, player.y, player.z]}>
       <group position={[0, -0.35, 0]}>
-        <CharacterMesh appearance={appearance} movingRef={movingRef} />
+        <CharacterMesh appearance={appearance} animStateRef={animStateRef} />
       </group>
       <Text
         position={[0, 1.8, 0]}
