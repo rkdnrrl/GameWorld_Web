@@ -143,7 +143,7 @@ export default function AssetsPage() {
         <span style={{ fontSize: 26 }}>📦</span>
         <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>3D 에셋 라이브러리</h1>
-          <p style={{ margin: 0, fontSize: 13, opacity: 0.5 }}>FBX / GLB / OBJ 파일 업로드 · 최대 {MAX_MB}MB</p>
+          <p style={{ margin: 0, fontSize: 13, opacity: 0.5 }}>FBX 파일 업로드 · 최대 {MAX_MB}MB</p>
         </div>
       </div>
 
