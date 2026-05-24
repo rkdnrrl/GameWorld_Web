@@ -200,6 +200,7 @@ function DraggingDetector({ setOrbitEnabled }: { setOrbitEnabled: (v: boolean) =
 
 /* ── 메인 ─────────────────────────────────── */
 export default function StudioCanvas() {
+  const t            = useTranslations('Studio');
   const router       = useRouter();
   const searchParams = useSearchParams();
   const editingId    = searchParams.get('id') || null;
@@ -207,7 +208,7 @@ export default function StudioCanvas() {
   const [objects, setObjects]       = useState<MapObject[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode]             = useState<'translate' | 'rotate' | 'scale'>('translate');
-  const [name, setName]             = useState('새 월드');
+  const [name, setName]             = useState(t('newWorldDefault'));
   const [savedId, setSavedId]       = useState<string | null>(editingId);
   const [saving, setSaving]         = useState(false);
   const [myAssets, setMyAssets]     = useState<Asset[]>([]);
