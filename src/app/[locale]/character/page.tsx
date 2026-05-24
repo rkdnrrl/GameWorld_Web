@@ -486,10 +486,10 @@ export default function CharacterPage() {
             {/* 블록 캐릭터 색상 (모델 없을 때만) */}
             {!modelUrl && (
               <>
-                <ColorPicker label="상의 색상" colors={BODY_COLORS}  value={appearance.bodyColor}  onChange={setColor('bodyColor')} />
-                <ColorPicker label="피부 색상" colors={SKIN_COLORS}  value={appearance.skinColor}  onChange={setColor('skinColor')} />
-                <ColorPicker label="머리 색상" colors={HAIR_COLORS}  value={appearance.hairColor}  onChange={setColor('hairColor')} />
-                <ColorPicker label="하의 색상" colors={PANTS_COLORS} value={appearance.pantsColor} onChange={setColor('pantsColor')} />
+                <ColorPicker label={t('bodyColor')}  colors={BODY_COLORS}  value={appearance.bodyColor}  onChange={setColor('bodyColor')} />
+                <ColorPicker label={t('skinColor')}  colors={SKIN_COLORS}  value={appearance.skinColor}  onChange={setColor('skinColor')} />
+                <ColorPicker label={t('hairColor')}  colors={HAIR_COLORS}  value={appearance.hairColor}  onChange={setColor('hairColor')} />
+                <ColorPicker label={t('pantsColor')} colors={PANTS_COLORS} value={appearance.pantsColor} onChange={setColor('pantsColor')} />
               </>
             )}
 
