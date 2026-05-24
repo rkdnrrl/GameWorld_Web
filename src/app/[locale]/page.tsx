@@ -97,8 +97,16 @@ export default function Home() {
       fetch("/api/community?limit=10&sort=createdAt").then(r => r.json()).catch(() => ({ items: [] })),
       fetch("/api/community?limit=5&sort=views").then(r => r.json()).catch(() => ({ items: [] })),
       fetch("/api/genres").then(r => r.json()).catch(() => ({ genres: [] })),
-    ]).then(([gd, nd, pd, hd, gnd]) => {
-      setGames(gd.games ?? []);
+      fetch("/api/categories").then(r => r.json()).catch(() => ({ categories: [] })),
+    ]).then(([gd, nd, pd, hd, gnd, catd]) => {
+      // 게임 유형 sortOrder 맵 생성
+      const catOrder: Record<string, number> = {};
+      for (const c of (catd.categories ?? [])) catOrder[c.slug] = c.sortOrder;
+      // games를 유형 sortOrder 순으로 정렬
+      const sorted = (gd.games ?? []).slice().sort(
+        (a: GameItem, b: GameItem) => (catOrder[a.category] ?? 999) - (catOrder[b.category] ?? 999)
+      );
+      setGames(sorted);
       setNotices(nd.items ?? []);
       setPosts(pd.items ?? []);
       setHotPosts(hd.items ?? []);
