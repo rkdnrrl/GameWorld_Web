@@ -582,14 +582,13 @@ export default function StudioCanvas() {
             ref={orbitRef}
             enabled={orbitEnabled}
             makeDefault
-            enableZoom={false}
+            enableZoom={true}
             mouseButtons={{
               LEFT:   THREE.MOUSE.ROTATE,
               MIDDLE: THREE.MOUSE.PAN,
-              RIGHT:  THREE.MOUSE.DOLLY,
+              RIGHT:  THREE.MOUSE.PAN,
             }}
           />
-          <WheelPan orbitRef={orbitRef} />
           <DraggingDetector setOrbitEnabled={setOrbitEnabled} />
         </Canvas>
 
