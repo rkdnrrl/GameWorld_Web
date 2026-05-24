@@ -263,9 +263,13 @@ export default function CharacterPage() {
     setModelUrl(asset.modelUrl);
     setModelName(asset.name);
     setShowPicker(false);
-    setModelScale(1.0); // 자동 정규화(1.8m) 후 배율. 1.0 = 1.8m
+    setModelScale(1.0);
     const ext = asset.modelUrl.split('.').pop()?.toLowerCase();
     setModelRotX(ext === 'fbx' ? -Math.PI / 2 : 0);
+    // 애니메이션 초기화
+    setAvailableAnims([]);
+    setIdleAnim('');
+    setWalkAnim('');
   };
 
   const handleSave = async () => {
@@ -273,7 +277,7 @@ export default function CharacterPage() {
     setSaving(true);
     setError('');
     const fullAppearance = modelUrl
-      ? { ...appearance, modelUrl, modelScale, fbxRotX: modelRotX }
+      ? { ...appearance, modelUrl, modelScale, fbxRotX: modelRotX, idleAnim, walkAnim }
       : appearance;
     try {
       const token = session.getToken();
