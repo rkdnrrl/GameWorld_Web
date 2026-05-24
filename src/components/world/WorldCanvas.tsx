@@ -479,7 +479,7 @@ export default function WorldCanvas({ character, players, onMove }: WorldCanvasP
         <Sky sunPosition={[25, 10, 15]} turbidity={0.4} rayleigh={0.25} />
 
         <Suspense fallback={null}>
-          <Physics gravity={[0, -22, 0]}>
+          <Physics gravity={[0, -22, 0]} interpolate={false}>
             <Island />
             <Player character={character} onMove={onMove} />
             {Object.values(players).map((p) => (
