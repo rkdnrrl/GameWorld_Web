@@ -101,7 +101,7 @@ export function useGameSocket({ worldId, playerId, username, character, enabled 
     };
   }, [connect]);
 
-  const sendMove = useCallback((pos: { x: number; y: number; z: number; rotY: number }) => {
+  const sendMove = useCallback((pos: { x: number; y: number; z: number; rotY: number; animState?: AnimState }) => {
     if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type: 'move', ...pos }));
     }
