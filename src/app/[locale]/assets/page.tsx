@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { session } from '@/lib/api';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
