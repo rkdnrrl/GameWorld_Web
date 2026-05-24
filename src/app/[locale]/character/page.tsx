@@ -435,58 +435,46 @@ export default function CharacterPage() {
                 </div>
 
                 {/* 유휴 선택 */}
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, marginBottom: 3 }}>{t('idleAnimLabel')}</div>
-                  <select
-                    value={idleAnim}
-                    onChange={e => { setIdleAnim(e.target.value); setPreviewAnim('idle'); }}
-                    onFocus={() => setPreviewAnim('idle')}
-                    style={{
-                      width: '100%', background: 'rgba(0,0,0,0.4)',
-                      border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
-                      color: '#fff', fontSize: 12, padding: '6px 10px', outline: 'none',
-                    }}
-                  >
-                    <option value="">{t('noneOption')}</option>
-                    {availableAnims.map(name => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 걷기 선택 */}
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, marginBottom: 3 }}>{t('walkAnimLabel')}</div>
-                  <select
-                    value={walkAnim}
-                    onChange={e => { setWalkAnim(e.target.value); setPreviewAnim('walk'); }}
-                    onFocus={() => setPreviewAnim('walk')}
-                    style={{
-                      width: '100%', background: 'rgba(0,0,0,0.4)',
-                      border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
-                      color: '#fff', fontSize: 12, padding: '6px 10px', outline: 'none',
-                    }}
-                  >
-                    <option value="">{t('noneOption')}</option>
-                    {availableAnims.map(name => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 프리뷰 토글 */}
-                <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
-                  <button onClick={() => setPreviewAnim('idle')} style={{
-                    flex: 1, fontSize: 10, padding: '4px 0', borderRadius: 5, border: 'none',
-                    background: previewAnim === 'idle' ? '#10b981' : 'rgba(255,255,255,0.08)',
-                    color: '#fff', cursor: 'pointer', fontWeight: 600,
-                  }}>{t('previewIdle')}</button>
-                  <button onClick={() => setPreviewAnim('walk')} style={{
-                    flex: 1, fontSize: 10, padding: '4px 0', borderRadius: 5, border: 'none',
-                    background: previewAnim === 'walk' ? '#10b981' : 'rgba(255,255,255,0.08)',
-                    color: '#fff', cursor: 'pointer', fontWeight: 600,
-                  }}>{t('previewWalk')}</button>
-                </div>
+                {/* 6가지 상태 슬롯 */}
+                {([
+                  ['idle',   t('idleAnimLabel')],
+                  ['walk',   t('walkAnimLabel')],
+                  ['run',    t('runAnimLabel')],
+                  ['jump',   t('jumpAnimLabel')],
+                  ['crouch', t('crouchAnimLabel')],
+                  ['prone',  t('proneAnimLabel')],
+                ] as const).map(([slot, label]) => (
+                  <div key={slot} style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, marginBottom: 2 }}>{label}</div>
+                      <select
+                        value={animMap[slot]}
+                        onChange={e => {
+                          setAnimMap(prev => ({ ...prev, [slot]: e.target.value }));
+                          setPreviewSlot(slot);
+                        }}
+                        onFocus={() => setPreviewSlot(slot)}
+                        style={{
+                          width: '100%', background: 'rgba(0,0,0,0.4)',
+                          border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6,
+                          color: '#fff', fontSize: 11, padding: '5px 8px', outline: 'none',
+                        }}
+                      >
+                        <option value="">{t('noneOption')}</option>
+                        {availableAnims.map(name => (
+                          <option key={name} value={name}>{name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button onClick={() => setPreviewSlot(slot)}
+                      title={t('previewLabel')}
+                      style={{
+                        marginTop: 12, padding: '5px 8px', borderRadius: 5, border: 'none',
+                        background: previewSlot === slot ? '#10b981' : 'rgba(255,255,255,0.08)',
+                        color: '#fff', cursor: 'pointer', fontSize: 10, flexShrink: 0,
+                      }}>▶</button>
+                  </div>
+                ))}
               </div>
             )}
 
