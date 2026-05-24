@@ -44,12 +44,14 @@ function CharacterMesh({ appearance }: { appearance: Record<string, string> }) {
   const modelScale = Number(appearance.modelScale) || 0.01;
 
   if (modelUrl) {
-    const ext = modelUrl.split('.').pop()?.toLowerCase();
+    const ext      = modelUrl.split('.').pop()?.toLowerCase();
+    // FBX 기본 Z-up 축 보정: -90°. appearance.fbxRotX 로 직접 지정 가능
+    const rotX     = Number(appearance.fbxRotX ?? (ext === 'fbx' ? -Math.PI / 2 : 0));
     return (
       <Suspense fallback={<BlockMesh appearance={appearance} />}>
         {(ext === 'glb' || ext === 'gltf')
           ? <GLBModel url={modelUrl} scale={modelScale} />
-          : <FBXModel url={modelUrl} scale={modelScale} />
+          : <FBXModel url={modelUrl} scale={modelScale} rotX={rotX} />
         }
       </Suspense>
     );
