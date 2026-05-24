@@ -46,18 +46,20 @@ function CustomModel({ url, userScale, rotX, movingRef, idleName, walkName }: {
       const m = new THREE.AnimationMixer(loaded);
       mixer.current = m;
 
-      // 애니메이션 이름으로 idle/walk 분류 (한/영 지원)
-      const findClip = (...needles: string[]) =>
+      // 사용자가 명시적으로 지정한 이름 우선, 없으면 키워드 휴리스틱
+      const findByExact = (name?: string) =>
+        name ? anims.find(a => a.name === name) : undefined;
+      const findByKeyword = (...needles: string[]) =>
         anims.find(a => {
           const name = a.name.toLowerCase();
           return needles.some(n => name.includes(n.toLowerCase()));
         });
 
-      const idleClip = findClip(
+      const idleClip = findByExact(idleName) ?? findByKeyword(
         'idle', 'stand', 'tpose', 't-pose',
-        '유휴', '대기', '서있', '서 있',
+        '유휴', '대기', '서있',
       );
-      const walkClip = findClip(
+      const walkClip = findByExact(walkName) ?? findByKeyword(
         'walk', 'run', 'move', 'jog', 'sprint',
         '걷기', '걷다', '걸음', '달리', '뛰', '이동',
       );
