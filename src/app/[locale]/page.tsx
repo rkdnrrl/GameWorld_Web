@@ -161,10 +161,8 @@ export default function Home() {
             <ul className="divide-y divide-gray-100 py-1">
               {hotGames.map((g, i) => (
                 <li key={g.id}>
-                  <a
-                    href={g.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <Link
+                    href={`/games/${g.slug}`}
                     className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50"
                   >
                     <span className={`w-4 shrink-0 text-center text-xs font-bold ${
@@ -172,7 +170,7 @@ export default function Home() {
                     }`}>{i + 1}</span>
                     <span className="shrink-0 text-base">{g.emoji}</span>
                     <span className="min-w-0 flex-1 truncate text-xs text-gray-700">{gameTitle(g)}</span>
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>
