@@ -479,28 +479,33 @@ export default function Home() {
       </div>
 
       {/* ── 모바일 하단: 빠른 카테고리 탭 ── */}
-      <div className="sticky bottom-0 z-10 border-t border-gray-200 bg-white px-2 py-1.5 shadow-md lg:hidden">
-        <div className="flex justify-around">
-          {([
-            { key: "all", label: t("catAll"), emoji: "📋" },
-            { key: "earn", label: t("catEarn"), emoji: CAT_EMOJI.earn },
-            { key: "multiplay", label: t("catMultiplay"), emoji: CAT_EMOJI.multiplay },
-            { key: "decorate", label: t("catDecorate"), emoji: CAT_EMOJI.decorate },
-            { key: "other", label: t("catOther"), emoji: CAT_EMOJI.other },
-          ] as { key: Category; label: string; emoji: string }[]).map(({ key, label, emoji }) => (
+      {genres.length > 0 && (
+        <div className="sticky bottom-0 z-10 border-t border-gray-200 bg-white px-2 py-1.5 shadow-md lg:hidden">
+          <div className="flex justify-around overflow-x-auto">
             <button
-              key={key}
-              onClick={() => setCat(key)}
-              className={`flex flex-col items-center gap-0.5 px-2 py-1 text-[0.62rem] transition-colors ${
-                cat === key ? "text-blue-600 font-semibold" : "text-gray-500"
+              onClick={() => setCat("all")}
+              className={`flex flex-col items-center gap-0.5 px-2 py-1 text-[0.62rem] transition-colors shrink-0 ${
+                cat === "all" ? "text-blue-600 font-semibold" : "text-gray-500"
               }`}
             >
-              <span className="text-base">{emoji}</span>
-              <span>{label}</span>
+              <span className="text-base">📋</span>
+              <span>{t("catAll")}</span>
             </button>
-          ))}
+            {genres.map((g) => (
+              <button
+                key={g.slug}
+                onClick={() => setCat(g.slug)}
+                className={`flex flex-col items-center gap-0.5 px-2 py-1 text-[0.62rem] transition-colors shrink-0 ${
+                  cat === g.slug ? "text-blue-600 font-semibold" : "text-gray-500"
+                }`}
+              >
+                <span className="text-base">{g.emoji}</span>
+                <span>{locale === "ko" ? g.labelKo : g.labelEn}</span>
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
