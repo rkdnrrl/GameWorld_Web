@@ -279,6 +279,7 @@ export default function CharacterPage() {
     setModelRotX(-Math.PI / 2);
     setAvailableAnims([]);
     setAnimMap({ idle: '', walk: '', run: '', jump: '', crouch: '', prone: '' });
+    setAnimTrims({});
   };
 
   const handleSave = async () => {
