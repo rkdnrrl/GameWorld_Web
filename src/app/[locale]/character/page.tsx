@@ -501,7 +501,7 @@ export default function CharacterPage() {
               color: '#fff', fontWeight: 800, fontSize: 15, cursor: saving ? 'default' : 'pointer',
               opacity: saving ? 0.6 : 1, marginTop: 4,
             }}>
-              {saving ? '저장 중…' : '월드로 입장하기 🌍'}
+              {saving ? t('saving') : t('enterWorld')}
             </button>
           </div>
         </div>
