@@ -40,7 +40,7 @@ export default function AssetsPage() {
   async function upload(file: File) {
     setError('');
     if (file.size > MAX_MB * 1024 * 1024) {
-      setError(`파일 크기 ${MAX_MB}MB 초과`);
+      setError(t('sizeOverLimit', { maxMb: MAX_MB }));
       return;
     }
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
