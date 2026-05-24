@@ -71,7 +71,7 @@ function CustomModel({ url, userScale, rotX, movingRef }: {
       // ── 하나만 있음 → 그것만 재생 (이름 패턴으로 idle/walk 결정) ──
       else if (anims.length === 1) {
         const onlyClip = anims[0];
-        const isMovement = /walk|run|move|jog|sprint/i.test(onlyClip.name);
+        const isMovement = /walk|run|move|jog|sprint|걷|달리|뛰|이동/i.test(onlyClip.name);
         if (isMovement) {
           // 움직임 애니메이션 → walk 슬롯에. 정지 시엔 weight=0
           walkAction.current = m.clipAction(onlyClip);
