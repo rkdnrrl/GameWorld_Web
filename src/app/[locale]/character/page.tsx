@@ -257,10 +257,12 @@ export default function CharacterPage() {
   const [modelRotX, setModelRotX]   = useState(-Math.PI / 2);
   const [modelName, setModelName]   = useState('');
   // 애니메이션 매핑 — 6가지 상태
-  const [availableAnims, setAvailableAnims] = useState<string[]>([]);
+  const [availableAnims, setAvailableAnims] = useState<{ name: string; duration: number }[]>([]);
   const [animMap, setAnimMap] = useState<Record<string, string>>({
     idle: '', walk: '', run: '', jump: '', crouch: '', prone: '',
   });
+  // 각 슬롯의 트림 구간 (초)
+  const [animTrims, setAnimTrims] = useState<Record<string, { start: number; end: number }>>({});
   const [previewSlot, setPreviewSlot] = useState<'idle' | 'walk' | 'run' | 'jump' | 'crouch' | 'prone'>('idle');
   const [showPicker, setShowPicker] = useState(false);
   const [saving, setSaving]       = useState(false);
