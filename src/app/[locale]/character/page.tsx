@@ -179,7 +179,7 @@ function AssetPickerModal({ onSelect, onClose }: {
         padding: 24, width: 480, maxHeight: '70vh', display: 'flex', flexDirection: 'column',
       }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, color: '#fff', fontSize: 16 }}>📦 에셋 선택</h3>
+          <h3 style={{ margin: 0, color: '#fff', fontSize: 16 }}>{t('assetPickerTitle')}</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 20, cursor: 'pointer' }}>✕</button>
         </div>
 
