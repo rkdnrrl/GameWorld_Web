@@ -284,12 +284,12 @@ export default function CharacterPage() {
       });
       if (!res.ok) {
         const d = await res.json();
-        setError(d.error?.message || '저장 실패');
+        setError(d.error?.message || t('saveFailed'));
         return;
       }
       router.replace('/world');
     } catch {
-      setError('네트워크 오류');
+      setError(t('networkError'));
     } finally {
       setSaving(false);
     }
