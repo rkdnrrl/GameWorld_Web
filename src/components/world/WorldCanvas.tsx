@@ -316,7 +316,7 @@ function Island() {
             color="white"
             anchorX="center"
             outlineWidth={0.06}
-            outlineColor="#00000088"
+            outlineColor="#000000"
           >
             {label}
           </Text>
