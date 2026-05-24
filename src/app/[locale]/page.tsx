@@ -311,7 +311,7 @@ export default function Home() {
                         )}
                       </div>
                     </div>
-                  </a>
+                  </Link>
                 ))}
               </div>
             )}
