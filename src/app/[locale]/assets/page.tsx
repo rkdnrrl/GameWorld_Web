@@ -59,17 +59,23 @@ export default function AssetsPage() {
     form.append('model', file);
     form.append('name', file.name.replace(/\.[^.]+$/, ''));
 
+    setLastOpt(null);
     try {
-      // XMLHttpRequest로 진행률 표시
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.upload.onprogress = e => {
-          if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
+          if (e.lengthComputable) {
+            const p = Math.round((e.loaded / e.total) * 100);
+            setProgress(p);
+            if (p === 100) setOptimizing(true); // 업로드 완료 → 서버 처리 중
+          }
         };
         xhr.onload = () => {
+          setOptimizing(false);
           if (xhr.status >= 200 && xhr.status < 300) {
             const d = JSON.parse(xhr.responseText);
             if (d.asset) setAssets(prev => [d.asset, ...prev]);
+            if (d.optimization) setLastOpt(d.optimization);
             resolve();
           } else {
             try { reject(new Error(JSON.parse(xhr.responseText).error?.message)); }
@@ -85,6 +91,7 @@ export default function AssetsPage() {
       setError(e instanceof Error ? e.message : '업로드 실패');
     } finally {
       setUploading(false);
+      setOptimizing(false);
       setProgress(0);
     }
   }
@@ -166,13 +173,19 @@ export default function AssetsPage() {
 
           {uploading ? (
             <>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>⬆️</div>
-              <div style={{ fontSize: 15, marginBottom: 16, opacity: 0.8 }}>업로드 중… {progress}%</div>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>{optimizing ? '⚙️' : '⬆️'}</div>
+              <div style={{ fontSize: 15, marginBottom: 16, opacity: 0.8 }}>
+                {optimizing ? '폴리곤 최적화 중…' : `업로드 중… ${progress}%`}
+              </div>
               <div style={{ height: 8, background: 'rgba(255,255,255,0.1)', borderRadius: 4, maxWidth: 320, margin: '0 auto' }}>
                 <div style={{
                   height: '100%', borderRadius: 4,
-                  background: 'linear-gradient(90deg,#6366f1,#8b5cf6)',
-                  width: `${progress}%`, transition: 'width 0.2s ease',
+                  background: optimizing
+                    ? 'linear-gradient(90deg,#10b981,#06b6d4)'
+                    : 'linear-gradient(90deg,#6366f1,#8b5cf6)',
+                  width: optimizing ? '100%' : `${progress}%`,
+                  transition: 'width 0.2s ease',
+                  animation: optimizing ? 'pulse 1.4s infinite' : 'none',
                 }} />
               </div>
             </>
