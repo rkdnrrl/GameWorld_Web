@@ -31,6 +31,44 @@ interface Asset {
 
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
 
+/* ── X/Y/Z 숫자 입력 행 ──────────────────── */
+function AxisInputRow({ label, values, step, min, onChange, onCommit }: {
+  label: string;
+  values: [number, number, number];
+  step: number;
+  min?: number;
+  onChange: (axisIdx: number, value: number) => void;
+  onCommit: () => void;
+}) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4 }}>{label}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
+        {(['X','Y','Z'] as const).map((axis, i) => (
+          <div key={axis} style={{ display: 'flex', alignItems: 'center', gap: 3, background: 'rgba(0,0,0,0.3)', borderRadius: 4, padding: '2px 4px' }}>
+            <span style={{ color: ['#f87171','#4ade80','#60a5fa'][i], fontSize: 10, fontWeight: 700, width: 10 }}>{axis}</span>
+            <input
+              type="number"
+              value={values[i]}
+              step={step}
+              min={min}
+              onChange={e => onChange(i, Number(e.target.value))}
+              onBlur={onCommit}
+              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+              style={{
+                width: '100%', minWidth: 0,
+                background: 'transparent', border: 'none',
+                color: '#fff', fontSize: 11, padding: '2px 0',
+                outline: 'none', textAlign: 'right',
+              }}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ── 단일 오브젝트 렌더링 ────────────────── */
 function Mesh3D({ obj, selected, onClick }: {
   obj: MapObject;
