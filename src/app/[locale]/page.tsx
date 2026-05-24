@@ -164,6 +164,82 @@ export default function Home() {
         </div>
       )}
 
+      {/* ── 히어로 캐러셀 ── */}
+      {heroGames.length > 0 && (
+        <div
+          className="relative w-full overflow-hidden bg-black"
+          style={{ aspectRatio: "16/6" }}
+          onMouseEnter={() => setHeroPaused(true)}
+          onMouseLeave={() => setHeroPaused(false)}
+        >
+          {/* 슬라이드 */}
+          {heroGames.map((g, i) => (
+            <div
+              key={g.id}
+              className="absolute inset-0 transition-opacity duration-700"
+              style={{ opacity: i === heroIdx % heroGames.length ? 1 : 0, pointerEvents: i === heroIdx % heroGames.length ? "auto" : "none" }}
+            >
+              <img src={g.thumbnailUrl!} alt={gameTitle(g)} className="h-full w-full object-cover" />
+              {/* 그라디언트 */}
+              <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/30 to-transparent" />
+              {/* 텍스트 */}
+              <div className="absolute bottom-0 left-0 p-6 sm:p-10">
+                <span className={`mb-2 inline-block rounded px-2 py-0.5 text-[0.65rem] font-bold text-white ${g.kind === "official" ? "bg-blue-500" : "bg-purple-500"}`}>
+                  {g.kind === "official" ? t("official") : t("community")}
+                </span>
+                <h2 className="mb-1 text-2xl font-extrabold text-white drop-shadow-lg sm:text-4xl">{gameTitle(g)}</h2>
+                {g.description && (
+                  <p className="mb-4 max-w-md truncate text-sm text-gray-300 sm:text-base">{g.description}</p>
+                )}
+                <div className="flex gap-3">
+                  <a
+                    href={g.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-gray-900 shadow hover:bg-gray-100"
+                  >
+                    ▶ {t("playNow")}
+                  </a>
+                  <Link
+                    href={`/games/${g.id}`}
+                    className="rounded-xl border border-white/40 bg-white/10 px-5 py-2.5 text-sm font-bold text-white backdrop-blur hover:bg-white/20"
+                  >
+                    {t("viewDetail")}
+                  </Link>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* 좌우 버튼 */}
+          {heroGames.length > 1 && (
+            <>
+              <button
+                onClick={() => setHeroIdx(i => (i - 1 + heroGames.length) % heroGames.length)}
+                className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-2 text-white hover:bg-black/70"
+              >‹</button>
+              <button
+                onClick={() => setHeroIdx(i => (i + 1) % heroGames.length)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-2 text-white hover:bg-black/70"
+              >›</button>
+            </>
+          )}
+
+          {/* 점 인디케이터 */}
+          {heroGames.length > 1 && (
+            <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
+              {heroGames.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setHeroIdx(i)}
+                  className={`h-1.5 rounded-full transition-all ${i === heroIdx % heroGames.length ? "w-5 bg-white" : "w-1.5 bg-white/40"}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── 메인 레이아웃 (3컬럼) ── */}
       <div className="mx-auto flex max-w-[1280px] gap-4 px-3 py-4 sm:px-4">
 
