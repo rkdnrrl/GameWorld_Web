@@ -2,6 +2,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useRouter } from '@/i18n/navigation';
+import { useTranslations } from 'next-intl';
 import { session } from '@/lib/api';
 import * as THREE from 'three';
 
