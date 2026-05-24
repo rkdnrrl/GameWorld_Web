@@ -440,7 +440,7 @@ export default function CharacterPage() {
                       color: '#fff', fontSize: 12, padding: '6px 10px', outline: 'none',
                     }}
                   >
-                    <option value="">— 없음 —</option>
+                    <option value="">{t('noneOption')}</option>
                     {availableAnims.map(name => (
                       <option key={name} value={name}>{name}</option>
                     ))}
@@ -460,7 +460,7 @@ export default function CharacterPage() {
                       color: '#fff', fontSize: 12, padding: '6px 10px', outline: 'none',
                     }}
                   >
-                    <option value="">— 없음 —</option>
+                    <option value="">{t('noneOption')}</option>
                     {availableAnims.map(name => (
                       <option key={name} value={name}>{name}</option>
                     ))}
