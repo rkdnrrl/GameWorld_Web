@@ -260,12 +260,10 @@ export default function CharacterPage() {
             <Canvas camera={{ position: [0, 0.5, 3.5], fov: 45 }}>
               <ambientLight intensity={0.5} />
               <directionalLight position={[5, 8, 5]} intensity={1.5} />
-              <Suspense fallback={null}>
-                {modelUrl
-                  ? <CustomPreview url={modelUrl} scale={modelScale} rotX={modelRotX} />
-                  : <BlockPreview appearance={appearance} />
-                }
-              </Suspense>
+              {modelUrl
+                ? <CustomPreview url={modelUrl} scale={modelScale} rotX={modelRotX} />
+                : <BlockPreview appearance={appearance} />
+              }
             </Canvas>
           </div>
 
