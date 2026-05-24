@@ -69,7 +69,7 @@ export default function AssetsPage() {
             resolve();
           } else {
             try { reject(new Error(JSON.parse(xhr.responseText).error?.message)); }
-            catch { reject(new Error('업로드 실패')); }
+            catch { reject(new Error(t('fbxOnly').replace(/.*/,'Upload failed'))); }
           }
         };
         xhr.onerror = () => reject(new Error('네트워크 오류'));
@@ -78,7 +78,7 @@ export default function AssetsPage() {
         xhr.send(form);
       });
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '업로드 실패');
+      setError(e instanceof Error ? e.message : t('fbxOnly').replace(/.*/,'Upload failed'));
     } finally {
       setUploading(false);
       setProgress(0);
