@@ -44,12 +44,21 @@ function CustomModel({ url, userScale, rotX, movingRef }: {
       const m = new THREE.AnimationMixer(loaded);
       mixer.current = m;
 
-      // 애니메이션 이름으로 idle/walk 분류
-      const findClip = (...names: string[]) =>
-        anims.find(a => names.some(n => a.name.toLowerCase().includes(n)));
+      // 애니메이션 이름으로 idle/walk 분류 (한/영 지원)
+      const findClip = (...needles: string[]) =>
+        anims.find(a => {
+          const name = a.name.toLowerCase();
+          return needles.some(n => name.includes(n.toLowerCase()));
+        });
 
-      const idleClip = findClip('idle', 'stand', 'tpose', 't-pose');
-      const walkClip = findClip('walk', 'run', 'move', 'jog');
+      const idleClip = findClip(
+        'idle', 'stand', 'tpose', 't-pose',
+        '유휴', '대기', '서있', '서 있',
+      );
+      const walkClip = findClip(
+        'walk', 'run', 'move', 'jog', 'sprint',
+        '걷기', '걷다', '걸음', '달리', '뛰', '이동',
+      );
 
       // ── 두 종류 다 있음 → 크로스페이드 ──
       if (idleClip && walkClip) {
@@ -296,6 +305,9 @@ function Player({
       if (len > 0) { mx /= len; mz /= len; }
       body.current.setLinvel({ x: mx * SPEED, y: vel.y, z: mz * SPEED }, true);
 
+      // 이동 중 여부 → 애니메이션 크로스페이드용
+      movingRef.current = len > 0;
+
       // 점프: Space가 새로 눌렸을 때만 1번
       const jumpJustPressed = jump && !jumpPrev.current;
       jumpPrev.current = jump;
@@ -345,7 +357,7 @@ function Player({
     >
       <CapsuleCollider args={[0.35, 0.28]} />
       <group ref={mesh} position={[0, -0.35, 0]}>
-        <CharacterMesh appearance={appearance} />
+        <CharacterMesh appearance={appearance} movingRef={movingRef} />
       </group>
     </RigidBody>
   );
@@ -356,8 +368,20 @@ function RemotePlayerMesh({ player }: { player: RemotePlayer }) {
   const g    = useRef<THREE.Group>(null);
   const tPos = useRef(new THREE.Vector3(player.x, player.y, player.z));
   const tRot = useRef(player.rotY);
+  const lastUpdate = useRef(Date.now());
+  const movingRef  = useRef(false);
+  const prevTargetXZ = useRef({ x: player.x, z: player.z });
 
+  // 새 위치 수신 시: 직전 타겟과 비교해 이동 중인지 판단
   useEffect(() => {
+    const dx = player.x - prevTargetXZ.current.x;
+    const dz = player.z - prevTargetXZ.current.z;
+    const moved = Math.hypot(dx, dz) > 0.02; // 2cm 이상 이동
+    if (moved) {
+      movingRef.current = true;
+      lastUpdate.current = Date.now();
+    }
+    prevTargetXZ.current = { x: player.x, z: player.z };
     tPos.current.set(player.x, player.y, player.z);
     tRot.current = player.rotY;
   }, [player.x, player.y, player.z, player.rotY]);
@@ -366,6 +390,8 @@ function RemotePlayerMesh({ player }: { player: RemotePlayer }) {
     if (!g.current) return;
     g.current.position.lerp(tPos.current, 10 * dt);
     g.current.rotation.y = THREE.MathUtils.lerp(g.current.rotation.y, tRot.current, 10 * dt);
+    // 200ms 이상 위치 업데이트 없으면 idle 상태로
+    if (Date.now() - lastUpdate.current > 200) movingRef.current = false;
   });
 
   const appearance = (player.character?.appearance ?? {}) as Record<string, string>;
@@ -373,7 +399,7 @@ function RemotePlayerMesh({ player }: { player: RemotePlayer }) {
   return (
     <group ref={g} position={[player.x, player.y, player.z]}>
       <group position={[0, -0.35, 0]}>
-        <CharacterMesh appearance={appearance} />
+        <CharacterMesh appearance={appearance} movingRef={movingRef} />
       </group>
       <Text
         position={[0, 1.8, 0]}
