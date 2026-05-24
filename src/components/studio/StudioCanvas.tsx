@@ -326,6 +326,16 @@ export default function StudioCanvas() {
     setObjects(prev => prev.map(o => o.id === id ? { ...o, color } : o));
   }
 
+  function updateAxis(field: 'position' | 'rotation' | 'scale', axisIdx: number, value: number) {
+    if (!selectedId) return;
+    setObjects(prev => prev.map(o => {
+      if (o.id !== selectedId) return o;
+      const arr = [...o[field]] as [number, number, number];
+      arr[axisIdx] = value;
+      return { ...o, [field]: arr };
+    }));
+  }
+
   function deleteSelected() {
     if (!selectedId) return;
     setObjects(prev => {
