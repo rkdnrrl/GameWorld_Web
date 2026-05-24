@@ -8,7 +8,6 @@ import { useTranslations, useLocale } from "next-intl";
 
 interface GameItem {
   id: string;
-  slug: string;
   title: string;
   description: string;
   emoji: string;
