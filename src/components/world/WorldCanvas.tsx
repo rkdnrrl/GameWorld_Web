@@ -23,7 +23,12 @@ function autoNormalize(obj: THREE.Object3D, targetHeight = 1.8) {
   obj.position.y -= box2.min.y;
 }
 
-function CustomModel({ url, userScale, rotX }: { url: string; userScale: number; rotX: number }) {
+function CustomModel({ url, userScale, rotX, movingRef }: {
+  url: string;
+  userScale: number;
+  rotX: number;
+  movingRef?: React.RefObject<boolean>;
+}) {
   const [obj, setObj]     = useState<THREE.Object3D | null>(null);
   const mixer             = useRef<THREE.AnimationMixer | null>(null);
   const idleAction        = useRef<THREE.AnimationAction | null>(null);
@@ -39,20 +44,45 @@ function CustomModel({ url, userScale, rotX }: { url: string; userScale: number;
       const m = new THREE.AnimationMixer(loaded);
       mixer.current = m;
 
-      // 애니메이션 이름으로 idle/walk 찾기 (없으면 index 사용)
+      // 애니메이션 이름으로 idle/walk 분류
       const findClip = (...names: string[]) =>
         anims.find(a => names.some(n => a.name.toLowerCase().includes(n)));
 
-      const idleClip = findClip('idle', 'stand', 'bind') ?? anims[0];
-      const walkClip = findClip('walk', 'run', 'move') ?? (anims.length > 1 ? anims[1] : null);
+      const idleClip = findClip('idle', 'stand', 'tpose', 't-pose');
+      const walkClip = findClip('walk', 'run', 'move', 'jog');
 
-      idleAction.current = m.clipAction(idleClip);
-      idleAction.current.play();
-
-      if (walkClip) {
+      // ── 두 종류 다 있음 → 크로스페이드 ──
+      if (idleClip && walkClip) {
+        idleAction.current = m.clipAction(idleClip);
         walkAction.current = m.clipAction(walkClip);
+        idleAction.current.play();
         walkAction.current.weight = 0;
         walkAction.current.play();
+      }
+      // ── 하나만 있음 → 그것만 재생 (이름 패턴으로 idle/walk 결정) ──
+      else if (anims.length === 1) {
+        const onlyClip = anims[0];
+        const isMovement = /walk|run|move|jog|sprint/i.test(onlyClip.name);
+        if (isMovement) {
+          // 움직임 애니메이션 → walk 슬롯에. 정지 시엔 weight=0
+          walkAction.current = m.clipAction(onlyClip);
+          walkAction.current.weight = 0;
+          walkAction.current.play();
+        } else {
+          // idle/기타 → 항상 재생
+          idleAction.current = m.clipAction(onlyClip);
+          idleAction.current.play();
+        }
+      }
+      // ── 여러 개지만 idle/walk 키워드 미매칭 → 첫 2개 사용 ──
+      else {
+        idleAction.current = m.clipAction(anims[0]);
+        idleAction.current.play();
+        if (anims.length > 1) {
+          walkAction.current = m.clipAction(anims[1]);
+          walkAction.current.weight = 0;
+          walkAction.current.play();
+        }
       }
     };
 
@@ -74,7 +104,6 @@ function CustomModel({ url, userScale, rotX }: { url: string; userScale: number;
     } else {
       import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
         new FBXLoader().load(url, (fbx) => {
-          // FBX는 animations가 object 안에 있음
           onLoaded(fbx, (fbx as unknown as { animations: THREE.AnimationClip[] }).animations ?? []);
         });
       });
@@ -86,9 +115,15 @@ function CustomModel({ url, userScale, rotX }: { url: string; userScale: number;
     };
   }, [url]);
 
-  // AnimationMixer 업데이트
+  // AnimationMixer 업데이트 + 움직임에 따른 idle↔walk 크로스페이드
   useFrame((_, dt) => {
     mixer.current?.update(dt);
+    if (walkAction.current) {
+      const target = movingRef?.current ? 1 : 0;
+      const w = THREE.MathUtils.lerp(walkAction.current.weight, target, Math.min(1, 8 * dt));
+      walkAction.current.weight = w;
+      if (idleAction.current) idleAction.current.weight = 1 - w;
+    }
   });
 
   if (!obj) return null;
