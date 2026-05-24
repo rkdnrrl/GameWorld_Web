@@ -232,7 +232,7 @@ export default function AssetsPage() {
                         position: 'absolute', top: 8, right: 8,
                         background: 'rgba(16,185,129,0.9)', color: '#fff',
                         fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
-                      }}>공개</span>
+                      }}>{t('publishing')}</span>
                     )}
                   </div>
 
