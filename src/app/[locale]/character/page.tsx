@@ -370,7 +370,7 @@ export default function CharacterPage() {
                 </div>
               ) : (
                 <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, marginBottom: 8 }}>
-                  FBX 없으면 블록 캐릭터로 표시됩니다
+                  {t('noModelHint')}
                 </div>
               )}
 
@@ -379,7 +379,7 @@ export default function CharacterPage() {
                 background: 'rgba(99,102,241,0.08)', color: '#a5b4fc',
                 fontSize: 12, fontWeight: 600, cursor: 'pointer',
               }}>
-                {modelUrl ? '다른 모델 선택' : '📂 내 에셋에서 선택'}
+                {modelUrl ? t('selectOther') : t('selectFromAssets')}
               </button>
 
               {/* 스케일 / 회전 조정 */}
