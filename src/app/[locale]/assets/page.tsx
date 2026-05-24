@@ -95,7 +95,7 @@ export default function AssetsPage() {
 
   /* 삭제 */
   async function deleteAsset(id: string) {
-    if (!confirm('삭제하시겠습니까?')) return;
+    if (!confirm(t('confirmDelete'))) return;
     const r = await fetch(`${API}/api/assets/${id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token()}` },
