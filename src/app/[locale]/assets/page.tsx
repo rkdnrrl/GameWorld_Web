@@ -197,7 +197,7 @@ export default function AssetsPage() {
 
         {assets.length === 0 ? (
           <div style={{ textAlign: 'center', opacity: 0.35, padding: '48px 0', fontSize: 14 }}>
-            업로드된 에셋이 없습니다.<br />위에서 파일을 드래그하거나 클릭해서 추가하세요.
+            {t('emptyState')}<br />{t('emptyHint')}
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
