@@ -247,7 +247,7 @@ export default function AssetsPage() {
                         download
                         style={{ fontSize: 11, color: '#818cf8', textDecoration: 'none', padding: '3px 8px', background: 'rgba(99,102,241,0.15)', borderRadius: 5 }}
                       >
-                        ↓ 다운로드
+                        {t('download')}
                       </a>
                       <button
                         onClick={() => togglePublic(a)}
