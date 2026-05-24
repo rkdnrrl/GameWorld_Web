@@ -338,10 +338,10 @@ export default function CharacterPage() {
                 <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                      <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>크기</span>
-                      <span style={{ color: '#a5b4fc', fontSize: 11 }}>{modelScale.toFixed(3)}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>크기 (1.0 = 1.8m)</span>
+                      <span style={{ color: '#a5b4fc', fontSize: 11 }}>{modelScale.toFixed(2)}x</span>
                     </div>
-                    <input type="range" min={0.001} max={0.5} step={0.001}
+                    <input type="range" min={0.1} max={3.0} step={0.05}
                       value={modelScale} onChange={e => setModelScale(Number(e.target.value))}
                       style={{ width: '100%' }} />
                   </div>
