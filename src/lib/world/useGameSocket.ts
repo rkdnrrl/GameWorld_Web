@@ -66,10 +66,10 @@ export function useGameSocket({ worldId, playerId, username, character, enabled 
         const p = msg as unknown as RemotePlayer & { type: string };
         setPlayers(prev => ({ ...prev, [p.id]: p }));
       } else if (msg.type === 'moved') {
-        const { id, x, y, z, rotY } = msg as { id: string; x: number; y: number; z: number; rotY: number; type: string };
+        const { id, x, y, z, rotY, animState } = msg as { id: string; x: number; y: number; z: number; rotY: number; animState?: AnimState; type: string };
         setPlayers(prev => {
           if (!prev[id]) return prev;
-          return { ...prev, [id]: { ...prev[id], x, y, z, rotY } };
+          return { ...prev, [id]: { ...prev[id], x, y, z, rotY, animState } };
         });
       } else if (msg.type === 'left') {
         setPlayers(prev => {
