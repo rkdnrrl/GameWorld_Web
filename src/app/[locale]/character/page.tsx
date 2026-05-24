@@ -233,6 +233,7 @@ function AssetPickerModal({ onSelect, onClose }: {
 
 /* ── 메인 페이지 ─────────────────────────── */
 export default function CharacterPage() {
+  const t = useTranslations('Character');
   const router = useRouter();
   const [name, setName]           = useState('');
   const [appearance, setAppearance] = useState<Record<string, string>>({
