@@ -402,7 +402,7 @@ function RemotePlayerMesh({ player }: { player: RemotePlayer }) {
   useFrame((_, dt) => {
     if (!g.current) return;
     g.current.position.lerp(tPos.current, 10 * dt);
-    g.current.rotation.y = THREE.MathUtils.lerp(g.current.rotation.y, tRot.current, 10 * dt);
+    g.current.rotation.y = lerpAngle(g.current.rotation.y, tRot.current, Math.min(1, 10 * dt));
     // 200ms 이상 위치 업데이트 없으면 idle 상태로
     if (Date.now() - lastUpdate.current > 200) movingRef.current = false;
   });
@@ -524,11 +524,68 @@ function Island() {
   );
 }
 
+/* ── 유저 제작 월드 오브젝트 렌더링 ────── */
+interface UserMapObject {
+  id: string;
+  kind: 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset';
+  assetUrl?: string;
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale:    [number, number, number];
+  color:    string;
+}
+
+function UserMapObjectMesh({ obj }: { obj: UserMapObject }) {
+  if (obj.kind === 'asset' && obj.assetUrl) {
+    return (
+      <RigidBody type="fixed" colliders="trimesh" position={obj.position} rotation={obj.rotation} scale={obj.scale}>
+        <UserAsset url={obj.assetUrl} />
+      </RigidBody>
+    );
+  }
+  const shape =
+    obj.kind === 'sphere'   ? <sphereGeometry args={[0.5, 24, 16]} /> :
+    obj.kind === 'cylinder' ? <cylinderGeometry args={[0.5, 0.5, 1, 16]} /> :
+    obj.kind === 'plane'    ? <planeGeometry args={[1, 1]} /> :
+                              <boxGeometry args={[1, 1, 1]} />;
+  return (
+    <RigidBody type="fixed" colliders="cuboid" position={obj.position} rotation={obj.rotation} scale={obj.scale}>
+      <mesh castShadow receiveShadow>
+        {shape}
+        <meshStandardMaterial color={obj.color} side={obj.kind === 'plane' ? THREE.DoubleSide : THREE.FrontSide} />
+      </mesh>
+    </RigidBody>
+  );
+}
+
+function UserAsset({ url }: { url: string }) {
+  const [obj, setObj] = useState<THREE.Object3D | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
+      new FBXLoader().load(url, (fbx) => {
+        if (cancelled) return;
+        fbx.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(fbx);
+        const size = box.getSize(new THREE.Vector3());
+        const h = Math.max(size.x, size.y, size.z);
+        if (h > 0) fbx.scale.multiplyScalar(1 / h);
+        fbx.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = true; });
+        setObj(fbx);
+      });
+    });
+    return () => { cancelled = true; };
+  }, [url]);
+  if (!obj) return null;
+  return <primitive object={obj} />;
+}
+
 /* ── 메인 캔버스 ────────────────────────── */
 interface WorldCanvasProps {
   character: Record<string, unknown>;
   players: Record<string, RemotePlayer>;
   onMove: (pos: { x: number; y: number; z: number; rotY: number }) => void;
+  customObjects?: UserMapObject[];
 }
 
 export default function WorldCanvas({ character, players, onMove }: WorldCanvasProps) {
