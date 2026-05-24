@@ -47,8 +47,8 @@ export default function AssetsPage() {
       return;
     }
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
-    if (!['fbx', 'glb', 'gltf', 'obj'].includes(ext)) {
-      setError('지원 형식: FBX, GLB, GLTF, OBJ');
+    if (ext !== 'fbx') {
+      setError('FBX 파일만 지원합니다.');
       return;
     }
 
