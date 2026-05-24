@@ -140,8 +140,9 @@ function CustomModel({ url, userScale, rotX, movingRef, idleName, walkName }: {
   });
 
   if (!obj) return null;
+  // position y=-0.28: 캡슐 콜라이더 바닥에 발 맞추기 (body 중심 -0.63 = 캡슐 바닥, mesh 그룹은 -0.35 → 추가 -0.28 필요)
   return (
-    <group scale={userScale} rotation={[rotX, 0, 0]}>
+    <group scale={userScale} rotation={[rotX, 0, 0]} position={[0, -0.28, 0]}>
       <primitive object={obj} />
     </group>
   );
