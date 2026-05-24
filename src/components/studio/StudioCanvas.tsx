@@ -180,31 +180,6 @@ function SelectedTransform({ targetId, mode, onChange, onDragEnd }: {
   );
 }
 
-/* ── 휠 → 패닝 (Wheel은 pan, 우클릭은 zoom) ── */
-function WheelPan({ orbitRef }: { orbitRef: React.MutableRefObject<OrbitRef | null> }) {
-  const { camera, gl } = useThree();
-  useEffect(() => {
-    const onWheel = (e: WheelEvent) => {
-      if (!orbitRef.current) return;
-      e.preventDefault();
-      const speed = 0.02;
-      const dx = e.deltaX * speed;
-      const dy = e.deltaY * speed;
-      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
-      const up    = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1);
-      const offset = new THREE.Vector3()
-        .addScaledVector(right, -dx)
-        .addScaledVector(up, dy);
-      camera.position.add(offset);
-      orbitRef.current.target.add(offset);
-      orbitRef.current.update();
-    };
-    gl.domElement.addEventListener('wheel', onWheel, { passive: false });
-    return () => gl.domElement.removeEventListener('wheel', onWheel);
-  }, [camera, gl, orbitRef]);
-  return null;
-}
-
 /* ── TransformControls 드래그 중 OrbitControls 비활성화 ── */
 function DraggingDetector({ setOrbitEnabled }: { setOrbitEnabled: (v: boolean) => void }) {
   const { scene } = useThree();
