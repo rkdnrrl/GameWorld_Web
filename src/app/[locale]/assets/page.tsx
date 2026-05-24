@@ -209,6 +209,26 @@ export default function AssetsPage() {
           </div>
         )}
 
+        {lastOpt && lastOpt.reduced && (
+          <div style={{
+            background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)',
+            borderRadius: 10, padding: '12px 16px', color: '#6ee7b7', fontSize: 13, marginBottom: 20,
+            display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: 18 }}>⚙️</span>
+            <span>
+              폴리곤 자동 최적화 완료 —{' '}
+              <b>{lastOpt.originalTris.toLocaleString()}</b> →{' '}
+              <b style={{ color: '#10b981' }}>{lastOpt.finalTris.toLocaleString()}</b>{' '}
+              ({Math.round((1 - lastOpt.finalTris / lastOpt.originalTris) * 100)}% 감소)
+            </span>
+            <span style={{ opacity: 0.7 }}>
+              · 파일 크기 {(lastOpt.sizeBefore / 1024 / 1024).toFixed(1)}MB →{' '}
+              <b>{(lastOpt.sizeAfter / 1024 / 1024).toFixed(1)}MB</b>
+            </span>
+          </div>
+        )}
+
         {/* 에셋 목록 */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>내 에셋 ({assets.length})</h2>
