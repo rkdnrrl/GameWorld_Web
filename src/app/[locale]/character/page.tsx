@@ -15,8 +15,18 @@ interface Asset {
   thumbnailUrl: string | null;
 }
 
+/* ── 자동 정규화 (1.8m 기준) ────────────── */
+function autoNormalize(obj: THREE.Object3D, targetHeight = 1.8) {
+  const box  = new THREE.Box3().setFromObject(obj);
+  const size = box.getSize(new THREE.Vector3());
+  const h    = Math.max(size.x, size.y, size.z);
+  if (h > 0) obj.scale.multiplyScalar(targetHeight / h);
+  const box2 = new THREE.Box3().setFromObject(obj);
+  obj.position.y -= box2.min.y;
+}
+
 /* ── 커스텀 모델 프리뷰 (명령형 로드) ───── */
-function CustomPreview({ url, scale, rotX }: { url: string; scale: number; rotX: number }) {
+function CustomPreview({ url, userScale, rotX }: { url: string; userScale: number; rotX: number }) {
   const [obj, setObj] = useState<THREE.Object3D | null>(null);
   const g = useRef<THREE.Group>(null);
 
@@ -24,13 +34,20 @@ function CustomPreview({ url, scale, rotX }: { url: string; scale: number; rotX:
     if (!url) return;
     let cancelled = false;
     const ext = url.split('.').pop()?.toLowerCase();
+
+    const onLoaded = (loaded: THREE.Object3D) => {
+      if (cancelled) return;
+      autoNormalize(loaded, 1.8);
+      setObj(loaded);
+    };
+
     if (ext === 'glb' || ext === 'gltf') {
       import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => {
-        new GLTFLoader().load(url, (gltf) => { if (!cancelled) setObj(gltf.scene.clone(true)); });
+        new GLTFLoader().load(url, (gltf) => onLoaded(gltf.scene.clone(true)));
       });
     } else {
       import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
-        new FBXLoader().load(url, (fbx) => { if (!cancelled) setObj(fbx); });
+        new FBXLoader().load(url, onLoaded);
       });
     }
     return () => { cancelled = true; };
@@ -39,7 +56,11 @@ function CustomPreview({ url, scale, rotX }: { url: string; scale: number; rotX:
   useFrame((_, dt) => { if (g.current) g.current.rotation.y += dt * 0.6; });
 
   if (!obj) return null;
-  return <group ref={g} position={[0, -1, 0]}><primitive object={obj} scale={scale} rotation={[rotX, 0, 0]} /></group>;
+  return (
+    <group ref={g} position={[0, -1, 0]}>
+      <primitive object={obj} scale={userScale} rotation={[rotX, 0, 0]} />
+    </group>
+  );
 }
 
 /* ── 블록 캐릭터 프리뷰 ──────────────────── */
