@@ -1,23 +1,10 @@
 'use client';
-import { Suspense, useRef, useEffect, useCallback } from 'react';
+import { Suspense, useRef, useEffect } from 'react';
 import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
-import {
-  KeyboardControls, useKeyboardControls,
-  Sky, Text,
-} from '@react-three/drei';
+import { Sky, Text } from '@react-three/drei';
 import { Physics, RigidBody, CapsuleCollider, useRapier } from '@react-three/rapier';
 import * as THREE from 'three';
 import type { RemotePlayer } from '@/lib/world/useGameSocket';
-
-/* ── 키 매핑 ─────────────────────────────── */
-const KEY_MAP = [
-  { name: 'forward',  keys: ['KeyW', 'ArrowUp'] },
-  { name: 'backward', keys: ['KeyS', 'ArrowDown'] },
-  { name: 'left',     keys: ['KeyA', 'ArrowLeft'] },
-  { name: 'right',    keys: ['KeyD', 'ArrowRight'] },
-  { name: 'jump',     keys: ['Space'] },
-  { name: 'sprint',   keys: ['ShiftLeft'] },
-];
 
 /* ── FBX 모델 로더 ─────────────────────── */
 function FBXModel({ url, scale, rotX }: { url: string; scale: number; rotX: number }) {
