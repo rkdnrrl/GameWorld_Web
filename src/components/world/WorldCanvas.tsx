@@ -416,6 +416,5 @@ export default function WorldCanvas({ character, players, onMove }: WorldCanvasP
           </Physics>
         </Suspense>
       </Canvas>
-    </KeyboardControls>
   );
 }
