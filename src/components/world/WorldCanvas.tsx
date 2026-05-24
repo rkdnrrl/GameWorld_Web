@@ -7,7 +7,18 @@ import * as THREE from 'three';
 import type { RemotePlayer } from '@/lib/world/useGameSocket';
 
 /* ── 커스텀 3D 모델 (Suspense 없이 명령형 로드 — RigidBody 리셋 방지) ── */
-function CustomModel({ url, scale, rotX }: { url: string; scale: number; rotX: number }) {
+/** 모델을 목표 높이(m)에 맞춰 자동 정규화 */
+function autoNormalize(obj: THREE.Object3D, targetHeight = 1.8) {
+  const box  = new THREE.Box3().setFromObject(obj);
+  const size = box.getSize(new THREE.Vector3());
+  const h    = Math.max(size.x, size.y, size.z);
+  if (h > 0) obj.scale.multiplyScalar(targetHeight / h);
+  // 발 위치를 y=0 기준으로 맞춤
+  const box2 = new THREE.Box3().setFromObject(obj);
+  obj.position.y -= box2.min.y;
+}
+
+function CustomModel({ url, userScale, rotX }: { url: string; userScale: number; rotX: number }) {
   const [obj, setObj] = useState<THREE.Object3D | null>(null);
 
   useEffect(() => {
@@ -15,41 +26,38 @@ function CustomModel({ url, scale, rotX }: { url: string; scale: number; rotX: n
     let cancelled = false;
     const ext = url.split('.').pop()?.toLowerCase();
 
+    const onLoaded = (loaded: THREE.Object3D) => {
+      if (cancelled) return;
+      loaded.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = true; });
+      autoNormalize(loaded, 1.8); // 항상 1.8m 기준으로 정규화
+      setObj(loaded);
+    };
+
     if (ext === 'glb' || ext === 'gltf') {
       import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => {
-        new GLTFLoader().load(url, (gltf) => {
-          if (cancelled) return;
-          const scene = gltf.scene.clone(true);
-          scene.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = true; });
-          setObj(scene);
-        });
+        new GLTFLoader().load(url, (gltf) => onLoaded(gltf.scene.clone(true)));
       });
     } else {
-      // FBX (기본)
       import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
-        new FBXLoader().load(url, (fbx) => {
-          if (cancelled) return;
-          fbx.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = true; });
-          setObj(fbx);
-        });
+        new FBXLoader().load(url, onLoaded);
       });
     }
     return () => { cancelled = true; };
   }, [url]);
 
   if (!obj) return null;
-  return <primitive object={obj} scale={scale} rotation={[rotX, 0, 0]} />;
+  // userScale: 1.0 = 1.8m, 0.5 = 0.9m 등 배율 조정
+  return <primitive object={obj} scale={userScale} rotation={[rotX, 0, 0]} />;
 }
 
 /* ── 캐릭터 메쉬 (커스텀 or 블록형) ───── */
 function CharacterMesh({ appearance }: { appearance: Record<string, string> }) {
   const modelUrl   = appearance.modelUrl;
-  const modelScale = Number(appearance.modelScale) || 0.01;
+  const userScale  = Number(appearance.modelScale) || 1.0; // 1.0 = 1.8m
   const rotX       = Number(appearance.fbxRotX ?? (modelUrl?.endsWith('.fbx') ? -Math.PI / 2 : 0));
 
   if (modelUrl) {
-    // Suspense 없이 로드 → RigidBody가 리셋되지 않음
-    return <CustomModel url={modelUrl} scale={modelScale} rotX={rotX} />;
+    return <CustomModel url={modelUrl} userScale={userScale} rotX={rotX} />;
   }
   return <BlockMesh appearance={appearance} />;
 }
