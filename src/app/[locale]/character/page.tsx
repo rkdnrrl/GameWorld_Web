@@ -57,7 +57,7 @@ function CustomPreview({
       if (anims.length) {
         mixer.current = new THREE.AnimationMixer(loaded);
       }
-      onAnimationsLoaded?.(anims.map(a => a.name));
+      onAnimationsLoaded?.(anims.map(a => ({ name: a.name, duration: a.duration })));
       setObj(loaded);
     };
 
