@@ -258,11 +258,15 @@ function Player({
       if (len > 0) { mx /= len; mz /= len; }
       body.current.setLinvel({ x: mx * SPEED, y: vel.y, z: mz * SPEED }, true);
 
-      if (jump) {
+      // 점프: Space가 새로 눌렸을 때만 1번
+      const jumpJustPressed = jump && !jumpPrev.current;
+      jumpPrev.current = jump;
+      if (jumpJustPressed) {
         const ray = new rapier.Ray({ x: posT.x, y: posT.y, z: posT.z }, { x: 0, y: -1, z: 0 });
         const hit = rWorld.castRay(ray, 1.3, true);
         if (hit && hit.timeOfImpact < 0.7) {
-          body.current.applyImpulse({ x: 0, y: 4.5, z: 0 }, true);
+          // 임펄스 대신 setLinvel로 정확히 4.5 m/s 수직 속도 → ~0.46m 점프
+          body.current.setLinvel({ x: vel.x, y: 4.5, z: vel.z }, true);
         }
       }
 
