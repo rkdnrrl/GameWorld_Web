@@ -336,7 +336,7 @@ export default function CharacterPage() {
                     url={modelUrl}
                     userScale={modelScale}
                     rotX={modelRotX}
-                    previewAnim={previewAnim === 'idle' ? idleAnim : walkAnim}
+                    previewAnim={animMap[previewSlot]}
                     onAnimationsLoaded={setAvailableAnims}
                   />
                 : <BlockPreview appearance={appearance} />
