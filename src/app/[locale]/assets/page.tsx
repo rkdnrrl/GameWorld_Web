@@ -257,7 +257,7 @@ export default function AssetsPage() {
                           color: a.isPublic ? '#6ee7b7' : 'rgba(255,255,255,0.5)',
                         }}
                       >
-                        {a.isPublic ? '공개 중' : '비공개'}
+                        {a.isPublic ? t('publishing') : t('private')}
                       </button>
                       <button
                         onClick={() => deleteAsset(a.id)}
