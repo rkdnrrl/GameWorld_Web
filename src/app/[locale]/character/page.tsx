@@ -155,6 +155,7 @@ function AssetPickerModal({ onSelect, onClose }: {
   onSelect: (asset: Asset) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations('Character');
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
 
