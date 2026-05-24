@@ -620,7 +620,10 @@ export default function WorldCanvas({ character, players, onMove, customObjects 
 
         <Suspense fallback={null}>
           <Physics gravity={[0, -22, 0]} interpolate={false}>
-            <Island />
+            {customObjects && customObjects.length > 0
+              ? customObjects.map(obj => <UserMapObjectMesh key={obj.id} obj={obj} />)
+              : <Island />
+            }
             <Player character={character} onMove={onMove} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} />
