@@ -473,7 +473,7 @@ export default function CharacterPage() {
                     flex: 1, fontSize: 10, padding: '4px 0', borderRadius: 5, border: 'none',
                     background: previewAnim === 'idle' ? '#10b981' : 'rgba(255,255,255,0.08)',
                     color: '#fff', cursor: 'pointer', fontWeight: 600,
-                  }}>▶ Idle 미리보기</button>
+                  }}>{t('previewIdle')}</button>
                   <button onClick={() => setPreviewAnim('walk')} style={{
                     flex: 1, fontSize: 10, padding: '4px 0', borderRadius: 5, border: 'none',
                     background: previewAnim === 'walk' ? '#10b981' : 'rgba(255,255,255,0.08)',
