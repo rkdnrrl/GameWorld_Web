@@ -116,8 +116,10 @@ function Player({
   const body      = useRef<any>(null);
   const mesh      = useRef<THREE.Group>(null);
   const { rapier, world: rWorld } = useRapier();
-  const [, get]   = useKeyboardControls();
   const { camera, gl } = useThree();
+
+  /* 직접 DOM 키 추적 — KeyboardControls 컨텍스트 문제 우회 */
+  const keys = useRef(new Set<string>());
 
   const camH     = useRef(0);
   const camV     = useRef(0.45);
