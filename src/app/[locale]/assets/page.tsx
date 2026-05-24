@@ -159,7 +159,7 @@ export default function AssetsPage() {
           {uploading ? (
             <>
               <div style={{ fontSize: 36, marginBottom: 12 }}>⬆️</div>
-              <div style={{ fontSize: 15, marginBottom: 16, opacity: 0.8 }}>업로드 중… {progress}%</div>
+              <div style={{ fontSize: 15, marginBottom: 16, opacity: 0.8 }}>{t('uploadingPercent', { progress })}</div>
               <div style={{ height: 8, background: 'rgba(255,255,255,0.1)', borderRadius: 4, maxWidth: 320, margin: '0 auto' }}>
                 <div style={{
                   height: '100%', borderRadius: 4,
