@@ -292,8 +292,6 @@ export default function CharacterPage() {
     }
   };
 
-  const ext = modelUrl.split('.').pop()?.toLowerCase();
-
   return (
     <>
       {showPicker && (
