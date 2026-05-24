@@ -125,90 +125,90 @@ function Player({
   character: Record<string, unknown>;
   onMove: (p: { x: number; y: number; z: number; rotY: number }) => void;
 }) {
-  const body    = useRef<import('@dimforge/rapier3d-compat').RigidBody>(null);
-  const mesh    = useRef<THREE.Group>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const body      = useRef<any>(null);
+  const mesh      = useRef<THREE.Group>(null);
   const { rapier, world: rWorld } = useRapier();
-  const [, get] = useKeyboardControls();
+  const [, get]   = useKeyboardControls();
   const { camera, gl } = useThree();
 
-  const camH      = useRef(0);
-  const camV      = useRef(0.45);
-  const isLocked  = useRef(false);
-  const lastSend  = useRef(0);
+  const camH     = useRef(0);
+  const camV     = useRef(0.45);
+  const isLocked = useRef(false);
+  const lastSend = useRef(0);
+  // 물리 초기화 전에도 카메라가 따라올 수 있도록 마지막 위치 기억
+  const lastPos  = useRef(new THREE.Vector3(0, 1, 0));
 
   /* 포인터 락 */
   useEffect(() => {
     const el = gl.domElement;
-    const onMove2 = (e: MouseEvent) => {
+    const onMouseMove = (e: MouseEvent) => {
       if (!isLocked.current) return;
       camH.current -= e.movementX * 0.003;
       camV.current  = Math.max(0.05, Math.min(1.3, camV.current - e.movementY * 0.003));
     };
-    const onChange = () => { isLocked.current = !!document.pointerLockElement; };
-    const onClick  = () => el.requestPointerLock();
-    document.addEventListener('mousemove', onMove2);
-    document.addEventListener('pointerlockchange', onChange);
+    const onLockChange = () => { isLocked.current = !!document.pointerLockElement; };
+    const onClick = () => el.requestPointerLock();
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('pointerlockchange', onLockChange);
     el.addEventListener('click', onClick);
     return () => {
-      document.removeEventListener('mousemove', onMove2);
-      document.removeEventListener('pointerlockchange', onChange);
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('pointerlockchange', onLockChange);
       el.removeEventListener('click', onClick);
     };
   }, [gl]);
 
   useFrame((_, dt) => {
-    if (!body.current) return;
+    /* ── 물리 바디가 준비된 경우에만 이동 처리 ── */
+    if (body.current) {
+      const { forward, backward, left, right, jump, sprint } = get();
+      const vel  = body.current.linvel();
+      const posT = body.current.translation();
+      const SPEED = (sprint as boolean) ? 9 : 5;
 
-    const { forward, backward, left, right, jump, sprint } = get();
-    const vel = body.current.linvel();
-    const pos = body.current.translation();
-    const SPEED = (sprint as boolean) ? 9 : 5;
+      lastPos.current.set(posT.x, posT.y, posT.z);
 
-    /* 카메라 기준 이동 방향 */
-    const sinH = Math.sin(camH.current);
-    const cosH = Math.cos(camH.current);
-    let mx = 0, mz = 0;
-    if (forward)  { mx -= sinH; mz -= cosH; }
-    if (backward) { mx += sinH; mz += cosH; }
-    if (left)     { mx -= cosH; mz += sinH; }
-    if (right)    { mx += cosH; mz -= sinH; }
+      const sinH = Math.sin(camH.current);
+      const cosH = Math.cos(camH.current);
+      let mx = 0, mz = 0;
+      if (forward)  { mx -= sinH; mz -= cosH; }
+      if (backward) { mx += sinH; mz += cosH; }
+      if (left)     { mx -= cosH; mz += sinH; }
+      if (right)    { mx += cosH; mz -= sinH; }
 
-    const len = Math.sqrt(mx * mx + mz * mz);
-    if (len > 0) { mx /= len; mz /= len; }
-    body.current.setLinvel({ x: mx * SPEED, y: vel.y, z: mz * SPEED }, true);
+      const len = Math.sqrt(mx * mx + mz * mz);
+      if (len > 0) { mx /= len; mz /= len; }
+      body.current.setLinvel({ x: mx * SPEED, y: vel.y, z: mz * SPEED }, true);
 
-    /* 점프: 지면 레이캐스트 */
-    if (jump) {
-      const ray  = new rapier.Ray({ x: pos.x, y: pos.y, z: pos.z }, { x: 0, y: -1, z: 0 });
-      const hit  = rWorld.castRay(ray, 1.3, true);
-      if (hit && hit.timeOfImpact < 0.7) {
-        body.current.applyImpulse({ x: 0, y: 7, z: 0 }, true);
+      if (jump) {
+        const ray = new rapier.Ray({ x: posT.x, y: posT.y, z: posT.z }, { x: 0, y: -1, z: 0 });
+        const hit = rWorld.castRay(ray, 1.3, true);
+        if (hit && hit.timeOfImpact < 0.7) {
+          body.current.applyImpulse({ x: 0, y: 7, z: 0 }, true);
+        }
+      }
+
+      if (mesh.current && len > 0) {
+        const target = Math.atan2(mx, mz);
+        mesh.current.rotation.y = THREE.MathUtils.lerp(mesh.current.rotation.y, target, 12 * dt);
+      }
+
+      const now = Date.now();
+      if (now - lastSend.current > 50) {
+        lastSend.current = now;
+        onMove({ x: posT.x, y: posT.y, z: posT.z, rotY: mesh.current?.rotation.y ?? 0 });
       }
     }
 
-    /* 캐릭터 메쉬 회전 */
-    if (mesh.current && len > 0) {
-      const target = Math.atan2(mx, mz);
-      mesh.current.rotation.y = THREE.MathUtils.lerp(mesh.current.rotation.y, target, 12 * dt);
-    }
-
-    /* 3인칭 카메라 */
+    /* ── 카메라는 항상 lastPos를 따라감 (물리 초기화 여부 무관) ── */
+    const p    = lastPos.current;
     const dist = 7;
-    const tx   = pos.x + dist * Math.sin(camH.current) * Math.cos(camV.current);
-    const ty   = pos.y + dist * Math.sin(camV.current) + 0.5;
-    const tz   = pos.z + dist * Math.cos(camH.current) * Math.cos(camV.current);
-    camera.position.lerp(new THREE.Vector3(tx, ty, tz), 10 * dt);
-    camera.lookAt(pos.x, pos.y + 0.7, pos.z);
-
-    /* 50 ms 마다 위치 전송 */
-    const now = Date.now();
-    if (now - lastSend.current > 50) {
-      lastSend.current = now;
-      onMove({
-        x: pos.x, y: pos.y, z: pos.z,
-        rotY: mesh.current?.rotation.y ?? 0,
-      });
-    }
+    const tx   = p.x + dist * Math.sin(camH.current) * Math.cos(camV.current);
+    const ty   = p.y + dist * Math.sin(camV.current) + 0.5;
+    const tz   = p.z + dist * Math.cos(camH.current) * Math.cos(camV.current);
+    camera.position.lerp(new THREE.Vector3(tx, ty, tz), 1 - Math.pow(0.001, dt));
+    camera.lookAt(p.x, p.y + 0.7, p.z);
   });
 
   const appearance = (character.appearance ?? {}) as Record<string, string>;
