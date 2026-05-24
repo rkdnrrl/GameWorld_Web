@@ -460,44 +460,23 @@ export default function StudioCanvas() {
           <div style={{ marginBottom: 16, padding: '12px 14px', background: 'rgba(99,102,241,0.1)', borderRadius: 10, border: '1px solid rgba(99,102,241,0.2)' }}>
             <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 10, fontWeight: 600 }}>선택됨: {selected.kind}</div>
 
-            {/* 위치 */}
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 3 }}>위치 (m)</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3 }}>
-                {['X','Y','Z'].map((axis, i) => (
-                  <div key={axis} style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 4, padding: '3px 5px', fontSize: 10 }}>
-                    <span style={{ color: ['#f87171','#4ade80','#60a5fa'][i] }}>{axis}</span>{' '}
-                    <span style={{ color: '#fff' }}>{selected.position[i].toFixed(2)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 회전 */}
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 3 }}>회전 (°)</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3 }}>
-                {['X','Y','Z'].map((axis, i) => (
-                  <div key={axis} style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 4, padding: '3px 5px', fontSize: 10 }}>
-                    <span style={{ color: ['#f87171','#4ade80','#60a5fa'][i] }}>{axis}</span>{' '}
-                    <span style={{ color: '#fff' }}>{Math.round(selected.rotation[i] * 180 / Math.PI)}°</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 크기 */}
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 3 }}>크기 (m)</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3 }}>
-                {['X','Y','Z'].map((axis, i) => (
-                  <div key={axis} style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 4, padding: '3px 5px', fontSize: 10 }}>
-                    <span style={{ color: ['#f87171','#4ade80','#60a5fa'][i] }}>{axis}</span>{' '}
-                    <span style={{ color: '#fff' }}>{selected.scale[i].toFixed(2)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* 현재 모드에 해당하는 값만 입력창으로 표시 */}
+            <AxisInputRow
+              label={mode === 'translate' ? '위치 (m)' : mode === 'rotate' ? '회전 (°)' : '크기 (m)'}
+              values={
+                mode === 'translate' ? selected.position :
+                mode === 'rotate'    ? selected.rotation.map(r => Math.round(r * 180 / Math.PI)) as [number,number,number] :
+                                       selected.scale
+              }
+              step={mode === 'rotate' ? 1 : 0.1}
+              min={mode === 'scale' ? 0.01 : undefined}
+              onChange={(axisIdx, v) => {
+                if (mode === 'translate') updateAxis('position', axisIdx, v);
+                else if (mode === 'rotate') updateAxis('rotation', axisIdx, v * Math.PI / 180);
+                else updateAxis('scale', axisIdx, Math.max(0.01, v));
+              }}
+              onCommit={() => pushHistory(objects)}
+            />
 
             {/* 색상 (도형만) */}
             {selected.kind !== 'asset' && (
