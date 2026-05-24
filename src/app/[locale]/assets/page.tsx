@@ -72,7 +72,7 @@ export default function AssetsPage() {
             catch { reject(new Error(t('uploadFailed'))); }
           }
         };
-        xhr.onerror = () => reject(new Error('네트워크 오류'));
+        xhr.onerror = () => reject(new Error(t('networkError')));
         xhr.open('POST', `${API}/api/assets/upload`);
         xhr.setRequestHeader('Authorization', `Bearer ${token()}`);
         xhr.send(form);
