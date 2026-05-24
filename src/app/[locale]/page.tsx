@@ -117,6 +117,14 @@ export default function Home() {
     });
   }, []);
 
+  // ── 히어로 캐러셀 자동 슬라이드 ──
+  const heroGames = games.filter(g => g.kind === "official" && g.thumbnailUrl);
+  useEffect(() => {
+    if (heroGames.length <= 1 || heroPaused) return;
+    const id = setInterval(() => setHeroIdx(i => (i + 1) % heroGames.length), 5000);
+    return () => clearInterval(id);
+  }, [heroGames.length, heroPaused]);
+
   // ── 파생 데이터 ──
   const featured     = games.filter(g => g.isFeatured).slice(0, 3);
   const filteredGames = cat === "all"
