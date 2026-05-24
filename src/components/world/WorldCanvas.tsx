@@ -20,13 +20,13 @@ const KEY_MAP = [
 ];
 
 /* ── FBX 모델 로더 ─────────────────────── */
-function FBXModel({ url, scale }: { url: string; scale: number }) {
+function FBXModel({ url, scale, rotX }: { url: string; scale: number; rotX: number }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { FBXLoader } = require('three/examples/jsm/loaders/FBXLoader.js');
   const fbx = useLoader(FBXLoader, url);
   const cloned = fbx.clone(true) as THREE.Group;
   cloned.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = true; });
-  return <primitive object={cloned} scale={scale} />;
+  return <primitive object={cloned} scale={scale} rotation={[rotX, 0, 0]} />;
 }
 
 /* ── GLB 모델 로더 ─────────────────────── */
