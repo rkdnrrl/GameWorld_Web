@@ -47,7 +47,6 @@ function CustomPreview({
   useEffect(() => {
     if (!url) return;
     let cancelled = false;
-    const ext = url.split('.').pop()?.toLowerCase();
 
     const onLoaded = (loaded: THREE.Object3D, anims: THREE.AnimationClip[] = []) => {
       if (cancelled) return;
@@ -60,17 +59,12 @@ function CustomPreview({
       setObj(loaded);
     };
 
-    if (ext === 'glb' || ext === 'gltf') {
-      import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => {
-        new GLTFLoader().load(url, (gltf) => onLoaded(gltf.scene.clone(true), gltf.animations ?? []));
+    // FBX만 지원
+    import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
+      new FBXLoader().load(url, (fbx) => {
+        onLoaded(fbx, (fbx as unknown as { animations: THREE.AnimationClip[] }).animations ?? []);
       });
-    } else {
-      import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
-        new FBXLoader().load(url, (fbx) => {
-          onLoaded(fbx, (fbx as unknown as { animations: THREE.AnimationClip[] }).animations ?? []);
-        });
-      });
-    }
+    });
     return () => {
       cancelled = true;
       mixer.current?.stopAllAction();
@@ -264,8 +258,7 @@ export default function CharacterPage() {
     setModelName(asset.name);
     setShowPicker(false);
     setModelScale(1.0);
-    const ext = asset.modelUrl.split('.').pop()?.toLowerCase();
-    setModelRotX(ext === 'fbx' ? -Math.PI / 2 : 0);
+    setModelRotX(-Math.PI / 2); // FBX Z-up 기본 보정
     // 애니메이션 초기화
     setAvailableAnims([]);
     setIdleAnim('');
@@ -400,26 +393,24 @@ export default function CharacterPage() {
                       value={modelScale} onChange={e => setModelScale(Number(e.target.value))}
                       style={{ width: '100%' }} />
                   </div>
-                  {ext === 'fbx' && (
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                        <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>X 회전 (눕혀질 때 조정)</span>
-                        <span style={{ color: '#a5b4fc', fontSize: 11 }}>{Math.round(modelRotX * 180 / Math.PI)}°</span>
-                      </div>
-                      <input type="range" min={-Math.PI} max={Math.PI} step={0.01}
-                        value={modelRotX} onChange={e => setModelRotX(Number(e.target.value))}
-                        style={{ width: '100%' }} />
-                      <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-                        {[0, -Math.PI/2, Math.PI/2, Math.PI].map(v => (
-                          <button key={v} onClick={() => setModelRotX(v)} style={{
-                            flex: 1, fontSize: 10, padding: '2px 0', borderRadius: 4, border: 'none',
-                            background: Math.abs(modelRotX - v) < 0.05 ? '#4f46e5' : 'rgba(255,255,255,0.1)',
-                            color: '#fff', cursor: 'pointer',
-                          }}>{Math.round(v * 180 / Math.PI)}°</button>
-                        ))}
-                      </div>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                      <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>X 회전 (눕혀질 때 조정)</span>
+                      <span style={{ color: '#a5b4fc', fontSize: 11 }}>{Math.round(modelRotX * 180 / Math.PI)}°</span>
                     </div>
-                  )}
+                    <input type="range" min={-Math.PI} max={Math.PI} step={0.01}
+                      value={modelRotX} onChange={e => setModelRotX(Number(e.target.value))}
+                      style={{ width: '100%' }} />
+                    <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                      {[0, -Math.PI/2, Math.PI/2, Math.PI].map(v => (
+                        <button key={v} onClick={() => setModelRotX(v)} style={{
+                          flex: 1, fontSize: 10, padding: '2px 0', borderRadius: 4, border: 'none',
+                          background: Math.abs(modelRotX - v) < 0.05 ? '#4f46e5' : 'rgba(255,255,255,0.1)',
+                          color: '#fff', cursor: 'pointer',
+                        }}>{Math.round(v * 180 / Math.PI)}°</button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
