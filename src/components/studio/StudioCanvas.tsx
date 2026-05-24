@@ -394,7 +394,7 @@ export default function StudioCanvas() {
 
       {/* ── 좌측 패널 ──────────────────────── */}
       <div style={{ width: 260, background: '#1e293b', borderRight: '1px solid rgba(255,255,255,0.08)', padding: 16, overflowY: 'auto', color: '#fff' }}>
-        <h2 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 800 }}>🛠️ 스튜디오</h2>
+        <h2 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 800 }}>{t('title')}</h2>
 
         {/* Undo/Redo */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 14 }}>
@@ -403,32 +403,32 @@ export default function StudioCanvas() {
               background: canUndo ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)',
               color: canUndo ? '#fff' : 'rgba(255,255,255,0.3)',
               fontSize: 11, fontWeight: 600, cursor: canUndo ? 'pointer' : 'default' }}>
-            ↶ 되돌리기 (Ctrl+Z)
+            {t('undo')} (Ctrl+Z)
           </button>
           <button onClick={redo} disabled={!canRedo}
             style={{ flex: 1, padding: '7px', borderRadius: 6, border: 'none',
               background: canRedo ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)',
               color: canRedo ? '#fff' : 'rgba(255,255,255,0.3)',
               fontSize: 11, fontWeight: 600, cursor: canRedo ? 'pointer' : 'default' }}>
-            ↷ 다시 (Ctrl+Y)
+            {t('redo')} (Ctrl+Y)
           </button>
         </div>
 
         {/* 월드 이름 */}
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 4 }}>월드 이름</div>
+          <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 4 }}>{t('worldName')}</div>
           <input value={name} onChange={e => setName(e.target.value)} maxLength={100}
             style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#fff', fontSize: 13, padding: '7px 10px', outline: 'none' }} />
         </div>
 
         {/* 도형 추가 */}
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 8 }}>도형 추가</div>
+          <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 8 }}>{t('addShape')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-            {([['cube','📦','큐브'],['sphere','⚪','구'],['cylinder','🥫','원기둥'],['plane','▭','평면']] as const).map(([kind, icon, label]) => (
+            {([['cube','📦','shapeCube'],['sphere','⚪','shapeSphere'],['cylinder','🥫','shapeCylinder'],['plane','▭','shapePlane']] as const).map(([kind, icon, labelKey]) => (
               <button key={kind} onClick={() => addPrimitive(kind)}
                 style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 12, padding: '8px 6px', cursor: 'pointer' }}>
-                {icon} {label}
+                {icon} {t(labelKey)}
               </button>
             ))}
           </div>
@@ -437,15 +437,15 @@ export default function StudioCanvas() {
         {/* 에셋 추가 */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <div style={{ fontSize: 11, opacity: 0.5 }}>내 FBX 에셋 ({myAssets.length})</div>
+            <div style={{ fontSize: 11, opacity: 0.5 }}>{t('myAssets', { count: myAssets.length })}</div>
             <button onClick={() => setActiveAssetPicker(v => !v)} style={{ background: 'none', border: 'none', color: '#818cf8', fontSize: 11, cursor: 'pointer' }}>
-              {activeAssetPicker ? '닫기' : '+ 추가'}
+              {activeAssetPicker ? t('closeAssetPicker') : t('addAsset')}
             </button>
           </div>
           {activeAssetPicker && (
             <div style={{ maxHeight: 180, overflowY: 'auto', background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: 6 }}>
               {myAssets.length === 0
-                ? <div style={{ fontSize: 11, opacity: 0.4, padding: 8, textAlign: 'center' }}>업로드된 FBX 없음<br /><a href="/assets" style={{ color: '#818cf8' }}>/assets</a> 에서 업로드</div>
+                ? <div style={{ fontSize: 11, opacity: 0.4, padding: 8, textAlign: 'center' }}>{t('noAssets')}<br /><a href="/assets" style={{ color: '#818cf8' }}>/assets</a> {t('uploadAt')}</div>
                 : myAssets.map(a => (
                     <button key={a.id} onClick={() => addAsset(a)}
                       style={{ display: 'block', width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#fff', fontSize: 11, padding: '6px 8px', borderRadius: 6, cursor: 'pointer', marginBottom: 3 }}>
@@ -459,12 +459,12 @@ export default function StudioCanvas() {
 
         {/* 변환 모드 */}
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 8 }}>변환 모드 (G/R/S)</div>
+          <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 8 }}>{t('transformMode')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
             {(['translate','rotate','scale'] as const).map(m => (
               <button key={m} onClick={() => setMode(m)}
                 style={{ background: mode === m ? '#4f46e5' : 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 6, color: '#fff', fontSize: 10, padding: '6px 0', cursor: 'pointer', fontWeight: 600 }}>
-                {m === 'translate' ? '이동' : m === 'rotate' ? '회전' : '크기'}
+                {m === 'translate' ? t('modeTranslate') : m === 'rotate' ? t('modeRotate') : t('modeScale')}
               </button>
             ))}
           </div>
