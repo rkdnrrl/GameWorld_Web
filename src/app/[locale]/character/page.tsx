@@ -449,7 +449,7 @@ export default function CharacterPage() {
 
                 {/* 걷기 선택 */}
                 <div style={{ marginBottom: 8 }}>
-                  <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, marginBottom: 3 }}>움직일 때 (Walk)</div>
+                  <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, marginBottom: 3 }}>{t('walkAnimLabel')}</div>
                   <select
                     value={walkAnim}
                     onChange={e => { setWalkAnim(e.target.value); setPreviewAnim('walk'); }}
