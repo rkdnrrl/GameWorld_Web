@@ -17,10 +17,14 @@ interface Asset {
 
 /* ── 자동 정규화 (1.8m 기준) ────────────── */
 function autoNormalize(obj: THREE.Object3D, targetHeight = 1.8) {
+  obj.updateMatrixWorld(true);
   const box  = new THREE.Box3().setFromObject(obj);
   const size = box.getSize(new THREE.Vector3());
   const h    = Math.max(size.x, size.y, size.z);
-  if (h > 0) obj.scale.multiplyScalar(targetHeight / h);
+  if (h > 0) {
+    obj.scale.multiplyScalar(targetHeight / h);
+    obj.updateMatrixWorld(true);
+  }
   const box2 = new THREE.Box3().setFromObject(obj);
   obj.position.y -= box2.min.y;
 }
