@@ -228,10 +228,10 @@ function Player({
   const camV     = useRef(0.45);
   const isLocked = useRef(false);
   const lastSend = useRef(0);
-  // 점프 키가 눌리는 순간만 감지 (홀드 시 누적 임펄스 방지)
   const jumpPrev = useRef(false);
-  // 물리 초기화 전에도 카메라가 따라올 수 있도록 마지막 위치 기억
   const lastPos  = useRef(new THREE.Vector3(0, 1, 0));
+  // 이동 중 여부 (CustomModel의 idle↔walk 크로스페이드용)
+  const movingRef = useRef(false);
 
   /* 키보드 + 포인터 락 */
   useEffect(() => {
