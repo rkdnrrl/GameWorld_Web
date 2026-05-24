@@ -588,7 +588,7 @@ interface WorldCanvasProps {
   customObjects?: UserMapObject[];
 }
 
-export default function WorldCanvas({ character, players, onMove }: WorldCanvasProps) {
+export default function WorldCanvas({ character, players, onMove, customObjects }: WorldCanvasProps) {
   return (
       <Canvas
         shadows
