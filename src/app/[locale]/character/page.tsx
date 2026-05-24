@@ -3,7 +3,7 @@ import dynamic from 'next/dynamic';
 import { Suspense, useRef, useState, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Environment } from '@react-three/drei';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/navigation';
 import { session } from '@/lib/api';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
