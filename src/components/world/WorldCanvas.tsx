@@ -128,9 +128,18 @@ function Player({
   // 물리 초기화 전에도 카메라가 따라올 수 있도록 마지막 위치 기억
   const lastPos  = useRef(new THREE.Vector3(0, 1, 0));
 
-  /* 포인터 락 */
+  /* 키보드 + 포인터 락 */
   useEffect(() => {
     const el = gl.domElement;
+
+    // 키보드
+    const onKeyDown = (e: KeyboardEvent) => {
+      keys.current.add(e.code);
+      if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+    };
+    const onKeyUp = (e: KeyboardEvent) => keys.current.delete(e.code);
+
+    // 마우스
     const onMouseMove = (e: MouseEvent) => {
       if (!isLocked.current) return;
       camH.current -= e.movementX * 0.003;
@@ -138,10 +147,15 @@ function Player({
     };
     const onLockChange = () => { isLocked.current = !!document.pointerLockElement; };
     const onClick = () => el.requestPointerLock();
+
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('pointerlockchange', onLockChange);
     el.addEventListener('click', onClick);
     return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('pointerlockchange', onLockChange);
       el.removeEventListener('click', onClick);
@@ -152,7 +166,13 @@ function Player({
     /* ── 물리 바디가 준비된 경우에만 이동 처리 ── */
     if (body.current) {
       try {
-      const { forward, backward, left, right, jump, sprint } = get();
+      const k = keys.current;
+      const forward  = k.has('KeyW') || k.has('ArrowUp');
+      const backward = k.has('KeyS') || k.has('ArrowDown');
+      const left     = k.has('KeyA') || k.has('ArrowLeft');
+      const right    = k.has('KeyD') || k.has('ArrowRight');
+      const jump     = k.has('Space');
+      const sprint   = k.has('ShiftLeft');
       const vel  = body.current.linvel();
       const posT = body.current.translation();
       const SPEED = (sprint as boolean) ? 9 : 5;
