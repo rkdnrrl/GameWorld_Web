@@ -39,7 +39,6 @@ function CustomModel({ url, userScale, rotX, movingRef, idleName, walkName }: {
   useEffect(() => {
     if (!url) return;
     let cancelled = false;
-    const ext = url.split('.').pop()?.toLowerCase();
 
     const setupMixer = (loaded: THREE.Object3D, anims: THREE.AnimationClip[]) => {
       if (!anims.length) return;
@@ -107,20 +106,12 @@ function CustomModel({ url, userScale, rotX, movingRef, idleName, walkName }: {
       setObj(loaded);
     };
 
-    if (ext === 'glb' || ext === 'gltf') {
-      import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => {
-        new GLTFLoader().load(url, (gltf) => {
-          const scene = gltf.scene.clone(true);
-          onLoaded(scene, gltf.animations ?? []);
-        });
+    // FBX만 지원
+    import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
+      new FBXLoader().load(url, (fbx) => {
+        onLoaded(fbx, (fbx as unknown as { animations: THREE.AnimationClip[] }).animations ?? []);
       });
-    } else {
-      import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
-        new FBXLoader().load(url, (fbx) => {
-          onLoaded(fbx, (fbx as unknown as { animations: THREE.AnimationClip[] }).animations ?? []);
-        });
-      });
-    }
+    });
     return () => {
       cancelled = true;
       mixer.current?.stopAllAction();
