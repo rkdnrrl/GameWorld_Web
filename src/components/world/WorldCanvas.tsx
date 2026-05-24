@@ -135,13 +135,16 @@ function CustomModel({ url, userScale, rotX, movingRef }: {
 }
 
 /* ── 캐릭터 메쉬 (커스텀 or 블록형) ───── */
-function CharacterMesh({ appearance }: { appearance: Record<string, string> }) {
+function CharacterMesh({ appearance, movingRef }: {
+  appearance: Record<string, string>;
+  movingRef?: React.RefObject<boolean>;
+}) {
   const modelUrl   = appearance.modelUrl;
-  const userScale  = Number(appearance.modelScale) || 1.0; // 1.0 = 1.8m
+  const userScale  = Number(appearance.modelScale) || 1.0;
   const rotX       = Number(appearance.fbxRotX ?? (modelUrl?.endsWith('.fbx') ? -Math.PI / 2 : 0));
 
   if (modelUrl) {
-    return <CustomModel url={modelUrl} userScale={userScale} rotX={rotX} />;
+    return <CustomModel url={modelUrl} userScale={userScale} rotX={rotX} movingRef={movingRef} />;
   }
   return <BlockMesh appearance={appearance} />;
 }
