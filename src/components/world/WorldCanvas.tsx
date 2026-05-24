@@ -607,7 +607,7 @@ function UserAsset({ url }: { url: string }) {
 interface WorldCanvasProps {
   character: Record<string, unknown>;
   players: Record<string, RemotePlayer>;
-  onMove: (pos: { x: number; y: number; z: number; rotY: number }) => void;
+  onMove: (pos: { x: number; y: number; z: number; rotY: number; animState?: AnimState }) => void;
   customObjects?: UserMapObject[];
 }
 
