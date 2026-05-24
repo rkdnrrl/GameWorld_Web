@@ -1,6 +1,6 @@
 'use client';
-import { Suspense, useRef, useState, useEffect } from 'react';
-import { Canvas, useFrame, useLoader } from '@react-three/fiber';
+import { useRef, useState, useEffect } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { useRouter } from '@/i18n/navigation';
 import { session } from '@/lib/api';
 import * as THREE from 'three';
@@ -15,22 +15,31 @@ interface Asset {
   thumbnailUrl: string | null;
 }
 
-/* ── FBX/GLB 프리뷰 로더 ─────────────────── */
-function FBXPreview({ url, scale, rotX }: { url: string; scale: number; rotX: number }) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { FBXLoader } = require('three/examples/jsm/loaders/FBXLoader.js');
-  const fbx = useLoader(FBXLoader, url);
+/* ── 커스텀 모델 프리뷰 (명령형 로드) ───── */
+function CustomPreview({ url, scale, rotX }: { url: string; scale: number; rotX: number }) {
+  const [obj, setObj] = useState<THREE.Object3D | null>(null);
   const g = useRef<THREE.Group>(null);
-  useFrame((_, dt) => { if (g.current) g.current.rotation.y += dt * 0.6; });
-  return <primitive ref={g} object={fbx} scale={scale} rotation={[rotX, 0, 0]} position={[0, -1, 0]} />;
-}
 
-function GLBPreview({ url, scale }: { url: string; scale: number }) {
-  const { GLTFLoader } = require('three/examples/jsm/loaders/GLTFLoader.js');
-  const gltf = useLoader(GLTFLoader, url);
-  const g = useRef<THREE.Group>(null);
+  useEffect(() => {
+    if (!url) return;
+    let cancelled = false;
+    const ext = url.split('.').pop()?.toLowerCase();
+    if (ext === 'glb' || ext === 'gltf') {
+      import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => {
+        new GLTFLoader().load(url, (gltf) => { if (!cancelled) setObj(gltf.scene.clone(true)); });
+      });
+    } else {
+      import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
+        new FBXLoader().load(url, (fbx) => { if (!cancelled) setObj(fbx); });
+      });
+    }
+    return () => { cancelled = true; };
+  }, [url]);
+
   useFrame((_, dt) => { if (g.current) g.current.rotation.y += dt * 0.6; });
-  return <primitive ref={g} object={gltf.scene} scale={scale} position={[0, -1, 0]} />;
+
+  if (!obj) return null;
+  return <group ref={g} position={[0, -1, 0]}><primitive object={obj} scale={scale} rotation={[rotX, 0, 0]} /></group>;
 }
 
 /* ── 블록 캐릭터 프리뷰 ──────────────────── */
