@@ -620,9 +620,9 @@ export default function WorldCanvas({ character, players, onMove, customObjects 
 
         <Suspense fallback={null}>
           <Physics gravity={[0, -22, 0]} interpolate={false}>
-            {customObjects && customObjects.length > 0 ? (
+            {customObjects !== undefined ? (
+              // 유저 제작 월드 — 빈 맵이라도 기본 Island로 폴백 안 함
               <>
-                {/* 안전망 바닥 — 유저 맵이 비어 있어도 추락 방지 */}
                 <RigidBody type="fixed" colliders="cuboid">
                   <mesh position={[0, -0.5, 0]} receiveShadow>
                     <boxGeometry args={[200, 1, 200]} />
@@ -632,6 +632,7 @@ export default function WorldCanvas({ character, players, onMove, customObjects 
                 {customObjects.map(obj => <UserMapObjectMesh key={obj.id} obj={obj} />)}
               </>
             ) : (
+              // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
             <Player character={character} onMove={onMove} />

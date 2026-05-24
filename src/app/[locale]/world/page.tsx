@@ -28,7 +28,7 @@ export default function WorldPage() {
   const [ready, setReady]         = useState(false);
   const [chatOpen, setChatOpen]   = useState(false);
   const [chatInput, setChatInput] = useState('');
-  const [customObjects, setCustomObjects] = useState<MapObject[]>([]);
+  const [customObjects, setCustomObjects] = useState<MapObject[] | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
   const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
@@ -69,15 +69,18 @@ export default function WorldPage() {
     load();
   }, [API, router]);
 
-  /* 유저 제작 월드 로드 */
+  /* 유저 제작 월드 로드 (비공개 월드는 본인 토큰 필요) */
   useEffect(() => {
     if (!worldIdParam) return;
-    fetch(`${API}/api/worlds/${worldIdParam}`)
+    const tok = session.getToken();
+    const headers: Record<string, string> = tok ? { Authorization: `Bearer ${tok}` } : {};
+    fetch(`${API}/api/worlds/${worldIdParam}`, { headers })
       .then(r => r.json())
       .then(d => {
-        if (d.world?.mapData?.objects) setCustomObjects(d.world.mapData.objects);
+        if (d.world) setCustomObjects(d.world.mapData?.objects || []);
+        else console.warn('[world] 로드 실패:', d.error?.message);
       })
-      .catch(() => {});
+      .catch((e) => console.warn('[world] 네트워크 오류:', e));
   }, [API, worldIdParam]);
 
   const { players, chatLog, connected, sendMove, sendChat } = useGameSocket({
@@ -116,7 +119,7 @@ export default function WorldPage() {
         character={character ?? {}}
         players={players}
         onMove={sendMove}
-        customObjects={customObjects}
+        customObjects={customObjects ?? undefined}
       />
 
       {/* HUD — 상단 */}
