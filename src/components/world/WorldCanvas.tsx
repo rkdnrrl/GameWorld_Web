@@ -6,42 +6,50 @@ import { Physics, RigidBody, CapsuleCollider, useRapier } from '@react-three/rap
 import * as THREE from 'three';
 import type { RemotePlayer } from '@/lib/world/useGameSocket';
 
-/* ── FBX 모델 로더 ─────────────────────── */
-function FBXModel({ url, scale, rotX }: { url: string; scale: number; rotX: number }) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { FBXLoader } = require('three/examples/jsm/loaders/FBXLoader.js');
-  const fbx = useLoader(FBXLoader, url);
-  const cloned = fbx.clone(true) as THREE.Group;
-  cloned.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = true; });
-  return <primitive object={cloned} scale={scale} rotation={[rotX, 0, 0]} />;
-}
+/* ── 커스텀 3D 모델 (Suspense 없이 명령형 로드 — RigidBody 리셋 방지) ── */
+function CustomModel({ url, scale, rotX }: { url: string; scale: number; rotX: number }) {
+  const [obj, setObj] = useState<THREE.Object3D | null>(null);
 
-/* ── GLB 모델 로더 ─────────────────────── */
-function GLBModel({ url, scale }: { url: string; scale: number }) {
-  const { GLTFLoader } = require('three/examples/jsm/loaders/GLTFLoader.js');
-  const gltf = useLoader(GLTFLoader, url);
-  const cloned = gltf.scene.clone(true) as THREE.Group;
-  cloned.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = true; });
-  return <primitive object={cloned} scale={scale} />;
+  useEffect(() => {
+    if (!url) return;
+    let cancelled = false;
+    const ext = url.split('.').pop()?.toLowerCase();
+
+    if (ext === 'glb' || ext === 'gltf') {
+      import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => {
+        new GLTFLoader().load(url, (gltf) => {
+          if (cancelled) return;
+          const scene = gltf.scene.clone(true);
+          scene.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = true; });
+          setObj(scene);
+        });
+      });
+    } else {
+      // FBX (기본)
+      import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
+        new FBXLoader().load(url, (fbx) => {
+          if (cancelled) return;
+          fbx.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = true; });
+          setObj(fbx);
+        });
+      });
+    }
+    return () => { cancelled = true; };
+  }, [url]);
+
+  if (!obj) return null;
+  return <primitive object={obj} scale={scale} rotation={[rotX, 0, 0]} />;
 }
 
 /* ── 캐릭터 메쉬 (커스텀 or 블록형) ───── */
 function CharacterMesh({ appearance }: { appearance: Record<string, string> }) {
   const modelUrl   = appearance.modelUrl;
   const modelScale = Number(appearance.modelScale) || 0.01;
+  const rotX       = Number(appearance.fbxRotX ?? (modelUrl?.endsWith('.fbx') ? -Math.PI / 2 : 0));
 
   if (modelUrl) {
-    const ext      = modelUrl.split('.').pop()?.toLowerCase();
-    // FBX 기본 Z-up 축 보정: -90°. appearance.fbxRotX 로 직접 지정 가능
-    const rotX     = Number(appearance.fbxRotX ?? (ext === 'fbx' ? -Math.PI / 2 : 0));
-    return (
-      <Suspense fallback={<BlockMesh appearance={appearance} />}>
-        {(ext === 'glb' || ext === 'gltf')
-          ? <GLBModel url={modelUrl} scale={modelScale} />
-          : <FBXModel url={modelUrl} scale={modelScale} rotX={rotX} />
-        }
-      </Suspense>
-    );
+    // Suspense 없이 로드 → RigidBody가 리셋되지 않음
+    return <CustomModel url={modelUrl} scale={modelScale} rotX={rotX} />;
   }
   return <BlockMesh appearance={appearance} />;
 }
