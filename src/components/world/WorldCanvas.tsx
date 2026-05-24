@@ -1,9 +1,9 @@
 'use client';
 import { Suspense, useRef, useEffect, useCallback } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
 import {
   KeyboardControls, useKeyboardControls,
-  Sky, Text, Environment,
+  Sky, Text,
 } from '@react-three/drei';
 import { Physics, RigidBody, CapsuleCollider, useRapier } from '@react-three/rapier';
 import * as THREE from 'three';
@@ -19,8 +19,46 @@ const KEY_MAP = [
   { name: 'sprint',   keys: ['ShiftLeft'] },
 ];
 
-/* ── 캐릭터 메쉬 (로우폴리 블록형) ─────── */
+/* ── FBX 모델 로더 ─────────────────────── */
+function FBXModel({ url, scale }: { url: string; scale: number }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { FBXLoader } = require('three/examples/jsm/loaders/FBXLoader.js');
+  const fbx = useLoader(FBXLoader, url);
+  const cloned = fbx.clone(true) as THREE.Group;
+  cloned.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = true; });
+  return <primitive object={cloned} scale={scale} />;
+}
+
+/* ── GLB 모델 로더 ─────────────────────── */
+function GLBModel({ url, scale }: { url: string; scale: number }) {
+  const { GLTFLoader } = require('three/examples/jsm/loaders/GLTFLoader.js');
+  const gltf = useLoader(GLTFLoader, url);
+  const cloned = gltf.scene.clone(true) as THREE.Group;
+  cloned.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = true; });
+  return <primitive object={cloned} scale={scale} />;
+}
+
+/* ── 캐릭터 메쉬 (커스텀 or 블록형) ───── */
 function CharacterMesh({ appearance }: { appearance: Record<string, string> }) {
+  const modelUrl   = appearance.modelUrl;
+  const modelScale = Number(appearance.modelScale) || 0.01;
+
+  if (modelUrl) {
+    const ext = modelUrl.split('.').pop()?.toLowerCase();
+    return (
+      <Suspense fallback={<BlockMesh appearance={appearance} />}>
+        {(ext === 'glb' || ext === 'gltf')
+          ? <GLBModel url={modelUrl} scale={modelScale} />
+          : <FBXModel url={modelUrl} scale={modelScale} />
+        }
+      </Suspense>
+    );
+  }
+  return <BlockMesh appearance={appearance} />;
+}
+
+/* ── 블록형 기본 캐릭터 ─────────────────── */
+function BlockMesh({ appearance }: { appearance: Record<string, string> }) {
   const body   = appearance.bodyColor   || '#4f46e5';
   const skin   = appearance.skinColor   || '#fcd9b0';
   const hair   = appearance.hairColor   || '#1e293b';
