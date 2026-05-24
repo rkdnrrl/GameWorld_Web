@@ -192,7 +192,7 @@ export default function AssetsPage() {
 
         {/* 에셋 목록 */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>내 에셋 ({assets.length})</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>{t('myAssetsCount', { count: assets.length })}</h2>
         </div>
 
         {assets.length === 0 ? (
