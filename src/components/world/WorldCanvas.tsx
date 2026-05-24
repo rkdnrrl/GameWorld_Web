@@ -459,7 +459,7 @@ export default function WorldCanvas({ character, players, onMove }: WorldCanvasP
           powerPreference: 'high-performance',
           stencil: false,
         }}
-        style={{ width: '100vw', height: '100vh', display: 'block', background: '#87ceeb' }}
+        style={{ width: '100vw', height: '100vh', display: 'block', background: '#87ceeb', transform: 'translateZ(0)', willChange: 'transform' }}
       >
         {/* 조명 — Bruno Simon 스타일 */}
         <ambientLight intensity={0.45} color="#c4e4ff" />
