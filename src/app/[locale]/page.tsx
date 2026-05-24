@@ -162,7 +162,7 @@ export default function Home() {
               {hotGames.map((g, i) => (
                 <li key={g.id}>
                   <Link
-                    href={`/games/${g.slug}`}
+                    href={`/games/${g.id}`}
                     className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50"
                   >
                     <span className={`w-4 shrink-0 text-center text-xs font-bold ${
@@ -188,7 +188,7 @@ export default function Home() {
                 {featured.map(g => (
                   <Link
                     key={g.id}
-                    href={`/games/${g.slug}`}
+                    href={`/games/${g.id}`}
                     className="group relative overflow-hidden rounded-lg shadow-sm"
                     style={{ aspectRatio: "16/7" }}
                   >
@@ -276,7 +276,7 @@ export default function Home() {
                 {latestGames.map(g => (
                   <Link
                     key={g.id}
-                    href={`/games/${g.slug}`}
+                    href={`/games/${g.id}`}
                     className="group rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow overflow-hidden"
                   >
                     {/* 썸네일 */}
