@@ -32,13 +32,14 @@ function autoNormalize(obj: THREE.Object3D, targetHeight = 1.8) {
 
 /* ── 커스텀 모델 프리뷰 (명령형 로드) ───── */
 function CustomPreview({
-  url, userScale, rotX, previewAnim, onAnimationsLoaded,
+  url, userScale, rotX, previewAnim, previewTrim, onAnimationsLoaded,
 }: {
   url: string;
   userScale: number;
   rotX: number;
   previewAnim?: string;
-  onAnimationsLoaded?: (names: string[]) => void;
+  previewTrim?: { start?: number; end?: number };
+  onAnimationsLoaded?: (anims: { name: string; duration: number }[]) => void;
 }) {
   const [obj, setObj] = useState<THREE.Object3D | null>(null);
   const g     = useRef<THREE.Group>(null);
