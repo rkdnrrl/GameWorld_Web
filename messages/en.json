@@ -1226,7 +1226,7 @@
     "playersOnline": "{count} online",
     "youSuffix": "(You)",
     "playersList": "👥 Players",
-    "controlHint": "Click to lock mouse | WASD move | Space jump | Shift sprint | ESC release",
+    "controlHint": "Click to lock mouse | WASD move | Shift sprint | Space jump | C crouch | Z prone | ESC release",
     "chatPlaceholder": "Type message…",
     "chatEmpty": "No messages yet"
   },
@@ -1258,7 +1258,12 @@
     "assetPickerTitle": "📦 Select Asset",
     "loadingAssets": "Loading…",
     "noUploadedAssets": "No uploaded assets.",
-    "uploadAtAssets": "to upload an FBX first."
+    "uploadAtAssets": "to upload an FBX first.",
+    "runAnimLabel": "When running (Run)",
+    "jumpAnimLabel": "Jump",
+    "crouchAnimLabel": "Crouch",
+    "proneAnimLabel": "Prone",
+    "previewLabel": "Preview"
   },
   "Assets": {
     "title": "3D Asset Library",

@@ -1226,7 +1226,7 @@
     "playersOnline": "{count}명 접속 중",
     "youSuffix": "(나)",
     "playersList": "👥 플레이어",
-    "controlHint": "클릭하면 마우스가 잠깁니다 | WASD 이동 | Space 점프 | Shift 달리기 | ESC 해제",
+    "controlHint": "클릭하여 마우스 잠금 | WASD 이동 | Shift 달리기 | Space 점프 | C 앉기 | Z 엎드리기 | ESC 해제",
     "chatPlaceholder": "메시지 입력…",
     "chatEmpty": "아직 채팅이 없어요"
   },
@@ -1258,7 +1258,12 @@
     "assetPickerTitle": "📦 에셋 선택",
     "loadingAssets": "로딩 중…",
     "noUploadedAssets": "업로드된 에셋이 없습니다.",
-    "uploadAtAssets": "에서 FBX를 먼저 업로드하세요."
+    "uploadAtAssets": "에서 FBX를 먼저 업로드하세요.",
+    "runAnimLabel": "달릴 때 (Run)",
+    "jumpAnimLabel": "점프 (Jump)",
+    "crouchAnimLabel": "앉기 (Crouch)",
+    "proneAnimLabel": "엎드리기 (Prone)",
+    "previewLabel": "미리보기"
   },
   "Assets": {
     "title": "3D 에셋 라이브러리",

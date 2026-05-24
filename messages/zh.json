@@ -1226,7 +1226,7 @@
     "playersOnline": "{count} 在线",
     "youSuffix": "(我)",
     "playersList": "👥 玩家",
-    "controlHint": "点击锁定鼠标 | WASD 移动 | Space 跳跃 | Shift 奔跑 | ESC 解除",
+    "controlHint": "点击锁定鼠标 | WASD 移动 | Shift 奔跑 | Space 跳跃 | C 蹲下 | Z 匍匐 | ESC 解除",
     "chatPlaceholder": "输入消息…",
     "chatEmpty": "暂无消息"
   },
@@ -1258,7 +1258,12 @@
     "assetPickerTitle": "📦 选择资源",
     "loadingAssets": "加载中…",
     "noUploadedAssets": "无已上传资源。",
-    "uploadAtAssets": "先上传 FBX。"
+    "uploadAtAssets": "先上传 FBX。",
+    "runAnimLabel": "奔跑时 (Run)",
+    "jumpAnimLabel": "跳跃 (Jump)",
+    "crouchAnimLabel": "蹲下 (Crouch)",
+    "proneAnimLabel": "匍匐 (Prone)",
+    "previewLabel": "预览"
   },
   "Assets": {
     "title": "3D 资源库",

@@ -1226,7 +1226,7 @@
     "playersOnline": "{count}人接続中",
     "youSuffix": "(自分)",
     "playersList": "👥 プレイヤー",
-    "controlHint": "クリックでマウスがロック | WASD移動 | Spaceジャンプ | Shift走る | ESC解除",
+    "controlHint": "クリックでマウスロック | WASD 移動 | Shift 走る | Space ジャンプ | C しゃがむ | Z 伏せる | ESC 解除",
     "chatPlaceholder": "メッセージ入力…",
     "chatEmpty": "まだチャットがありません"
   },
@@ -1258,7 +1258,12 @@
     "assetPickerTitle": "📦 アセット選択",
     "loadingAssets": "読み込み中…",
     "noUploadedAssets": "アップロードされたアセットがありません。",
-    "uploadAtAssets": "でFBXを先にアップロードしてください。"
+    "uploadAtAssets": "でFBXを先にアップロードしてください。",
+    "runAnimLabel": "走る時 (Run)",
+    "jumpAnimLabel": "ジャンプ (Jump)",
+    "crouchAnimLabel": "しゃがむ (Crouch)",
+    "proneAnimLabel": "伏せる (Prone)",
+    "previewLabel": "プレビュー"
   },
   "Assets": {
     "title": "3Dアセットライブラリ",
