@@ -183,7 +183,7 @@ function AssetPickerModal({ onSelect, onClose }: {
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 20, cursor: 'pointer' }}>✕</button>
         </div>
 
-        {loading && <div style={{ color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: 24 }}>로딩 중…</div>}
+        {loading && <div style={{ color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: 24 }}>{t('loadingAssets')}</div>}
 
         {!loading && assets.length === 0 && (
           <div style={{ color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: 24, fontSize: 13 }}>
