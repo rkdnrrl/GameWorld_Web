@@ -424,7 +424,7 @@ export default function CharacterPage() {
                 border: '1px solid rgba(16,185,129,0.2)',
               }}>
                 <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginBottom: 8 }}>
-                  애니메이션 매핑 ({availableAnims.length}개 발견)
+                  {t('animMapping', { count: availableAnims.length })}
                 </div>
 
                 {/* 유휴 선택 */}
