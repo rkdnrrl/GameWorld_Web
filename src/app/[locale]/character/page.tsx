@@ -74,15 +74,26 @@ function CustomPreview({
     };
   }, [url, onAnimationsLoaded]);
 
-  // 선택된 애니메이션만 재생
+  // 선택된 애니메이션만 재생 (트림 적용)
   useEffect(() => {
     if (!mixer.current) return;
     mixer.current.stopAllAction();
-    if (previewAnim) {
-      const clip = animClips.current.find(c => c.name === previewAnim);
-      if (clip) mixer.current.clipAction(clip).play();
+    if (!previewAnim) return;
+    const src = animClips.current.find(c => c.name === previewAnim);
+    if (!src) return;
+    let clip = src;
+    if (previewTrim) {
+      const start = Math.max(0, previewTrim.start ?? 0);
+      const end   = Math.min(src.duration, previewTrim.end ?? src.duration);
+      if (end > start && (start > 0 || end < src.duration)) {
+        const fps = 30;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const utils = (THREE as any).AnimationUtils;
+        clip = utils.subclip(src, src.name + '_t', Math.floor(start * fps), Math.ceil(end * fps), fps);
+      }
     }
-  }, [previewAnim, obj]);
+    mixer.current.clipAction(clip).play();
+  }, [previewAnim, previewTrim, obj]);
 
   useFrame((_, dt) => {
     if (g.current) g.current.rotation.y += dt * 0.6;
