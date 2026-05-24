@@ -146,7 +146,7 @@ function CharacterMesh({ appearance, movingRef }: {
 }) {
   const modelUrl   = appearance.modelUrl;
   const userScale  = Number(appearance.modelScale) || 1.0;
-  const rotX       = Number(appearance.fbxRotX ?? (modelUrl?.endsWith('.fbx') ? -Math.PI / 2 : 0));
+  const rotX       = Number(appearance.fbxRotX ?? -Math.PI / 2); // FBX Z-up 기본 보정
 
   if (modelUrl) {
     return (
