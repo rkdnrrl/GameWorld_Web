@@ -31,18 +31,30 @@ function autoNormalize(obj: THREE.Object3D, targetHeight = 1.8) {
   obj.position.y -= box2.min.y;
 }
 
-function CustomModel({ url, userScale, rotX, movingRef, idleName, walkName }: {
+/* ── 애니메이션 상태 타입 ─────────────── */
+export type AnimState = 'idle' | 'walk' | 'run' | 'jump' | 'crouch' | 'prone';
+
+const KEYWORD_FALLBACK: Record<AnimState, string[]> = {
+  idle:   ['idle', 'stand', 'tpose', 't-pose', '유휴', '대기'],
+  walk:   ['walk', 'walking', '걷기', '걷다'],
+  run:    ['run', 'running', 'sprint', 'jog', '달리', '뛰'],
+  jump:   ['jump', 'jumping', '점프'],
+  crouch: ['crouch', 'crouching', 'duck', '앉', 'squat'],
+  prone:  ['prone', 'lying', 'lie', '엎드', '눕'],
+};
+
+function CustomModel({ url, userScale, rotX, animStateRef, animNames }: {
   url: string;
   userScale: number;
   rotX: number;
-  movingRef?: React.RefObject<boolean>;
-  idleName?: string;
-  walkName?: string;
+  animStateRef?: React.RefObject<AnimState>;
+  animNames?: Partial<Record<AnimState, string>>;
 }) {
-  const [obj, setObj]     = useState<THREE.Object3D | null>(null);
-  const mixer             = useRef<THREE.AnimationMixer | null>(null);
-  const idleAction        = useRef<THREE.AnimationAction | null>(null);
-  const walkAction        = useRef<THREE.AnimationAction | null>(null);
+  const [obj, setObj]   = useState<THREE.Object3D | null>(null);
+  const mixer           = useRef<THREE.AnimationMixer | null>(null);
+  const clipByState     = useRef<Map<AnimState, THREE.AnimationClip>>(new Map());
+  const currentAction   = useRef<THREE.AnimationAction | null>(null);
+  const currentState    = useRef<AnimState | null>(null);
 
   useEffect(() => {
     if (!url) return;
@@ -50,59 +62,25 @@ function CustomModel({ url, userScale, rotX, movingRef, idleName, walkName }: {
 
     const setupMixer = (loaded: THREE.Object3D, anims: THREE.AnimationClip[]) => {
       if (!anims.length) return;
-      const m = new THREE.AnimationMixer(loaded);
-      mixer.current = m;
+      mixer.current = new THREE.AnimationMixer(loaded);
+      clipByState.current.clear();
 
-      // 사용자가 명시적으로 지정한 이름 우선, 없으면 키워드 휴리스틱
-      const findByExact = (name?: string) =>
-        name ? anims.find(a => a.name === name) : undefined;
-      const findByKeyword = (...needles: string[]) =>
+      // 각 state별로 명시 이름 우선, 없으면 키워드 휴리스틱으로 매칭
+      const findByExact = (name?: string) => name ? anims.find(a => a.name === name) : undefined;
+      const findByKeyword = (needles: string[]) =>
         anims.find(a => {
-          const name = a.name.toLowerCase();
-          return needles.some(n => name.includes(n.toLowerCase()));
+          const lname = a.name.toLowerCase();
+          return needles.some(n => lname.includes(n.toLowerCase()));
         });
 
-      const idleClip = findByExact(idleName) ?? findByKeyword(
-        'idle', 'stand', 'tpose', 't-pose',
-        '유휴', '대기', '서있',
-      );
-      const walkClip = findByExact(walkName) ?? findByKeyword(
-        'walk', 'run', 'move', 'jog', 'sprint',
-        '걷기', '걷다', '걸음', '달리', '뛰', '이동',
-      );
+      (['idle', 'walk', 'run', 'jump', 'crouch', 'prone'] as AnimState[]).forEach(state => {
+        const clip = findByExact(animNames?.[state]) ?? findByKeyword(KEYWORD_FALLBACK[state]);
+        if (clip) clipByState.current.set(state, clip);
+      });
 
-      // ── 두 종류 다 있음 → 크로스페이드 ──
-      if (idleClip && walkClip) {
-        idleAction.current = m.clipAction(idleClip);
-        walkAction.current = m.clipAction(walkClip);
-        idleAction.current.play();
-        walkAction.current.weight = 0;
-        walkAction.current.play();
-      }
-      // ── 하나만 있음 → 그것만 재생 (이름 패턴으로 idle/walk 결정) ──
-      else if (anims.length === 1) {
-        const onlyClip = anims[0];
-        const isMovement = /walk|run|move|jog|sprint|걷|달리|뛰|이동/i.test(onlyClip.name);
-        if (isMovement) {
-          // 움직임 애니메이션 → walk 슬롯에. 정지 시엔 weight=0
-          walkAction.current = m.clipAction(onlyClip);
-          walkAction.current.weight = 0;
-          walkAction.current.play();
-        } else {
-          // idle/기타 → 항상 재생
-          idleAction.current = m.clipAction(onlyClip);
-          idleAction.current.play();
-        }
-      }
-      // ── 여러 개지만 idle/walk 키워드 미매칭 → 첫 2개 사용 ──
-      else {
-        idleAction.current = m.clipAction(anims[0]);
-        idleAction.current.play();
-        if (anims.length > 1) {
-          walkAction.current = m.clipAction(anims[1]);
-          walkAction.current.weight = 0;
-          walkAction.current.play();
-        }
+      // 클립이 하나도 매칭 안 됐고 애니메이션은 있으면 첫 번째를 idle로 사용
+      if (clipByState.current.size === 0 && anims.length > 0) {
+        clipByState.current.set('idle', anims[0]);
       }
     };
 
@@ -114,7 +92,6 @@ function CustomModel({ url, userScale, rotX, movingRef, idleName, walkName }: {
       setObj(loaded);
     };
 
-    // FBX만 지원
     import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
       new FBXLoader().load(url, (fbx) => {
         onLoaded(fbx, (fbx as unknown as { animations: THREE.AnimationClip[] }).animations ?? []);
@@ -124,18 +101,33 @@ function CustomModel({ url, userScale, rotX, movingRef, idleName, walkName }: {
       cancelled = true;
       mixer.current?.stopAllAction();
       mixer.current = null;
+      currentAction.current = null;
+      currentState.current = null;
     };
-  }, [url]);
+  }, [url, animNames]);
 
-  // AnimationMixer 업데이트 + 움직임에 따른 idle↔walk 크로스페이드
+  // 단일 액션 크로스페이드 (state 바뀔 때만 전환)
   useFrame((_, dt) => {
     mixer.current?.update(dt);
-    if (walkAction.current) {
-      const target = movingRef?.current ? 1 : 0;
-      const w = THREE.MathUtils.lerp(walkAction.current.weight, target, Math.min(1, 8 * dt));
-      walkAction.current.weight = w;
-      if (idleAction.current) idleAction.current.weight = 1 - w;
+    if (!mixer.current) return;
+
+    const desired = animStateRef?.current || 'idle';
+    if (desired === currentState.current) return;
+
+    // 매칭되는 클립 없으면 idle로 폴백
+    const targetClip = clipByState.current.get(desired) || clipByState.current.get('idle');
+    if (!targetClip) return;
+
+    const nextAction = mixer.current.clipAction(targetClip);
+    if (nextAction === currentAction.current) {
+      currentState.current = desired;
+      return;
     }
+
+    nextAction.reset().fadeIn(0.2).play();
+    if (currentAction.current) currentAction.current.fadeOut(0.2);
+    currentAction.current = nextAction;
+    currentState.current = desired;
   });
 
   if (!obj) return null;
@@ -148,13 +140,13 @@ function CustomModel({ url, userScale, rotX, movingRef, idleName, walkName }: {
 }
 
 /* ── 캐릭터 메쉬 (커스텀 or 블록형) ───── */
-function CharacterMesh({ appearance, movingRef }: {
+function CharacterMesh({ appearance, animStateRef }: {
   appearance: Record<string, string>;
-  movingRef?: React.RefObject<boolean>;
+  animStateRef?: React.RefObject<AnimState>;
 }) {
   const modelUrl   = appearance.modelUrl;
   const userScale  = Number(appearance.modelScale) || 1.0;
-  const rotX       = Number(appearance.fbxRotX ?? -Math.PI / 2); // FBX Z-up 기본 보정
+  const rotX       = Number(appearance.fbxRotX ?? -Math.PI / 2);
 
   if (modelUrl) {
     return (
@@ -162,9 +154,15 @@ function CharacterMesh({ appearance, movingRef }: {
         url={modelUrl}
         userScale={userScale}
         rotX={rotX}
-        movingRef={movingRef}
-        idleName={appearance.idleAnim}
-        walkName={appearance.walkAnim}
+        animStateRef={animStateRef}
+        animNames={{
+          idle:   appearance.idleAnim,
+          walk:   appearance.walkAnim,
+          run:    appearance.runAnim,
+          jump:   appearance.jumpAnim,
+          crouch: appearance.crouchAnim,
+          prone:  appearance.proneAnim,
+        }}
       />
     );
   }
