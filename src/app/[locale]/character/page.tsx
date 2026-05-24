@@ -387,7 +387,7 @@ export default function CharacterPage() {
                 <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                      <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>크기 (1.0 = 1.8m)</span>
+                      <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>{t('sizeLabel')}</span>
                       <span style={{ color: '#a5b4fc', fontSize: 11 }}>{modelScale.toFixed(2)}x</span>
                     </div>
                     <input type="range" min={0.1} max={3.0} step={0.05}
