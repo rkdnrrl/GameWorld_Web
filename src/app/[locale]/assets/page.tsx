@@ -45,7 +45,7 @@ export default function AssetsPage() {
     }
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
     if (ext !== 'fbx') {
-      setError('FBX 파일만 지원합니다.');
+      setError(t('fbxOnly'));
       return;
     }
 
