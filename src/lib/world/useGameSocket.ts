@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useRef, useCallback, useState } from 'react';
 
+export type AnimState = 'idle' | 'walk' | 'run' | 'jump' | 'crouch' | 'prone';
+
 export interface RemotePlayer {
   id: string;
   username: string;
@@ -9,6 +11,7 @@ export interface RemotePlayer {
   y: number;
   z: number;
   rotY: number;
+  animState?: AnimState;
 }
 
 export interface ChatMessage {
