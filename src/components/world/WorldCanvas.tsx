@@ -9,10 +9,15 @@ import type { RemotePlayer } from '@/lib/world/useGameSocket';
 /* ── 커스텀 3D 모델 (Suspense 없이 명령형 로드 — RigidBody 리셋 방지) ── */
 /** 모델을 목표 높이(m)에 맞춰 자동 정규화 */
 function autoNormalize(obj: THREE.Object3D, targetHeight = 1.8) {
+  obj.updateMatrixWorld(true);
   const box  = new THREE.Box3().setFromObject(obj);
   const size = box.getSize(new THREE.Vector3());
   const h    = Math.max(size.x, size.y, size.z);
-  if (h > 0) obj.scale.multiplyScalar(targetHeight / h);
+  if (h > 0) {
+    const factor = targetHeight / h;
+    obj.scale.multiplyScalar(factor);
+    obj.updateMatrixWorld(true);
+  }
   // 발 위치를 y=0 기준으로 맞춤
   const box2 = new THREE.Box3().setFromObject(obj);
   obj.position.y -= box2.min.y;
