@@ -250,8 +250,11 @@ function Player({
   const lastSend = useRef(0);
   const jumpPrev = useRef(false);
   const lastPos  = useRef(new THREE.Vector3(0, 1, 0));
-  // 이동 중 여부 (CustomModel의 idle↔walk 크로스페이드용)
-  const movingRef = useRef(false);
+  // 현재 애니메이션 상태 (CustomModel이 참조)
+  const animStateRef = useRef<AnimState>('idle');
+  // 토글 키: C(앉기), Z(엎드리기)
+  const crouchRef = useRef(false);
+  const proneRef  = useRef(false);
 
   /* 키보드 + 포인터 락 */
   useEffect(() => {
