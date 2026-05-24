@@ -91,6 +91,14 @@ export default function Home() {
   const [dataReady, setDataReady]   = useState(false);
   const [heroIdx, setHeroIdx]       = useState(0);
   const [heroPaused, setHeroPaused] = useState(false);
+  const [token, setToken]           = useState<string | null>(null);
+
+  useEffect(() => {
+    const sync = () => setToken(session.getToken());
+    sync();
+    window.addEventListener(SESSION_CHANGE_EVENT, sync);
+    return () => window.removeEventListener(SESSION_CHANGE_EVENT, sync);
+  }, []);
 
   // ── 데이터 로드 ──
   useEffect(() => {
