@@ -283,8 +283,8 @@ function Player({
     const tx   = p.x + dist * Math.sin(camH.current) * Math.cos(camV.current);
     const ty   = p.y + dist * Math.sin(camV.current) + 0.5;
     const tz   = p.z + dist * Math.cos(camH.current) * Math.cos(camV.current);
-    // 프레임레이트 독립적 lerp (0.05^dt ≈ 0.92/frame @60fps)
-    camera.position.lerp(new THREE.Vector3(tx, ty, tz), 1 - Math.pow(0.05, dt));
+    // 카메라 즉시 추적 — lerp 지연이 빠른 이동 시 blur를 유발하므로 직접 set
+    camera.position.set(tx, ty, tz);
     camera.lookAt(p.x, p.y + 0.7, p.z);
   });
 
