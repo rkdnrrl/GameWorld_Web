@@ -252,8 +252,8 @@ export default function CharacterPage() {
               <ambientLight intensity={0.5} />
               <directionalLight position={[5, 8, 5]} intensity={1.5} />
               <Suspense fallback={null}>
-                {modelUrl && (ext === 'fbx')
-                  ? <FBXPreview url={modelUrl} scale={modelScale} />
+                {modelUrl && ext === 'fbx'
+                  ? <FBXPreview url={modelUrl} scale={modelScale} rotX={modelRotX} />
                   : modelUrl && (ext === 'glb' || ext === 'gltf')
                   ? <GLBPreview url={modelUrl} scale={modelScale} />
                   : <BlockPreview appearance={appearance} />
