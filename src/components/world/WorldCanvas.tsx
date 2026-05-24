@@ -24,34 +24,74 @@ function autoNormalize(obj: THREE.Object3D, targetHeight = 1.8) {
 }
 
 function CustomModel({ url, userScale, rotX }: { url: string; userScale: number; rotX: number }) {
-  const [obj, setObj] = useState<THREE.Object3D | null>(null);
+  const [obj, setObj]     = useState<THREE.Object3D | null>(null);
+  const mixer             = useRef<THREE.AnimationMixer | null>(null);
+  const idleAction        = useRef<THREE.AnimationAction | null>(null);
+  const walkAction        = useRef<THREE.AnimationAction | null>(null);
 
   useEffect(() => {
     if (!url) return;
     let cancelled = false;
     const ext = url.split('.').pop()?.toLowerCase();
 
-    const onLoaded = (loaded: THREE.Object3D) => {
+    const setupMixer = (loaded: THREE.Object3D, anims: THREE.AnimationClip[]) => {
+      if (!anims.length) return;
+      const m = new THREE.AnimationMixer(loaded);
+      mixer.current = m;
+
+      // 애니메이션 이름으로 idle/walk 찾기 (없으면 index 사용)
+      const findClip = (...names: string[]) =>
+        anims.find(a => names.some(n => a.name.toLowerCase().includes(n)));
+
+      const idleClip = findClip('idle', 'stand', 'bind') ?? anims[0];
+      const walkClip = findClip('walk', 'run', 'move') ?? (anims.length > 1 ? anims[1] : null);
+
+      idleAction.current = m.clipAction(idleClip);
+      idleAction.current.play();
+
+      if (walkClip) {
+        walkAction.current = m.clipAction(walkClip);
+        walkAction.current.weight = 0;
+        walkAction.current.play();
+      }
+    };
+
+    const onLoaded = (loaded: THREE.Object3D, anims: THREE.AnimationClip[] = []) => {
       if (cancelled) return;
       loaded.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = true; });
-      autoNormalize(loaded, 1.8); // 항상 1.8m 기준으로 정규화
+      autoNormalize(loaded, 1.8);
+      setupMixer(loaded, anims);
       setObj(loaded);
     };
 
     if (ext === 'glb' || ext === 'gltf') {
       import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => {
-        new GLTFLoader().load(url, (gltf) => onLoaded(gltf.scene.clone(true)));
+        new GLTFLoader().load(url, (gltf) => {
+          const scene = gltf.scene.clone(true);
+          onLoaded(scene, gltf.animations ?? []);
+        });
       });
     } else {
       import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
-        new FBXLoader().load(url, onLoaded);
+        new FBXLoader().load(url, (fbx) => {
+          // FBX는 animations가 object 안에 있음
+          onLoaded(fbx, (fbx as unknown as { animations: THREE.AnimationClip[] }).animations ?? []);
+        });
       });
     }
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      mixer.current?.stopAllAction();
+      mixer.current = null;
+    };
   }, [url]);
 
+  // AnimationMixer 업데이트
+  useFrame((_, dt) => {
+    mixer.current?.update(dt);
+  });
+
   if (!obj) return null;
-  // group.scale로 userScale 적용 → primitive 내부 scale(autoNormalize) 덮어쓰기 방지
   return (
     <group scale={userScale} rotation={[rotX, 0, 0]}>
       <primitive object={obj} />
@@ -412,6 +452,12 @@ export default function WorldCanvas({ character, players, onMove }: WorldCanvasP
       <Canvas
         shadows
         camera={{ fov: 60, near: 0.1, far: 600, position: [0, 8, 12] }}
+        dpr={[1, 2]}
+        gl={{
+          antialias: true,
+          powerPreference: 'high-performance',
+          stencil: false,
+        }}
         style={{ width: '100vw', height: '100vh', display: 'block', background: '#87ceeb' }}
       >
         {/* 조명 — Bruno Simon 스타일 */}
