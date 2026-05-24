@@ -90,13 +90,13 @@ function CustomModel({ url, userScale, rotX, animStateRef, animNames, animTrims 
         });
 
       (['idle', 'walk', 'run', 'jump', 'crouch', 'prone'] as AnimState[]).forEach(state => {
-        const clip = findByExact(animNames?.[state]) ?? findByKeyword(KEYWORD_FALLBACK[state]);
-        if (clip) clipByState.current.set(state, clip);
+        const src = findByExact(animNames?.[state]) ?? findByKeyword(KEYWORD_FALLBACK[state]);
+        if (src) clipByState.current.set(state, trimClip(src, animTrims?.[state]));
       });
 
       // 클립이 하나도 매칭 안 됐고 애니메이션은 있으면 첫 번째를 idle로 사용
       if (clipByState.current.size === 0 && anims.length > 0) {
-        clipByState.current.set('idle', anims[0]);
+        clipByState.current.set('idle', trimClip(anims[0], animTrims?.idle));
       }
     };
 
