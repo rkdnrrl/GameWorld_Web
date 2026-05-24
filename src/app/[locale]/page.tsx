@@ -209,7 +209,7 @@ export default function Home() {
                 )}
                 <div className="flex gap-3">
                   <a
-                    href={g.url}
+                    href={playHref(g.url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-gray-900 shadow hover:bg-gray-100"
