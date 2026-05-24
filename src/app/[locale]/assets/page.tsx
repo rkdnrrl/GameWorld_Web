@@ -20,8 +20,13 @@ export default function AssetsPage() {
   const [assets, setAssets]       = useState<Asset[]>([]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress]   = useState(0);
+  const [optimizing, setOptimizing] = useState(false);
   const [error, setError]         = useState('');
   const [dragOver, setDragOver]   = useState(false);
+  const [lastOpt, setLastOpt]     = useState<{
+    originalTris: number; finalTris: number; reduced: boolean;
+    sizeBefore: number; sizeAfter: number;
+  } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const token = () => session.getToken() || '';
