@@ -367,7 +367,7 @@ export default function CharacterPage() {
                 </div>
               ) : (
                 <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, marginBottom: 8 }}>
-                  FBX/GLB 없으면 블록 캐릭터로 표시됩니다
+                  FBX 없으면 블록 캐릭터로 표시됩니다
                 </div>
               )}
 
@@ -413,7 +413,7 @@ export default function CharacterPage() {
               )}
             </div>
 
-            {/* 애니메이션 매핑 (GLB/FBX에 애니메이션이 있을 때만) */}
+            {/* 애니메이션 매핑 (FBX에 애니메이션이 있을 때만) */}
             {modelUrl && availableAnims.length > 0 && (
               <div style={{
                 marginBottom: 16, padding: '12px 14px',
