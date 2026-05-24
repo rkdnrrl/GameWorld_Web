@@ -162,6 +162,7 @@ function Player({
   useFrame((_, dt) => {
     /* ── 물리 바디가 준비된 경우에만 이동 처리 ── */
     if (body.current) {
+      try {
       const { forward, backward, left, right, jump, sprint } = get();
       const vel  = body.current.linvel();
       const posT = body.current.translation();
