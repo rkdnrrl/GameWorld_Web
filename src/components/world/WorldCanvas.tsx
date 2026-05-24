@@ -46,8 +46,12 @@ function CustomModel({ url, userScale, rotX }: { url: string; userScale: number;
   }, [url]);
 
   if (!obj) return null;
-  // userScale: 1.0 = 1.8m, 0.5 = 0.9m 등 배율 조정
-  return <primitive object={obj} scale={userScale} rotation={[rotX, 0, 0]} />;
+  // group.scale로 userScale 적용 → primitive 내부 scale(autoNormalize) 덮어쓰기 방지
+  return (
+    <group scale={userScale} rotation={[rotX, 0, 0]}>
+      <primitive object={obj} />
+    </group>
+  );
 }
 
 /* ── 캐릭터 메쉬 (커스텀 or 블록형) ───── */
