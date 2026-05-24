@@ -200,6 +200,7 @@ function Player({
         lastSend.current = now;
         onMove({ x: posT.x, y: posT.y, z: posT.z, rotY: mesh.current?.rotation.y ?? 0 });
       }
+      } catch { /* Rapier 초기화 중 에러 무시 */ }
     }
 
     /* ── 카메라는 항상 lastPos를 따라감 (물리 초기화 여부 무관) ── */
