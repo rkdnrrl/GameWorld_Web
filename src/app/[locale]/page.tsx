@@ -142,6 +142,13 @@ export default function Home() {
   const latestGames  = filteredGames.slice(0, 9);
   const hotGames     = [...games].sort((a, b) => b.playCount - a.playCount).slice(0, 7);
 
+  function playHref(url: string) {
+    if (!token) return url;
+    const standaloneApi = (process.env.NEXT_PUBLIC_STANDALONE_GAMES_API_URL ?? "").trim();
+    const apiQ = standaloneApi ? `&platformApi=${encodeURIComponent(standaloneApi)}` : "";
+    return `${url.replace(/\/+$/, "")}/` + `?token=${encodeURIComponent(token)}${apiQ}`;
+  }
+
   function gameTitle(g: GameItem) {
     if (g.titlesI18n && typeof g.titlesI18n === "object") {
       const i18n = g.titlesI18n as Record<string, string>;
