@@ -396,7 +396,7 @@ export default function CharacterPage() {
                   </div>
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                      <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>X 회전 (눕혀질 때 조정)</span>
+                      <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>{t('rotationXLabel')}</span>
                       <span style={{ color: '#a5b4fc', fontSize: 11 }}>{Math.round(modelRotX * 180 / Math.PI)}°</span>
                     </div>
                     <input type="range" min={-Math.PI} max={Math.PI} step={0.01}
