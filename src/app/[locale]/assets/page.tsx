@@ -114,11 +114,7 @@ export default function AssetsPage() {
     }
   }
 
-  const extBadge = (url: string) => {
-    const ext = url.split('.').pop()?.toUpperCase() || 'FILE';
-    const colors: Record<string, string> = { FBX: '#f59e0b', GLB: '#10b981', GLTF: '#3b82f6', OBJ: '#8b5cf6' };
-    return { ext, color: colors[ext] || '#64748b' };
-  };
+  const extBadge = () => ({ ext: 'FBX', color: '#f59e0b' });
 
   return (
     <div style={{
