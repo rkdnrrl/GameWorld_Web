@@ -58,12 +58,13 @@ const KEYWORD_FALLBACK: Record<AnimState, string[]> = {
   prone:  ['prone', 'lying', 'lie', '엎드', '눕'],
 };
 
-function CustomModel({ url, userScale, rotX, animStateRef, animNames }: {
+function CustomModel({ url, userScale, rotX, animStateRef, animNames, animTrims }: {
   url: string;
   userScale: number;
   rotX: number;
   animStateRef?: React.RefObject<AnimState>;
   animNames?: Partial<Record<AnimState, string>>;
+  animTrims?: Partial<Record<AnimState, AnimTrim>>;
 }) {
   const [obj, setObj]   = useState<THREE.Object3D | null>(null);
   const mixer           = useRef<THREE.AnimationMixer | null>(null);
