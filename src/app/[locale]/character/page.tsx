@@ -173,9 +173,10 @@ export default function CharacterPage() {
     bodyColor: '#4f46e5', skinColor: '#fcd9b0',
     hairColor: '#1e293b', pantsColor: '#1e293b',
   });
-  const [modelUrl, setModelUrl]   = useState('');   // 선택된 에셋 URL
-  const [modelScale, setModelScale] = useState(0.01); // 스케일 조정
-  const [modelName, setModelName] = useState('');
+  const [modelUrl, setModelUrl]     = useState('');
+  const [modelScale, setModelScale] = useState(0.01);
+  const [modelRotX, setModelRotX]   = useState(-Math.PI / 2); // FBX 기본 Z-up 보정
+  const [modelName, setModelName]   = useState('');
   const [showPicker, setShowPicker] = useState(false);
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
