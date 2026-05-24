@@ -17,7 +17,7 @@ const KEY_MAP = [
   { name: 'right',    keys: ['KeyD', 'ArrowRight'] },
   { name: 'jump',     keys: ['Space'] },
   { name: 'sprint',   keys: ['ShiftLeft'] },
-] as const;
+];
 
 /* ── 캐릭터 메쉬 (로우폴리 블록형) ─────── */
 function CharacterMesh({ appearance }: { appearance: Record<string, string> }) {
