@@ -359,7 +359,7 @@ export default function CharacterPage() {
               background: 'rgba(99,102,241,0.1)', borderRadius: 12,
               border: '1px solid rgba(99,102,241,0.25)',
             }}>
-              <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginBottom: 8 }}>3D 모델 (선택)</div>
+              <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginBottom: 8 }}>{t('model3d')}</div>
 
               {modelUrl ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
