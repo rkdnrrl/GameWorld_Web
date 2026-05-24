@@ -339,13 +339,13 @@ export default function CharacterPage() {
 
           {/* 설정 패널 */}
           <div style={{ width: 300 }}>
-            <h2 style={{ color: '#fff', margin: '0 0 18px', fontSize: 20, fontWeight: 800 }}>🎮 캐릭터 만들기</h2>
+            <h2 style={{ color: '#fff', margin: '0 0 18px', fontSize: 20, fontWeight: 800 }}>{t('title')}</h2>
 
             {/* 이름 */}
             <div style={{ marginBottom: 16 }}>
-              <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginBottom: 5 }}>캐릭터 이름</div>
+              <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginBottom: 5 }}>{t('name')}</div>
               <input value={name} onChange={e => setName(e.target.value)} maxLength={30}
-                placeholder="이름 입력 (최대 30자)"
+                placeholder={t('namePlaceholder')}
                 style={{
                   width: '100%', boxSizing: 'border-box',
                   background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
