@@ -228,7 +228,7 @@ export default function Home() {
                         {g.ratingAvg && <span>⭐ {g.ratingAvg}</span>}
                       </div>
                     </div>
-                  </a>
+                  </Link>
                 ))}
               </div>
             </section>
