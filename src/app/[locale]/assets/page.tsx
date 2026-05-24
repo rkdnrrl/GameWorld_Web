@@ -200,7 +200,7 @@ export default function AssetsPage() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
             {assets.map(a => {
-              const { ext, color } = extBadge(a.modelUrl);
+              const { ext, color } = extBadge();
               return (
                 <div key={a.id} style={{
                   background: 'rgba(255,255,255,0.05)', borderRadius: 14,
