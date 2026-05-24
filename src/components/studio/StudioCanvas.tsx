@@ -568,7 +568,7 @@ export default function StudioCanvas() {
         </Canvas>
 
         <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.55)', borderRadius: 20, padding: '6px 16px', color: '#fff', fontSize: 12, backdropFilter: 'blur(8px)' }}>
-          좌클릭 드래그: 회전 · 우클릭 드래그: 줌 · 휠: 이동 · 클릭: 선택 · Del: 삭제 · Ctrl+Z/Y: 되돌리기
+          좌클릭 드래그: 회전 · 우클릭 드래그: 이동 · 휠: 확대/축소 · 클릭: 선택 · Del: 삭제 · Ctrl+Z/Y: 되돌리기
         </div>
       </div>
     </div>
