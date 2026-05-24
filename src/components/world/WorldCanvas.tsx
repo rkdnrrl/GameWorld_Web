@@ -255,6 +255,8 @@ function Player({
   // 토글 키: C(앉기), Z(엎드리기)
   const crouchRef = useRef(false);
   const proneRef  = useRef(false);
+  // 점프 상태 최소 유지 시간 (애니메이션 재생 보장)
+  const jumpHoldUntil = useRef(0);
 
   /* 키보드 + 포인터 락 */
   useEffect(() => {
