@@ -38,10 +38,10 @@ export function useGameSocket({ worldId, playerId, username, character, enabled 
   const connect = useCallback(() => {
     if (dead.current || !enabled) return;
 
-    // NEXT_PUBLIC_WS_URL 우선, 없으면 API_URL에서 프로토콜만 ws:// 로 교체
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-    const base = (process.env.NEXT_PUBLIC_WS_URL || apiUrl).replace(/^https/, 'wss').replace(/^http/, 'ws');
-    const sock = new WebSocket(`${base}/ws/game`);
+    // Cloudflare Worker (play.airliveplay.com) 사용 — WSS 지원, 전 세계 엣지
+    // 로컬 개발 시 NEXT_PUBLIC_WS_URL=ws://localhost:4000 으로 오버라이드 가능
+    const wsBase = process.env.NEXT_PUBLIC_WS_URL || 'wss://play.airliveplay.com';
+    const sock = new WebSocket(`${wsBase}/_alp/world-ws?worldId=${worldId}`);
     ws.current = sock;
 
     sock.onopen = () => {
