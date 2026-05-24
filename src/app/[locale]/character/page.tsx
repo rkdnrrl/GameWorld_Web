@@ -429,7 +429,7 @@ export default function CharacterPage() {
 
                 {/* 유휴 선택 */}
                 <div style={{ marginBottom: 8 }}>
-                  <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, marginBottom: 3 }}>가만히 있을 때 (Idle)</div>
+                  <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, marginBottom: 3 }}>{t('idleAnimLabel')}</div>
                   <select
                     value={idleAnim}
                     onChange={e => { setIdleAnim(e.target.value); setPreviewAnim('idle'); }}
