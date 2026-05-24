@@ -620,10 +620,20 @@ export default function WorldCanvas({ character, players, onMove, customObjects 
 
         <Suspense fallback={null}>
           <Physics gravity={[0, -22, 0]} interpolate={false}>
-            {customObjects && customObjects.length > 0
-              ? customObjects.map(obj => <UserMapObjectMesh key={obj.id} obj={obj} />)
-              : <Island />
-            }
+            {customObjects && customObjects.length > 0 ? (
+              <>
+                {/* 안전망 바닥 — 유저 맵이 비어 있어도 추락 방지 */}
+                <RigidBody type="fixed" colliders="cuboid">
+                  <mesh position={[0, -0.5, 0]} receiveShadow>
+                    <boxGeometry args={[200, 1, 200]} />
+                    <meshStandardMaterial color="#86efac" />
+                  </mesh>
+                </RigidBody>
+                {customObjects.map(obj => <UserMapObjectMesh key={obj.id} obj={obj} />)}
+              </>
+            ) : (
+              <Island />
+            )}
             <Player character={character} onMove={onMove} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} />
