@@ -6,6 +6,14 @@ import { Physics, RigidBody, CapsuleCollider, useRapier } from '@react-three/rap
 import * as THREE from 'three';
 import type { RemotePlayer } from '@/lib/world/useGameSocket';
 
+/** 두 각도 간 짧은 방향으로 보간 (-π~π 경계 넘어가도 한바퀴 안 돔) */
+function lerpAngle(current: number, target: number, t: number): number {
+  const TAU = Math.PI * 2;
+  let diff = ((target - current) % TAU + TAU) % TAU;
+  if (diff > Math.PI) diff -= TAU;
+  return current + diff * t;
+}
+
 /* ── 커스텀 3D 모델 (Suspense 없이 명령형 로드 — RigidBody 리셋 방지) ── */
 /** 모델을 목표 높이(m)에 맞춰 자동 정규화 */
 function autoNormalize(obj: THREE.Object3D, targetHeight = 1.8) {
