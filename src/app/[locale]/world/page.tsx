@@ -3,6 +3,7 @@ import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from '@/i18n/navigation';
 import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useGameSocket } from '@/lib/world/useGameSocket';
 import { session } from '@/lib/api';
 
@@ -19,6 +20,7 @@ interface MapObject {
 }
 
 export default function WorldPage() {
+  const t = useTranslations('World');
   const router = useRouter();
   const searchParams = useSearchParams();
   const worldIdParam = searchParams.get('id');
@@ -107,7 +109,7 @@ export default function WorldPage() {
     return (
       <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f172a', color: '#fff', flexDirection: 'column', gap: 16 }}>
         <div style={{ fontSize: 40 }}>🌍</div>
-        <div style={{ fontSize: 18, opacity: 0.7 }}>월드 로딩 중…</div>
+        <div style={{ fontSize: 18, opacity: 0.7 }}>{t('loading')}</div>
       </div>
     );
   }
@@ -130,11 +132,11 @@ export default function WorldPage() {
         backdropFilter: 'blur(8px)',
       }}>
         <span style={{ color: connected ? '#4ade80' : '#f87171', fontSize: 9 }}>●</span>
-        <span style={{ fontWeight: 700 }}>ALP World</span>
+        <span style={{ fontWeight: 700 }}>{t('alpWorld')}</span>
         <span style={{ opacity: 0.5 }}>|</span>
         <span style={{ opacity: 0.7 }}>{username}</span>
         <span style={{ opacity: 0.5 }}>|</span>
-        <span style={{ opacity: 0.7 }}>{Object.keys(players).length + 1}명 접속 중</span>
+        <span style={{ opacity: 0.7 }}>{t('playersOnline', { count: Object.keys(players).length + 1 })}</span>
       </div>
 
       {/* HUD — 왼쪽 플레이어 목록 */}
@@ -143,8 +145,8 @@ export default function WorldPage() {
         background: 'rgba(0,0,0,0.4)', borderRadius: 12, padding: '8px 12px',
         color: '#fff', fontSize: 12, backdropFilter: 'blur(6px)', minWidth: 120,
       }}>
-        <div style={{ fontWeight: 700, marginBottom: 6, opacity: 0.7 }}>👥 플레이어</div>
-        <div style={{ color: '#4ade80' }}>● {username} (나)</div>
+        <div style={{ fontWeight: 700, marginBottom: 6, opacity: 0.7 }}>{t('playersList')}</div>
+        <div style={{ color: '#4ade80' }}>● {username} {t('youSuffix')}</div>
         {Object.values(players).map(p => (
           <div key={p.id} style={{ opacity: 0.8 }}>● {p.username}</div>
         ))}
@@ -157,7 +159,7 @@ export default function WorldPage() {
         color: 'rgba(255,255,255,0.6)', fontSize: 11, backdropFilter: 'blur(6px)',
         textAlign: 'center', pointerEvents: 'none',
       }}>
-        클릭하면 마우스가 잠깁니다 &nbsp;|&nbsp; WASD 이동 &nbsp;|&nbsp; Space 점프 &nbsp;|&nbsp; Shift 달리기 &nbsp;|&nbsp; ESC 해제
+        {t('controlHint')}
       </div>
 
       {/* 채팅 */}
@@ -171,7 +173,7 @@ export default function WorldPage() {
             background: 'rgba(0,0,0,0.5)', borderRadius: 12, padding: '8px 10px',
             width: 260, maxHeight: 200, overflowY: 'auto', backdropFilter: 'blur(8px)',
           }} ref={chatRef}>
-            {chatLog.length === 0 && <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>아직 채팅이 없어요</div>}
+            {chatLog.length === 0 && <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>{t('chatEmpty')}</div>}
             {chatLog.map((m, i) => (
               <div key={i} style={{ color: '#fff', fontSize: 12, marginBottom: 3 }}>
                 <span style={{ fontWeight: 700, color: '#a5b4fc' }}>{m.username}</span>
@@ -187,7 +189,7 @@ export default function WorldPage() {
               value={chatInput}
               onChange={e => setChatInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submitChat(); } }}
-              placeholder="채팅 입력…"
+              placeholder={t('chatPlaceholder')}
               style={{
                 flex: 1, background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: 8, color: '#fff', fontSize: 12, padding: '6px 10px', outline: 'none',
