@@ -16,13 +16,13 @@ interface Asset {
 }
 
 /* ── FBX/GLB 프리뷰 로더 ─────────────────── */
-function FBXPreview({ url, scale }: { url: string; scale: number }) {
+function FBXPreview({ url, scale, rotX }: { url: string; scale: number; rotX: number }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { FBXLoader } = require('three/examples/jsm/loaders/FBXLoader.js');
   const fbx = useLoader(FBXLoader, url);
   const g = useRef<THREE.Group>(null);
   useFrame((_, dt) => { if (g.current) g.current.rotation.y += dt * 0.6; });
-  return <primitive ref={g} object={fbx} scale={scale} position={[0, -1, 0]} />;
+  return <primitive ref={g} object={fbx} scale={scale} rotation={[rotX, 0, 0]} position={[0, -1, 0]} />;
 }
 
 function GLBPreview({ url, scale }: { url: string; scale: number }) {
