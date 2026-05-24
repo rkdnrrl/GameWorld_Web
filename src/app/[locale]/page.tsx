@@ -276,11 +276,9 @@ export default function Home() {
             ) : (
               <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
                 {latestGames.map(g => (
-                  <a
+                  <Link
                     key={g.id}
-                    href={g.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    href={`/games/${g.slug}`}
                     className="group rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow overflow-hidden"
                   >
                     {/* 썸네일 */}
