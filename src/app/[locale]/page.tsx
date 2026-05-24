@@ -188,11 +188,9 @@ export default function Home() {
               <SectionHeader title={t("featuredGames")} href="/games" linkLabel={t("viewAllGames")} />
               <div className={`grid gap-3 ${featured.length >= 2 ? "sm:grid-cols-2" : "grid-cols-1"} ${featured.length >= 3 ? "lg:grid-cols-3" : ""}`}>
                 {featured.map(g => (
-                  <a
+                  <Link
                     key={g.id}
-                    href={g.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    href={`/games/${g.slug}`}
                     className="group relative overflow-hidden rounded-lg shadow-sm"
                     style={{ aspectRatio: "16/7" }}
                   >
