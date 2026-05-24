@@ -34,6 +34,21 @@ function autoNormalize(obj: THREE.Object3D, targetHeight = 1.8) {
 /* ── 애니메이션 상태 타입 ─────────────── */
 export type AnimState = 'idle' | 'walk' | 'run' | 'jump' | 'crouch' | 'prone';
 
+export interface AnimTrim { start?: number; end?: number; }
+
+/** start~end 초 구간만 잘라낸 새 AnimationClip 반환 (트림 없으면 원본) */
+function trimClip(source: THREE.AnimationClip, trim?: AnimTrim): THREE.AnimationClip {
+  if (!trim) return source;
+  const start = Math.max(0, trim.start ?? 0);
+  const end   = Math.min(source.duration, trim.end ?? source.duration);
+  if (start <= 0 && end >= source.duration) return source;
+  if (end <= start) return source;
+  const fps = 30;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const utils = (THREE as any).AnimationUtils;
+  return utils.subclip(source, source.name + '_trim', Math.floor(start * fps), Math.ceil(end * fps), fps);
+}
+
 const KEYWORD_FALLBACK: Record<AnimState, string[]> = {
   idle:   ['idle', 'stand', 'tpose', 't-pose', '유휴', '대기'],
   walk:   ['walk', 'walking', '걷기', '걷다'],
