@@ -63,11 +63,13 @@ export default function WorldPage() {
 
   const [hubOpen, setHubOpen] = useState(false);
   const [mapModalOpen, setMapModalOpen] = useState(false);
+  const [charModalOpen, setCharModalOpen] = useState(false);
   const [mapTab, setMapTab] = useState<'home' | 'mine' | 'public'>('home');
   const [mapSearch, setMapSearch] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
   const [mapSort, setMapSort] = useState<'popular' | 'latest'>('popular');
   const [previewWorldKey, setPreviewWorldKey] = useState('');
+  const [previewCharId, setPreviewCharId] = useState('');
   const [switchingCharId, setSwitchingCharId] = useState('');
   const [myChars, setMyChars] = useState<MyCharacter[]>([]);
   const [myWorlds, setMyWorlds] = useState<HubWorld[]>([]);
@@ -212,6 +214,12 @@ export default function WorldPage() {
     setMapModalOpen(true);
   }
 
+  function openCharacterBrowser() {
+    const firstId = (myChars.find((c) => c.id === activeCharId)?.id || myChars[0]?.id || '');
+    setPreviewCharId(firstId);
+    setCharModalOpen(true);
+  }
+
   const currentWorldList = useMemo(() => {
     if (mapTab === 'mine') return myWorlds;
     if (mapTab === 'public') return publicWorlds;
@@ -280,6 +288,10 @@ export default function WorldPage() {
     () => previewCandidates.find((c) => c.id === previewWorldKey) || previewCandidates[0] || null,
     [previewCandidates, previewWorldKey],
   );
+  const previewChar = useMemo(
+    () => myChars.find((c) => c.id === previewCharId) || myChars.find((c) => c.id === activeCharId) || myChars[0] || null,
+    [myChars, previewCharId, activeCharId],
+  );
 
   const submitChat = () => {
     const msg = chatInput.trim();
@@ -342,21 +354,11 @@ export default function WorldPage() {
 
             <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, marginBottom: 6 }}>{t('changeCharacter')}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
-              {myChars.map((ch) => (
-                <button
-                  key={ch.id}
-                  onClick={() => switchCharacter(ch.id)}
-                  disabled={!!switchingCharId}
-                  style={{ border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '7px 10px', textAlign: 'left', cursor: switchingCharId ? 'default' : 'pointer', background: ch.id === activeCharId ? 'rgba(79,70,229,0.35)' : 'rgba(255,255,255,0.07)', color: '#fff', fontSize: 12, fontWeight: 600 }}
-                >
-                  {ch.name} {ch.id === activeCharId ? `(${t('activeCharacter')})` : ''}
-                </button>
-              ))}
               <button
-                onClick={() => router.push('/character')}
-                style={{ border: '1px dashed rgba(255,255,255,0.3)', borderRadius: 8, padding: '7px 10px', textAlign: 'left', cursor: 'pointer', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: 600 }}
+                onClick={openCharacterBrowser}
+                style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '8px 10px', textAlign: 'left', cursor: 'pointer', background: 'rgba(79,70,229,0.25)', color: '#fff', fontSize: 12, fontWeight: 700 }}
               >
-                {t('manageCharacters')}
+                {t('changeCharacter')}
               </button>
             </div>
 
@@ -377,15 +379,91 @@ export default function WorldPage() {
                 📦 {th('inventory')}
               </button>
               <button
-                onClick={() => router.push('/studio')}
+                onClick={() => router.push('/worlds')}
                 style={{ border: '1px solid rgba(255,255,255,0.18)', borderRadius: 8, padding: '7px 9px', textAlign: 'left', cursor: 'pointer', background: 'rgba(16,185,129,0.2)', color: '#fff', fontSize: 12, fontWeight: 700 }}
               >
                 🛠 {th('develop')}
+              </button>
+              <button
+                onClick={() => router.push('/character')}
+                style={{ border: '1px solid rgba(255,255,255,0.18)', borderRadius: 8, padding: '7px 9px', textAlign: 'left', cursor: 'pointer', background: 'rgba(79,70,229,0.2)', color: '#fff', fontSize: 12, fontWeight: 700, gridColumn: '1 / -1' }}
+              >
+                🧍 {t('manageCharacters')}
               </button>
             </div>
           </div>
         )}
       </div>
+
+      {charModalOpen && (
+        <div
+          onClick={() => setCharModalOpen(false)}
+          style={{ position: 'absolute', inset: 0, background: 'rgba(3,7,18,0.72)', backdropFilter: 'blur(6px)', zIndex: 55, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: 'min(980px, 96vw)', maxHeight: '90vh', overflow: 'hidden', borderRadius: 14, border: '1px solid rgba(255,255,255,0.16)', background: 'linear-gradient(180deg, rgba(14,23,46,0.97) 0%, rgba(8,14,30,0.97) 100%)', color: '#fff' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{t('changeCharacter')}</div>
+              <button
+                onClick={() => setCharModalOpen(false)}
+                style={{ border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontWeight: 700 }}
+              >
+                X
+              </button>
+            </div>
+
+            <div style={{ padding: 16, overflowY: 'auto', maxHeight: 'calc(90vh - 80px)' }}>
+              {previewChar && (
+                <div style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 12, overflow: 'hidden', background: 'rgba(255,255,255,0.04)', marginBottom: 12 }}>
+                  <div style={{ height: 180, background: 'linear-gradient(135deg, #1d4ed8 0%, #0f766e 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 56 }}>
+                    🧍
+                  </div>
+                  <div style={{ padding: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 18, fontWeight: 800 }}>{previewChar.name}</div>
+                      <div style={{ fontSize: 12, opacity: 0.72 }}>
+                        {previewChar.id === activeCharId ? t('activeCharacter') : t('changeCharacter')}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={() => switchCharacter(previewChar.id)}
+                        disabled={!!switchingCharId || previewChar.id === activeCharId}
+                        style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 9, padding: '9px 12px', cursor: (switchingCharId || previewChar.id === activeCharId) ? 'default' : 'pointer', background: previewChar.id === activeCharId ? 'rgba(255,255,255,0.12)' : 'rgba(16,185,129,0.28)', color: '#fff', fontSize: 12, fontWeight: 800 }}
+                      >
+                        {previewChar.id === activeCharId ? t('activeCharacter') : t('changeCharacter')}
+                      </button>
+                      <button
+                        onClick={() => router.push('/character')}
+                        style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 9, padding: '9px 12px', cursor: 'pointer', background: 'rgba(79,70,229,0.25)', color: '#fff', fontSize: 12, fontWeight: 800 }}
+                      >
+                        {t('manageCharacters')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10, maxHeight: 240, overflowY: 'auto', paddingRight: 2 }}>
+                {myChars.map((ch) => (
+                  <button
+                    key={ch.id}
+                    onClick={() => setPreviewCharId(ch.id)}
+                    style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, overflow: 'hidden', background: previewChar?.id === ch.id ? 'rgba(79,70,229,0.4)' : 'rgba(255,255,255,0.06)', color: '#fff', textAlign: 'left', cursor: 'pointer', padding: 0 }}
+                  >
+                    <div style={{ height: 78, background: 'linear-gradient(135deg, #334155 0%, #111827 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30 }}>🧍</div>
+                    <div style={{ padding: '8px 9px' }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ch.name}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {mapModalOpen && (
         <div

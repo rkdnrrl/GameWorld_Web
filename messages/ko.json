@@ -1218,7 +1218,9 @@
     "texTilingY": "반복 Y",
     "texPickerTitle": "🖼️ 텍스처 선택",
     "noTextures": "업로드된 이미지가 없습니다.",
-    "uploadAtAssets": "에서 PNG/JPG 업로드"
+    "uploadAtAssets": "에서 PNG/JPG 업로드",
+    "openMyWorlds": "내가 만든 맵",
+    "noMyWorlds": "만든 맵이 아직 없습니다. 새 월드를 만들어보세요."
   },
   "Worlds": {
     "title": "월드",

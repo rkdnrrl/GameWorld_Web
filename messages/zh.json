@@ -1218,7 +1218,9 @@
     "texTilingY": "平铺 Y",
     "texPickerTitle": "🖼️ 选择纹理",
     "noTextures": "未上传图像",
-    "uploadAtAssets": "上传 PNG/JPG"
+    "uploadAtAssets": "上传 PNG/JPG",
+    "openMyWorlds": "我的地图",
+    "noMyWorlds": "还没有你创建的地图。先创建一个新地图吧。"
   },
   "Worlds": {
     "title": "世界",

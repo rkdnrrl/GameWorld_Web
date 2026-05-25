@@ -107,6 +107,15 @@ interface Asset {
   metadata?: any;           // 신규 — metadata.materialConfig
 }
 
+interface MyWorldItem {
+  id: string;
+  name: string;
+  description?: string | null;
+  thumbnailUrl?: string | null;
+  updatedAt?: string;
+  isPublic?: boolean;
+}
+
 // 신/구 어느 위치든 머티리얼 설정 꺼내기
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getAssetMaterialConfig(a: Asset | undefined): any {
@@ -533,6 +542,9 @@ export default function StudioCanvas() {
   const [savedId, setSavedId]       = useState<string | null>(editingId);
   const [saving, setSaving]         = useState(false);
   const [myAssets, setMyAssets]     = useState<Asset[]>([]);
+  const [myWorlds, setMyWorlds]     = useState<MyWorldItem[]>([]);
+  const [myWorldsOpen, setMyWorldsOpen] = useState(false);
+  const [myWorldsLoading, setMyWorldsLoading] = useState(false);
   const [orbitEnabled, setOrbitEnabled] = useState(true);
   const [activeAssetPicker, setActiveAssetPicker] = useState(false);
   const [texPicker, setTexPicker] = useState<null | 'albedo' | 'normal' | 'roughness'>(null);
@@ -578,6 +590,17 @@ export default function StudioCanvas() {
       .then(d => setMyAssets(d.assets || []))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!token()) return;
+    setMyWorldsLoading(true);
+    fetch(`${API}/api/worlds/my`, { headers: { Authorization: `Bearer ${token()}` } })
+      .then((r) => r.json())
+      .then((d) => setMyWorlds((d.worlds || []) as MyWorldItem[]))
+      .catch(() => {})
+      .finally(() => setMyWorldsLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedId]);
 
   /* 편집 중인 월드 로드 */
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -750,12 +773,31 @@ export default function StudioCanvas() {
   const canUndo  = hist.idx > 0;
   const canRedo  = hist.idx < hist.stack.length - 1;
 
+  function openMyWorld(id: string) {
+    setMyWorldsOpen(false);
+    router.replace(`/studio?id=${id}`);
+  }
+
   return (
     <div style={{ display: 'flex', width: '100vw', height: '100vh', background: '#0f172a', overflow: 'hidden', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif" }}>
 
       {/* ── 좌측 패널 ──────────────────────── */}
       <div style={{ width: 260, background: '#1e293b', borderRight: '1px solid rgba(255,255,255,0.08)', padding: 16, overflowY: 'auto', color: '#fff' }}>
         <h2 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 800 }}>{t('title')}</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12 }}>
+          <button
+            onClick={() => setMyWorldsOpen(true)}
+            style={{ padding: '8px 9px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(99,102,241,0.24)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+          >
+            🗺 {t('openMyWorlds')}
+          </button>
+          <button
+            onClick={() => router.replace('/studio')}
+            style={{ padding: '8px 9px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(16,185,129,0.22)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+          >
+            ＋ {t('newWorldDefault')}
+          </button>
+        </div>
 
         {loading && (
           <div style={{ padding: 8, background: 'rgba(99,102,241,0.15)', borderRadius: 6, fontSize: 11, marginBottom: 10, color: '#a5b4fc' }}>
@@ -986,6 +1028,52 @@ export default function StudioCanvas() {
           </a>
         )}
       </div>
+
+      {myWorldsOpen && (
+        <div
+          onClick={() => setMyWorldsOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.75)', backdropFilter: 'blur(6px)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: 'min(1080px, 96vw)', maxHeight: '90vh', overflow: 'hidden', borderRadius: 14, border: '1px solid rgba(255,255,255,0.16)', background: 'linear-gradient(180deg, rgba(30,41,59,0.97), rgba(15,23,42,0.97))', color: '#fff' }}
+          >
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{t('openMyWorlds')}</div>
+              <button
+                onClick={() => setMyWorldsOpen(false)}
+                style={{ border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)', color: '#fff', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontWeight: 700 }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ padding: 14, overflowY: 'auto', maxHeight: 'calc(90vh - 72px)' }}>
+              {myWorldsLoading ? (
+                <div style={{ opacity: 0.7, fontSize: 13 }}>{t('saving')}</div>
+              ) : myWorlds.length === 0 ? (
+                <div style={{ opacity: 0.7, fontSize: 13 }}>{t('noMyWorlds')}</div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+                  {myWorlds.map((w) => (
+                    <button
+                      key={w.id}
+                      onClick={() => openMyWorld(w.id)}
+                      style={{ border: '1px solid rgba(255,255,255,0.18)', borderRadius: 10, overflow: 'hidden', background: savedId === w.id ? 'rgba(99,102,241,0.28)' : 'rgba(255,255,255,0.05)', cursor: 'pointer', color: '#fff', textAlign: 'left' }}
+                    >
+                      <div style={{ height: 110, background: w.thumbnailUrl ? `url(${w.thumbnailUrl}) center/cover` : 'linear-gradient(135deg,#1d4ed8,#0f766e)' }} />
+                      <div style={{ padding: 10 }}>
+                        <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{w.name}</div>
+                        {!!w.description && <div style={{ fontSize: 11, opacity: 0.75, lineHeight: 1.35, marginBottom: 4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{w.description}</div>}
+                        <div style={{ fontSize: 10, opacity: 0.6 }}>{w.updatedAt ? new Date(w.updatedAt).toLocaleString() : ''}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── 3D 뷰포트 ─────────────────────── */}
       <div style={{ flex: 1, position: 'relative' }} onContextMenu={(e) => e.preventDefault()}>

@@ -1218,7 +1218,9 @@
     "texTilingY": "タイル Y",
     "texPickerTitle": "🖼️ テクスチャ選択",
     "noTextures": "アップロードされた画像なし",
-    "uploadAtAssets": "で PNG/JPG をアップロード"
+    "uploadAtAssets": "で PNG/JPG をアップロード",
+    "openMyWorlds": "自分のワールド",
+    "noMyWorlds": "作成したワールドがまだありません。新しいワールドを作成してください。"
   },
   "Worlds": {
     "title": "ワールド",

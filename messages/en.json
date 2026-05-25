@@ -1218,7 +1218,9 @@
     "texTilingY": "Tile Y",
     "texPickerTitle": "🖼️ Select Texture",
     "noTextures": "No images uploaded.",
-    "uploadAtAssets": "to upload PNG/JPG"
+    "uploadAtAssets": "to upload PNG/JPG",
+    "openMyWorlds": "My Worlds",
+    "noMyWorlds": "No worlds yet. Create your first world."
   },
   "Worlds": {
     "title": "Worlds",
