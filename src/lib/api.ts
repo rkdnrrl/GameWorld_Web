@@ -932,15 +932,50 @@ export const api = {
     });
   },
 
-  /** 작가 공개 프로필 + 통계 */
-  getUserProfile(username: string) {
+  /** 작가 공개 프로필 + 통계 (토큰 있으면 isFollowing/isMe 포함) */
+  getUserProfile(username: string, token?: string) {
     return request<{ profile: {
       username: string;
       joinedAt: string;
       publicCount: number;
       likesTotal: number;
       importsTotal: number;
-    } }>(`/api/users/${encodeURIComponent(username)}/profile`);
+      followerCount: number;
+      followingCount: number;
+      isFollowing: boolean;
+      isMe: boolean;
+    } }>(
+      `/api/users/${encodeURIComponent(username)}/profile`,
+      token ? { headers: authHeaders(token) } : undefined,
+    );
+  },
+
+  /** 작가 팔로우 */
+  followUser(token: string, username: string) {
+    return request<{ isFollowing: boolean; followerCount: number }>(
+      `/api/users/${encodeURIComponent(username)}/follow`,
+      { method: "POST", headers: authHeaders(token) },
+    );
+  },
+
+  /** 작가 언팔로우 */
+  unfollowUser(token: string, username: string) {
+    return request<{ isFollowing: boolean; followerCount: number }>(
+      `/api/users/${encodeURIComponent(username)}/follow`,
+      { method: "DELETE", headers: authHeaders(token) },
+    );
+  },
+
+  /** 내가 팔로우한 작가들의 최근 공개 에셋 */
+  listFollowingFeed(token: string, params: { page?: number } = {}) {
+    const sp = new URLSearchParams();
+    if (params.page) sp.set('page', String(params.page));
+    const qs = sp.toString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return request<{ assets: any[]; page: number; pageSize: number; total: number; hasMore: boolean }>(
+      `/api/users/me/following-feed${qs ? `?${qs}` : ''}`,
+      { headers: authHeaders(token) },
+    );
   },
 
   /** 에셋 신고 */
