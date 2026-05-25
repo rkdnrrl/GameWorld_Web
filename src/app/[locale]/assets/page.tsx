@@ -116,7 +116,13 @@ export default function AssetsPage() {
     }
   }
 
-  const extBadge = () => ({ ext: 'FBX', color: '#f59e0b' });
+  const extBadge = (url: string) => {
+    const ext = (url.split('.').pop() || '').toUpperCase();
+    const colors: Record<string, string> = {
+      FBX: '#f59e0b', PNG: '#10b981', JPG: '#10b981', JPEG: '#10b981', WEBP: '#10b981',
+    };
+    return { ext, color: colors[ext] || '#64748b' };
+  };
 
   return (
     <div style={{
