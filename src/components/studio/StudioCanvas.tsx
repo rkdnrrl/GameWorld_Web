@@ -102,7 +102,16 @@ interface Asset {
   name: string;
   modelUrl: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  materialConfig?: any;
+  materialConfig?: any;     // 구버전 (DEPRECATED)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata?: any;           // 신규 — metadata.materialConfig
+}
+
+// 신/구 어느 위치든 머티리얼 설정 꺼내기
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getAssetMaterialConfig(a: Asset | undefined): any {
+  if (!a) return null;
+  return a.metadata?.materialConfig ?? a.materialConfig ?? null;
 }
 
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -666,8 +675,8 @@ export default function StudioCanvas() {
         rotation: [0, 0, 0],
         scale:    [1, 1, 1],
         color:    '#fff',
-        // 에셋의 머티리얼 설정을 자동 적용
-        ...(asset.materialConfig || {}),
+        // 에셋의 저장된 머티리얼 설정 자동 적용 (metadata.materialConfig 우선)
+        ...(getAssetMaterialConfig(asset) || {}),
       }];
       pushHistory(next);
       return next;
