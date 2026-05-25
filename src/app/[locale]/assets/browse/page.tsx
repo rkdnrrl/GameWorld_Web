@@ -17,6 +17,9 @@ import AssetMarketCard from '@/components/assets/AssetMarketCard';
 
 interface MarketAsset extends Asset {
   creator?: { username: string | null };
+  liked?: boolean;
+  likeCount?: number;
+  importCount?: number;
 }
 
 const PAGE_SIZE = 40;
