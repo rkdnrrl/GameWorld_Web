@@ -1261,6 +1261,8 @@
     "selectOther": "选择其他模型",
     "sizeLabel": "大小 (1.0 = 1.8m)",
     "rotationXLabel": "X 旋转 (躺下时调整)",
+    "offsetYLabel": "Y 偏移 (微调脚高)",
+    "offsetYReset": "0",
     "animMapping": "动画映射 (发现 {count} 个)",
     "idleAnimLabel": "静止时 (Idle)",
     "walkAnimLabel": "移动时 (Walk)",

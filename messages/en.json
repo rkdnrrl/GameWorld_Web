@@ -1261,6 +1261,8 @@
     "selectOther": "Choose Another Model",
     "sizeLabel": "Size (1.0 = 1.8m)",
     "rotationXLabel": "X Rotation (adjust if lying down)",
+    "offsetYLabel": "Y Offset (fine-tune foot height)",
+    "offsetYReset": "0",
     "animMapping": "Animation Mapping ({count} found)",
     "idleAnimLabel": "When idle (Idle)",
     "walkAnimLabel": "When moving (Walk)",

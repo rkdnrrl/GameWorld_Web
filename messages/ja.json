@@ -1261,6 +1261,8 @@
     "selectOther": "別のモデルを選択",
     "sizeLabel": "サイズ (1.0 = 1.8m)",
     "rotationXLabel": "X回転 (横になった時に調整)",
+    "offsetYLabel": "Yオフセット (足の高さ微調整)",
+    "offsetYReset": "0",
     "animMapping": "アニメーションマッピング ({count}個検出)",
     "idleAnimLabel": "待機時 (Idle)",
     "walkAnimLabel": "移動時 (Walk)",
