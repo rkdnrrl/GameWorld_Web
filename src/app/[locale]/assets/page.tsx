@@ -128,7 +128,7 @@ export default function AssetsPage() {
         <span style={{ fontSize: 26 }}>📦</span>
         <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>{t('title')}</h1>
-          <p style={{ margin: 0, fontSize: 13, opacity: 0.5 }}>{t('subtitle', { maxMb: MAX_MB })}</p>
+          <p style={{ margin: 0, fontSize: 13, opacity: 0.5 }}>FBX / PNG / JPG · {t('subtitle', { maxMb: MAX_MB }).replace(/^[^·]+· /, '')}</p>
         </div>
       </div>
 
