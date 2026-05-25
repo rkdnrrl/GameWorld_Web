@@ -5,9 +5,11 @@ import { useRouter } from '@/i18n/navigation';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useGameSocket } from '@/lib/world/useGameSocket';
+import { useGraphicsSettings } from '@/lib/world/graphicsSettings';
 import { session } from '@/lib/api';
 
-const WorldCanvas = dynamic(() => import('@/components/world/WorldCanvas'), { ssr: false });
+const WorldCanvas    = dynamic(() => import('@/components/world/WorldCanvas'), { ssr: false });
+const GraphicsPanel  = dynamic(() => import('@/components/world/GraphicsPanel'), { ssr: false });
 
 interface MapObject {
   id: string;
