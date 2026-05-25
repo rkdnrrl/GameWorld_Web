@@ -31,6 +31,7 @@ export default function AssetGrid({ assets, kinds, emptyMessage, onEdit, onPrevi
           asset={a}
           kinds={kinds}
           onEdit={onEdit}
+          onPreview={onPreview}
           onTogglePublic={onTogglePublic}
           onDelete={onDelete}
         />
