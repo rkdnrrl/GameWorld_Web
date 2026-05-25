@@ -450,6 +450,8 @@ export default function StudioCanvas() {
         rotation: [0, 0, 0],
         scale:    [1, 1, 1],
         color:    '#fff',
+        // 에셋의 머티리얼 설정을 자동 적용
+        ...(asset.materialConfig || {}),
       }];
       pushHistory(next);
       return next;
