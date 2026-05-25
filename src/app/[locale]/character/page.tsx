@@ -617,14 +617,23 @@ export default function CharacterPage() {
 
           {/* 3D 프리뷰 */}
           <div style={{
-            width: 220, height: 340, borderRadius: 16, overflow: 'hidden', flexShrink: 0,
+            width: 360, height: 500, borderRadius: 16, overflow: 'hidden', flexShrink: 0,
             background: 'linear-gradient(160deg,#1e293b,#0f172a)',
             border: '1px solid rgba(255,255,255,0.1)',
             position: 'relative',
           }}>
-            <Canvas camera={{ position: [0, 0.5, 3.5], fov: 45 }}>
+            <Canvas camera={{ position: [0, 0.5, 4.2], fov: 35 }}>
               <ambientLight intensity={0.5} />
               <directionalLight position={[5, 8, 5]} intensity={1.5} />
+              {/* 사용자가 마우스로 자유 회전·줌 */}
+              <OrbitControls
+                target={[0, -0.2, 0]}
+                enablePan={false}
+                minDistance={2}
+                maxDistance={8}
+                minPolarAngle={Math.PI * 0.15}
+                maxPolarAngle={Math.PI * 0.85}
+              />
               {/* 바닥 기준 — 캐릭터 발이 여기 맞아야 함 */}
               {modelUrl && <GroundRef />}
               {modelUrl
