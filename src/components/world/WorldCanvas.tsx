@@ -425,6 +425,7 @@ function Player({
 
   const camH     = useRef(0);
   const camV     = useRef(0.45);
+  const camDist  = useRef(7);
   const isLocked = useRef(false);
   const lastSend = useRef(0);
   const jumpPrev = useRef(false);
@@ -460,17 +461,23 @@ function Player({
     };
     const onLockChange = () => { isLocked.current = !!document.pointerLockElement; };
     const onClick = () => el.requestPointerLock();
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      camDist.current = Math.max(1.1, Math.min(14, camDist.current + e.deltaY * 0.01));
+    };
 
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('pointerlockchange', onLockChange);
+    el.addEventListener('wheel', onWheel, { passive: false });
     el.addEventListener('click', onClick);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('pointerlockchange', onLockChange);
+      el.removeEventListener('wheel', onWheel);
       el.removeEventListener('click', onClick);
     };
   }, [gl]);
@@ -556,13 +563,14 @@ function Player({
 
     /* ── 카메라는 항상 lastPos를 따라감 (물리 초기화 여부 무관) ── */
     const p    = lastPos.current;
-    const dist = 7;
+    const dist = camDist.current;
     const tx   = p.x + dist * Math.sin(camH.current) * Math.cos(camV.current);
     const ty   = p.y + dist * Math.sin(camV.current) + 0.5;
     const tz   = p.z + dist * Math.cos(camH.current) * Math.cos(camV.current);
     // 카메라 즉시 추적 — lerp 지연이 빠른 이동 시 blur를 유발하므로 직접 set
     camera.position.set(tx, ty, tz);
-    camera.lookAt(p.x, p.y + 0.7, p.z);
+    const lookY = dist <= 2.2 ? p.y + 1.25 : p.y + 0.7;
+    camera.lookAt(p.x, lookY, p.z);
   });
 
   const appearance = (character.appearance ?? {}) as Record<string, string>;
@@ -942,7 +950,7 @@ export default function WorldCanvas({ character, players, posesRef, onMove, cust
   return (
       <Canvas
         shadows={{ enabled: true, type: THREE.PCFShadowMap, autoUpdate: true }}
-        camera={{ fov: 60, near: 0.1, far: graphics.farClip, position: [0, 8, 12] }}
+        camera={{ fov: 60, near: 0.03, far: graphics.farClip, position: [0, 8, 12] }}
         dpr={graphics.dpr}
         gl={{
           antialias: true, // 항상 켬 (런타임 변경 시 WebGL 컨텍스트 손실)
