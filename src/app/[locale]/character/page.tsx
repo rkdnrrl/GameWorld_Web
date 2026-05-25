@@ -82,6 +82,12 @@ const btnTiny = (active: boolean) => ({
   color: '#fff', cursor: 'pointer',
 } as const);
 
+function keepFeetOnGround(obj: THREE.Object3D, scratchBox: THREE.Box3) {
+  obj.updateMatrixWorld(true);
+  scratchBox.setFromObject(obj);
+  if (Number.isFinite(scratchBox.min.y)) obj.position.y -= scratchBox.min.y;
+}
+
 function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   // 재호출 시 누적 방지 — 매번 fresh 한 상태에서 시작
   obj.position.set(0, 0, 0);
@@ -118,6 +124,7 @@ function CustomPreview({
   const g     = useRef<THREE.Group>(null);
   const mixer = useRef<THREE.AnimationMixer | null>(null);
   const animClips = useRef<THREE.AnimationClip[]>([]);
+  const liveBox = useRef(new THREE.Box3());
 
   useEffect(() => {
     if (!url) return;
@@ -186,6 +193,7 @@ function CustomPreview({
   // 자동 회전 제거 — OrbitControls 로 사용자가 직접 회전 (충돌 방지)
   useFrame((_, dt) => {
     mixer.current?.update(dt);
+    if (obj) keepFeetOnGround(obj, liveBox.current);
   });
 
   if (!obj) return null;
