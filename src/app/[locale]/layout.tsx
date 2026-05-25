@@ -8,8 +8,6 @@ import Header from "@/components/Header";
 import SessionExpiredBanner from "@/components/SessionExpiredBanner";
 import SessionRefresher from "@/components/SessionRefresher";
 import CharacterIframe from "@/components/CharacterIframe";
-import AirnuriTokenReceiver from "@/components/AirnuriTokenReceiver";
-import AirnuriSocialMount from "@/components/AirnuriSocialMount";
 
 /** 로컬에서 백엔드 상태 표시. 프로덕션 빌드를 로컬에서 검증하려면 NEXT_PUBLIC_BACKEND_STATUS=1 */
 const showBackendConnectionBanner =
@@ -45,8 +43,6 @@ export default async function LocaleLayout({
         {/* Kakao AdFit SDK — 전체 페이지에서 kakao_ad_area 자동 탐지 */}
         <Script src="//t1.daumcdn.net/kas/static/ba.min.js" strategy="afterInteractive" />
         <NextIntlClientProvider messages={messages}>
-          <AirnuriTokenReceiver />
-          <AirnuriSocialMount />
           <SessionExpiredBanner />
           <SessionRefresher />
           <CharacterIframe />

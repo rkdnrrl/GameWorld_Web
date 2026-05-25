@@ -13,6 +13,7 @@ import {
   ApiError,
   type User,
 } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { useLoggedIn } from "@/lib/useLoggedIn";
 import { useTranslations } from "next-intl";
 
@@ -82,14 +83,30 @@ export default function AccountPage() {
     }
   }, [loggedIn, loading, router]);
 
-  function goAirnuriAccount() {
-    const returnTo = encodeURIComponent(window.location.origin + "/");
-    window.location.href = `https://airnuri.com/account?return_to=${returnTo}`;
+  async function handleEditNickname() {
+    if (!token || !user) return;
+    const next = window.prompt(t("nickname"), user.nickname || "");
+    if (!next) return;
+    try {
+      const res = await api.updateProfile(token, { nickname: next.trim() });
+      setUser(res.user);
+      session.updateStoredUser(res.user);
+    } catch (err) {
+      setLoadError(err instanceof ApiError ? err.message : t("saveFailed"));
+    }
   }
 
-  function goAirnuriWithdraw() {
-    const returnTo = encodeURIComponent(window.location.origin + "/");
-    window.location.href = `https://airnuri.com/account?return_to=${returnTo}`;
+  async function handleWithdraw() {
+    if (!token) return;
+    if (!window.confirm(t("withdrawDesc"))) return;
+    try {
+      await api.deleteAccount(token);
+      await supabase.auth.signOut();
+      session.clear();
+      router.replace("/login");
+    } catch (err) {
+      setLoadError(err instanceof ApiError ? err.message : t("withdrawFailed"));
+    }
   }
 
   if (!token && !loading) {
@@ -184,7 +201,7 @@ export default function AccountPage() {
             </p>
             <button
               type="button"
-              onClick={goAirnuriAccount}
+              onClick={handleEditNickname}
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
               {t("saveNickname")}
@@ -200,7 +217,7 @@ export default function AccountPage() {
             </p>
             <button
               type="button"
-              onClick={goAirnuriWithdraw}
+              onClick={handleWithdraw}
               className="mt-4 rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-800 hover:bg-red-100 dark:border-red-800 dark:bg-red-950 dark:text-red-200 dark:hover:bg-red-900/40"
             >
               {t("withdrawButton")}

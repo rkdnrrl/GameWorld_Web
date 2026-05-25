@@ -162,7 +162,8 @@
     "errorNicknameTooLong": "닉네임은 20자 이하여야 합니다.",
     "errorPasswordTooShort": "비밀번호는 8자 이상이어야 합니다.",
     "errorPasswordMismatch": "비밀번호가 일치하지 않습니다.",
-    "emailConfirmationSent": "가입 확인 이메일을 보냈습니다. 이메일을 확인해 주세요."
+    "emailConfirmationSent": "가입 확인 이메일을 보냈습니다. 이메일을 확인해 주세요.",
+    "signupFailed": "????? ??????. ?? ??????."
   },
   "Account": {
     "title": "내 정보",

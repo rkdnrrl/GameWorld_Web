@@ -162,7 +162,8 @@
     "errorNicknameTooLong": "昵称不能超过20个字符。",
     "errorPasswordTooShort": "密码必须至少8个字符。",
     "errorPasswordMismatch": "密码不一致。",
-    "emailConfirmationSent": "已发送确认邮件，请检查您的邮箱。"
+    "emailConfirmationSent": "已发送确认邮件，请检查您的邮箱。",
+    "signupFailed": "?????????"
   },
   "Account": {
     "title": "我的信息",

@@ -162,7 +162,8 @@
     "errorNicknameTooLong": "ニックネームは20文字以内にしてください。",
     "errorPasswordTooShort": "パスワードは8文字以上にしてください。",
     "errorPasswordMismatch": "パスワードが一致しません。",
-    "emailConfirmationSent": "確認メールを送信しました。メールをご確認ください。"
+    "emailConfirmationSent": "確認メールを送信しました。メールをご確認ください。",
+    "signupFailed": "????????????????????????"
   },
   "Account": {
     "title": "マイページ",

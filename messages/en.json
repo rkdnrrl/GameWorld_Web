@@ -162,7 +162,8 @@
     "errorNicknameTooLong": "Nickname must be 20 characters or fewer.",
     "errorPasswordTooShort": "Password must be at least 8 characters.",
     "errorPasswordMismatch": "Passwords do not match.",
-    "emailConfirmationSent": "A confirmation email has been sent. Please check your email."
+    "emailConfirmationSent": "A confirmation email has been sent. Please check your email.",
+    "signupFailed": "Sign up failed. Please try again."
   },
   "Account": {
     "title": "My Info",
