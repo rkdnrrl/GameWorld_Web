@@ -44,7 +44,7 @@ export default function AssetsPage() {
       return;
     }
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
-    if (ext !== 'fbx') {
+    if (!['fbx','png','jpg','jpeg','webp'].includes(ext)) {
       setError(t('fbxOnly'));
       return;
     }
