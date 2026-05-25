@@ -38,6 +38,8 @@ interface Asset {
   id: string;
   name: string;
   modelUrl: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  materialConfig?: any;
 }
 
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
