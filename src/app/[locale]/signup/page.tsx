@@ -6,6 +6,14 @@ import { useTranslations } from "next-intl";
 import { api, session } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { useLoggedIn } from "@/lib/useLoggedIn";
+import { Link } from "@/i18n/navigation";
+
+function mapSignupError(message: string, fallback: string) {
+  const m = (message || "").toLowerCase();
+  if (m.includes("user already registered")) return fallback;
+  if (m.includes("password")) return fallback;
+  return message || fallback;
+}
 
 export default function SignupPage() {
   const t = useTranslations("Signup");
@@ -48,7 +56,7 @@ export default function SignupPage() {
       });
 
       if (signUpError) {
-        setError(signUpError.message);
+        setError(mapSignupError(signUpError.message, t("signupFailed")));
         return;
       }
 
@@ -82,6 +90,7 @@ export default function SignupPage() {
 
   return (
     <section className="mx-auto w-full max-w-md px-4 py-12">
+      <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <h1 className="text-2xl font-bold">{t("title")}</h1>
       <p className="mt-2 text-sm text-zinc-500">{t("subtitle")}</p>
 
@@ -92,6 +101,8 @@ export default function SignupPage() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder={t("email")}
           className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
+          disabled={submitting}
+          autoComplete="email"
           required
         />
         <input
@@ -100,6 +111,8 @@ export default function SignupPage() {
           onChange={(e) => setNickname(e.target.value)}
           placeholder={t("nicknamePlaceholder")}
           className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
+          disabled={submitting}
+          autoComplete="nickname"
           required
           minLength={2}
           maxLength={20}
@@ -110,6 +123,8 @@ export default function SignupPage() {
           onChange={(e) => setPassword(e.target.value)}
           placeholder={t("passwordPlaceholder")}
           className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
+          disabled={submitting}
+          autoComplete="new-password"
           required
           minLength={8}
         />
@@ -119,6 +134,8 @@ export default function SignupPage() {
           onChange={(e) => setPasswordConfirm(e.target.value)}
           placeholder={t("passwordConfirm")}
           className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
+          disabled={submitting}
+          autoComplete="new-password"
           required
           minLength={8}
         />
@@ -132,6 +149,13 @@ export default function SignupPage() {
           {submitting ? t("submitting") : t("submit")}
         </button>
       </form>
+      <p className="mt-5 text-sm text-zinc-500">
+        {t("hasAccount")}{" "}
+        <Link href="/login" className="font-semibold text-blue-600 hover:underline">
+          {t("loginLink")}
+        </Link>
+      </p>
+      </div>
     </section>
   );
 }

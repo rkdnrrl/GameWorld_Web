@@ -1,31 +1,17 @@
 "use client";
 
-import { Link } from "@/i18n/navigation";
-import { useRouter } from "@/i18n/navigation";
-import {
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
-import {
-  api,
-  session,
-  ApiError,
-  type User,
-} from "@/lib/api";
-import { supabase } from "@/lib/supabase";
+import { Link, useRouter } from "@/i18n/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { ApiError, api, session, type User } from "@/lib/api";
 import { useLoggedIn } from "@/lib/useLoggedIn";
 import { useTranslations } from "next-intl";
+import { supabase } from "@/lib/supabase";
 
-function formatJoined(iso: string | undefined): string {
-  if (!iso) return "—";
+function formatJoined(iso: string | undefined) {
+  if (!iso) return "-";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("ko-KR", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString();
 }
 
 export default function AccountPage() {
@@ -36,30 +22,27 @@ export default function AccountPage() {
 
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const [dungeonRecord, setDungeonRecord] = useState<{ dungeonMaxFloor: number; dungeonMaxKills: number } | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [nicknameInput, setNicknameInput] = useState("");
+  const [nicknameMessage, setNicknameMessage] = useState<string | null>(null);
+  const [savingNickname, setSavingNickname] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const refreshProfile = useCallback(async (tk: string) => {
     setLoadError(null);
     try {
-      const [{ user: next }, recordRes] = await Promise.all([
-        api.me(tk),
-        api.getDungeonRecord(tk).catch(() => ({ record: null })),
-      ]);
-      setUser(next);
-      session.updateStoredUser(next);
-      setDungeonRecord(recordRes.record);
+      const { user: me } = await api.me(tk);
+      setUser(me);
+      setNicknameInput(me.nickname || "");
+      session.updateStoredUser(me);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         session.clear();
         router.replace("/login");
         return;
       }
-      setLoadError(
-        err instanceof ApiError ? err.message : t("profileLoadFailed"),
-      );
+      setLoadError(err instanceof ApiError ? err.message : t("profileLoadFailed"));
     } finally {
       setLoading(false);
     }
@@ -77,28 +60,39 @@ export default function AccountPage() {
   }, [router, refreshProfile]);
 
   useEffect(() => {
-    if (!loggedIn && !loading) {
-      const tk = session.getToken();
-      if (!tk) router.replace("/login");
+    if (!loggedIn && !loading && !session.getToken()) {
+      router.replace("/login");
     }
   }, [loggedIn, loading, router]);
 
-  async function handleEditNickname() {
+  async function handleSaveNickname() {
     if (!token || !user) return;
-    const next = window.prompt(t("nickname"), user.nickname || "");
+    const next = nicknameInput.trim();
     if (!next) return;
+    if (next === user.nickname) {
+      setNicknameMessage(t("nicknameUnchanged"));
+      return;
+    }
+
+    setSavingNickname(true);
+    setNicknameMessage(null);
     try {
-      const res = await api.updateProfile(token, { nickname: next.trim() });
+      const res = await api.updateProfile(token, { nickname: next });
       setUser(res.user);
+      setNicknameInput(res.user.nickname || "");
+      setNicknameMessage(t("nicknameSaved"));
       session.updateStoredUser(res.user);
     } catch (err) {
-      setLoadError(err instanceof ApiError ? err.message : t("saveFailed"));
+      setNicknameMessage(err instanceof ApiError ? err.message : t("saveFailed"));
+    } finally {
+      setSavingNickname(false);
     }
   }
 
   async function handleWithdraw() {
-    if (!token) return;
+    if (!token || deleting) return;
     if (!window.confirm(t("withdrawDesc"))) return;
+    setDeleting(true);
     try {
       await api.deleteAccount(token);
       await supabase.auth.signOut();
@@ -106,121 +100,86 @@ export default function AccountPage() {
       router.replace("/login");
     } catch (err) {
       setLoadError(err instanceof ApiError ? err.message : t("withdrawFailed"));
+    } finally {
+      setDeleting(false);
     }
   }
 
-  if (!token && !loading) {
-    return null;
-  }
+  if (!token && !loading) return null;
 
   return (
-    <section className="mx-auto w-full min-w-0 max-w-lg px-4 py-10 sm:px-6 sm:py-12">
-      <div className="mb-8 min-w-0">
-        <h1 className="break-words text-2xl font-bold tracking-tight sm:text-3xl">
-          {t("title")}
-        </h1>
-        <p className="mt-2 break-words text-sm text-zinc-500">
-          {t("subtitle")}
-        </p>
-      </div>
+    <section className="mx-auto w-full max-w-lg px-4 py-10 sm:px-6 sm:py-12">
+      <h1 className="text-2xl font-bold sm:text-3xl">{t("title")}</h1>
+      <p className="mt-2 text-sm text-zinc-500">{t("subtitle")}</p>
 
-      {loading && (
-        <p className="text-sm text-zinc-500">{tCommon("loading")}</p>
-      )}
+      {loading ? <p className="mt-6 text-sm text-zinc-500">{tCommon("loading")}</p> : null}
 
-      {loadError && !loading && (
-        <div className="mb-6 space-y-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
-          <p className="break-words">{loadError}</p>
+      {loadError ? (
+        <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <p>{loadError}</p>
           <button
             type="button"
             onClick={() => {
               const tk = session.getToken();
-              if (tk) {
-                setLoading(true);
-                void refreshProfile(tk);
-              }
+              if (!tk) return;
+              setLoading(true);
+              void refreshProfile(tk);
             }}
-            className="rounded-md bg-red-700 px-3 py-1.5 text-white hover:bg-red-800"
+            className="mt-3 rounded-md bg-red-700 px-3 py-1.5 text-white"
           >
             {tCommon("retry")}
           </button>
         </div>
-      )}
+      ) : null}
 
-      {user && !loading && (
+      {user && !loading ? (
         <>
-          <dl className="space-y-4 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <dl className="mt-6 space-y-4 rounded-xl border border-zinc-200 bg-white p-6">
             <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                {t("email")}
-              </dt>
-              <dd className="mt-1 break-all text-sm font-medium">{user.email}</dd>
+              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">{t("email")}</dt>
+              <dd className="mt-1 text-sm font-medium break-all">{user.email || "-"}</dd>
             </div>
             <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                {t("coins")}
-              </dt>
-              <dd className="mt-1 text-sm font-medium tabular-nums">
-                🪙 {typeof user.coins === "number" ? user.coins.toLocaleString() : "—"}
-              </dd>
+              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">{t("coins")}</dt>
+              <dd className="mt-1 text-sm font-medium tabular-nums">{typeof user.coins === "number" ? user.coins.toLocaleString() : "0"}</dd>
             </div>
             <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                {t("joinedAt")}
-              </dt>
+              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">{t("joinedAt")}</dt>
               <dd className="mt-1 text-sm">{formatJoined(user.createdAt)}</dd>
             </div>
           </dl>
 
-          <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-            <h2 className="mb-4 text-lg font-semibold">{t("recordsSection")}</h2>
-            <dl className="space-y-3">
-              <div className="flex items-center justify-between">
-                <dt className="flex items-center gap-2 text-sm text-zinc-500">
-                  <span>⚔️</span> {t("dungeonMaxFloor")}
-                </dt>
-                <dd className="text-sm font-bold tabular-nums">
-                  {dungeonRecord ? `${dungeonRecord.dungeonMaxFloor}${t("floorUnit")}` : "—"}
-                </dd>
-              </div>
-              <div className="flex items-center justify-between">
-                <dt className="flex items-center gap-2 text-sm text-zinc-500">
-                  <span>💀</span> {t("dungeonMaxKills")}
-                </dt>
-                <dd className="text-sm font-bold tabular-nums">
-                  {dungeonRecord ? `${dungeonRecord.dungeonMaxKills}${t("killUnit")}` : "—"}
-                </dd>
-              </div>
-            </dl>
-          </div>
-
-          <div className="mt-8 space-y-3 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-6">
             <h2 className="text-lg font-semibold">{t("nicknameSection")}</h2>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              <span className="font-medium text-zinc-900 dark:text-zinc-100">{user?.nickname || "—"}</span>
-            </p>
-            <button
-              type="button"
-              onClick={handleEditNickname}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              {t("saveNickname")}
-            </button>
+            <div className="mt-3 space-y-3">
+              <input
+                value={nicknameInput}
+                onChange={(e) => setNicknameInput(e.target.value)}
+                maxLength={20}
+                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
+              />
+              {nicknameMessage ? <p className="text-sm text-zinc-600">{nicknameMessage}</p> : null}
+              <button
+                type="button"
+                onClick={handleSaveNickname}
+                disabled={savingNickname}
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              >
+                {savingNickname ? t("savingNickname") : t("saveNickname")}
+              </button>
+            </div>
           </div>
 
-          <div className="mt-10 rounded-xl border border-red-200 bg-red-50/80 p-6 dark:border-red-900/60 dark:bg-red-950/30">
-            <h2 className="text-lg font-semibold text-red-900 dark:text-red-200">
-              {t("withdrawSection")}
-            </h2>
-            <p className="mt-2 text-sm text-red-800/90 dark:text-red-300/90">
-              {t("withdrawDesc")}
-            </p>
+          <div className="mt-8 rounded-xl border border-red-200 bg-red-50 p-6">
+            <h2 className="text-lg font-semibold text-red-800">{t("withdrawSection")}</h2>
+            <p className="mt-2 text-sm text-red-700">{t("withdrawDesc")}</p>
             <button
               type="button"
               onClick={handleWithdraw}
-              className="mt-4 rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-800 hover:bg-red-100 dark:border-red-800 dark:bg-red-950 dark:text-red-200 dark:hover:bg-red-900/40"
+              disabled={deleting}
+              className="mt-4 rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 disabled:opacity-60"
             >
-              {t("withdrawButton")}
+              {deleting ? t("withdrawSubmitting") : t("withdrawButton")}
             </button>
           </div>
 
@@ -230,7 +189,7 @@ export default function AccountPage() {
             </Link>
           </p>
         </>
-      )}
+      ) : null}
     </section>
   );
 }
