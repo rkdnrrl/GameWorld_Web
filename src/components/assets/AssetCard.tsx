@@ -13,12 +13,14 @@ interface Props {
   kinds: AssetKind[];
   selectedTags?: string[];
   selectedFolder?: string | null;
+  selected?: boolean;
   onEdit: (a: Asset) => void;
   onPreview: (a: Asset) => void;
   onEditTags: (a: Asset) => void;
   onEditFolder: (a: Asset) => void;
   onClickTag: (tag: string) => void;
   onClickFolder: (folder: string) => void;
+  onToggleSelect: (id: string, e: React.MouseEvent) => void;
   onTogglePublic: (a: Asset) => void;
   onDelete: (id: string) => void;
 }
@@ -87,6 +89,51 @@ export default function AssetCard({
       <div style={{ padding: '10px 12px' }}>
         <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {asset.name}
+        </div>
+
+        {/* 폴더 배지 — 클릭=필터, 길게 클릭/우클릭=편집 (간단히 ⋯ 버튼으로) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6, minHeight: 18 }}>
+          {asset.folder ? (
+            <button
+              onClick={e => { e.stopPropagation(); onClickFolder(asset.folder!); }}
+              title={t('folderClickToFilter')}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '2px 7px', fontSize: 10,
+                background: selectedFolder === asset.folder ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.05)',
+                color: selectedFolder === asset.folder ? '#fff' : 'rgba(255,255,255,0.65)',
+                border: 'none', borderRadius: 4,
+                cursor: 'pointer', maxWidth: '70%',
+                fontFamily: 'monospace',
+              }}>
+              <span style={{ flexShrink: 0 }}>📁</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{asset.folder}</span>
+            </button>
+          ) : (
+            <button
+              onClick={e => { e.stopPropagation(); onEditFolder(asset); }}
+              title={t('moveToFolder')}
+              style={{
+                padding: '0 7px', fontSize: 10,
+                background: 'transparent', color: 'rgba(255,255,255,0.35)',
+                border: '1px dashed rgba(255,255,255,0.12)', borderRadius: 4,
+                cursor: 'pointer',
+              }}>
+              📁 {t('noFolder')}
+            </button>
+          )}
+          {asset.folder && (
+            <button
+              onClick={e => { e.stopPropagation(); onEditFolder(asset); }}
+              title={t('moveAsset')}
+              style={{
+                padding: '0 4px', fontSize: 10,
+                background: 'transparent', color: 'rgba(255,255,255,0.4)',
+                border: 'none', cursor: 'pointer',
+              }}>
+              ⋯
+            </button>
+          )}
         </div>
 
         {/* 태그 라인 */}
