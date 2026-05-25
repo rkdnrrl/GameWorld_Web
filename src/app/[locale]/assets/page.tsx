@@ -208,6 +208,14 @@ export default function AssetsPage() {
       {previewAsset && PreviewComp && (
         <PreviewComp asset={previewAsset} onClose={() => setPreviewAsset(null)} />
       )}
+      {taggingAsset && (
+        <AssetTagEditor
+          asset={taggingAsset}
+          allAssets={assets}
+          onClose={() => setTaggingAsset(null)}
+          onSave={(tags) => saveTags(taggingAsset, tags)}
+        />
+      )}
 
       <div style={{ minHeight: '100vh', background: '#0f172a', color: '#fff', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif" }}>
         {/* 헤더 */}
