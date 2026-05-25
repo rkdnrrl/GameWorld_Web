@@ -131,6 +131,15 @@ export default function AssetsPage() {
   };
 
   return (
+    <>
+      {editingAsset && (
+        <AssetMaterialEditor
+          asset={editingAsset}
+          allAssets={assets}
+          onClose={() => setEditingAsset(null)}
+          onSaved={(updated) => setAssets(prev => prev.map(a => a.id === updated.id ? updated : a))}
+        />
+      )}
     <div style={{
       minHeight: '100vh', background: '#0f172a', color: '#fff',
       fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif",
