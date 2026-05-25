@@ -93,7 +93,11 @@ function keepFeetOnGround(obj: THREE.Object3D, scratchBox: THREE.Box3) {
     scratchBox.expandByObject(m);
   });
   if (!hasMesh) scratchBox.setFromObject(obj);
-  if (Number.isFinite(scratchBox.min.y)) obj.position.y -= scratchBox.min.y;
+}
+
+function getMeshMinY(obj: THREE.Object3D, scratchBox: THREE.Box3): number {
+  keepFeetOnGround(obj, scratchBox);
+  return Number.isFinite(scratchBox.min.y) ? scratchBox.min.y : 0;
 }
 
 function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
@@ -103,15 +107,16 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   obj.scale.set(1, 1, 1);
   obj.updateMatrixWorld(true);
 
-  const box  = new THREE.Box3().setFromObject(obj);
+  const box = new THREE.Box3();
+  keepFeetOnGround(obj, box);
   const size = box.getSize(new THREE.Vector3());
   const h    = Math.max(size.x, size.y, size.z);
   if (h > 0) {
     obj.scale.setScalar(targetHeight / h);
     obj.updateMatrixWorld(true);
   }
-  const box2 = new THREE.Box3().setFromObject(obj);
-  obj.position.y -= box2.min.y;            // 발 → y=0 (정확히 정렬)
+  const box2 = new THREE.Box3();
+  obj.position.y -= getMeshMinY(obj, box2);
 }
 
 /* ── 커스텀 모델 프리뷰 (명령형 로드) ───── */
@@ -133,6 +138,7 @@ function CustomPreview({
   const mixer = useRef<THREE.AnimationMixer | null>(null);
   const animClips = useRef<THREE.AnimationClip[]>([]);
   const liveBox = useRef(new THREE.Box3());
+  const baseMinY = useRef(0);
 
   useEffect(() => {
     if (!url) return;
@@ -141,6 +147,7 @@ function CustomPreview({
     const onLoaded = (loaded: THREE.Object3D, anims: THREE.AnimationClip[] = []) => {
       if (cancelled) return;
       autoNormalize(loaded, rotX, 1.8);
+      baseMinY.current = getMeshMinY(loaded, liveBox.current);
       animClips.current = anims;
       if (anims.length) {
         mixer.current = new THREE.AnimationMixer(loaded);
@@ -166,6 +173,7 @@ function CustomPreview({
   useEffect(() => {
     if (!obj) return;
     autoNormalize(obj, rotX, 1.8);
+    baseMinY.current = getMeshMinY(obj, liveBox.current);
   }, [rotX, obj]);
 
   // 선택된 애니메이션만 재생 (트림 적용)
@@ -201,7 +209,10 @@ function CustomPreview({
   // 자동 회전 제거 — OrbitControls 로 사용자가 직접 회전 (충돌 방지)
   useFrame((_, dt) => {
     mixer.current?.update(dt);
-    if (obj) keepFeetOnGround(obj, liveBox.current);
+    if (obj) {
+      const nowMinY = getMeshMinY(obj, liveBox.current);
+      obj.position.y -= (nowMinY - baseMinY.current);
+    }
   });
 
   if (!obj) return null;

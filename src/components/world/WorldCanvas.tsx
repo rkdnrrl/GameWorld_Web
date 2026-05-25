@@ -27,7 +27,11 @@ function keepFeetOnGround(obj: THREE.Object3D, scratchBox: THREE.Box3) {
     scratchBox.expandByObject(m);
   });
   if (!hasMesh) scratchBox.setFromObject(obj);
-  if (Number.isFinite(scratchBox.min.y)) obj.position.y -= scratchBox.min.y;
+}
+
+function getMeshMinY(obj: THREE.Object3D, scratchBox: THREE.Box3): number {
+  keepFeetOnGround(obj, scratchBox);
+  return Number.isFinite(scratchBox.min.y) ? scratchBox.min.y : 0;
 }
 
 /* ── 커스텀 3D 모델 (Suspense 없이 명령형 로드 — RigidBody 리셋 방지) ── */
@@ -42,7 +46,8 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   obj.scale.set(1, 1, 1);
   obj.updateMatrixWorld(true);
 
-  const box  = new THREE.Box3().setFromObject(obj);
+  const box = new THREE.Box3();
+  keepFeetOnGround(obj, box);
   const size = box.getSize(new THREE.Vector3());
   const h    = Math.max(size.x, size.y, size.z);
   if (h > 0) {
@@ -50,8 +55,8 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
     obj.updateMatrixWorld(true);
   }
 
-  const box2 = new THREE.Box3().setFromObject(obj);
-  obj.position.y -= box2.min.y;            // 발 → y=0 (정확히 정렬)
+  const box2 = new THREE.Box3();
+  obj.position.y -= getMeshMinY(obj, box2);
 }
 
 /* ── 애니메이션 상태 타입 ─────────────── */
@@ -149,6 +154,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   const currentAction   = useRef<THREE.AnimationAction | null>(null);
   const currentState    = useRef<AnimState | null>(null);
   const liveBox         = useRef(new THREE.Box3());
+  const baseMinY        = useRef(0);
 
   useEffect(() => {
     if (!url) return;
@@ -185,6 +191,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       if (cancelled) return;
       cloned.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = castShadow; });
       autoNormalize(cloned, rotX, 1.8);
+      baseMinY.current = getMeshMinY(cloned, liveBox.current);
       setupMixer(cloned, anims);
       setObj(cloned);
     })();
@@ -208,7 +215,10 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   // 단일 액션 크로스페이드 (state 바뀔 때만 전환)
   useFrame((_, dt) => {
     mixer.current?.update(dt);
-    if (obj) keepFeetOnGround(obj, liveBox.current);
+    if (obj) {
+      const nowMinY = getMeshMinY(obj, liveBox.current);
+      obj.position.y -= (nowMinY - baseMinY.current);
+    }
     if (!mixer.current) return;
 
     const desired = animStateRef?.current || 'idle';
