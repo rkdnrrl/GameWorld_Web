@@ -205,12 +205,12 @@ function CustomPreview({
 }
 
 /* ── 바닥 기준 표시 ──
-   미리보기 캔버스에서 캐릭터 발이 여기에 닿아야 함 (y = -1).
-   CustomPreview 의 외곽 group position[0,-1,0] 과 일치 — 발이 그 group 의 local y=0 이므로 world -1.
+   미리보기 캔버스에서 캐릭터 발이 여기에 닿아야 함 = world 의 실제 ground 위치.
+   외곽 group y=-1 + autoNormalize 의 FOOT_CLEARANCE(0.05) 합산해서 y=-0.95 — default offsetY=0 일 때 발이 정확히 디스크에 놓이도록.
 */
 function GroundRef() {
   return (
-    <group position={[0, -1, 0]}>
+    <group position={[0, -1 + FOOT_CLEARANCE, 0]}>
       {/* 메인 디스크 */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={-1}>
         <circleGeometry args={[1.2, 48]} />
