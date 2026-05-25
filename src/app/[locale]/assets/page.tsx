@@ -185,9 +185,9 @@ export default function AssetsPage() {
 
   /* ── 필터링/정렬 ── */
   const visibleAssets = useMemo(() => {
-    const filtered = filterAssets(assets, { q, kinds: selectedKinds, visibility }, kinds);
+    const filtered = filterAssets(assets, { q, kinds: selectedKinds, tags: selectedTags, visibility }, kinds);
     return sortAssets(filtered, sort, kinds);
-  }, [assets, q, selectedKinds, visibility, sort, kinds]);
+  }, [assets, q, selectedKinds, selectedTags, visibility, sort, kinds]);
 
   /* ── 에디터/프리뷰 (kind 핸들러에서 가져옴) ── */
   const editorHandler  = editingAsset ? getKind(editingAsset.kind) : null;
