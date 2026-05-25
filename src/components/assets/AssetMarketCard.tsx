@@ -127,6 +127,19 @@ export default function AssetMarketCard({
               ↓ {asset.importCount}
             </span>
           )}
+          {/* 신고 버튼 — 조용히 점3개 */}
+          <button
+            onClick={e => { e.stopPropagation(); if (!reported) onReport(asset); }}
+            disabled={reported}
+            title={reported ? t('reportAlready') : t('reportButton')}
+            aria-label={t('reportButton')}
+            style={{
+              padding: '0 4px', fontSize: 13, lineHeight: 1,
+              background: 'transparent', color: reported ? '#fbbf24' : 'rgba(255,255,255,0.35)',
+              border: 'none', cursor: reported ? 'default' : 'pointer',
+            }}>
+            {reported ? '⚠' : '⋯'}
+          </button>
         </div>
 
         {/* 태그 (읽기 전용, 최대 3개) */}
