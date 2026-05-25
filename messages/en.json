@@ -1263,7 +1263,11 @@
     "jumpAnimLabel": "Jump",
     "crouchAnimLabel": "Crouch",
     "proneAnimLabel": "Prone",
-    "previewLabel": "Preview"
+    "previewLabel": "Preview",
+    "trimStart": "Start",
+    "trimEnd": "End",
+    "trimSec": "s",
+    "trimFull": "Full"
   },
   "Assets": {
     "title": "3D Asset Library",

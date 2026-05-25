@@ -1263,7 +1263,11 @@
     "jumpAnimLabel": "跳跃 (Jump)",
     "crouchAnimLabel": "蹲下 (Crouch)",
     "proneAnimLabel": "匍匐 (Prone)",
-    "previewLabel": "预览"
+    "previewLabel": "预览",
+    "trimStart": "开始",
+    "trimEnd": "结束",
+    "trimSec": "秒",
+    "trimFull": "全部"
   },
   "Assets": {
     "title": "3D 资源库",

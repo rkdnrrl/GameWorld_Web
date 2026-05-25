@@ -1263,7 +1263,11 @@
     "jumpAnimLabel": "점프 (Jump)",
     "crouchAnimLabel": "앉기 (Crouch)",
     "proneAnimLabel": "엎드리기 (Prone)",
-    "previewLabel": "미리보기"
+    "previewLabel": "미리보기",
+    "trimStart": "시작",
+    "trimEnd": "끝",
+    "trimSec": "초",
+    "trimFull": "전체"
   },
   "Assets": {
     "title": "3D 에셋 라이브러리",
