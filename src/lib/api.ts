@@ -1067,6 +1067,56 @@ export const api = {
     );
   },
 
+  /** 에셋 버전 목록 (소유자) */
+  listAssetVersions(token: string, id: string) {
+    return request<{
+      currentVersion: number;
+      versions: Array<{ id: string; assetId: string; version: number; modelUrl: string; thumbnailUrl: string | null; fileSize: string | null; note: string | null; createdAt: string }>;
+    }>(`/api/assets/${encodeURIComponent(id)}/versions`, { headers: authHeaders(token) });
+  },
+
+  /** 새 버전 업로드 (XHR로 진행률) */
+  uploadAssetVersion(token: string, id: string, file: File, note: string | undefined, onProgress?: (pct: number) => void) {
+    return new Promise<{ asset: unknown; version: number }>((resolve, reject) => {
+      const form = new FormData();
+      form.append('model', file);
+      if (note) form.append('note', note);
+      const xhr = new XMLHttpRequest();
+      xhr.upload.onprogress = e => {
+        if (onProgress && e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { resolve(JSON.parse(xhr.responseText)); }
+          catch { reject(new Error('잘못된 응답')); }
+        } else {
+          try { reject(new Error(JSON.parse(xhr.responseText).error?.message || '업로드 실패')); }
+          catch { reject(new Error('업로드 실패')); }
+        }
+      };
+      xhr.onerror = () => reject(new Error('네트워크 오류'));
+      const base = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
+      xhr.open('POST', `${base}/api/assets/${encodeURIComponent(id)}/versions`);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.send(form);
+    });
+  },
+
+  /** 특정 버전을 현재로 복원 */
+  revertAssetVersion(token: string, id: string, version: number) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return request<{ asset: any }>(`/api/assets/${encodeURIComponent(id)}/versions/${version}/revert`, {
+      method: "POST", headers: authHeaders(token),
+    });
+  },
+
+  /** 버전 삭제 (현재 버전은 불가) */
+  deleteAssetVersion(token: string, id: string, version: number) {
+    return request<{ ok: true }>(`/api/assets/${encodeURIComponent(id)}/versions/${version}`, {
+      method: "DELETE", headers: authHeaders(token),
+    });
+  },
+
   /** 에셋 일괄 작업 — delete/move/addTags/removeTags/setPublic */
   batchUpdateAssets(token: string, body: {
     ids: string[];
