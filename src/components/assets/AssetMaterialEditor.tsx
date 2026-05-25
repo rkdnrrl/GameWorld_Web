@@ -182,7 +182,10 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
   onSaved: (updated: any) => void;
 }) {
   const t = useTranslations('Studio');
-  const [cfg, setCfg] = useState<MaterialConfig>(asset.materialConfig || {});
+  // metadata.materialConfig (신규) 우선, fallback 으로 materialConfig (구버전)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const initialCfg = (asset as any).metadata?.materialConfig || asset.materialConfig || {};
+  const [cfg, setCfg] = useState<MaterialConfig>(initialCfg);
   const [saving, setSaving] = useState(false);
   const [picker, setPicker] = useState<null | 'albedo' | 'normal' | 'roughness'>(null);
 
