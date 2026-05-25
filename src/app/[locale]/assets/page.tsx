@@ -272,6 +272,7 @@ export default function AssetsPage() {
                   : t('noMatches')
               }
               onEdit={setEditingAsset}
+              onPreview={setPreviewAsset}
               onTogglePublic={togglePublic}
               onDelete={deleteAsset}
             />
