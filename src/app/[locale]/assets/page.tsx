@@ -131,6 +131,8 @@ export default function AssetsPage() {
     const form = new FormData();
     form.append('model', file);
     form.append('name', file.name.replace(/\.[^.]+$/, ''));
+    // 현재 보고 있는 폴더로 자동 분류 (""은 루트 필터 → 폴더 없음으로 처리)
+    if (selectedFolder) form.append('folder', selectedFolder);
 
     try {
       await new Promise<void>((resolve, reject) => {
