@@ -3,6 +3,57 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, TransformControls, Grid, Sky, Outlines } from '@react-three/drei';
 import * as THREE from 'three';
+
+/* ── 머티리얼 프리셋 (WorldCanvas와 동일) ── */
+const MAT_PRESETS: Record<string, { metalness: number; roughness: number; opacity?: number; transparent?: boolean; defaultColor: string; emissive?: string; emissiveIntensity?: number }> = {
+  wood:     { defaultColor: '#8b6f47', metalness: 0,   roughness: 0.85 },
+  metal:    { defaultColor: '#b0b0b0', metalness: 1.0, roughness: 0.3  },
+  stone:    { defaultColor: '#7a7a7a', metalness: 0,   roughness: 0.95 },
+  glass:    { defaultColor: '#a0c8e0', metalness: 0,   roughness: 0.05, opacity: 0.3, transparent: true },
+  plastic:  { defaultColor: '#ffffff', metalness: 0,   roughness: 0.5  },
+  emissive: { defaultColor: '#ffffff', metalness: 0,   roughness: 0.6, emissive: '#ffaa44', emissiveIntensity: 1.5 },
+};
+
+function loadTex(url: string, colorSpace: THREE.ColorSpace, tx: number, ty: number, onLoad: () => void): THREE.Texture {
+  const loader = new THREE.TextureLoader();
+  loader.setCrossOrigin('anonymous');
+  const tex = loader.load(url, () => { tex.needsUpdate = true; onLoad(); });
+  tex.colorSpace = colorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(tx, ty);
+  return tex;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildMat(cfg: any, onTex?: () => void): THREE.MeshStandardMaterial | null {
+  if (!cfg) return null;
+  const presetKey = cfg.material && cfg.material !== 'default' ? cfg.material : null;
+  const preset = presetKey ? MAT_PRESETS[presetKey] : null;
+  const hasTex = cfg.textureAlbedo || cfg.textureNormal || cfg.textureRoughness;
+  if (!presetKey && !hasTex && !cfg.materialColor) return null;
+
+  const baseColor = cfg.materialColor || (preset ? preset.defaultColor : '#ffffff');
+  const mat = new THREE.MeshStandardMaterial({
+    color: hasTex && !cfg.materialColor ? '#ffffff' : baseColor,
+    metalness: preset?.metalness ?? 0,
+    roughness: preset?.roughness ?? 0.5,
+    opacity: preset?.opacity ?? 1,
+    transparent: preset?.transparent ?? false,
+    emissive: preset?.emissive ?? '#000000',
+    emissiveIntensity: preset?.emissiveIntensity ?? 0,
+  });
+  const tx = cfg.textureTilingX || 1;
+  const ty = cfg.textureTilingY || 1;
+  const trig = () => { mat.needsUpdate = true; onTex?.(); };
+  if (cfg.textureAlbedo)    mat.map         = loadTex(cfg.textureAlbedo,    THREE.SRGBColorSpace, tx, ty, trig);
+  if (cfg.textureNormal)    mat.normalMap   = loadTex(cfg.textureNormal,    THREE.NoColorSpace,   tx, ty, trig);
+  if (cfg.textureRoughness) mat.roughnessMap = loadTex(cfg.textureRoughness, THREE.NoColorSpace,   tx, ty, trig);
+  return mat;
+}
+
+function disposeMat(mat: THREE.MeshStandardMaterial) {
+  mat.map?.dispose(); mat.normalMap?.dispose(); mat.roughnessMap?.dispose(); mat.dispose();
+}
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { session } from '@/lib/api';
