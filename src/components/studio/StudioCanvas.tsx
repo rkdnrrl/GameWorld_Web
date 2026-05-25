@@ -14,6 +14,8 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 /* ── 데이터 모델 ───────────────────────────── */
 type ObjectKind = 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset';
 
+type MaterialPreset = 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 'plastic' | 'emissive';
+
 interface MapObject {
   id: string;
   kind: ObjectKind;
@@ -22,6 +24,14 @@ interface MapObject {
   rotation: [number, number, number];
   scale:    [number, number, number];
   color:    string;
+  // 머티리얼/텍스처
+  material?:        MaterialPreset;
+  materialColor?:   string;
+  textureAlbedo?:    string;
+  textureNormal?:    string;
+  textureRoughness?: string;
+  textureTilingX?:   number;
+  textureTilingY?:   number;
 }
 
 interface Asset {
@@ -65,6 +75,47 @@ function AxisInputRow({ label, values, step, min, onChange, onCommit }: {
             />
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── 텍스처 선택 모달 ────────────────────── */
+function TexturePickerModal({ assets, onSelect, onClose, title }: {
+  assets: Asset[];
+  onSelect: (url: string) => void;
+  onClose: () => void;
+  title: string;
+}) {
+  const t = useTranslations('Studio');
+  const images = assets.filter(a => /\.(png|jpe?g|webp)$/i.test(a.modelUrl));
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}
+      onClick={onClose}>
+      <div style={{ background: '#1e293b', borderRadius: 16, padding: 20, width: 520, maxHeight: '70vh', display: 'flex', flexDirection: 'column' }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{title}</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 18, cursor: 'pointer' }}>✕</button>
+        </div>
+        {images.length === 0 ? (
+          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, textAlign: 'center', padding: 30 }}>
+            {t('noTextures')}<br />
+            <a href="/assets" style={{ color: '#818cf8' }}>/assets</a> {t('uploadAtAssets')}
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, overflowY: 'auto' }}>
+            {images.map(a => (
+              <button key={a.id} onClick={() => onSelect(a.modelUrl)}
+                style={{ background: 'rgba(255,255,255,0.05)', border: '2px solid rgba(255,255,255,0.08)', borderRadius: 8, cursor: 'pointer', overflow: 'hidden', padding: 0 }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = '#6366f1')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}>
+                <div style={{ width: '100%', aspectRatio: '1', background: `url(${a.modelUrl}) center/cover` }} />
+                <div style={{ padding: '4px 6px', fontSize: 10, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
