@@ -503,7 +503,7 @@ function RemotePlayerMesh({ player, posesRef, castShadow }: {
   return (
     <group ref={g}>
       <group position={[0, -0.35, 0]}>
-        <CharacterMesh appearance={appearance} animStateRef={animStateRef} castShadow={false} />
+        <CharacterMesh appearance={appearance} animStateRef={animStateRef} castShadow={castShadow ?? false} />
       </group>
       <Text
         position={[0, 1.8, 0]}
