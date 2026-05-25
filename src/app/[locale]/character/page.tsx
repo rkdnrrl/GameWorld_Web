@@ -197,6 +197,32 @@ function CustomPreview({
   );
 }
 
+/* ── 바닥 기준 표시 ──
+   미리보기 캔버스에서 캐릭터 발이 여기에 닿아야 함 (y = -1).
+   CustomPreview 의 외곽 group position[0,-1,0] 과 일치 — 발이 그 group 의 local y=0 이므로 world -1.
+*/
+function GroundRef() {
+  return (
+    <group position={[0, -1, 0]}>
+      {/* 메인 디스크 */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={-1}>
+        <circleGeometry args={[1.2, 48]} />
+        <meshBasicMaterial color="#6366f1" transparent opacity={0.15} depthWrite={false} />
+      </mesh>
+      {/* 테두리 링 */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]} renderOrder={-1}>
+        <ringGeometry args={[1.18, 1.2, 48]} />
+        <meshBasicMaterial color="#a5b4fc" transparent opacity={0.6} depthWrite={false} />
+      </mesh>
+      {/* 중심 십자 (정확한 0,0 표시) */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0]} renderOrder={-1}>
+        <ringGeometry args={[0.08, 0.1, 24]} />
+        <meshBasicMaterial color="#a5b4fc" transparent opacity={0.8} depthWrite={false} />
+      </mesh>
+    </group>
+  );
+}
+
 /* ── 블록 캐릭터 프리뷰 ──────────────────── */
 function BlockPreview({ appearance }: { appearance: Record<string, string> }) {
   const g = useRef<THREE.Group>(null);
