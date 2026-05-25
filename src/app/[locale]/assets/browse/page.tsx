@@ -45,7 +45,7 @@ export default function AssetBrowsePage() {
   const q       = searchParams.get('q') || '';
   const kindSel = searchParams.get('kind') || '';
   const tagSel  = searchParams.get('tag') || '';
-  const sort    = (searchParams.get('sort') || 'recent') as 'recent' | 'name';
+  const sort    = (searchParams.get('sort') || 'popular') as 'recent' | 'name' | 'popular';
   const [qInput, setQInput] = useState(q);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
