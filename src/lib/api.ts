@@ -835,6 +835,51 @@ export const api = {
     });
   },
 
+  /* ── Asset Kinds ──────────────────────────── */
+  /** 공개: 활성 에셋 타입 목록 */
+  listAssetKinds() {
+    return request<{ kinds: AssetKind[] }>("/api/asset-kinds");
+  },
+
+  /** 운영자: 비활성 포함 전체 */
+  operatorListAssetKinds(token: string) {
+    return request<{ kinds: AssetKind[] }>("/api/asset-kinds/all", {
+      headers: authHeaders(token),
+    });
+  },
+
+  /** 운영자: 에셋 타입 추가 */
+  operatorCreateAssetKind(token: string, data: {
+    id: string; label: string; icon?: string; extensions: string[];
+    mimeTypes?: string[]; maxSizeMb?: number; sortOrder?: number; enabled?: boolean;
+  }) {
+    return request<{ kind: AssetKind }>("/api/asset-kinds", {
+      method: "POST",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  /** 운영자: 에셋 타입 수정 */
+  operatorUpdateAssetKind(token: string, id: string, data: Partial<{
+    label: string; icon: string | null; extensions: string[];
+    mimeTypes: string[]; maxSizeMb: number; sortOrder: number; enabled: boolean;
+  }>) {
+    return request<{ kind: AssetKind }>(`/api/asset-kinds/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  /** 운영자: 에셋 타입 삭제 (사용 중이면 409) */
+  operatorDeleteAssetKind(token: string, id: string) {
+    return request<{ ok: true }>(`/api/asset-kinds/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+    });
+  },
+
   /** 유저: 메타데이터 수정 신청 (검수 대기) */
   submitPendingMeta(token: string, slug: string, data: { title?: string; description?: string; emoji?: string; category?: string; genre?: string; tags?: string[]; titlesI18n?: Record<string,string>; descriptionsI18n?: Record<string,string> }) {
     return request<{ ok: true; game: UgcGame }>(`/api/games/${encodeURIComponent(slug)}/pending-meta`, {
