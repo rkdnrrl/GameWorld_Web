@@ -29,6 +29,7 @@ export default function AssetsPage() {
   const [progress, setProgress]   = useState(0);
   const [error, setError]         = useState('');
   const [dragOver, setDragOver]   = useState(false);
+  const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const token = () => session.getToken() || '';
