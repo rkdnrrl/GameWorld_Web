@@ -122,10 +122,11 @@ const KEYWORD_FALLBACK: Record<AnimState, string[]> = {
   prone:  ['prone', 'lying', 'lie', '엎드', '눕'],
 };
 
-function CustomModel({ url, userScale, rotX, animStateRef, animNames, animTrims, castShadow = true }: {
+function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animNames, animTrims, castShadow = true }: {
   url: string;
   userScale: number;
   rotX: number;
+  offsetY?: number;
   animStateRef?: React.RefObject<AnimState>;
   animNames?: Partial<Record<AnimState, string>>;
   animTrims?: Partial<Record<AnimState, AnimTrim>>;
