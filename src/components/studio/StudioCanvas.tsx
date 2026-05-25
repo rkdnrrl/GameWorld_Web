@@ -54,6 +54,18 @@ function buildMat(cfg: any, onTex?: () => void): THREE.MeshStandardMaterial | nu
 function disposeMat(mat: THREE.MeshStandardMaterial) {
   mat.map?.dispose(); mat.normalMap?.dispose(); mat.roughnessMap?.dispose(); mat.dispose();
 }
+
+/* ── TransformControls 기즈모 핸들 hover/drag 상태 (전역 가드) ──
+   화살표/링 위에 마우스가 있을 땐 그 뒤의 메시가 선택되지 않도록 막는 용도
+*/
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const tcRef: { current: any } = { current: null };
+function isGizmoActive(): boolean {
+  const tc = tcRef.current;
+  if (!tc) return false;
+  // axis: hover 중인 축 이름 (없으면 null), dragging: 드래그 중
+  return !!tc.axis || !!tc.dragging;
+}
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { session } from '@/lib/api';
@@ -370,6 +382,8 @@ function SelectedTransform({ targetId, mode, onChange, onDragEnd }: {
   return (
     <TransformControls
       key={targetId ?? 'none'}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ref={(tc: any) => { tcRef.current = tc || null; }}
       object={target}
       mode={mode}
       onObjectChange={() => {
@@ -387,9 +401,9 @@ function SelectedTransform({ targetId, mode, onChange, onDragEnd }: {
 
 /* ── TransformControls 드래그 중 OrbitControls 비활성화 ── */
 /* ── WASD/QE 카메라 이동 ──
-   W/S: 카메라가 바라보는 방향 전/후 (Y 무시, 수평 이동)
-   A/D: 카메라 좌/우 스트레이프
-   Q/E: 아래/위 (월드 Y)
+   W/S: 카메라가 바라보는 방향으로 전/후 (시선 방향 그대로 — 위/아래로 기울이면 그 방향으로 이동)
+   A/D: 카메라 로컬 right 축 기준 좌/우 스트레이프
+   Q/E: 월드 Y 하강/상승
    Shift: 가속 (3배)
    OrbitControls의 target도 함께 이동시켜 회전 피벗이 따라가게 함
 */
@@ -398,7 +412,6 @@ function WasdFlyCamera({ orbitRef }: { orbitRef: React.MutableRefObject<OrbitRef
   const keysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    const dom = gl.domElement;
     const down = (e: KeyboardEvent) => {
       // 입력 필드 포커스 중이면 무시
       const tgt = e.target as HTMLElement | null;
@@ -419,7 +432,6 @@ function WasdFlyCamera({ orbitRef }: { orbitRef: React.MutableRefObject<OrbitRef
 
   const fwd   = useRef(new THREE.Vector3());
   const right = useRef(new THREE.Vector3());
-  const up    = useRef(new THREE.Vector3(0, 1, 0));
   const move  = useRef(new THREE.Vector3());
 
   useFrame((_, delta) => {
@@ -427,11 +439,10 @@ function WasdFlyCamera({ orbitRef }: { orbitRef: React.MutableRefObject<OrbitRef
     if (keys.size === 0) return;
     const speed = (keys.has('shift') ? 18 : 6) * delta;
 
-    camera.getWorldDirection(fwd.current);
-    fwd.current.y = 0;
-    if (fwd.current.lengthSq() < 1e-6) return;
-    fwd.current.normalize();
-    right.current.copy(fwd.current).cross(up.current).normalize();
+    // 카메라의 실제 로컬 축을 행렬에서 추출 (column 0 = right, column 2 = back)
+    // → roll/pitch 가 있어도 진짜 시선 방향 기준으로 이동
+    right.current.setFromMatrixColumn(camera.matrix, 0);   // 카메라 right (+X 로컬)
+    fwd.current.setFromMatrixColumn(camera.matrix, 2).negate(); // 카메라 forward = -back
 
     move.current.set(0, 0, 0);
     if (keys.has('w')) move.current.add(fwd.current);
