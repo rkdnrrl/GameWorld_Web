@@ -1,57 +1,90 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
-import dynamic from 'next/dynamic';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { session } from '@/lib/api';
 
-const AssetMaterialEditor = dynamic(() => import('@/components/assets/AssetMaterialEditor'), { ssr: false });
+import type { Asset, AssetKind } from '@/lib/assets/types';
+import type { SortMode, VisibilityFilter } from '@/lib/assets/filters';
+import { filterAssets, sortAssets } from '@/lib/assets/filters';
+import { getKind } from '@/lib/assets/registry';
+// 사이드이펙트 import — 모든 kind 핸들러 등록
+import '@/lib/assets/kinds';
+
+import AssetSidebar from '@/components/assets/AssetSidebar';
+import AssetToolbar from '@/components/assets/AssetToolbar';
+import AssetGrid    from '@/components/assets/AssetGrid';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
-interface Asset {
-  id: string;
-  name: string;
-  modelUrl: string;
-  thumbnailUrl: string | null;
-  isPublic: boolean;
-  createdAt: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  materialConfig?: any;
-}
-
-const ACCEPT = '.fbx,.png,.jpg,.jpeg,.webp';
-const MAX_MB = 100;
-
 export default function AssetsPage() {
   const t = useTranslations('Assets');
-  const [assets, setAssets]       = useState<Asset[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress]   = useState(0);
-  const [error, setError]         = useState('');
-  const [dragOver, setDragOver]   = useState(false);
+  const router       = useRouter();
+  const searchParams = useSearchParams();
+
+  /* ── 데이터 ── */
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [kinds,  setKinds]  = useState<AssetKind[]>([]);
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+
+  /* ── 업로드 ── */
+  const [uploading, setUploading] = useState(false);
+  const [progress,  setProgress]  = useState(0);
+  const [error,     setError]     = useState('');
+  const [dragOver,  setDragOver]  = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const token = () => session.getToken() || '';
 
-  /* 내 에셋 목록 */
+  /* ── URL 쿼리스트링 상태 ── */
+  const q          = searchParams.get('q') || '';
+  const sort       = (searchParams.get('sort') || 'recent') as SortMode;
+  const visibility = (searchParams.get('vis') || 'all')    as VisibilityFilter;
+  const selectedKinds = searchParams.get('kind')
+    ? searchParams.get('kind')!.split(',').filter(Boolean)
+    : [];
+
+  const setQuery = useCallback((patch: Record<string, string | string[] | null>) => {
+    const sp = new URLSearchParams(searchParams.toString());
+    Object.entries(patch).forEach(([k, v]) => {
+      if (v == null || v === '' || (Array.isArray(v) && v.length === 0)) {
+        sp.delete(k);
+      } else {
+        sp.set(k, Array.isArray(v) ? v.join(',') : v);
+      }
+    });
+    router.replace(`?${sp.toString()}`, { scroll: false });
+  }, [router, searchParams]);
+
+  /* ── 초기 로드: kinds + assets 병렬 ── */
   useEffect(() => {
+    fetch(`${API}/api/asset-kinds`)
+      .then(r => r.json())
+      .then(d => setKinds(d.kinds || []))
+      .catch(() => {});
     fetch(`${API}/api/assets/my`, { headers: { Authorization: `Bearer ${token()}` } })
       .then(r => r.json())
       .then(d => setAssets(d.assets || []))
       .catch(() => {});
   }, []);
 
-  /* 파일 업로드 */
+  /* ── 업로드 허용 확장자 (DB kinds 기반) ── */
+  const acceptAttr = useMemo(
+    () => kinds.flatMap(k => k.extensions).map(e => `.${e}`).join(','),
+    [kinds],
+  );
+  const maxSizeMb = useMemo(
+    () => Math.max(5, ...kinds.map(k => k.maxSizeMb)),
+    [kinds],
+  );
+
   async function upload(file: File) {
     setError('');
-    if (file.size > MAX_MB * 1024 * 1024) {
-      setError(t('sizeOverLimit', { maxMb: MAX_MB }));
-      return;
-    }
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
-    if (!['fbx','png','jpg','jpeg','webp'].includes(ext)) {
-      setError(t('fbxOnly'));
+    const kind = kinds.find(k => k.extensions.includes(ext));
+    if (!kind) { setError(t('unsupportedType', { ext })); return; }
+    if (file.size > kind.maxSizeMb * 1024 * 1024) {
+      setError(t('sizeOverLimit', { maxMb: kind.maxSizeMb }));
       return;
     }
 
@@ -91,7 +124,6 @@ export default function AssetsPage() {
     }
   }
 
-  /* 드래그&드롭 */
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
@@ -99,7 +131,6 @@ export default function AssetsPage() {
     if (file) upload(file);
   };
 
-  /* 삭제 */
   async function deleteAsset(id: string) {
     if (!confirm(t('confirmDelete'))) return;
     const r = await fetch(`${API}/api/assets/${id}`, {
@@ -109,7 +140,6 @@ export default function AssetsPage() {
     if (r.ok) setAssets(prev => prev.filter(a => a.id !== id));
   }
 
-  /* 공개 토글 */
   async function togglePublic(asset: Asset) {
     const r = await fetch(`${API}/api/assets/${asset.id}`, {
       method: 'PATCH',
@@ -122,187 +152,126 @@ export default function AssetsPage() {
     }
   }
 
-  const extBadge = (url: string) => {
-    const ext = (url.split('.').pop() || '').toUpperCase();
-    const colors: Record<string, string> = {
-      FBX: '#f59e0b', PNG: '#10b981', JPG: '#10b981', JPEG: '#10b981', WEBP: '#10b981',
-    };
-    return { ext, color: colors[ext] || '#64748b' };
-  };
+  /* ── 필터링/정렬 ── */
+  const visibleAssets = useMemo(() => {
+    const filtered = filterAssets(assets, { q, kinds: selectedKinds, visibility }, kinds);
+    return sortAssets(filtered, sort, kinds);
+  }, [assets, q, selectedKinds, visibility, sort, kinds]);
+
+  /* ── 에디터 (kind 핸들러에서 가져옴) ── */
+  const editorHandler = editingAsset ? getKind(editingAsset.kind) : null;
+  const EditorComp    = editorHandler?.Editor;
 
   return (
     <>
-      {editingAsset && (
-        <AssetMaterialEditor
+      {editingAsset && EditorComp && (
+        <EditorComp
           asset={editingAsset}
           allAssets={assets}
           onClose={() => setEditingAsset(null)}
-          onSaved={(updated) => setAssets(prev => prev.map(a => a.id === updated.id ? updated : a))}
+          onSaved={(updated: Asset) => setAssets(prev => prev.map(a => a.id === updated.id ? updated : a))}
         />
       )}
-    <div style={{
-      minHeight: '100vh', background: '#0f172a', color: '#fff',
-      fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif",
-    }}>
-      {/* 헤더 */}
-      <div style={{ padding: '20px 32px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontSize: 26 }}>📦</span>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>{t('title')}</h1>
-          <p style={{ margin: 0, fontSize: 13, opacity: 0.5 }}>FBX / PNG / JPG · {t('subtitle', { maxMb: MAX_MB }).replace(/^[^·]+· /, '')}</p>
+
+      <div style={{ minHeight: '100vh', background: '#0f172a', color: '#fff', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif" }}>
+        {/* 헤더 */}
+        <div style={{ padding: '20px 32px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 26 }}>📦</span>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>{t('title')}</h1>
+            <p style={{ margin: 0, fontSize: 13, opacity: 0.5 }}>{t('headerSubtitle', { count: kinds.length })}</p>
+          </div>
         </div>
-      </div>
 
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 24px' }}>
-
-        {/* 업로드 영역 */}
-        <div
-          onClick={() => !uploading && fileRef.current?.click()}
-          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={onDrop}
-          style={{
-            border: `2px dashed ${dragOver ? '#6366f1' : 'rgba(255,255,255,0.15)'}`,
-            borderRadius: 20, padding: '48px 32px', textAlign: 'center',
-            cursor: uploading ? 'default' : 'pointer', marginBottom: 36,
-            background: dragOver ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.03)',
-            transition: 'all .15s',
-          }}
-        >
-          <input
-            ref={fileRef}
-            type="file"
-            accept={ACCEPT}
-            style={{ display: 'none' }}
-            onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ''; }}
+        {/* 본문: 사이드바 + 메인 */}
+        <div style={{ display: 'flex', maxWidth: 1400, margin: '0 auto' }}>
+          <AssetSidebar
+            assets={assets}
+            kinds={kinds}
+            selectedKinds={selectedKinds}
+            onSelectKinds={ks => setQuery({ kind: ks })}
           />
 
-          {uploading ? (
-            <>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>⬆️</div>
-              <div style={{ fontSize: 15, marginBottom: 16, opacity: 0.8 }}>{t('uploadingPercent', { progress })}</div>
-              <div style={{ height: 8, background: 'rgba(255,255,255,0.1)', borderRadius: 4, maxWidth: 320, margin: '0 auto' }}>
-                <div style={{
-                  height: '100%', borderRadius: 4,
-                  background: 'linear-gradient(90deg,#6366f1,#8b5cf6)',
-                  width: `${progress}%`,
-                  transition: 'width 0.2s ease',
-                }} />
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>🗂️</div>
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>
-                {t('dragHint')}
-              </div>
-              <div style={{ fontSize: 13, opacity: 0.45 }}>{t('fileTypeHint', { maxMb: MAX_MB })}</div>
-            </>
-          )}
-        </div>
-
-        {error && (
-          <div style={{
-            background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
-            borderRadius: 10, padding: '10px 16px', color: '#fca5a5', fontSize: 13, marginBottom: 20,
-          }}>
-            ⚠️ {error}
-          </div>
-        )}
-
-
-        {/* 에셋 목록 */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>{t('myAssetsCount', { count: assets.length })}</h2>
-        </div>
-
-        {assets.length === 0 ? (
-          <div style={{ textAlign: 'center', opacity: 0.35, padding: '48px 0', fontSize: 14 }}>
-            {t('emptyState')}<br />{t('emptyHint')}
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
-            {assets.map(a => {
-              const { ext, color } = extBadge(a.modelUrl);
-              const isImage = ['PNG','JPG','JPEG','WEBP'].includes(ext);
-              return (
-                <div key={a.id} style={{
-                  background: 'rgba(255,255,255,0.05)', borderRadius: 14,
-                  border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden',
-                  transition: 'border-color .15s',
-                }}>
-                  {/* 썸네일 — FBX는 클릭 시 머티리얼 에디터 */}
-                  <div onClick={() => { if (!isImage) setEditingAsset(a); }}
-                    style={{
-                      width: '100%', aspectRatio: '1', background: 'rgba(255,255,255,0.03)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
-                      cursor: isImage ? 'default' : 'pointer',
-                  }}>
-                    {isImage
-                      ? <img src={a.modelUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : a.thumbnailUrl
-                      ? <img src={a.thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <span style={{ fontSize: 44, opacity: 0.4 }}>📦</span>
-                    }
-                    {/* 파일 형식 배지 */}
-                    <span style={{
-                      position: 'absolute', top: 8, left: 8,
-                      background: color, color: '#fff',
-                      fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 4,
-                    }}>
-                      {ext}
-                    </span>
-                    {/* 공개 배지 */}
-                    {a.isPublic && (
-                      <span style={{
-                        position: 'absolute', top: 8, right: 8,
-                        background: 'rgba(16,185,129,0.9)', color: '#fff',
-                        fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
-                      }}>{t('publishing')}</span>
-                    )}
+          <div style={{ flex: 1, padding: '20px 32px' }}>
+            {/* 업로드 영역 */}
+            <div
+              onClick={() => !uploading && fileRef.current?.click()}
+              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={onDrop}
+              style={{
+                border: `2px dashed ${dragOver ? '#6366f1' : 'rgba(255,255,255,0.15)'}`,
+                borderRadius: 16, padding: '28px', textAlign: 'center',
+                cursor: uploading ? 'default' : 'pointer', marginBottom: 18,
+                background: dragOver ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.03)',
+                transition: 'all .15s',
+              }}
+            >
+              <input
+                ref={fileRef}
+                type="file"
+                accept={acceptAttr}
+                style={{ display: 'none' }}
+                onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ''; }}
+              />
+              {uploading ? (
+                <>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>⬆️</div>
+                  <div style={{ fontSize: 14, marginBottom: 12, opacity: 0.8 }}>{t('uploadingPercent', { progress })}</div>
+                  <div style={{ height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3, maxWidth: 320, margin: '0 auto' }}>
+                    <div style={{
+                      height: '100%', borderRadius: 3,
+                      background: 'linear-gradient(90deg,#6366f1,#8b5cf6)',
+                      width: `${progress}%`,
+                      transition: 'width 0.2s ease',
+                    }} />
                   </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 32, marginBottom: 6 }}>🗂️</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{t('dragHint')}</div>
+                  <div style={{ fontSize: 12, opacity: 0.45 }}>{t('fileTypeHint', { maxMb: maxSizeMb })}</div>
+                </>
+              )}
+            </div>
 
-                  {/* 정보 */}
-                  <div style={{ padding: '10px 12px' }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {a.name}
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      <a
-                        href={a.modelUrl}
-                        download
-                        style={{ fontSize: 11, color: '#818cf8', textDecoration: 'none', padding: '3px 8px', background: 'rgba(99,102,241,0.15)', borderRadius: 5 }}
-                      >
-                        {t('download')}
-                      </a>
-                      <button
-                        onClick={() => togglePublic(a)}
-                        style={{
-                          fontSize: 11, cursor: 'pointer', padding: '3px 8px', borderRadius: 5, border: 'none',
-                          background: a.isPublic ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.08)',
-                          color: a.isPublic ? '#6ee7b7' : 'rgba(255,255,255,0.5)',
-                        }}
-                      >
-                        {a.isPublic ? t('publishing') : t('private')}
-                      </button>
-                      <button
-                        onClick={() => deleteAsset(a.id)}
-                        style={{
-                          fontSize: 11, cursor: 'pointer', padding: '3px 8px', borderRadius: 5, border: 'none',
-                          background: 'rgba(239,68,68,0.12)', color: '#fca5a5',
-                        }}
-                      >
-                        {t('delete')}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {error && (
+              <div style={{
+                background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
+                borderRadius: 10, padding: '10px 16px', color: '#fca5a5', fontSize: 13, marginBottom: 14,
+              }}>
+                ⚠️ {error}
+              </div>
+            )}
+
+            {/* 툴바 */}
+            <AssetToolbar
+              q={q}
+              onQ={v => setQuery({ q: v })}
+              sort={sort}
+              onSort={v => setQuery({ sort: v === 'recent' ? null : v })}
+              visibility={visibility}
+              onVisibility={v => setQuery({ vis: v === 'all' ? null : v })}
+              resultCount={visibleAssets.length}
+            />
+
+            {/* 그리드 */}
+            <AssetGrid
+              assets={visibleAssets}
+              kinds={kinds}
+              emptyMessage={
+                assets.length === 0
+                  ? `${t('emptyState')}\n${t('emptyHint')}`
+                  : t('noMatches')
+              }
+              onEdit={setEditingAsset}
+              onTogglePublic={togglePublic}
+              onDelete={deleteAsset}
+            />
           </div>
-        )}
+        </div>
       </div>
-    </div>
     </>
   );
 }
