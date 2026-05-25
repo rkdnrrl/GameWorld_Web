@@ -78,11 +78,11 @@ function autoMatchAnims(
 /* ── 자동 정규화 (1.8m 기준) ────────────── */
 const FOOT_CLEARANCE = 0.05;
 
-const btnTiny = (active: boolean): React.CSSProperties => ({
+const btnTiny = (active: boolean) => ({
   width: 26, padding: '3px 0', fontSize: 11, borderRadius: 4, border: 'none',
   background: active ? '#4f46e5' : 'rgba(255,255,255,0.1)',
   color: '#fff', cursor: 'pointer',
-});
+} as const);
 
 function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   // 재호출 시 누적 방지 — 매번 fresh 한 상태에서 시작
