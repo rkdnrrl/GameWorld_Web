@@ -414,6 +414,17 @@ export default function StudioCanvas() {
       <div style={{ width: 260, background: '#1e293b', borderRight: '1px solid rgba(255,255,255,0.08)', padding: 16, overflowY: 'auto', color: '#fff' }}>
         <h2 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 800 }}>{t('title')}</h2>
 
+        {loading && (
+          <div style={{ padding: 8, background: 'rgba(99,102,241,0.15)', borderRadius: 6, fontSize: 11, marginBottom: 10, color: '#a5b4fc' }}>
+            ⏳ {t('saving').replace('…', '')} ...
+          </div>
+        )}
+        {loadError && (
+          <div style={{ padding: 8, background: 'rgba(239,68,68,0.15)', borderRadius: 6, fontSize: 11, marginBottom: 10, color: '#fca5a5' }}>
+            ⚠️ {loadError}
+          </div>
+        )}
+
         {/* Undo/Redo */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 14 }}>
           <button onClick={undo} disabled={!canUndo}
