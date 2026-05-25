@@ -97,8 +97,7 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
     obj.updateMatrixWorld(true);
   }
   const box2 = new THREE.Box3().setFromObject(obj);
-  obj.position.y -= box2.min.y;
-  obj.position.y += FOOT_CLEARANCE;
+  obj.position.y -= box2.min.y;            // 발 → y=0 (정확히 정렬)
 }
 
 /* ── 커스텀 모델 프리뷰 (명령형 로드) ───── */
