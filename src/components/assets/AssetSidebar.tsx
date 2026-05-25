@@ -24,8 +24,8 @@ interface Props {
 const INITIAL_TAG_LIMIT = 12;
 
 export default function AssetSidebar({
-  assets, kinds, selectedKinds, selectedTags,
-  onSelectKinds, onToggleTag,
+  assets, kinds, selectedKinds, selectedTags, selectedFolder,
+  onSelectKinds, onToggleTag, onSelectFolder,
 }: Props) {
   const t = useTranslations('Assets');
   const counts     = countByKind(assets, kinds);
@@ -35,6 +35,13 @@ export default function AssetSidebar({
   const tags    = topTags(assets);
   const [tagExpanded, setTagExpanded] = useState(false);
   const visibleTags = tagExpanded ? tags : tags.slice(0, INITIAL_TAG_LIMIT);
+
+  // 폴더 트리
+  const folderTree = useMemo(() => buildFolderTree(listFolders(assets)), [assets]);
+  const rootCount  = useMemo(
+    () => assets.filter(a => !normalizeFolder(a.folder)).length,
+    [assets],
+  );
 
   return (
     <aside style={{
