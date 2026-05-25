@@ -20,15 +20,8 @@ export interface MaterialConfig {
   textureTilingY?:   number;
 }
 
-interface Asset {
-  id: string;
-  name: string;
-  modelUrl: string;
-  thumbnailUrl?: string | null;
-  isPublic?: boolean;
-  createdAt?: string;
-  materialConfig?: MaterialConfig | null;
-}
+// 통합 Asset 타입 사용 (kind/metadata/tags 포함)
+import type { Asset } from '@/lib/assets/types';
 
 const PRESETS: Record<Exclude<MaterialPreset, 'default'>, {
   metalness: number; roughness: number; opacity?: number; transparent?: boolean;
