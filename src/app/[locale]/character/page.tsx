@@ -98,11 +98,12 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
 
 /* ── 커스텀 모델 프리뷰 (명령형 로드) ───── */
 function CustomPreview({
-  url, userScale, rotX, previewAnim, previewTrim, onAnimationsLoaded, onPlayingClip,
+  url, userScale, rotX, offsetY = 0, previewAnim, previewTrim, onAnimationsLoaded, onPlayingClip,
 }: {
   url: string;
   userScale: number;
   rotX: number;
+  offsetY?: number;
   previewAnim?: string;
   previewTrim?: { start?: number; end?: number };
   onAnimationsLoaded?: (anims: { name: string; duration: number }[]) => void;
