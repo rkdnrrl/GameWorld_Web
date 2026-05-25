@@ -300,27 +300,23 @@ export default function StudioCanvas() {
       .catch(() => {});
   }, []);
 
-  /* 편집 중인 월드 로드 */
+  /* 편집 중인 월드 로드 — 방금 저장한 ID로 URL이 바뀐 경우엔 재로드 안 함 */
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading]     = useState(false);
 
-  // 새 월드 ID로 바뀌면 선택 초기화 (이전 월드의 selectedId가 남으면 TransformControls 에러)
-  useEffect(() => {
-    setSelectedId(null);
-    setObjects([]);
-    setHist({ stack: [[]], idx: 0 });
-  }, [editingId]);
-
   useEffect(() => {
     if (!editingId) return;
+    // 방금 저장으로 인해 URL이 바뀐 거라면 (savedId === editingId) 재로드 스킵 → 데이터 보존
+    if (savedId === editingId) return;
+
     setLoading(true);
     setLoadError(null);
     const tok = session.getToken();
-    console.log('[studio] loading world', editingId, 'token:', tok ? 'yes' : 'NO TOKEN');
+    console.log('[studio] loading world', editingId);
     fetch(`${API}/api/worlds/${editingId}`, { headers: tok ? { Authorization: `Bearer ${tok}` } : {} })
       .then(async r => {
         const text = await r.text();
-        console.log('[studio] response status:', r.status, 'body:', text.slice(0, 300));
+        console.log('[studio] response status:', r.status);
         try { return JSON.parse(text); } catch { throw new Error('Invalid JSON: ' + text.slice(0, 100)); }
       })
       .then(d => {
@@ -328,11 +324,12 @@ export default function StudioCanvas() {
           setLoadError(d.error?.message || '월드를 찾을 수 없습니다.');
           return;
         }
-        console.log('[studio] loaded world:', d.world.name, 'objects:', d.world.mapData?.objects?.length ?? 0);
+        console.log('[studio] loaded:', d.world.name, 'objects:', d.world.mapData?.objects?.length ?? 0);
         setName(d.world.name);
         const objs = d.world.mapData?.objects || [];
         setObjects(objs);
         setHist({ stack: [clone(objs)], idx: 0 });
+        setSelectedId(null);   // 다른 월드 로드 시 이전 선택 해제 (TransformControls 안전)
         setSavedId(d.world.id);
       })
       .catch(e => {
@@ -340,7 +337,8 @@ export default function StudioCanvas() {
         setLoadError(String(e?.message || e));
       })
       .finally(() => setLoading(false));
-  }, [editingId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingId]);  // savedId는 일부러 의존성에서 제외 (방금 저장 → URL 변경 → 재로드 방지)
 
   /* 단축키 */
   useEffect(() => {
