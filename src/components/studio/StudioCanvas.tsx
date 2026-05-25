@@ -879,7 +879,10 @@ export default function StudioCanvas() {
           {objects.map(obj => (
             <Mesh3D key={obj.id} obj={obj}
               selected={obj.id === selectedId}
-              onClick={() => setSelectedId(obj.id)} />
+              onClick={() => setSelectedId(obj.id)}
+              assetConfig={obj.kind === 'asset' && obj.assetUrl
+                ? myAssets.find(a => a.modelUrl === obj.assetUrl)?.materialConfig
+                : undefined} />
           ))}
 
           <SelectedTransform
