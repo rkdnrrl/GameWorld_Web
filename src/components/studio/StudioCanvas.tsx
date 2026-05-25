@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, TransformControls, Grid, Sky, Outlines } from '@react-three/drei';
+import { OrbitControls, TransformControls, Grid, Sky, Outlines, Environment } from '@react-three/drei';
 import * as THREE from 'three';
 
 /* ── 머티리얼 프리셋 (WorldCanvas와 동일) ── */
