@@ -1307,6 +1307,7 @@
     "shadowMid": "中",
     "shadowHigh": "高",
     "shadowUltra": "极高",
-    "reset": "重置"
+    "reset": "重置",
+    "remoteShadows": "其他玩家阴影"
   }
 }

@@ -1307,6 +1307,7 @@
     "shadowMid": "Mid",
     "shadowHigh": "High",
     "shadowUltra": "Ultra",
-    "reset": "Reset"
+    "reset": "Reset",
+    "remoteShadows": "Other Players Shadows"
   }
 }

@@ -1307,6 +1307,7 @@
     "shadowMid": "중",
     "shadowHigh": "고",
     "shadowUltra": "최고",
-    "reset": "기본값"
+    "reset": "기본값",
+    "remoteShadows": "다른 플레이어 그림자"
   }
 }

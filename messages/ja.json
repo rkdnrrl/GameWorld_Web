@@ -1307,6 +1307,7 @@
     "shadowMid": "中",
     "shadowHigh": "高",
     "shadowUltra": "最高",
-    "reset": "リセット"
+    "reset": "リセット",
+    "remoteShadows": "他のプレイヤーの影"
   }
 }
