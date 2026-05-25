@@ -136,11 +136,17 @@ function CustomPreview({
 
   // 선택된 애니메이션만 재생 (트림 적용)
   useEffect(() => {
-    if (!mixer.current) return;
+    if (!mixer.current) { onPlayingClip?.(null); return; }
     mixer.current.stopAllAction();
-    if (!previewAnim) return;
+    // mixer 의 캐시된 액션까지 정리 — 캐시된 액션이 새 clip 재생을 방해할 수 있음
+    mixer.current.uncacheRoot(mixer.current.getRoot());
+    if (!previewAnim) { onPlayingClip?.(null); return; }
     const src = animClips.current.find(c => c.name === previewAnim);
-    if (!src) return;
+    if (!src) {
+      console.warn('[preview] clip not found:', previewAnim, 'available:', animClips.current.map(c => c.name));
+      onPlayingClip?.(`(없음: ${previewAnim})`);
+      return;
+    }
     let clip = src;
     if (previewTrim) {
       const start = Math.max(0, previewTrim.start ?? 0);
@@ -152,8 +158,11 @@ function CustomPreview({
         clip = utils.subclip(src, src.name + '_t', Math.floor(start * fps), Math.ceil(end * fps), fps);
       }
     }
-    mixer.current.clipAction(clip).play();
-  }, [previewAnim, previewTrim, obj]);
+    const action = mixer.current.clipAction(clip);
+    action.reset();
+    action.play();
+    onPlayingClip?.(clip.name);
+  }, [previewAnim, previewTrim, obj, onPlayingClip]);
 
   useFrame((_, dt) => {
     if (g.current) g.current.rotation.y += dt * 0.6;
