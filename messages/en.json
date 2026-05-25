@@ -1308,6 +1308,11 @@
     "shadowHigh": "High",
     "shadowUltra": "Ultra",
     "reset": "Reset",
-    "remoteShadows": "Other Players Shadows"
+    "remoteShadows": "Other Players Shadows",
+    "shadowFilter": "Shadow Filter",
+    "shadowFilterBasic": "Hard",
+    "shadowFilterPCF": "Soft",
+    "shadowFilterPCFSoft": "Very Soft",
+    "shadowSoftness": "Shadow Softness"
   }
 }

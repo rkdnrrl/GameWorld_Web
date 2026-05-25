@@ -1308,6 +1308,11 @@
     "shadowHigh": "高",
     "shadowUltra": "极高",
     "reset": "重置",
-    "remoteShadows": "其他玩家阴影"
+    "remoteShadows": "其他玩家阴影",
+    "shadowFilter": "阴影过滤",
+    "shadowFilterBasic": "硬",
+    "shadowFilterPCF": "柔和",
+    "shadowFilterPCFSoft": "非常柔和",
+    "shadowSoftness": "阴影柔和度"
   }
 }

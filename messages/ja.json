@@ -1308,6 +1308,11 @@
     "shadowHigh": "高",
     "shadowUltra": "最高",
     "reset": "リセット",
-    "remoteShadows": "他のプレイヤーの影"
+    "remoteShadows": "他のプレイヤーの影",
+    "shadowFilter": "影フィルター",
+    "shadowFilterBasic": "ハード",
+    "shadowFilterPCF": "ソフト",
+    "shadowFilterPCFSoft": "非常にソフト",
+    "shadowSoftness": "影の柔らかさ"
   }
 }

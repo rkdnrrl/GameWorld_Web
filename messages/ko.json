@@ -1308,6 +1308,11 @@
     "shadowHigh": "고",
     "shadowUltra": "최고",
     "reset": "기본값",
-    "remoteShadows": "다른 플레이어 그림자"
+    "remoteShadows": "다른 플레이어 그림자",
+    "shadowFilter": "그림자 필터",
+    "shadowFilterBasic": "하드",
+    "shadowFilterPCF": "소프트",
+    "shadowFilterPCFSoft": "매우 소프트",
+    "shadowSoftness": "그림자 부드러움"
   }
 }

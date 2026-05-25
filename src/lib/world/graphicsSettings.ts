@@ -1,20 +1,24 @@
 'use client';
 import { useEffect, useState } from 'react';
 
+export type ShadowFilter = 'basic' | 'pcf' | 'pcfsoft';
+
 export interface GraphicsSettings {
   preset: 'low' | 'medium' | 'high' | 'ultra' | 'custom';
-  dpr: number;            // 픽셀 비율 1.0 / 1.5 / 2.0
-  shadowSize: number;     // 그림자 맵 (0 = 끔)
+  dpr: number;
+  shadowSize: number;
   antialias: boolean;
-  farClip: number;        // 시야 거리 (m)
-  remoteShadows: boolean; // 다른 플레이어 그림자
+  farClip: number;
+  remoteShadows: boolean;
+  shadowFilter: ShadowFilter;  // hard / pcf / pcfsoft
+  shadowRadius: number;        // 0~10 (0=선명, 10=매우 부드러움)
 }
 
 export const PRESETS: Record<Exclude<GraphicsSettings['preset'], 'custom'>, GraphicsSettings> = {
-  low:    { preset: 'low',    dpr: 1.0, shadowSize: 0,    antialias: false, farClip: 200, remoteShadows: false },
-  medium: { preset: 'medium', dpr: 1.0, shadowSize: 1024, antialias: true,  farClip: 400, remoteShadows: false },
-  high:   { preset: 'high',   dpr: 1.5, shadowSize: 2048, antialias: true,  farClip: 600, remoteShadows: true  },
-  ultra:  { preset: 'ultra',  dpr: 2.0, shadowSize: 4096, antialias: true,  farClip: 800, remoteShadows: true  },
+  low:    { preset: 'low',    dpr: 1.0, shadowSize: 0,    antialias: false, farClip: 200, remoteShadows: false, shadowFilter: 'basic',   shadowRadius: 0 },
+  medium: { preset: 'medium', dpr: 1.0, shadowSize: 1024, antialias: true,  farClip: 400, remoteShadows: false, shadowFilter: 'pcf',     shadowRadius: 2 },
+  high:   { preset: 'high',   dpr: 1.5, shadowSize: 2048, antialias: true,  farClip: 600, remoteShadows: true,  shadowFilter: 'pcfsoft', shadowRadius: 4 },
+  ultra:  { preset: 'ultra',  dpr: 2.0, shadowSize: 4096, antialias: true,  farClip: 800, remoteShadows: true,  shadowFilter: 'pcfsoft', shadowRadius: 6 },
 };
 
 export const DEFAULT_SETTINGS: GraphicsSettings = PRESETS.ultra;
