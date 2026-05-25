@@ -22,6 +22,7 @@ interface Props {
   onTogglePublic: (a: Asset) => void;
   onDelete: (id: string) => void;
   onEditVersions: (a: Asset) => void;
+  onRename: (a: Asset, newName: string) => Promise<void> | void;
   onDragStart: (a: Asset, e: React.DragEvent) => void;
   onDragEnd: () => void;
 }
@@ -29,7 +30,7 @@ interface Props {
 export default function AssetGrid({
   assets, kinds, selectedTags, selectedFolder, selectedIds, emptyMessage,
   onEdit, onPreview, onEditTags, onEditFolder, onClickTag, onClickFolder,
-  onToggleSelect, onTogglePublic, onDelete, onEditVersions,
+  onToggleSelect, onTogglePublic, onDelete, onEditVersions, onRename,
   onDragStart, onDragEnd,
 }: Props) {
   if (assets.length === 0) {
