@@ -9,18 +9,21 @@ interface Props {
   assets: Asset[];
   kinds: AssetKind[];
   selectedTags?: string[];
+  selectedFolder?: string | null;
   emptyMessage: string;
   onEdit: (a: Asset) => void;
   onPreview: (a: Asset) => void;
   onEditTags: (a: Asset) => void;
+  onEditFolder: (a: Asset) => void;
   onClickTag: (tag: string) => void;
+  onClickFolder: (folder: string) => void;
   onTogglePublic: (a: Asset) => void;
   onDelete: (id: string) => void;
 }
 
 export default function AssetGrid({
-  assets, kinds, selectedTags, emptyMessage,
-  onEdit, onPreview, onEditTags, onClickTag,
+  assets, kinds, selectedTags, selectedFolder, emptyMessage,
+  onEdit, onPreview, onEditTags, onEditFolder, onClickTag, onClickFolder,
   onTogglePublic, onDelete,
 }: Props) {
   if (assets.length === 0) {
@@ -38,10 +41,13 @@ export default function AssetGrid({
           asset={a}
           kinds={kinds}
           selectedTags={selectedTags}
+          selectedFolder={selectedFolder}
           onEdit={onEdit}
           onPreview={onPreview}
           onEditTags={onEditTags}
+          onEditFolder={onEditFolder}
           onClickTag={onClickTag}
+          onClickFolder={onClickFolder}
           onTogglePublic={onTogglePublic}
           onDelete={onDelete}
         />
