@@ -12,18 +12,21 @@ interface Props {
   asset: Asset;
   kinds: AssetKind[];
   onEdit: (a: Asset) => void;
+  onPreview: (a: Asset) => void;
   onTogglePublic: (a: Asset) => void;
   onDelete: (id: string) => void;
 }
 
-export default function AssetCard({ asset, kinds, onEdit, onTogglePublic, onDelete }: Props) {
+export default function AssetCard({ asset, kinds, onEdit, onPreview, onTogglePublic, onDelete }: Props) {
   const t = useTranslations('Assets');
   const kindId  = asset.kind || detectKindFromUrl(asset.modelUrl, kinds);
   const kindDef = kinds.find(k => k.id === kindId);
   const handler = getKind(kindId);
   const Thumb   = handler?.Thumbnail;
 
-  const canEdit = !!handler?.Editor;
+  // Editor 우선, 없으면 Preview, 둘 다 없으면 클릭 불가 (다운로드 only)
+  const clickAction: 'edit' | 'preview' | null =
+    handler?.Editor ? 'edit' : handler?.Preview ? 'preview' : null;
 
   return (
     <div style={{
