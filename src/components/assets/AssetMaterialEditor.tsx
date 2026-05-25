@@ -226,7 +226,15 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
             <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>📦 {asset.name}</div>
             <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 18, cursor: 'pointer' }}>✕</button>
           </div>
-          <div style={{ flex: 1, background: 'linear-gradient(160deg,#1e293b,#0f172a)' }}>
+          <div style={{ flex: 1, background: 'linear-gradient(160deg,#1e293b,#0f172a)', position: 'relative' }}>
+            <div style={{
+              position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 1,
+              background: 'rgba(0,0,0,0.45)', color: 'rgba(255,255,255,0.7)',
+              fontSize: 10, padding: '4px 10px', borderRadius: 10, backdropFilter: 'blur(4px)',
+              pointerEvents: 'none', whiteSpace: 'nowrap',
+            }}>
+              좌클릭 회전 · 우클릭 이동 · 휠 확대/축소
+            </div>
             <Canvas camera={{ position: [0, 1, 4], fov: 45 }} shadows>
               <ambientLight intensity={0.6} />
               <directionalLight position={[5, 10, 5]} intensity={1.5} castShadow />
