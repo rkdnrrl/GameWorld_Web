@@ -54,8 +54,9 @@ export default function LoginPage() {
         const ex = await api.exchange(supaToken);
         if (ex.token) token = ex.token;
       } catch {
-        setError(t("errorServerUnavailable"));
-        return;
+        // Exchange can fail when backend JWT signing env is unstable.
+        // Keep going with Supabase access token as fallback.
+        token = supaToken;
       }
 
       let user;
