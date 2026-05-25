@@ -491,6 +491,7 @@ export default function CharacterPage() {
     setShowPicker(false);
     setModelScale(1.0);
     setModelRotX(-Math.PI / 2);
+    setModelOffsetY(0);
     setAvailableAnims([]);
     setAnimMap({ idle: '', walk: '', run: '', jump: '', crouch: '', prone: '' });
     setAnimTrims({});
