@@ -1294,7 +1294,11 @@
     "trimStart": "Start",
     "trimEnd": "End",
     "trimSec": "s",
-    "trimFull": "Full"
+    "trimFull": "Full",
+    "myCharacters": "My Characters",
+    "activeCharacter": "Active",
+    "selectCharacter": "Select",
+    "saveAndEnterWorld": "Save & Enter World 🌍"
   },
   "Assets": {
     "title": "Asset Library",

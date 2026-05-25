@@ -1294,7 +1294,11 @@
     "trimStart": "시작",
     "trimEnd": "끝",
     "trimSec": "초",
-    "trimFull": "전체"
+    "trimFull": "전체",
+    "myCharacters": "내 캐릭터",
+    "activeCharacter": "사용 중",
+    "selectCharacter": "선택",
+    "saveAndEnterWorld": "저장 후 월드 입장 🌍"
   },
   "Assets": {
     "title": "에셋 라이브러리",

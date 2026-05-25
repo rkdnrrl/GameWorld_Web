@@ -1294,7 +1294,11 @@
     "trimStart": "開始",
     "trimEnd": "終了",
     "trimSec": "秒",
-    "trimFull": "全体"
+    "trimFull": "全体",
+    "myCharacters": "マイキャラクター",
+    "activeCharacter": "使用中",
+    "selectCharacter": "選択",
+    "saveAndEnterWorld": "保存してワールドへ 🌍"
   },
   "Assets": {
     "title": "アセットライブラリ",

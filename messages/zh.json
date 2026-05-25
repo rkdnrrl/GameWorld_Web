@@ -1294,7 +1294,11 @@
     "trimStart": "开始",
     "trimEnd": "结束",
     "trimSec": "秒",
-    "trimFull": "全部"
+    "trimFull": "全部",
+    "myCharacters": "我的角色",
+    "activeCharacter": "使用中",
+    "selectCharacter": "选择",
+    "saveAndEnterWorld": "保存并进入世界 🌍"
   },
   "Assets": {
     "title": "资源库",

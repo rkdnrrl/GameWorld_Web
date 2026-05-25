@@ -18,6 +18,14 @@ interface Asset {
   tags?: string[];
 }
 
+interface MyCharacter {
+  id: string;
+  name: string;
+  appearance: Record<string, unknown>;
+  isActive: boolean;
+  updatedAt?: string;
+}
+
 /* ── 애니메이션 이름 → 슬롯 자동 매칭 ──
    각 슬롯의 키워드 후보를 우선순위 순으로 매칭.
    - 정확히 일치 > 단어 경계 일치 > 부분 일치 순
@@ -82,6 +90,47 @@ const btnTiny = (active: boolean) => ({
   color: '#fff', cursor: 'pointer',
 } as const);
 
+function clamp(n: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, n));
+}
+
+function sanitizeRotX(raw: unknown) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return -Math.PI / 2;
+  const rad = Math.abs(n) > Math.PI * 2 ? (n * Math.PI) / 180 : n;
+  return clamp(rad, -Math.PI, Math.PI);
+}
+
+function sanitizeOffsetY(raw: unknown) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return 0;
+  return clamp(n, -5, 5);
+}
+
+function getRenderableBounds(obj: THREE.Object3D) {
+  const worldBox = new THREE.Box3();
+  const tmp = new THREE.Box3();
+  let hasMesh = false;
+
+  obj.traverse((child) => {
+    if (!(child as THREE.Mesh).isMesh) return;
+    const mesh = child as THREE.Mesh;
+    if (!mesh.geometry) return;
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+    if (!mesh.geometry.boundingBox) return;
+    tmp.copy(mesh.geometry.boundingBox).applyMatrix4(mesh.matrixWorld);
+    if (!hasMesh) {
+      worldBox.copy(tmp);
+      hasMesh = true;
+    } else {
+      worldBox.union(tmp);
+    }
+  });
+
+  if (!hasMesh) worldBox.setFromObject(obj);
+  return worldBox;
+}
+
 function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   // 재호출 시 누적 방지 — 매번 fresh 한 상태에서 시작
   obj.position.set(0, 0, 0);
@@ -89,14 +138,14 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   obj.scale.set(1, 1, 1);
   obj.updateMatrixWorld(true);
 
-  const box  = new THREE.Box3().setFromObject(obj);
+  const box  = getRenderableBounds(obj);
   const size = box.getSize(new THREE.Vector3());
-  const h    = Math.max(size.x, size.y, size.z);
+  const h    = size.y > 0 ? size.y : Math.max(size.x, size.y, size.z);
   if (h > 0) {
     obj.scale.setScalar(targetHeight / h);
     obj.updateMatrixWorld(true);
   }
-  const box2 = new THREE.Box3().setFromObject(obj);
+  const box2 = getRenderableBounds(obj);
   obj.position.y -= box2.min.y;            // 발 -> y=0
 }
 
@@ -513,9 +562,54 @@ export default function CharacterPage() {
   const [showPicker, setShowPicker] = useState(false);
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
+  const [myChars, setMyChars]     = useState<MyCharacter[]>([]);
+  const [selectingId, setSelectingId] = useState('');
 
   const setColor = (key: string) => (val: string) =>
     setAppearance(prev => ({ ...prev, [key]: val }));
+
+  const applyCharacterToEditor = (ch: MyCharacter) => {
+    const ap = (ch.appearance || {}) as Record<string, unknown>;
+    setName(ch.name || '');
+    setAppearance({
+      bodyColor: String(ap.bodyColor || '#4f46e5'),
+      skinColor: String(ap.skinColor || '#fcd9b0'),
+      hairColor: String(ap.hairColor || '#1e293b'),
+      pantsColor: String(ap.pantsColor || '#1e293b'),
+    });
+    setModelUrl(String(ap.modelUrl || ''));
+    setModelName(ch.name || '');
+    setModelScale(clamp(Number(ap.modelScale ?? 1.0) || 1.0, 0.1, 3));
+    setModelRotX(sanitizeRotX(ap.fbxRotX));
+    setModelOffsetY(sanitizeOffsetY(ap.fbxOffsetY));
+    setAnimMap({
+      idle: String(ap.idleAnim || ''),
+      walk: String(ap.walkAnim || ''),
+      run: String(ap.runAnim || ''),
+      jump: String(ap.jumpAnim || ''),
+      crouch: String(ap.crouchAnim || ''),
+      prone: String(ap.proneAnim || ''),
+    });
+    setAnimTrims((ap.animTrims as Record<string, { start: number; end: number }>) || {});
+  };
+
+  const loadCharacters = async () => {
+    const token = session.getToken();
+    if (!token) return;
+    const res = await fetch(`${API}/api/characters`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const list: MyCharacter[] = data.characters || [];
+    setMyChars(list);
+    const active = list.find((c) => c.isActive) || list[0];
+    if (active) applyCharacterToEditor(active);
+  };
+
+  useEffect(() => {
+    loadCharacters().catch(() => {});
+  }, []);
 
   const handleSelectAsset = (asset: Asset) => {
     setModelUrl(asset.modelUrl);
@@ -591,11 +685,34 @@ export default function CharacterPage() {
         setError(d.error?.message || t('saveFailed'));
         return;
       }
+      await loadCharacters();
       router.replace('/world');
     } catch {
       setError(t('networkError'));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSelectCharacter = async (id: string) => {
+    setSelectingId(id);
+    setError('');
+    try {
+      const token = session.getToken();
+      const res = await fetch(`${API}/api/characters/${encodeURIComponent(id)}/select`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.error?.message || t('saveFailed'));
+        return;
+      }
+      await loadCharacters();
+    } catch {
+      setError(t('networkError'));
+    } finally {
+      setSelectingId('');
     }
   };
 
@@ -672,6 +789,36 @@ export default function CharacterPage() {
           {/* 설정 패널 */}
           <div style={{ width: 300 }}>
             <h2 style={{ color: '#fff', margin: '0 0 18px', fontSize: 20, fontWeight: 800 }}>{t('title')}</h2>
+
+            {myChars.length > 0 && (
+              <div style={{
+                marginBottom: 16, padding: '12px 14px',
+                background: 'rgba(16,185,129,0.08)', borderRadius: 12,
+                border: '1px solid rgba(16,185,129,0.2)',
+              }}>
+                <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, marginBottom: 8 }}>{t('myCharacters')}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 140, overflowY: 'auto' }}>
+                  {myChars.map((ch) => (
+                    <button
+                      key={ch.id}
+                      onClick={() => { applyCharacterToEditor(ch); handleSelectCharacter(ch.id); }}
+                      disabled={selectingId === ch.id}
+                      style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none',
+                        background: ch.isActive ? 'rgba(16,185,129,0.25)' : 'rgba(255,255,255,0.08)',
+                        color: '#fff', fontSize: 12, cursor: 'pointer',
+                      }}
+                    >
+                      <span style={{ textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ch.name}</span>
+                      <span style={{ opacity: 0.8, fontSize: 11 }}>
+                        {selectingId === ch.id ? t('saving') : (ch.isActive ? t('activeCharacter') : t('selectCharacter'))}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* 이름 */}
             <div style={{ marginBottom: 16 }}>
@@ -897,7 +1044,7 @@ export default function CharacterPage() {
               color: '#fff', fontWeight: 800, fontSize: 15, cursor: saving ? 'default' : 'pointer',
               opacity: saving ? 0.6 : 1, marginTop: 4,
             }}>
-              {saving ? t('saving') : t('enterWorld')}
+              {saving ? t('saving') : t('saveAndEnterWorld')}
             </button>
           </div>
         </div>
