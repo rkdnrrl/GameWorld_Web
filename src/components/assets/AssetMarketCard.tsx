@@ -23,14 +23,16 @@ interface Props {
   importing?: boolean;
   imported?: boolean;
   liking?: boolean;
+  reported?: boolean;
   onPreview: (a: Asset) => void;
   onImport: (a: Asset) => void;
   onToggleLike: (a: MarketAsset) => void;
+  onReport: (a: Asset) => void;
 }
 
 export default function AssetMarketCard({
-  asset, kinds, importing, imported, liking,
-  onPreview, onImport, onToggleLike,
+  asset, kinds, importing, imported, liking, reported,
+  onPreview, onImport, onToggleLike, onReport,
 }: Props) {
   const t = useTranslations('Assets');
   const [hovered, setHovered] = useState(false);
