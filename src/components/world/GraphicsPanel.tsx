@@ -87,15 +87,6 @@ export default function GraphicsPanel({ settings, updateSettings, applyPreset }:
             </select>
           </Section>
 
-          {/* 안티앨리어싱 */}
-          <Section label={t('antialias')}>
-            <ToggleButtons
-              value={settings.antialias}
-              onChange={v => updateSettings({ antialias: v })}
-              labels={[t('off'), t('on')]}
-            />
-          </Section>
-
           {/* 다른 플레이어 그림자 */}
           <Section label={t('remoteShadows')}>
             <ToggleButtons
