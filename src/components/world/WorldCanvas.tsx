@@ -740,6 +740,8 @@ export default function WorldCanvas({ character, players, posesRef, onMove, cust
         />
         <hemisphereLight args={['#87ceeb', '#4ade80', 0.3]} />
 
+        <GraphicsApplier shadowSize={graphics.shadowSize} />
+
         <Sky sunPosition={[25, 10, 15]} turbidity={0.4} rayleigh={0.25} />
 
         <Suspense fallback={null}>
