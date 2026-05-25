@@ -85,7 +85,6 @@ function disposeMat(mat: THREE.MeshStandardMaterial) {
 function PreviewModel({ url, config }: { url: string; config: MaterialConfig }) {
   const [obj, setObj] = useState<THREE.Object3D | null>(null);
   const originalMats = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
-  const g = useRef<THREE.Group>(null);
 
   useEffect(() => {
     let cancelled = false;
