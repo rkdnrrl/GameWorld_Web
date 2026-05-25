@@ -250,6 +250,16 @@ export default function AssetBrowsePage() {
         </div>
 
         <div style={{ maxWidth: 1400, margin: '0 auto', padding: '20px 32px' }}>
+          {/* 탭 */}
+          <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+            <TabBtn active={tab === 'assets'} onClick={() => setQuery({ tab: null })}>
+              🎲 {t('tabAssets')}
+            </TabBtn>
+            <TabBtn active={tab === 'packs'} onClick={() => setQuery({ tab: 'packs' })}>
+              📦 {t('tabPacks')}
+            </TabBtn>
+          </div>
+
           {/* 검색 + 필터 */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 16 }}>
             <div style={{ position: 'relative', flex: '1 1 280px', maxWidth: 360 }}>
