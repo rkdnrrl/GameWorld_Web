@@ -23,6 +23,9 @@ interface Asset {
   id: string;
   name: string;
   modelUrl: string;
+  thumbnailUrl?: string | null;
+  isPublic?: boolean;
+  createdAt?: string;
   materialConfig?: MaterialConfig | null;
 }
 
