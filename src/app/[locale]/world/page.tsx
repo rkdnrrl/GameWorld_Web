@@ -120,6 +120,7 @@ export default function WorldPage() {
       <WorldCanvas
         character={character ?? {}}
         players={players}
+        posesRef={posesRef}
         onMove={sendMove}
         customObjects={customObjects ?? undefined}
       />
