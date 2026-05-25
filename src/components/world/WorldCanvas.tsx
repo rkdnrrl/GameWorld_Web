@@ -16,21 +16,25 @@ function lerpAngle(current: number, target: number, t: number): number {
   return current + diff * t;
 }
 
-function keepFeetOnGround(obj: THREE.Object3D, scratchBox: THREE.Box3) {
+function getMeshMinYLocal(obj: THREE.Object3D, scratchBox: THREE.Box3): number {
   obj.updateMatrixWorld(true);
+  const invRoot = obj.matrixWorld.clone().invert();
+  const tmpWorld = new THREE.Box3();
+  const tmpLocal = new THREE.Box3();
   let hasMesh = false;
   scratchBox.makeEmpty();
   obj.traverse((c) => {
     const m = c as THREE.Mesh;
     if (!m.isMesh) return;
     hasMesh = true;
-    scratchBox.expandByObject(m);
+    tmpWorld.setFromObject(m);
+    tmpLocal.copy(tmpWorld).applyMatrix4(invRoot);
+    scratchBox.union(tmpLocal);
   });
-  if (!hasMesh) scratchBox.setFromObject(obj);
-}
-
-function getMeshMinY(obj: THREE.Object3D, scratchBox: THREE.Box3): number {
-  keepFeetOnGround(obj, scratchBox);
+  if (!hasMesh) {
+    scratchBox.setFromObject(obj);
+    scratchBox.applyMatrix4(invRoot);
+  }
   return Number.isFinite(scratchBox.min.y) ? scratchBox.min.y : 0;
 }
 
@@ -47,7 +51,7 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   obj.updateMatrixWorld(true);
 
   const box = new THREE.Box3();
-  keepFeetOnGround(obj, box);
+  getMeshMinYLocal(obj, box);
   const size = box.getSize(new THREE.Vector3());
   const h    = Math.max(size.x, size.y, size.z);
   if (h > 0) {
@@ -56,7 +60,7 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   }
 
   const box2 = new THREE.Box3();
-  obj.position.y -= getMeshMinY(obj, box2);
+  obj.position.y -= getMeshMinYLocal(obj, box2);
 }
 
 /* ── 애니메이션 상태 타입 ─────────────── */
@@ -191,7 +195,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       if (cancelled) return;
       cloned.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = castShadow; });
       autoNormalize(cloned, rotX, 1.8);
-      baseMinY.current = getMeshMinY(cloned, liveBox.current);
+      baseMinY.current = getMeshMinYLocal(cloned, liveBox.current);
       setupMixer(cloned, anims);
       setObj(cloned);
     })();
@@ -216,7 +220,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   useFrame((_, dt) => {
     mixer.current?.update(dt);
     if (obj) {
-      const nowMinY = getMeshMinY(obj, liveBox.current);
+      const nowMinY = getMeshMinYLocal(obj, liveBox.current);
       obj.position.y -= (nowMinY - baseMinY.current);
     }
     if (!mixer.current) return;
