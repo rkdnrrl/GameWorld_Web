@@ -138,6 +138,12 @@ function CustomPreview({
     };
   }, [url, onAnimationsLoaded]);
 
+  // rotX 가 변경되면 회전 + 발 재정렬 (FBX 재로드 없이)
+  useEffect(() => {
+    if (!obj) return;
+    autoNormalize(obj, rotX, 1.8);
+  }, [rotX, obj]);
+
   // 선택된 애니메이션만 재생 (트림 적용)
   useEffect(() => {
     if (!mixer.current) { onPlayingClip?.(null); return; }
