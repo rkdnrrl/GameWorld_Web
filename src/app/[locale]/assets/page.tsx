@@ -51,6 +51,9 @@ export default function AssetsPage() {
   /* ── 업로드 ── */
   const [uploading, setUploading] = useState(false);
   const [progress,  setProgress]  = useState(0);
+  const [batchDone,  setBatchDone]  = useState(0);
+  const [batchTotal, setBatchTotal] = useState(0);
+  const [batchFailed, setBatchFailed] = useState(0);
   const [error,     setError]     = useState('');
   const [dragOver,  setDragOver]  = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -115,59 +118,82 @@ export default function AssetsPage() {
     [kinds],
   );
 
-  async function upload(file: File) {
-    setError('');
-    const ext = file.name.split('.').pop()?.toLowerCase() || '';
-    const kind = kinds.find(k => k.extensions.includes(ext));
-    if (!kind) { setError(t('unsupportedType', { ext })); return; }
-    if (file.size > kind.maxSizeMb * 1024 * 1024) {
-      setError(t('sizeOverLimit', { maxMb: kind.maxSizeMb }));
-      return;
-    }
+  /** 단일 파일 업로드 — state 는 건드리지 않고 성공 시 새 asset 만 반환 */
+  function uploadOne(file: File, folder: string | null, onProgress: (pct: number) => void): Promise<Asset> {
+    return new Promise((resolve, reject) => {
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      const kind = kinds.find(k => k.extensions.includes(ext));
+      if (!kind) { reject(new Error(t('unsupportedType', { ext }))); return; }
+      if (file.size > kind.maxSizeMb * 1024 * 1024) {
+        reject(new Error(t('sizeOverLimit', { maxMb: kind.maxSizeMb }))); return;
+      }
 
+      const form = new FormData();
+      form.append('model', file);
+      form.append('name', file.name.replace(/\.[^.]+$/, ''));
+      if (folder) form.append('folder', folder);
+
+      const xhr = new XMLHttpRequest();
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const d = JSON.parse(xhr.responseText);
+            if (d.asset) resolve(d.asset);
+            else reject(new Error(t('uploadFailed')));
+          } catch { reject(new Error(t('uploadFailed'))); }
+        } else {
+          try { reject(new Error(JSON.parse(xhr.responseText).error?.message)); }
+          catch { reject(new Error(t('uploadFailed'))); }
+        }
+      };
+      xhr.onerror = () => reject(new Error(t('networkError')));
+      xhr.open('POST', `${API}/api/assets/upload`);
+      xhr.setRequestHeader('Authorization', `Bearer ${token()}`);
+      xhr.send(form);
+    });
+  }
+
+  /** 여러 파일 — 순차 업로드 + 배치 진행률 + 개별 실패 격리.
+   *  folderOverride 가 있으면 그 폴더로, 아니면 selectedFolder 로. */
+  async function uploadMany(files: File[], folderOverride?: string | null) {
+    if (files.length === 0) return;
+    const folder = folderOverride !== undefined ? folderOverride : selectedFolder;
+    setError('');
     setUploading(true);
     setProgress(0);
+    setBatchDone(0);
+    setBatchTotal(files.length);
+    setBatchFailed(0);
 
-    const form = new FormData();
-    form.append('model', file);
-    form.append('name', file.name.replace(/\.[^.]+$/, ''));
-    // 현재 보고 있는 폴더로 자동 분류 (""은 루트 필터 → 폴더 없음으로 처리)
-    if (selectedFolder) form.append('folder', selectedFolder);
+    const failed: string[] = [];
 
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.upload.onprogress = e => {
-          if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
-        };
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            const d = JSON.parse(xhr.responseText);
-            if (d.asset) setAssets(prev => [d.asset, ...prev]);
-            resolve();
-          } else {
-            try { reject(new Error(JSON.parse(xhr.responseText).error?.message)); }
-            catch { reject(new Error(t('uploadFailed'))); }
-          }
-        };
-        xhr.onerror = () => reject(new Error(t('networkError')));
-        xhr.open('POST', `${API}/api/assets/upload`);
-        xhr.setRequestHeader('Authorization', `Bearer ${token()}`);
-        xhr.send(form);
-      });
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : t('uploadFailed'));
-    } finally {
-      setUploading(false);
+    for (let i = 0; i < files.length; i++) {
+      try {
+        const asset = await uploadOne(files[i], folder, pct => setProgress(pct));
+        setAssets(prev => [asset, ...prev]);
+      } catch (e) {
+        failed.push(`${files[i].name}: ${e instanceof Error ? e.message : ''}`);
+        setBatchFailed(n => n + 1);
+      }
+      setBatchDone(i + 1);
       setProgress(0);
+    }
+
+    setUploading(false);
+    setProgress(0);
+    if (failed.length > 0) {
+      setError(t('batchUploadFailed', { count: failed.length }) + '\n' + failed.slice(0, 5).join('\n'));
     }
   }
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    const file = e.dataTransfer.files[0];
-    if (file) upload(file);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) uploadMany(files);
   };
 
   async function deleteAsset(id: string) {
@@ -285,26 +311,31 @@ export default function AssetsPage() {
     setDragActive(false);
     dragIdsRef.current = [];
   }
-  async function onDropToFolder(folder: string | null) {
-    const ids = dragIdsRef.current;
+  /** 사이드바 폴더 드롭 — 내부 카드 드래그(이동) 또는 OS 파일(업로드) 둘 다 처리 */
+  async function onDropToFolder(folder: string | null, files?: File[]) {
     setDragActive(false);
+    // 1) OS 파일이 함께 왔으면 그 폴더로 업로드
+    if (files && files.length > 0) {
+      dragIdsRef.current = [];
+      await uploadMany(files, folder);
+      return;
+    }
+    // 2) 내부 카드 드래그 → 폴더 이동
+    const ids = dragIdsRef.current;
     dragIdsRef.current = [];
     if (ids.length === 0) return;
-    // 이미 그 폴더에 있는 건 제외
     const filtered = ids.filter(id => {
       const a = assets.find(x => x.id === id);
       return a && (a.folder ?? null) !== folder;
     });
     if (filtered.length === 0) return;
 
-    // optimistic 업데이트
     setAssets(prev => prev.map(a => filtered.includes(a.id) ? { ...a, folder } : a));
     try {
       const tk = session.getToken() || '';
       await api.batchUpdateAssets(tk, { ids: filtered, action: 'move', value: folder });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'move failed');
-      // 실패 시 재로드 (간단)
       fetch(`${API}/api/assets/my`, { headers: { Authorization: `Bearer ${token()}` } })
         .then(r => r.json()).then(d => setAssets(d.assets || [])).catch(() => {});
     }
@@ -468,19 +499,35 @@ export default function AssetsPage() {
               <input
                 ref={fileRef}
                 type="file"
+                multiple
                 accept={acceptAttr}
                 style={{ display: 'none' }}
-                onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ''; }}
+                onChange={e => {
+                  const files = Array.from(e.target.files || []);
+                  if (files.length > 0) uploadMany(files);
+                  e.target.value = '';
+                }}
               />
               {uploading ? (
                 <>
                   <div style={{ fontSize: 28, marginBottom: 8 }}>⬆️</div>
-                  <div style={{ fontSize: 14, marginBottom: 12, opacity: 0.8 }}>{t('uploadingPercent', { progress })}</div>
-                  <div style={{ height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3, maxWidth: 320, margin: '0 auto' }}>
+                  <div style={{ fontSize: 14, marginBottom: 6, opacity: 0.8 }}>
+                    {batchTotal > 1
+                      ? t('batchUploadingProgress', { done: batchDone, total: batchTotal, percent: progress })
+                      : t('uploadingPercent', { progress })}
+                  </div>
+                  {batchFailed > 0 && (
+                    <div style={{ fontSize: 11, color: '#fca5a5', marginBottom: 8 }}>
+                      ⚠️ {t('batchUploadFailedShort', { count: batchFailed })}
+                    </div>
+                  )}
+                  <div style={{ height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3, maxWidth: 320, margin: '8px auto 0' }}>
                     <div style={{
                       height: '100%', borderRadius: 3,
                       background: 'linear-gradient(90deg,#6366f1,#8b5cf6)',
-                      width: `${progress}%`,
+                      width: batchTotal > 1
+                        ? `${Math.round(((batchDone + progress / 100) / batchTotal) * 100)}%`
+                        : `${progress}%`,
                       transition: 'width 0.2s ease',
                     }} />
                   </div>
@@ -488,7 +535,7 @@ export default function AssetsPage() {
               ) : (
                 <>
                   <div style={{ fontSize: 32, marginBottom: 6 }}>🗂️</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{t('dragHint')}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{t('dragHintMulti')}</div>
                   <div style={{ fontSize: 12, opacity: 0.45 }}>{t('fileTypeHint', { maxMb: maxSizeMb })}</div>
                 </>
               )}
