@@ -587,9 +587,9 @@ export default function StudioCanvas() {
           </div>
           {activeAssetPicker && (
             <div style={{ maxHeight: 180, overflowY: 'auto', background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: 6 }}>
-              {myAssets.length === 0
+              {myAssets.filter(a => /\.fbx$/i.test(a.modelUrl)).length === 0
                 ? <div style={{ fontSize: 11, opacity: 0.4, padding: 8, textAlign: 'center' }}>{t('noAssets')}<br /><a href="/assets" style={{ color: '#818cf8' }}>/assets</a> {t('uploadAt')}</div>
-                : myAssets.map(a => (
+                : myAssets.filter(a => /\.fbx$/i.test(a.modelUrl)).map(a => (
                     <button key={a.id} onClick={() => addAsset(a)}
                       style={{ display: 'block', width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#fff', fontSize: 11, padding: '6px 8px', borderRadius: 6, cursor: 'pointer', marginBottom: 3 }}>
                       📦 {a.name}
