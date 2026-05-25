@@ -273,9 +273,11 @@ export default function AssetBrowsePage() {
                   importing={importingId === a.id}
                   imported={importedIds.has(a.id)}
                   liking={likingId === a.id}
+                  reported={reportedIds.has(a.id)}
                   onPreview={setPreviewAsset}
                   onImport={importAsset}
                   onToggleLike={toggleLike}
+                  onReport={setReportingAsset}
                 />
               ))}
             </div>
