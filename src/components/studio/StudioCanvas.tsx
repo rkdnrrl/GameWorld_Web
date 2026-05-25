@@ -258,19 +258,37 @@ export default function StudioCanvas() {
   }, []);
 
   /* 편집 중인 월드 로드 */
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading]     = useState(false);
   useEffect(() => {
     if (!editingId) return;
-    fetch(`${API}/api/worlds/${editingId}`, { headers: { Authorization: `Bearer ${token()}` } })
-      .then(r => r.json())
+    setLoading(true);
+    setLoadError(null);
+    const tok = session.getToken();
+    console.log('[studio] loading world', editingId, 'token:', tok ? 'yes' : 'NO TOKEN');
+    fetch(`${API}/api/worlds/${editingId}`, { headers: tok ? { Authorization: `Bearer ${tok}` } : {} })
+      .then(async r => {
+        const text = await r.text();
+        console.log('[studio] response status:', r.status, 'body:', text.slice(0, 300));
+        try { return JSON.parse(text); } catch { throw new Error('Invalid JSON: ' + text.slice(0, 100)); }
+      })
       .then(d => {
-        if (!d.world) return;
+        if (!d.world) {
+          setLoadError(d.error?.message || '월드를 찾을 수 없습니다.');
+          return;
+        }
+        console.log('[studio] loaded world:', d.world.name, 'objects:', d.world.mapData?.objects?.length ?? 0);
         setName(d.world.name);
         const objs = d.world.mapData?.objects || [];
         setObjects(objs);
         setHist({ stack: [clone(objs)], idx: 0 });
         setSavedId(d.world.id);
       })
-      .catch(() => {});
+      .catch(e => {
+        console.error('[studio] load failed:', e);
+        setLoadError(String(e?.message || e));
+      })
+      .finally(() => setLoading(false));
   }, [editingId]);
 
   /* 단축키 */
