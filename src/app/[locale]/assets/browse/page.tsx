@@ -109,6 +109,14 @@ export default function AssetBrowsePage() {
     }
   }
 
+  async function submitReport(reason: ReportReason, comment: string) {
+    if (!reportingAsset) return;
+    const tk = session.getToken();
+    if (!tk) { router.push('/login'); return; }
+    await api.reportAsset(tk, reportingAsset.id, { reason, comment });
+    setReportedIds(prev => new Set(prev).add(reportingAsset.id));
+  }
+
   async function toggleLike(a: MarketAsset) {
     const tk = session.getToken();
     if (!tk) { router.push('/login'); return; }
