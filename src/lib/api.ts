@@ -880,6 +880,31 @@ export const api = {
     });
   },
 
+  /** 마켓플레이스: 공개 에셋 검색 + 페이지네이션 */
+  listPublicAssets(params: { q?: string; kind?: string; tag?: string; sort?: 'recent' | 'name'; page?: number; pageSize?: number } = {}) {
+    const sp = new URLSearchParams();
+    if (params.q)        sp.set('q', params.q);
+    if (params.kind)     sp.set('kind', params.kind);
+    if (params.tag)      sp.set('tag', params.tag);
+    if (params.sort)     sp.set('sort', params.sort);
+    if (params.page)     sp.set('page', String(params.page));
+    if (params.pageSize) sp.set('pageSize', String(params.pageSize));
+    const qs = sp.toString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return request<{ assets: any[]; page: number; pageSize: number; total: number; hasMore: boolean }>(
+      `/api/assets/public${qs ? `?${qs}` : ''}`,
+    );
+  },
+
+  /** 마켓플레이스: 공개 에셋을 내 라이브러리로 복사 */
+  cloneAsset(token: string, id: string) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return request<{ asset: any }>(`/api/assets/${encodeURIComponent(id)}/clone`, {
+      method: "POST",
+      headers: authHeaders(token),
+    });
+  },
+
   /** 에셋 일괄 작업 — delete/move/addTags/removeTags/setPublic */
   batchUpdateAssets(token: string, body: {
     ids: string[];
