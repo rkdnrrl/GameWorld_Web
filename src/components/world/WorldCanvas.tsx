@@ -690,7 +690,7 @@ export default function WorldCanvas({ character, players, posesRef, onMove, cust
         camera={{ fov: 60, near: 0.1, far: graphics.farClip, position: [0, 8, 12] }}
         dpr={graphics.dpr}
         gl={{
-          antialias: graphics.antialias,
+          antialias: true, // 항상 켬 (런타임 변경 시 WebGL 컨텍스트 손실)
           powerPreference: 'high-performance',
           stencil: false,
         }}
