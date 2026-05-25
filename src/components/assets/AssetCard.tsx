@@ -238,7 +238,7 @@ export default function AssetCard({
               background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.55)',
             }}
           >
-            v{(asset.metadata?.currentVersion ?? 1)}
+            v{asset.currentVersion ?? 1}
           </button>
           <button
             onClick={() => onDelete(asset.id)}
