@@ -1444,7 +1444,8 @@
     "packMarketEmpty": "暂无公开合集。",
     "packNotFound": "合集未找到。",
     "tabAssets": "资源",
-    "tabPacks": "合集"
+    "tabPacks": "合集",
+    "renameHint": "点击重命名"
   },
   "Notifications": {
     "aria": "通知",

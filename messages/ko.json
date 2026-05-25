@@ -1444,7 +1444,8 @@
     "packMarketEmpty": "공개된 팩이 없습니다.",
     "packNotFound": "팩을 찾을 수 없습니다.",
     "tabAssets": "에셋",
-    "tabPacks": "팩"
+    "tabPacks": "팩",
+    "renameHint": "클릭하여 이름 변경"
   },
   "Notifications": {
     "aria": "알림",

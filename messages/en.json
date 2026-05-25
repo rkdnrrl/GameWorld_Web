@@ -1444,7 +1444,8 @@
     "packMarketEmpty": "No public packs yet.",
     "packNotFound": "Pack not found.",
     "tabAssets": "Assets",
-    "tabPacks": "Packs"
+    "tabPacks": "Packs",
+    "renameHint": "Click to rename"
   },
   "Notifications": {
     "aria": "Notifications",

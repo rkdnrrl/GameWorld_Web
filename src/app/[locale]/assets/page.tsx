@@ -203,6 +203,20 @@ export default function AssetsPage() {
     setAssets(prev => prev.map(a => a.id === updated.id ? updated : a));
   }
 
+  async function renameAsset(asset: Asset, newName: string) {
+    const r = await fetch(`${API}/api/assets/${asset.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+      body: JSON.stringify({ name: newName }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err?.error?.message || 'rename failed');
+    }
+    const { asset: updated } = await r.json();
+    setAssets(prev => prev.map(a => a.id === updated.id ? updated : a));
+  }
+
   async function saveFolder(asset: Asset, folder: string | null) {
     const r = await fetch(`${API}/api/assets/${asset.id}`, {
       method: 'PATCH',
@@ -532,6 +546,7 @@ export default function AssetsPage() {
               onTogglePublic={togglePublic}
               onDelete={deleteAsset}
               onEditVersions={setVersionsAsset}
+              onRename={renameAsset}
               onDragStart={onCardDragStart}
               onDragEnd={onCardDragEnd}
             />

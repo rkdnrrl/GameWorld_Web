@@ -1444,7 +1444,8 @@
     "packMarketEmpty": "公開されているパックがありません。",
     "packNotFound": "パックが見つかりません。",
     "tabAssets": "アセット",
-    "tabPacks": "パック"
+    "tabPacks": "パック",
+    "renameHint": "クリックして名前変更"
   },
   "Notifications": {
     "aria": "通知",
