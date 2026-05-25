@@ -183,7 +183,13 @@ function Mesh3D({ obj, selected, onClick, assetConfig }: {
   assetConfig?: any;
 }) {
   const ref = useRef<THREE.Mesh>(null);
-  const handle = (e: { stopPropagation: () => void }) => { e.stopPropagation(); onClick(); };
+  // onPointerDown 으로 선택 — 누른 순간의 대상이 확정 (드래그 후 다른 오브젝트 위에서 떼도 원래 것 유지)
+  // 좌클릭(button=0)만 처리, 우클릭(카메라 회전)/중클릭은 무시
+  const handle = (e: { stopPropagation: () => void; button?: number }) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.stopPropagation();
+    onClick();
+  };
 
   if (obj.kind === 'asset') return <AssetMesh obj={obj} selected={selected} onClick={handle} assetConfig={assetConfig} />;
 
