@@ -417,6 +417,21 @@ export default function AssetBrowsePage() {
   );
 }
 
+function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick}
+      style={{
+        padding: '10px 16px', fontSize: 13, fontWeight: active ? 700 : 500,
+        background: 'transparent', border: 'none', cursor: 'pointer',
+        color: active ? '#fff' : 'rgba(255,255,255,0.55)',
+        borderBottom: `2px solid ${active ? '#6366f1' : 'transparent'}`,
+        marginBottom: -1,
+      }}>
+      {children}
+    </button>
+  );
+}
+
 function KindChip({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
     <button onClick={onClick}
