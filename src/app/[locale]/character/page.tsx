@@ -604,6 +604,7 @@ export default function CharacterPage() {
                     url={modelUrl}
                     userScale={modelScale}
                     rotX={modelRotX}
+                    offsetY={modelOffsetY}
                     previewAnim={animMap[previewSlot]}
                     previewTrim={animTrims[previewSlot]}
                     onAnimationsLoaded={setAvailableAnims}
