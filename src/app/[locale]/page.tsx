@@ -181,6 +181,17 @@ export default function Home() {
       )}
 
       {/* ── 히어로 캐러셀 ── */}
+      {token && (
+        <div className="mx-auto max-w-[1280px] px-3 pt-3 sm:px-4">
+          <Link
+            href="/world"
+            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white shadow hover:bg-indigo-500"
+          >
+            🎮 {t("enterHomeHub")}
+          </Link>
+        </div>
+      )}
+
       {heroGames.length > 0 && (
         <div
           className="relative w-full overflow-hidden bg-black"

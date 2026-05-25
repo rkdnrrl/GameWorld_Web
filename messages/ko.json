@@ -110,6 +110,7 @@
     "hotPosts": "🔥 HOT 글",
     "viewAllGames": "게임 전체 보기 →",
     "playNow": "플레이",
+    "enterHomeHub": "홈허브 입장",
     "viewDetail": "자세히 보기",
     "viewAllCommunity": "더 보기 →",
     "viewAllNotice": "전체 공지 →",
@@ -1248,7 +1249,17 @@
     "playersList": "👥 플레이어",
     "controlHint": "클릭하여 마우스 잠금 | WASD 이동 | Shift 달리기 | Space 점프 | C 앉기 | Z 엎드리기 | ESC 해제",
     "chatPlaceholder": "메시지 입력…",
-    "chatEmpty": "아직 채팅이 없어요"
+    "chatEmpty": "아직 채팅이 없어요",
+    "send": "전송",
+    "hubControl": "허브",
+    "currentCharacter": "현재 캐릭터",
+    "unknownCharacter": "알 수 없는 캐릭터",
+    "changeCharacter": "캐릭터 변경",
+    "activeCharacter": "사용 중",
+    "manageCharacters": "캐릭터 관리로 이동",
+    "moveMap": "맵 이동",
+    "homeHubMap": "홈 허브 (기본 맵)",
+    "loadingHub": "허브 정보 로딩 중…"
   },
   "Character": {
     "title": "🎮 캐릭터 만들기",

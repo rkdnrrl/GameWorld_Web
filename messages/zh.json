@@ -110,6 +110,7 @@
     "hotPosts": "🔥 HOT帖子",
     "viewAllGames": "全部游戏 →",
     "playNow": "游玩",
+    "enterHomeHub": "进入首页中枢",
     "viewDetail": "查看详情",
     "viewAllCommunity": "更多 →",
     "viewAllNotice": "全部公告 →",
@@ -1248,7 +1249,17 @@
     "playersList": "👥 玩家",
     "controlHint": "点击锁定鼠标 | WASD 移动 | Shift 奔跑 | Space 跳跃 | C 蹲下 | Z 匍匐 | ESC 解除",
     "chatPlaceholder": "输入消息…",
-    "chatEmpty": "暂无消息"
+    "chatEmpty": "暂无消息",
+    "send": "发送",
+    "hubControl": "中枢",
+    "currentCharacter": "当前角色",
+    "unknownCharacter": "未知角色",
+    "changeCharacter": "切换角色",
+    "activeCharacter": "使用中",
+    "manageCharacters": "前往角色管理",
+    "moveMap": "切换地图",
+    "homeHubMap": "首页中枢（默认地图）",
+    "loadingHub": "正在加载中枢信息…"
   },
   "Character": {
     "title": "🎮 创建角色",

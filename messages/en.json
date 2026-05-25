@@ -110,6 +110,7 @@
     "hotPosts": "🔥 HOT Posts",
     "viewAllGames": "All Games →",
     "playNow": "Play",
+    "enterHomeHub": "Enter Home Hub",
     "viewDetail": "View Details",
     "viewAllCommunity": "More →",
     "viewAllNotice": "All Notices →",
@@ -1248,7 +1249,17 @@
     "playersList": "👥 Players",
     "controlHint": "Click to lock mouse | WASD move | Shift sprint | Space jump | C crouch | Z prone | ESC release",
     "chatPlaceholder": "Type message…",
-    "chatEmpty": "No messages yet"
+    "chatEmpty": "No messages yet",
+    "send": "Send",
+    "hubControl": "Hub",
+    "currentCharacter": "Current Character",
+    "unknownCharacter": "Unknown character",
+    "changeCharacter": "Change Character",
+    "activeCharacter": "Active",
+    "manageCharacters": "Open Character Manager",
+    "moveMap": "Move to Map",
+    "homeHubMap": "Home Hub (Default Map)",
+    "loadingHub": "Loading hub data…"
   },
   "Character": {
     "title": "🎮 Create Character",

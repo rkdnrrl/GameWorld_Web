@@ -110,6 +110,7 @@
     "hotPosts": "🔥 HOT投稿",
     "viewAllGames": "ゲーム一覧 →",
     "playNow": "プレイ",
+    "enterHomeHub": "ホームハブに入る",
     "viewDetail": "詳しく見る",
     "viewAllCommunity": "もっと見る →",
     "viewAllNotice": "全てのお知らせ →",
@@ -1248,7 +1249,17 @@
     "playersList": "👥 プレイヤー",
     "controlHint": "クリックでマウスロック | WASD 移動 | Shift 走る | Space ジャンプ | C しゃがむ | Z 伏せる | ESC 解除",
     "chatPlaceholder": "メッセージ入力…",
-    "chatEmpty": "まだチャットがありません"
+    "chatEmpty": "まだチャットがありません",
+    "send": "送信",
+    "hubControl": "ハブ",
+    "currentCharacter": "現在のキャラクター",
+    "unknownCharacter": "不明なキャラクター",
+    "changeCharacter": "キャラクター変更",
+    "activeCharacter": "使用中",
+    "manageCharacters": "キャラクター管理へ",
+    "moveMap": "マップ移動",
+    "homeHubMap": "ホームハブ（基本マップ）",
+    "loadingHub": "ハブ情報を読み込み中…"
   },
   "Character": {
     "title": "🎮 キャラクター作成",
