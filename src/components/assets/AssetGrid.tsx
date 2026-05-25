@@ -60,6 +60,7 @@ export default function AssetGrid({
           onTogglePublic={onTogglePublic}
           onDelete={onDelete}
           onEditVersions={onEditVersions}
+          onRename={onRename}
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
         />
