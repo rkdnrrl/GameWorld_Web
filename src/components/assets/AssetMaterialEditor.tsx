@@ -132,10 +132,8 @@ function PreviewModel({ url, config }: { url: string; config: MaterialConfig }) 
     };
   }, [obj, config]);
 
-  useFrame((_, dt) => { if (g.current) g.current.rotation.y += dt * 0.5; });
-
   if (!obj) return null;
-  return <group ref={g}><primitive object={obj} /></group>;
+  return <primitive object={obj} />;
 }
 
 /* ── 텍스처 선택 ─────────────────────────── */
