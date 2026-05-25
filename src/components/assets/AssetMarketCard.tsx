@@ -102,8 +102,23 @@ export default function AssetMarketCard({
           {asset.name}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-          <div style={{ flex: 1, fontSize: 11, opacity: 0.55, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {t('byAuthor', { name: asset.creator?.username || t('anonymousAuthor') })}
+          <div style={{ flex: 1, fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {asset.creator?.username ? (
+              <Link
+                href={`/users/${encodeURIComponent(asset.creator.username)}`}
+                onClick={e => e.stopPropagation()}
+                title={t('viewCreatorPage')}
+                style={{ color: 'rgba(255,255,255,0.65)', textDecoration: 'none' }}
+                onMouseEnter={e => { e.currentTarget.style.color = '#a5b4fc'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.65)'; }}
+              >
+                {t('byAuthor', { name: asset.creator.username })}
+              </Link>
+            ) : (
+              <span style={{ color: 'rgba(255,255,255,0.55)' }}>
+                {t('byAuthor', { name: t('anonymousAuthor') })}
+              </span>
+            )}
           </div>
           {(asset.importCount ?? 0) > 0 && (
             <span style={{ fontSize: 10, opacity: 0.5, whiteSpace: 'nowrap' }} title={t('importCountTooltip')}>
