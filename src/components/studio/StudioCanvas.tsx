@@ -197,8 +197,10 @@ function Mesh3D({ obj, selected, onClick, assetConfig }: {
   const ref = useRef<THREE.Mesh>(null);
   // onPointerDown 으로 선택 — 누른 순간의 대상이 확정 (드래그 후 다른 오브젝트 위에서 떼도 원래 것 유지)
   // 좌클릭(button=0)만 처리, 우클릭(카메라 회전)/중클릭은 무시
+  // TransformControls 화살표/링 위에 마우스가 있을 땐 무시 (뒤쪽 메시 잘못 선택 방지)
   const handle = (e: { stopPropagation: () => void; button?: number }) => {
     if (e.button !== undefined && e.button !== 0) return;
+    if (isGizmoActive()) return;
     e.stopPropagation();
     onClick();
   };
