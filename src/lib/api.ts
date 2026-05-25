@@ -997,6 +997,65 @@ export const api = {
     });
   },
 
+  /** 내 팩 목록 */
+  listMyPacks(token: string) {
+    return request<{ packs: Array<FolderPack & { assetCount: number }> }>(
+      "/api/packs/my", { headers: authHeaders(token) },
+    );
+  },
+
+  /** 공개 팩 (마켓) */
+  listPublicPacks(params: { q?: string; sort?: 'recent' | 'popular'; page?: number; pageSize?: number } = {}) {
+    const sp = new URLSearchParams();
+    if (params.q)        sp.set('q', params.q);
+    if (params.sort)     sp.set('sort', params.sort);
+    if (params.page)     sp.set('page', String(params.page));
+    if (params.pageSize) sp.set('pageSize', String(params.pageSize));
+    const qs = sp.toString();
+    return request<{
+      packs: Array<FolderPack & {
+        creator: { username: string | null } | null;
+        assetCount: number;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        cover: any;
+      }>;
+      page: number; pageSize: number; total: number; hasMore: boolean;
+    }>(`/api/packs/public${qs ? `?${qs}` : ''}`);
+  },
+
+  /** 팩 상세 + 안의 에셋 */
+  getPack(id: string, token?: string) {
+    return request<{
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      pack: FolderPack & { creator: { username: string | null } | null; cover: any };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      assets: any[];
+    }>(`/api/packs/${encodeURIComponent(id)}`, token ? { headers: authHeaders(token) } : undefined);
+  },
+
+  /** 팩 upsert (creatorId+path) */
+  upsertPack(token: string, body: { path: string; isPublic: boolean; description?: string; coverAssetId?: string | null }) {
+    return request<{ pack: FolderPack }>(`/api/packs`, {
+      method: "PUT",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  },
+
+  /** 팩 메타 삭제 (에셋은 그대로) */
+  deletePack(token: string, id: string) {
+    return request<{ ok: true }>(`/api/packs/${encodeURIComponent(id)}`, {
+      method: "DELETE", headers: authHeaders(token),
+    });
+  },
+
+  /** 팩 전체 가져오기 — 모든 에셋 clone + 폴더 구조 유지 */
+  importPack(token: string, id: string) {
+    return request<{ ok: true; imported: number; skipped: number }>(`/api/packs/${encodeURIComponent(id)}/import`, {
+      method: "POST", headers: authHeaders(token),
+    });
+  },
+
   /** 내가 팔로우한 작가들의 최근 공개 에셋 */
   listFollowingFeed(token: string, params: { page?: number } = {}) {
     const sp = new URLSearchParams();
