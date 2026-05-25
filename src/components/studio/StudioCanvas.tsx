@@ -214,7 +214,35 @@ function DraggingDetector({ setOrbitEnabled }: { setOrbitEnabled: (v: boolean) =
 }
 
 /* ── 메인 ─────────────────────────────────── */
+// 일회용 콘솔 스팸 억제 (TransformControls, ShadowMap 등)
+let _consoleSilenced = false;
+function silenceConsoleSpam() {
+  if (_consoleSilenced || typeof window === 'undefined') return;
+  _consoleSilenced = true;
+  const origErr = console.error;
+  const origWarn = console.warn;
+  const seenErr = new Set<string>();
+  const seenWarn = new Set<string>();
+  console.error = (...args: unknown[]) => {
+    const m = String(args[0] ?? '');
+    if (m.includes('TransformControls: The attached')) {
+      if (seenErr.has(m)) return;
+      seenErr.add(m);
+    }
+    origErr.apply(console, args);
+  };
+  console.warn = (...args: unknown[]) => {
+    const m = String(args[0] ?? '');
+    if (m.includes('PCFSoftShadowMap has been deprecated')) {
+      if (seenWarn.has(m)) return;
+      seenWarn.add(m);
+    }
+    origWarn.apply(console, args);
+  };
+}
+
 export default function StudioCanvas() {
+  useEffect(() => { silenceConsoleSpam(); }, []);
   const t            = useTranslations('Studio');
   const router       = useRouter();
   const searchParams = useSearchParams();
