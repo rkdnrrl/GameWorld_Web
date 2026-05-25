@@ -84,28 +84,6 @@ const btnTiny = (active: boolean) => ({
 
 const WORLD_CHARACTER_BASE_Y = -0.63;
 
-function getMeshMinYLocal(obj: THREE.Object3D, scratchBox: THREE.Box3): number {
-  obj.updateMatrixWorld(true);
-  const invRoot = obj.matrixWorld.clone().invert();
-  const tmpWorld = new THREE.Box3();
-  const tmpLocal = new THREE.Box3();
-  let hasMesh = false;
-  scratchBox.makeEmpty();
-  obj.traverse((c) => {
-    const m = c as THREE.Mesh;
-    if (!m.isMesh) return;
-    hasMesh = true;
-    tmpWorld.setFromObject(m);
-    tmpLocal.copy(tmpWorld).applyMatrix4(invRoot);
-    scratchBox.union(tmpLocal);
-  });
-  if (!hasMesh) {
-    scratchBox.setFromObject(obj);
-    scratchBox.applyMatrix4(invRoot);
-  }
-  return Number.isFinite(scratchBox.min.y) ? scratchBox.min.y : 0;
-}
-
 function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   // 재호출 시 누적 방지 — 매번 fresh 한 상태에서 시작
   obj.position.set(0, 0, 0);
@@ -113,16 +91,15 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   obj.scale.set(1, 1, 1);
   obj.updateMatrixWorld(true);
 
-  const box = new THREE.Box3();
-  getMeshMinYLocal(obj, box);
+  const box  = new THREE.Box3().setFromObject(obj);
   const size = box.getSize(new THREE.Vector3());
   const h    = Math.max(size.x, size.y, size.z);
   if (h > 0) {
     obj.scale.setScalar(targetHeight / h);
     obj.updateMatrixWorld(true);
   }
-  const box2 = new THREE.Box3();
-  obj.position.y -= getMeshMinYLocal(obj, box2);
+  const box2 = new THREE.Box3().setFromObject(obj);
+  obj.position.y -= box2.min.y;            // 발 -> y=0
 }
 
 /* ── 커스텀 모델 프리뷰 (명령형 로드) ───── */

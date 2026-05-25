@@ -16,28 +16,6 @@ function lerpAngle(current: number, target: number, t: number): number {
   return current + diff * t;
 }
 
-function getMeshMinYLocal(obj: THREE.Object3D, scratchBox: THREE.Box3): number {
-  obj.updateMatrixWorld(true);
-  const invRoot = obj.matrixWorld.clone().invert();
-  const tmpWorld = new THREE.Box3();
-  const tmpLocal = new THREE.Box3();
-  let hasMesh = false;
-  scratchBox.makeEmpty();
-  obj.traverse((c) => {
-    const m = c as THREE.Mesh;
-    if (!m.isMesh) return;
-    hasMesh = true;
-    tmpWorld.setFromObject(m);
-    tmpLocal.copy(tmpWorld).applyMatrix4(invRoot);
-    scratchBox.union(tmpLocal);
-  });
-  if (!hasMesh) {
-    scratchBox.setFromObject(obj);
-    scratchBox.applyMatrix4(invRoot);
-  }
-  return Number.isFinite(scratchBox.min.y) ? scratchBox.min.y : 0;
-}
-
 /* ── 커스텀 3D 모델 (Suspense 없이 명령형 로드 — RigidBody 리셋 방지) ── */
 /** 모델을 목표 높이(m)에 맞춰 자동 정규화 + 회전 적용 + 발 정렬
  *  rotX 를 미리 적용한 뒤 측정/align 해야 Z-up FBX (Meshy 등) 도 발이 y=0 에 옴
@@ -50,8 +28,7 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   obj.scale.set(1, 1, 1);
   obj.updateMatrixWorld(true);
 
-  const box = new THREE.Box3();
-  getMeshMinYLocal(obj, box);
+  const box  = new THREE.Box3().setFromObject(obj);
   const size = box.getSize(new THREE.Vector3());
   const h    = Math.max(size.x, size.y, size.z);
   if (h > 0) {
@@ -59,8 +36,8 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
     obj.updateMatrixWorld(true);
   }
 
-  const box2 = new THREE.Box3();
-  obj.position.y -= getMeshMinYLocal(obj, box2);
+  const box2 = new THREE.Box3().setFromObject(obj);
+  obj.position.y -= box2.min.y;            // 발 -> y=0
 }
 
 /* ── 애니메이션 상태 타입 ─────────────── */
