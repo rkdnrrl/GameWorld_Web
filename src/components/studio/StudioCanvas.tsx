@@ -440,9 +440,12 @@ export default function StudioCanvas() {
       if (!res.ok) throw new Error(t('saveFailed'));
       const d = await res.json();
       const newId = d.world?.id ?? savedId;
-      if (newId && newId !== savedId) {
+      if (newId) {
+        // savedId 먼저 갱신해야 load useEffect가 재로드 스킵
         setSavedId(newId);
-        router.replace(`/studio?id=${newId}`);
+        if (newId !== savedId) {
+          router.replace(`/studio?id=${newId}`);
+        }
       }
       alert(t('saved'));
     } catch (e) {
