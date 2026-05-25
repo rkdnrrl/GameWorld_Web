@@ -82,6 +82,8 @@ const btnTiny = (active: boolean) => ({
   color: '#fff', cursor: 'pointer',
 } as const);
 
+const WORLD_CHARACTER_BASE_Y = -0.63;
+
 function keepFeetOnGround(obj: THREE.Object3D, scratchBox: THREE.Box3) {
   obj.updateMatrixWorld(true);
   let hasMesh = false;
@@ -220,8 +222,8 @@ function CustomPreview({
   // 외곽 group y=-1 은 카메라(y=0.5)에서 적당한 시야 위치 잡으려고 유지.
   // offsetY 는 사용자가 발 높이 미세조정 (m)
   return (
-    <group ref={g} position={[0, -1, 0]}>
-      <group scale={userScale} position={[0, offsetY, 0]}>
+    <group ref={g}>
+      <group scale={userScale} position={[0, WORLD_CHARACTER_BASE_Y + offsetY, 0]}>
         <primitive object={obj} />
       </group>
     </group>
@@ -234,7 +236,7 @@ function CustomPreview({
 */
 function GroundRef() {
   return (
-    <group position={[0, -1, 0]}>
+    <group>
       {/* 메인 디스크 */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={-1}>
         <circleGeometry args={[1.2, 48]} />
@@ -263,7 +265,7 @@ function BlockPreview({ appearance }: { appearance: Record<string, string> }) {
   const hair = appearance.hairColor || '#1e293b';
   const pants = appearance.pantsColor || '#1e293b';
   return (
-    <group ref={g} position={[0, -1, 0]}>
+    <group ref={g} position={[0, WORLD_CHARACTER_BASE_Y, 0]}>
       <mesh position={[0, 0.35, 0]}><boxGeometry args={[0.55, 0.65, 0.28]} /><meshStandardMaterial color={body} /></mesh>
       <mesh position={[0, 0.95, 0]}><boxGeometry args={[0.48, 0.48, 0.48]} /><meshStandardMaterial color={skin} /></mesh>
       <mesh position={[0, 1.22, 0]}><boxGeometry args={[0.50, 0.14, 0.50]} /><meshStandardMaterial color={hair} /></mesh>
