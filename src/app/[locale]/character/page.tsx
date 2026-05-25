@@ -599,6 +599,8 @@ export default function CharacterPage() {
             <Canvas camera={{ position: [0, 0.5, 3.5], fov: 45 }}>
               <ambientLight intensity={0.5} />
               <directionalLight position={[5, 8, 5]} intensity={1.5} />
+              {/* 바닥 기준 — 캐릭터 발이 여기 맞아야 함 */}
+              {modelUrl && <GroundRef />}
               {modelUrl
                 ? <CustomPreview
                     url={modelUrl}
