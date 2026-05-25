@@ -47,6 +47,19 @@ export default function AssetsPage() {
   const selectedKinds = searchParams.get('kind')
     ? searchParams.get('kind')!.split(',').filter(Boolean)
     : [];
+  const selectedTags = searchParams.get('tag')
+    ? searchParams.get('tag')!.split(',').filter(Boolean)
+    : [];
+
+  const toggleTag = useCallback((tag: string) => {
+    const next = selectedTags.includes(tag)
+      ? selectedTags.filter(t => t !== tag)
+      : [...selectedTags, tag];
+    const sp = new URLSearchParams(searchParams.toString());
+    if (next.length === 0) sp.delete('tag');
+    else sp.set('tag', next.join(','));
+    router.replace(`?${sp.toString()}`, { scroll: false });
+  }, [selectedTags, searchParams, router]);
 
   const setQuery = useCallback((patch: Record<string, string | string[] | null>) => {
     const sp = new URLSearchParams(searchParams.toString());
