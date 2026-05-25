@@ -57,6 +57,8 @@ export default function AssetGrid({
           onToggleSelect={onToggleSelect}
           onTogglePublic={onTogglePublic}
           onDelete={onDelete}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
         />
       ))}
     </div>
