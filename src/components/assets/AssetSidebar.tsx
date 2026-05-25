@@ -122,14 +122,16 @@ export default function AssetSidebar({
       <div style={{ fontSize: 10, opacity: 0.4, textTransform: 'uppercase', letterSpacing: 0.5, padding: '20px 8px 6px' }}>
         {t('sidebarFolder')}
       </div>
-      {folderTree.length === 0 && rootCount === 0 ? (
+      {folderTree.length === 0 && rootCount === 0 && !dragActive ? (
         <div style={{ padding: '6px 10px', fontSize: 11, opacity: 0.35 }}>{t('noFoldersYet')}</div>
       ) : (
         <AssetFolderTree
           nodes={folderTree}
           selectedFolder={selectedFolder}
           rootCount={rootCount}
+          dragActive={dragActive}
           onSelect={onSelectFolder}
+          onDrop={onDropToFolder}
         />
       )}
     </aside>
