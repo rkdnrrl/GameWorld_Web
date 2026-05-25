@@ -238,6 +238,7 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true }: {
   const modelUrl   = appearance.modelUrl as string | undefined;
   const userScale  = Number(appearance.modelScale) || 1.0;
   const rotX       = Number(appearance.fbxRotX ?? -Math.PI / 2);
+  const offsetY    = Number(appearance.fbxOffsetY ?? 0);
   const trims      = (appearance.animTrims ?? {}) as Partial<Record<AnimState, AnimTrim>>;
 
   if (modelUrl) {
