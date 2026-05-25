@@ -175,15 +175,17 @@ function TexturePickerModal({ assets, onSelect, onClose, title }: {
 }
 
 /* ── 단일 오브젝트 렌더링 ────────────────── */
-function Mesh3D({ obj, selected, onClick }: {
+function Mesh3D({ obj, selected, onClick, assetConfig }: {
   obj: MapObject;
   selected: boolean;
   onClick: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  assetConfig?: any;
 }) {
   const ref = useRef<THREE.Mesh>(null);
   const handle = (e: { stopPropagation: () => void }) => { e.stopPropagation(); onClick(); };
 
-  if (obj.kind === 'asset') return <AssetMesh obj={obj} selected={selected} onClick={handle} />;
+  if (obj.kind === 'asset') return <AssetMesh obj={obj} selected={selected} onClick={handle} assetConfig={assetConfig} />;
 
   const geometry =
     obj.kind === 'sphere'   ? <sphereGeometry args={[0.5, 24, 16]} /> :
