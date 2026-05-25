@@ -275,6 +275,14 @@ export default function StudioCanvas() {
   /* 편집 중인 월드 로드 */
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading]     = useState(false);
+
+  // 새 월드 ID로 바뀌면 선택 초기화 (이전 월드의 selectedId가 남으면 TransformControls 에러)
+  useEffect(() => {
+    setSelectedId(null);
+    setObjects([]);
+    setHist({ stack: [[]], idx: 0 });
+  }, [editingId]);
+
   useEffect(() => {
     if (!editingId) return;
     setLoading(true);
