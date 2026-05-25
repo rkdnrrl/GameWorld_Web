@@ -31,6 +31,10 @@ interface MyCharacter {
 interface HubWorld {
   id: string;
   name: string;
+  description?: string | null;
+  thumbnailUrl?: string | null;
+  playCount?: number;
+  ownerName?: string | null;
 }
 
 export default function WorldPage() {
@@ -51,6 +55,8 @@ export default function WorldPage() {
   const chatRef = useRef<HTMLDivElement>(null);
 
   const [hubOpen, setHubOpen] = useState(false);
+  const [mapModalOpen, setMapModalOpen] = useState(false);
+  const [mapTab, setMapTab] = useState<'home' | 'mine' | 'public'>('home');
   const [switchingCharId, setSwitchingCharId] = useState('');
   const [myChars, setMyChars] = useState<MyCharacter[]>([]);
   const [myWorlds, setMyWorlds] = useState<HubWorld[]>([]);
@@ -177,6 +183,11 @@ export default function WorldPage() {
     else router.replace(`/world?id=${encodeURIComponent(nextId)}`);
   }
 
+  function openMapBrowser() {
+    setMapTab('home');
+    setMapModalOpen(true);
+  }
+
   const submitChat = () => {
     const msg = chatInput.trim();
     if (!msg) return;
@@ -257,35 +268,82 @@ export default function WorldPage() {
             </div>
 
             <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, marginBottom: 6 }}>{t('moveMap')}</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <button
-                onClick={() => moveWorld('')}
-                style={{ border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '7px 10px', textAlign: 'left', cursor: 'pointer', background: !worldIdParam ? 'rgba(16,185,129,0.22)' : 'rgba(255,255,255,0.07)', color: '#fff', fontSize: 12, fontWeight: 600 }}
-              >
-                {t('homeHubMap')}
-              </button>
-              {myWorlds.map((w) => (
-                <button
-                  key={`my-${w.id}`}
-                  onClick={() => moveWorld(w.id)}
-                  style={{ border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '7px 10px', textAlign: 'left', cursor: 'pointer', background: worldIdParam === w.id ? 'rgba(16,185,129,0.22)' : 'rgba(255,255,255,0.07)', color: '#fff', fontSize: 12, fontWeight: 600 }}
-                >
-                  {w.name}
-                </button>
-              ))}
-              {publicWorlds.slice(0, 20).map((w) => (
-                <button
-                  key={`pub-${w.id}`}
-                  onClick={() => moveWorld(w.id)}
-                  style={{ border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '7px 10px', textAlign: 'left', cursor: 'pointer', background: worldIdParam === w.id ? 'rgba(16,185,129,0.22)' : 'rgba(255,255,255,0.07)', color: '#fff', fontSize: 12, fontWeight: 600 }}
-                >
-                  {w.name}
-                </button>
-              ))}
-            </div>
+            <button
+              onClick={openMapBrowser}
+              style={{ width: '100%', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '8px 10px', textAlign: 'left', cursor: 'pointer', background: 'rgba(79,70,229,0.25)', color: '#fff', fontSize: 12, fontWeight: 700 }}
+            >
+              {t('moveMap')}
+            </button>
           </div>
         )}
       </div>
+
+      {mapModalOpen && (
+        <div
+          onClick={() => setMapModalOpen(false)}
+          style={{ position: 'absolute', inset: 0, background: 'rgba(3,7,18,0.72)', backdropFilter: 'blur(6px)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: 'min(1100px, 96vw)', maxHeight: '90vh', overflow: 'hidden', borderRadius: 14, border: '1px solid rgba(255,255,255,0.16)', background: 'linear-gradient(180deg, rgba(14,23,46,0.97) 0%, rgba(8,14,30,0.97) 100%)', color: '#fff' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{t('moveMap')}</div>
+              <button
+                onClick={() => setMapModalOpen(false)}
+                style={{ border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontWeight: 700 }}
+              >
+                X
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <button onClick={() => setMapTab('home')} style={{ border: '1px solid rgba(255,255,255,0.15)', borderRadius: 999, padding: '6px 12px', cursor: 'pointer', background: mapTab === 'home' ? 'rgba(79,70,229,0.45)' : 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 700 }}>
+                {t('homeHubMap')}
+              </button>
+              <button onClick={() => setMapTab('mine')} style={{ border: '1px solid rgba(255,255,255,0.15)', borderRadius: 999, padding: '6px 12px', cursor: 'pointer', background: mapTab === 'mine' ? 'rgba(79,70,229,0.45)' : 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 700 }}>
+                {t('changeCharacter')}
+              </button>
+              <button onClick={() => setMapTab('public')} style={{ border: '1px solid rgba(255,255,255,0.15)', borderRadius: 999, padding: '6px 12px', cursor: 'pointer', background: mapTab === 'public' ? 'rgba(79,70,229,0.45)' : 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 700 }}>
+                {t('playersList')}
+              </button>
+            </div>
+
+            <div style={{ padding: 16, overflowY: 'auto', maxHeight: 'calc(90vh - 130px)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+                {mapTab === 'home' && (
+                  <button
+                    onClick={() => { moveWorld(''); setMapModalOpen(false); }}
+                    style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, padding: 0, overflow: 'hidden', background: !worldIdParam ? 'rgba(16,185,129,0.22)' : 'rgba(255,255,255,0.06)', cursor: 'pointer', color: '#fff', textAlign: 'left' }}
+                  >
+                    <div style={{ height: 120, background: 'linear-gradient(135deg, #1d4ed8 0%, #0f766e 100%)' }} />
+                    <div style={{ padding: 10 }}>
+                      <div style={{ fontWeight: 800, fontSize: 14 }}>{t('homeHubMap')}</div>
+                    </div>
+                  </button>
+                )}
+
+                {(mapTab === 'mine' ? myWorlds : mapTab === 'public' ? publicWorlds : []).map((w) => (
+                  <button
+                    key={`${mapTab}-${w.id}`}
+                    onClick={() => { moveWorld(w.id); setMapModalOpen(false); }}
+                    style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, padding: 0, overflow: 'hidden', background: worldIdParam === w.id ? 'rgba(16,185,129,0.22)' : 'rgba(255,255,255,0.06)', cursor: 'pointer', color: '#fff', textAlign: 'left' }}
+                  >
+                    <div style={{ height: 120, backgroundImage: w.thumbnailUrl ? `url(${w.thumbnailUrl})` : 'linear-gradient(135deg, #334155 0%, #111827 100%)', backgroundSize: 'cover', backgroundPosition: 'center' }} />
+                    <div style={{ padding: 10 }}>
+                      <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4 }}>{w.name}</div>
+                      {!!w.description && <div style={{ fontSize: 12, opacity: 0.75, lineHeight: 1.35, marginBottom: 6 }}>{w.description}</div>}
+                      <div style={{ fontSize: 11, opacity: 0.65 }}>
+                        {(w.ownerName || '-')} · {(w.playCount ?? 0)}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.35)', borderRadius: 10, padding: '5px 14px', color: 'rgba(255,255,255,0.6)', fontSize: 11, backdropFilter: 'blur(6px)', textAlign: 'center', pointerEvents: 'none' }}>
         {t('controlHint')}
