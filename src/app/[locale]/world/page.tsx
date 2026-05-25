@@ -85,7 +85,7 @@ export default function WorldPage() {
       .catch((e) => console.warn('[world] 네트워크 오류:', e));
   }, [API, worldIdParam]);
 
-  const { players, chatLog, connected, sendMove, sendChat } = useGameSocket({
+  const { players, posesRef, chatLog, connected, sendMove, sendChat } = useGameSocket({
     worldId:   worldIdParam || 'default',
     playerId:  userId,
     username,
