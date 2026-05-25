@@ -43,10 +43,13 @@ export default function AssetCard({
     handler?.Editor ? 'edit' : handler?.Preview ? 'preview' : null;
 
   return (
-    <div style={{
-      background: 'rgba(255,255,255,0.05)', borderRadius: 14,
-      border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden',
-      transition: 'border-color .15s',
+    <div className="alp-asset-card" style={{
+      background: selected ? 'rgba(99,102,241,0.10)' : 'rgba(255,255,255,0.05)',
+      borderRadius: 14,
+      border: `1px solid ${selected ? 'rgba(99,102,241,0.6)' : 'rgba(255,255,255,0.08)'}`,
+      overflow: 'hidden',
+      transition: 'border-color .15s, background .15s',
+      position: 'relative',
     }}>
       {/* 썸네일 영역 */}
       <div
