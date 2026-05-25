@@ -200,7 +200,7 @@ function Mesh3D({ obj, selected, onClick, assetConfig }: {
                               <boxGeometry args={[1, 1, 1]} />;
   return (
     <mesh ref={ref} position={obj.position} rotation={obj.rotation} scale={obj.scale}
-      onClick={handle} castShadow receiveShadow userData={{ id: obj.id }}>
+      onPointerDown={handle} castShadow receiveShadow userData={{ id: obj.id }}>
       {geometry}
       <PrimitiveMaterial obj={obj} />
       {selected && <Outlines thickness={3} color="#22d3ee" screenspace />}
