@@ -142,7 +142,8 @@
     "signupLink": "注册",
     "errorInvalidEmail": "请输入正确的电子邮件地址。",
     "errorNoPassword": "请输入密码。",
-    "errorInvalidCredentials": "电子邮件或密码不正确。"
+    "errorInvalidCredentials": "电子邮件或密码不正确。",
+    "errorServerUnavailable": "无法连接登录服务器，请稍后再试。"
   },
   "Signup": {
     "title": "注册",
@@ -164,7 +165,7 @@
     "errorPasswordMismatch": "密码不一致。",
     "emailConfirmationSent": "已发送确认邮件，请检查您的邮箱。",
     "signupFailed": "?????????",
-    "resendEmail": "????????"
+    "resendEmail": "重新发送验证邮件"
   },
   "Account": {
     "title": "我的信息",

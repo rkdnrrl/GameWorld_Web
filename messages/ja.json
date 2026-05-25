@@ -142,7 +142,8 @@
     "signupLink": "新規登録",
     "errorInvalidEmail": "正しいメールアドレスを入力してください。",
     "errorNoPassword": "パスワードを入力してください。",
-    "errorInvalidCredentials": "メールアドレスまたはパスワードが正しくありません。"
+    "errorInvalidCredentials": "メールアドレスまたはパスワードが正しくありません。",
+    "errorServerUnavailable": "ログインサーバーに接続できませんでした。しばらくしてから再試行してください。"
   },
   "Signup": {
     "title": "新規登録",
@@ -164,7 +165,7 @@
     "errorPasswordMismatch": "パスワードが一致しません。",
     "emailConfirmationSent": "確認メールを送信しました。メールをご確認ください。",
     "signupFailed": "????????????????????????",
-    "resendEmail": "????????"
+    "resendEmail": "確認メールを再送信"
   },
   "Account": {
     "title": "マイページ",

@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
-import { api, session } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { useLoggedIn } from "@/lib/useLoggedIn";
 import { Link } from "@/i18n/navigation";
@@ -62,28 +61,14 @@ export default function SignupPage() {
         return;
       }
 
-      if (!data.session) {
-        setPendingEmail(email.trim());
-        setDoneMessage(t("emailConfirmationSent"));
-        return;
+      // Sign-up page should not auto-login immediately.
+      // Always guide user through email confirmation first.
+      setPendingEmail(email.trim());
+      setDoneMessage(t("emailConfirmationSent"));
+      if (data.session) {
+        await supabase.auth.signOut();
       }
-
-      const supaToken = data.session.access_token;
-      const refreshToken = data.session.refresh_token;
-      const expiresAt = data.session.expires_at;
-
-      let token = supaToken;
-      try {
-        const ex = await api.exchange(supaToken);
-        if (ex.token) token = ex.token;
-      } catch {}
-
-      const { user } = await api.me(token);
-      session.save({ token, user });
-      if (refreshToken && expiresAt) {
-        session.saveRefreshInfo(refreshToken, expiresAt);
-      }
-      router.replace("/");
+      return;
     } catch {
       setError(t("signupFailed"));
     } finally {

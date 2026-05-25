@@ -53,9 +53,19 @@ export default function LoginPage() {
       try {
         const ex = await api.exchange(supaToken);
         if (ex.token) token = ex.token;
-      } catch {}
+      } catch {
+        setError(t("errorServerUnavailable"));
+        return;
+      }
 
-      const { user } = await api.me(token);
+      let user;
+      try {
+        const me = await api.me(token);
+        user = me.user;
+      } catch {
+        setError(t("errorServerUnavailable"));
+        return;
+      }
       session.save({ token, user });
       if (refreshToken && expiresAt) {
         session.saveRefreshInfo(refreshToken, expiresAt);
