@@ -300,14 +300,19 @@ export default function StudioCanvas() {
       .catch(() => {});
   }, []);
 
-  /* 편집 중인 월드 로드 — 방금 저장한 ID로 URL이 바뀐 경우엔 재로드 안 함 */
+  /* 편집 중인 월드 로드 */
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading]     = useState(false);
+  // 방금 저장으로 인한 URL 변경 시에만 재로드 스킵
+  const justSavedRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!editingId) return;
-    // 방금 저장으로 인해 URL이 바뀐 거라면 (savedId === editingId) 재로드 스킵 → 데이터 보존
-    if (savedId === editingId) return;
+    // 방금 저장으로 URL이 바뀐 거라면 재로드 스킵 → 데이터 보존
+    if (justSavedRef.current === editingId) {
+      justSavedRef.current = null;
+      return;
+    }
 
     setLoading(true);
     setLoadError(null);
@@ -329,7 +334,7 @@ export default function StudioCanvas() {
         const objs = d.world.mapData?.objects || [];
         setObjects(objs);
         setHist({ stack: [clone(objs)], idx: 0 });
-        setSelectedId(null);   // 다른 월드 로드 시 이전 선택 해제 (TransformControls 안전)
+        setSelectedId(null);
         setSavedId(d.world.id);
       })
       .catch(e => {
@@ -337,8 +342,7 @@ export default function StudioCanvas() {
         setLoadError(String(e?.message || e));
       })
       .finally(() => setLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editingId]);  // savedId는 일부러 의존성에서 제외 (방금 저장 → URL 변경 → 재로드 방지)
+  }, [editingId]);
 
   /* 단축키 */
   useEffect(() => {
