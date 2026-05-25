@@ -862,7 +862,7 @@ export default function StudioCanvas() {
       </div>
 
       {/* ── 3D 뷰포트 ─────────────────────── */}
-      <div style={{ flex: 1, position: 'relative' }}>
+      <div style={{ flex: 1, position: 'relative' }} onContextMenu={(e) => e.preventDefault()}>
         <Canvas
           shadows
           camera={{ position: [8, 8, 8], fov: 50 }}
