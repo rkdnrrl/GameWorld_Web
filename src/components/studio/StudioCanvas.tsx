@@ -904,6 +904,8 @@ export default function StudioCanvas() {
           <ambientLight intensity={0.5} />
           <directionalLight position={[20, 30, 10]} intensity={1.5} castShadow shadow-mapSize={[2048, 2048]} />
           <Sky sunPosition={[20, 10, 10]} />
+          {/* 금속·유리 머티리얼이 새까맣게 보이지 않도록 환경맵 제공 */}
+          <Environment preset="city" />
 
           <Grid args={[100, 100]} cellSize={1} cellThickness={0.5} sectionSize={5} sectionThickness={1} fadeDistance={50} infiniteGrid />
 
