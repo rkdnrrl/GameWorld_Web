@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useRouter } from '@/i18n/navigation';
 import { useTranslations } from 'next-intl';
@@ -164,6 +164,11 @@ function ColorPicker({ label, colors, value, onChange }: {
 }
 
 /* ── 에셋 선택 모달 ──────────────────────── */
+/** 추천 태그 — 처음 켤 때 자동 활성화 (있으면) */
+const SUGGESTED_TAG = 'character';
+/** 사이드바 태그 칩 최대 개수 */
+const MAX_TAG_CHIPS = 8;
+
 function AssetPickerModal({ onSelect, onClose }: {
   onSelect: (asset: Asset) => void;
   onClose: () => void;
@@ -171,16 +176,69 @@ function AssetPickerModal({ onSelect, onClose }: {
   const t = useTranslations('Character');
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  // 첫 로드 시 'character' 태그 가진 에셋이 있으면 자동 필터
+  const initialized = useRef(false);
 
   useEffect(() => {
     fetch(`${API}/api/assets/my`, {
       headers: { Authorization: `Bearer ${session.getToken()}` },
     })
       .then(r => r.json())
-      .then(d => setAssets(d.assets || []))
+      .then(d => {
+        const list: Asset[] = d.assets || [];
+        // FBX 만 (kind === 'model' or 확장자)
+        const fbxOnly = list.filter(a => /\.fbx(\?|$)/i.test(a.modelUrl));
+        setAssets(fbxOnly);
+        // 추천 태그가 1개 이상 매칭되면 자동 활성화
+        if (!initialized.current) {
+          const hasSuggested = fbxOnly.some(a => (a.tags || []).includes(SUGGESTED_TAG));
+          if (hasSuggested) setSelectedTags([SUGGESTED_TAG]);
+          initialized.current = true;
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  // ESC 닫기
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  // 태그 사용 빈도 (상위 N개)
+  const tagCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const a of assets) for (const tag of a.tags || []) m[tag] = (m[tag] || 0) + 1;
+    return Object.entries(m).sort((a, b) => b[1] - a[1]);
+  }, [assets]);
+
+  // 필터링
+  const filtered = useMemo(() => {
+    const query = q.trim().toLowerCase();
+    return assets.filter(a => {
+      if (query) {
+        const inName = a.name.toLowerCase().includes(query);
+        const inTags = (a.tags || []).some(t => t.toLowerCase().includes(query));
+        if (!inName && !inTags) return false;
+      }
+      if (selectedTags.length > 0) {
+        const has = selectedTags.every(t => (a.tags || []).includes(t));
+        if (!has) return false;
+      }
+      return true;
+    });
+  }, [assets, q, selectedTags]);
+
+  function toggleTag(tag: string) {
+    setSelectedTags(prev => prev.includes(tag) ? prev.filter(x => x !== tag) : [...prev, tag]);
+  }
+
+  const ext = 'FBX';
+  const hasAnyTags = tagCounts.length > 0;
 
   return (
     <div style={{
@@ -189,12 +247,74 @@ function AssetPickerModal({ onSelect, onClose }: {
     }} onClick={onClose}>
       <div style={{
         background: '#1e293b', borderRadius: 20, border: '1px solid rgba(255,255,255,0.1)',
-        padding: 24, width: 480, maxHeight: '70vh', display: 'flex', flexDirection: 'column',
+        padding: 24, width: 540, maxHeight: '80vh', display: 'flex', flexDirection: 'column',
       }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <h3 style={{ margin: 0, color: '#fff', fontSize: 16 }}>{t('assetPickerTitle')}</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 20, cursor: 'pointer' }}>✕</button>
         </div>
+
+        {/* 검색 + 태그 필터 */}
+        {!loading && assets.length > 0 && (
+          <>
+            <div style={{ position: 'relative', marginBottom: hasAnyTags ? 8 : 12 }}>
+              <input
+                value={q}
+                onChange={e => setQ(e.target.value)}
+                placeholder={t('pickerSearchPlaceholder')}
+                autoFocus
+                style={{
+                  width: '100%', padding: '8px 12px 8px 32px', fontSize: 13,
+                  background: 'rgba(0,0,0,0.3)', color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, outline: 'none',
+                }}
+              />
+              <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }}>🔍</span>
+            </div>
+
+            {hasAnyTags ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
+                {tagCounts.slice(0, MAX_TAG_CHIPS).map(([tag, count]) => {
+                  const active = selectedTags.includes(tag);
+                  return (
+                    <button key={tag} onClick={() => toggleTag(tag)}
+                      style={{
+                        padding: '4px 10px', fontSize: 11,
+                        background: active ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.05)',
+                        color: active ? '#fff' : 'rgba(255,255,255,0.7)',
+                        border: 'none', borderRadius: 5, cursor: 'pointer',
+                        fontWeight: active ? 700 : 500,
+                      }}>
+                      #{tag} <span style={{ opacity: 0.55, fontSize: 10 }}>{count}</span>
+                    </button>
+                  );
+                })}
+                {selectedTags.length > 0 && (
+                  <button onClick={() => setSelectedTags([])}
+                    style={{
+                      padding: '4px 10px', fontSize: 11, fontWeight: 700,
+                      background: 'transparent', color: '#fca5a5',
+                      border: '1px solid rgba(239,68,68,0.3)', borderRadius: 5, cursor: 'pointer',
+                    }}>
+                    {t('pickerClearTags')}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div style={{
+                fontSize: 11, opacity: 0.55, padding: '8px 12px', marginBottom: 10,
+                background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
+                borderRadius: 8, color: '#c7d2fe',
+              }}>
+                💡 {t('pickerTagTipNoTags')}
+              </div>
+            )}
+
+            <div style={{ fontSize: 10, opacity: 0.45, marginBottom: 8 }}>
+              {t('pickerResultCount', { count: filtered.length, total: assets.length })}
+            </div>
+          </>
+        )}
 
         {loading && <div style={{ color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: 24 }}>{t('loadingAssets')}</div>}
 
@@ -205,39 +325,46 @@ function AssetPickerModal({ onSelect, onClose }: {
           </div>
         )}
 
+        {!loading && assets.length > 0 && filtered.length === 0 && (
+          <div style={{ color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: 24, fontSize: 13 }}>
+            {t('pickerNoMatches')}
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, overflowY: 'auto' }}>
-          {assets.map(a => {
-            const ext = 'FBX';
-            const extColor: Record<string, string> = { FBX: '#f59e0b' };
-            return (
-              <button key={a.id} onClick={() => onSelect(a)} style={{
-                background: 'rgba(255,255,255,0.05)', border: '2px solid rgba(255,255,255,0.08)',
-                borderRadius: 12, cursor: 'pointer', overflow: 'hidden', padding: 0,
-                transition: 'border-color .15s',
-              }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = '#6366f1')}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}
-              >
-                <div style={{
-                  width: '100%', aspectRatio: '1', background: 'rgba(255,255,255,0.03)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
-                }}>
-                  {a.thumbnailUrl
-                    ? <img src={a.thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : <span style={{ fontSize: 32 }}>📦</span>
-                  }
-                  <span style={{
-                    position: 'absolute', top: 6, left: 6, fontSize: 9, fontWeight: 800,
-                    background: extColor[ext] || '#64748b', color: '#fff',
-                    padding: '2px 5px', borderRadius: 3,
-                  }}>{ext}</span>
-                </div>
-                <div style={{ padding: '6px 8px', textAlign: 'left' }}>
-                  <div style={{ color: '#fff', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
-                </div>
-              </button>
-            );
-          })}
+          {filtered.map(a => (
+            <button key={a.id} onClick={() => onSelect(a)} style={{
+              background: 'rgba(255,255,255,0.05)', border: '2px solid rgba(255,255,255,0.08)',
+              borderRadius: 12, cursor: 'pointer', overflow: 'hidden', padding: 0,
+              transition: 'border-color .15s',
+            }}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = '#6366f1')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}
+            >
+              <div style={{
+                width: '100%', aspectRatio: '1', background: 'rgba(255,255,255,0.03)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
+              }}>
+                {a.thumbnailUrl
+                  ? <img src={a.thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <span style={{ fontSize: 32 }}>📦</span>
+                }
+                <span style={{
+                  position: 'absolute', top: 6, left: 6, fontSize: 9, fontWeight: 800,
+                  background: '#f59e0b', color: '#fff',
+                  padding: '2px 5px', borderRadius: 3,
+                }}>{ext}</span>
+              </div>
+              <div style={{ padding: '6px 8px', textAlign: 'left' }}>
+                <div style={{ color: '#fff', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
+                {(a.tags || []).length > 0 && (
+                  <div style={{ fontSize: 9, opacity: 0.55, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    #{(a.tags || []).slice(0, 2).join(' #')}
+                  </div>
+                )}
+              </div>
+            </button>
+          ))}
         </div>
       </div>
     </div>
