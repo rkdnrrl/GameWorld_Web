@@ -445,7 +445,8 @@ export default function StudioCanvas() {
       const d = await res.json();
       const newId = d.world?.id ?? savedId;
       if (newId) {
-        // savedId 먼저 갱신해야 load useEffect가 재로드 스킵
+        // 방금 저장 플래그 → URL 변경으로 인한 재로드 방지
+        justSavedRef.current = newId;
         setSavedId(newId);
         if (newId !== savedId) {
           router.replace(`/studio?id=${newId}`);
