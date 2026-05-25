@@ -123,6 +123,52 @@ export default function AssetBrowsePage() {
     }
   }
 
+  // 팩 탭 로드
+  useEffect(() => {
+    if (tab !== 'packs') return;
+    setPackLoading(true);
+    setPackPage(1);
+    api.listPublicPacks({ q, sort: sort === 'name' ? 'recent' : sort, page: 1, pageSize: 24 })
+      .then(d => {
+        setPacks(d.packs as PackWithMeta[]);
+        setPackTotal(d.total);
+        setPackHasMore(d.hasMore);
+        setError('');
+      })
+      .catch(e => setError(e instanceof ApiError ? e.message : 'load failed'))
+      .finally(() => setPackLoading(false));
+  }, [tab, q, sort]);
+
+  async function loadMorePacks() {
+    if (packLoading || !packHasMore) return;
+    setPackLoading(true);
+    try {
+      const next = packPage + 1;
+      const d = await api.listPublicPacks({ q, sort: sort === 'name' ? 'recent' : sort, page: next, pageSize: 24 });
+      setPacks(prev => [...prev, ...(d.packs as PackWithMeta[])]);
+      setPackPage(next);
+      setPackHasMore(d.hasMore);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'load failed');
+    } finally {
+      setPackLoading(false);
+    }
+  }
+
+  async function importPack(p: PackWithMeta) {
+    const tk = session.getToken();
+    if (!tk) { router.push('/login'); return; }
+    setImportingPackId(p.id);
+    try {
+      await api.importPack(tk, p.id);
+      setImportedPackIds(prev => new Set(prev).add(p.id));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'import failed');
+    } finally {
+      setImportingPackId(null);
+    }
+  }
+
   async function submitReport(reason: ReportReason, comment: string) {
     if (!reportingAsset) return;
     const tk = session.getToken();
