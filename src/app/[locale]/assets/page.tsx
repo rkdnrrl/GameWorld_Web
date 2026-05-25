@@ -12,6 +12,7 @@ import { getKind } from '@/lib/assets/registry';
 // 사이드이펙트 import — 모든 kind 핸들러 등록
 import '@/lib/assets/kinds';
 
+import CreatorNav         from '@/components/creator/CreatorNav';
 import AssetSidebar       from '@/components/assets/AssetSidebar';
 import AssetToolbar       from '@/components/assets/AssetToolbar';
 import AssetGrid          from '@/components/assets/AssetGrid';
@@ -449,6 +450,7 @@ export default function AssetsPage() {
       />
 
       <div style={{ minHeight: '100vh', background: '#0f172a', color: '#fff', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif" }}>
+        <CreatorNav />
         {/* 헤더 */}
         <div style={{ padding: '20px 32px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 26 }}>📦</span>

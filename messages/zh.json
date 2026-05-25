@@ -1528,5 +1528,11 @@
     "shadowFilterPCF": "柔和",
     "shadowFilterPCFSoft": "非常柔和",
     "shadowSoftness": "阴影柔和度"
+  },
+  "CreatorNav": {
+    "navAssets": "资源",
+    "navCharacter": "角色",
+    "navStudio": "工作室",
+    "navWorlds": "世界"
   }
 }

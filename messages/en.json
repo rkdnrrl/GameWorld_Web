@@ -1528,5 +1528,11 @@
     "shadowFilterPCF": "Soft",
     "shadowFilterPCFSoft": "Very Soft",
     "shadowSoftness": "Shadow Softness"
+  },
+  "CreatorNav": {
+    "navAssets": "Assets",
+    "navCharacter": "Character",
+    "navStudio": "Studio",
+    "navWorlds": "Worlds"
   }
 }

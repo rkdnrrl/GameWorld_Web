@@ -1528,5 +1528,11 @@
     "shadowFilterPCF": "소프트",
     "shadowFilterPCFSoft": "매우 소프트",
     "shadowSoftness": "그림자 부드러움"
+  },
+  "CreatorNav": {
+    "navAssets": "에셋",
+    "navCharacter": "캐릭터",
+    "navStudio": "스튜디오",
+    "navWorlds": "월드"
   }
 }
