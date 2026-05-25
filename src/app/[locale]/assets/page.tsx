@@ -16,6 +16,7 @@ import AssetToolbar       from '@/components/assets/AssetToolbar';
 import AssetGrid          from '@/components/assets/AssetGrid';
 import AssetActiveFilters from '@/components/assets/AssetActiveFilters';
 import AssetTagEditor     from '@/components/assets/AssetTagEditor';
+import AssetFolderEditor  from '@/components/assets/AssetFolderEditor';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
