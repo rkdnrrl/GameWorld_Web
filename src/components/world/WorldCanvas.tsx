@@ -511,7 +511,7 @@ function RemotePlayerMesh({ player }: { player: RemotePlayer & { animState?: Ani
   return (
     <group ref={g} position={[player.x, player.y, player.z]}>
       <group position={[0, -0.35, 0]}>
-        <CharacterMesh appearance={appearance} animStateRef={animStateRef} />
+        <CharacterMesh appearance={appearance} animStateRef={animStateRef} castShadow={false} />
       </group>
       <Text
         position={[0, 1.8, 0]}
