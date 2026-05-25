@@ -163,7 +163,7 @@ export default function WorldPage() {
       });
       if (!res.ok) return;
       const picked = myChars.find((c) => c.id === id);
-      if (picked) setCharacter(picked);
+      if (picked) setCharacter(picked as unknown as Record<string, unknown>);
       setMyChars((prev) => prev.map((c) => ({ ...c, isActive: c.id === id })));
     } finally {
       setSwitchingCharId('');
