@@ -39,10 +39,18 @@ function saveSettings(s: GraphicsSettings) {
 }
 
 export function useGraphicsSettings() {
-  const [settings, setSettings] = useState<GraphicsSettings>(DEFAULT_SETTINGS);
+  // useState 초기화 함수로 한 번에 로드 → Canvas 두 번 마운트 방지
+  const [settings, setSettings] = useState<GraphicsSettings>(() => loadSettings());
 
-  // 초기 로드 (클라이언트에서만)
-  useEffect(() => { setSettings(loadSettings()); }, []);
+  // SSR 환경에서 마운트 후 클라이언트 값으로 보정
+  useEffect(() => {
+    const fromStorage = loadSettings();
+    setSettings(prev => {
+      // 이미 같으면 setState 안 함 (재렌더 방지)
+      if (JSON.stringify(prev) === JSON.stringify(fromStorage)) return prev;
+      return fromStorage;
+    });
+  }, []);
 
   const updateSettings = (partial: Partial<GraphicsSettings>) => {
     setSettings(prev => {
