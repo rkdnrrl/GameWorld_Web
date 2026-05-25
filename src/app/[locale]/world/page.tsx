@@ -45,6 +45,7 @@ export default function WorldPage() {
   const t = useTranslations('World');
   const tc = useTranslations('Common');
   const tg = useTranslations('Games');
+  const th = useTranslations('Header');
   const router = useRouter();
   const searchParams = useSearchParams();
   const worldIdParam = searchParams.get('id');
@@ -366,6 +367,22 @@ export default function WorldPage() {
             >
               {t('moveMap')}
             </button>
+
+            <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, marginTop: 12, marginBottom: 6 }}>{th('develop')}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              <button
+                onClick={() => router.push('/assets')}
+                style={{ border: '1px solid rgba(255,255,255,0.18)', borderRadius: 8, padding: '7px 9px', textAlign: 'left', cursor: 'pointer', background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 12, fontWeight: 700 }}
+              >
+                📦 {th('inventory')}
+              </button>
+              <button
+                onClick={() => router.push('/studio')}
+                style={{ border: '1px solid rgba(255,255,255,0.18)', borderRadius: 8, padding: '7px 9px', textAlign: 'left', cursor: 'pointer', background: 'rgba(16,185,129,0.2)', color: '#fff', fontSize: 12, fontWeight: 700 }}
+              >
+                🛠 {th('develop')}
+              </button>
+            </div>
           </div>
         )}
       </div>
