@@ -1,9 +1,10 @@
 'use client';
 /**
  * 마켓플레이스용 카드 — 남의 공개 에셋
- * 액션: 미리보기·다운로드·내 라이브러리로 복사
+ * 액션: 미리보기·다운로드·내 라이브러리로 복사·좋아요·작가 페이지 이동
  */
 import { useState } from 'react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import type { Asset, AssetKind } from '@/lib/assets/types';
 import { detectKindFromUrl } from '@/lib/assets/types';
