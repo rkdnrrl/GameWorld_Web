@@ -73,7 +73,7 @@ function FolderBranch({ node, depth, selectedFolder, onSelect, onDrop, dragActiv
         dragActive={dragActive}
         onToggle={hasChildren ? () => setOpen(!open) : undefined}
         onClick={() => onSelect(active ? null : node.path)}
-        onDrop={() => onDrop(node.path)}
+        onDrop={(files) => onDrop(node.path, files)}
       />
       {open && node.children.map(c => (
         <FolderBranch key={c.path}
