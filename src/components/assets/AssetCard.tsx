@@ -28,9 +28,9 @@ interface Props {
 const MAX_VISIBLE_TAGS = 3;
 
 export default function AssetCard({
-  asset, kinds, selectedTags = [], selectedFolder,
+  asset, kinds, selectedTags = [], selectedFolder, selected = false,
   onEdit, onPreview, onEditTags, onEditFolder, onClickTag, onClickFolder,
-  onTogglePublic, onDelete,
+  onToggleSelect, onTogglePublic, onDelete,
 }: Props) {
   const t = useTranslations('Assets');
   const kindId  = asset.kind || detectKindFromUrl(asset.modelUrl, kinds);
