@@ -87,6 +87,26 @@ export default function GraphicsPanel({ settings, updateSettings, applyPreset }:
             </select>
           </Section>
 
+          {/* 그림자 필터 */}
+          <Section label={t('shadowFilter')}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
+              {(['basic','pcf','pcfsoft'] as const).map(f => (
+                <button key={f} onClick={() => updateSettings({ shadowFilter: f })}
+                  style={buttonStyle(settings.shadowFilter === f)}>
+                  {f === 'basic' ? t('shadowFilterBasic') : f === 'pcf' ? t('shadowFilterPCF') : t('shadowFilterPCFSoft')}
+                </button>
+              ))}
+            </div>
+          </Section>
+
+          {/* 그림자 부드러움 (radius) */}
+          <Section label={`${t('shadowSoftness')} (${settings.shadowRadius})`}>
+            <input type="range" min={0} max={10} step={1}
+              value={settings.shadowRadius}
+              onChange={e => updateSettings({ shadowRadius: Number(e.target.value) })}
+              style={{ width: '100%' }} />
+          </Section>
+
           {/* 다른 플레이어 그림자 */}
           <Section label={t('remoteShadows')}>
             <ToggleButtons
