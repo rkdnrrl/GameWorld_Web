@@ -380,6 +380,73 @@ function SelectedTransform({ targetId, mode, onChange, onDragEnd }: {
 }
 
 /* ── TransformControls 드래그 중 OrbitControls 비활성화 ── */
+/* ── WASD/QE 카메라 이동 ──
+   W/S: 카메라가 바라보는 방향 전/후 (Y 무시, 수평 이동)
+   A/D: 카메라 좌/우 스트레이프
+   Q/E: 아래/위 (월드 Y)
+   Shift: 가속 (3배)
+   OrbitControls의 target도 함께 이동시켜 회전 피벗이 따라가게 함
+*/
+function WasdFlyCamera({ orbitRef }: { orbitRef: React.MutableRefObject<OrbitRef | null> }) {
+  const { camera, gl } = useThree();
+  const keysRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const dom = gl.domElement;
+    const down = (e: KeyboardEvent) => {
+      // 입력 필드 포커스 중이면 무시
+      const tgt = e.target as HTMLElement | null;
+      if (tgt && /INPUT|TEXTAREA|SELECT/.test(tgt.tagName)) return;
+      keysRef.current.add(e.key.toLowerCase());
+    };
+    const up = (e: KeyboardEvent) => { keysRef.current.delete(e.key.toLowerCase()); };
+    const blur = () => keysRef.current.clear();
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', blur);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', blur);
+    };
+  }, [gl]);
+
+  const fwd   = useRef(new THREE.Vector3());
+  const right = useRef(new THREE.Vector3());
+  const up    = useRef(new THREE.Vector3(0, 1, 0));
+  const move  = useRef(new THREE.Vector3());
+
+  useFrame((_, delta) => {
+    const keys = keysRef.current;
+    if (keys.size === 0) return;
+    const speed = (keys.has('shift') ? 18 : 6) * delta;
+
+    camera.getWorldDirection(fwd.current);
+    fwd.current.y = 0;
+    if (fwd.current.lengthSq() < 1e-6) return;
+    fwd.current.normalize();
+    right.current.copy(fwd.current).cross(up.current).normalize();
+
+    move.current.set(0, 0, 0);
+    if (keys.has('w')) move.current.add(fwd.current);
+    if (keys.has('s')) move.current.sub(fwd.current);
+    if (keys.has('d')) move.current.add(right.current);
+    if (keys.has('a')) move.current.sub(right.current);
+    if (keys.has('e')) move.current.y += 1;
+    if (keys.has('q')) move.current.y -= 1;
+    if (move.current.lengthSq() === 0) return;
+    move.current.normalize().multiplyScalar(speed);
+
+    camera.position.add(move.current);
+    if (orbitRef.current?.target) {
+      orbitRef.current.target.add(move.current);
+      orbitRef.current.update?.();
+    }
+  });
+
+  return null;
+}
+
 function DraggingDetector({ setOrbitEnabled }: { setOrbitEnabled: (v: boolean) => void }) {
   const { scene } = useThree();
   useEffect(() => {
@@ -937,6 +1004,7 @@ export default function StudioCanvas() {
             }}
           />
           <DraggingDetector setOrbitEnabled={setOrbitEnabled} />
+          <WasdFlyCamera orbitRef={orbitRef} />
         </Canvas>
 
         <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.55)', borderRadius: 20, padding: '6px 16px', color: '#fff', fontSize: 12, backdropFilter: 'blur(8px)' }}>
