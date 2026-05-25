@@ -254,8 +254,10 @@ export default function AssetBrowsePage() {
                   kinds={kinds}
                   importing={importingId === a.id}
                   imported={importedIds.has(a.id)}
+                  liking={likingId === a.id}
                   onPreview={setPreviewAsset}
                   onImport={importAsset}
+                  onToggleLike={toggleLike}
                 />
               ))}
             </div>
