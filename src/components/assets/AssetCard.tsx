@@ -36,11 +36,15 @@ export default function AssetCard({ asset, kinds, onEdit, onPreview, onTogglePub
     }}>
       {/* 썸네일 영역 */}
       <div
-        onClick={() => { if (canEdit) onEdit(asset); }}
+        onClick={() => {
+          if (clickAction === 'edit') onEdit(asset);
+          else if (clickAction === 'preview') onPreview(asset);
+        }}
         style={{
           width: '100%', aspectRatio: '1', background: 'rgba(255,255,255,0.03)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          position: 'relative', cursor: canEdit ? 'pointer' : 'default',
+          position: 'relative', cursor: clickAction ? 'pointer' : 'default',
+          overflow: 'hidden',
         }}>
         {Thumb
           ? <Thumb asset={asset} />
