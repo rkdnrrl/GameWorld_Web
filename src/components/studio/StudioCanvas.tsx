@@ -308,6 +308,7 @@ export default function StudioCanvas() {
   const [myAssets, setMyAssets]     = useState<Asset[]>([]);
   const [orbitEnabled, setOrbitEnabled] = useState(true);
   const [activeAssetPicker, setActiveAssetPicker] = useState(false);
+  const [texPicker, setTexPicker] = useState<null | 'albedo' | 'normal' | 'roughness'>(null);
   const orbitRef = useRef<OrbitRef | null>(null);
 
   const token = () => session.getToken() || '';
