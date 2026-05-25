@@ -387,6 +387,13 @@ function Player({
       const isProne  = proneRef.current;
       const SPEED    = isProne ? 1.0 : isCrouch ? 2.5 : sprint ? 9 : 5;
 
+      // 추락 방지: y가 너무 낮으면 스폰 위치로 복귀
+      if (posT.y < -50) {
+        body.current.setTranslation({ x: 0, y: 5, z: 0 }, true);
+        body.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        return;
+      }
+
       lastPos.current.set(posT.x, posT.y, posT.z);
 
       const sinH = Math.sin(camH.current);
@@ -710,16 +717,8 @@ export default function WorldCanvas({ character, players, posesRef, onMove, cust
         <Suspense fallback={null}>
           <Physics gravity={[0, -22, 0]} interpolate={false}>
             {customObjects !== undefined ? (
-              // 유저 제작 월드 — 빈 맵이라도 기본 Island로 폴백 안 함
-              <>
-                <RigidBody type="fixed" colliders="cuboid">
-                  <mesh position={[0, -0.5, 0]} receiveShadow>
-                    <boxGeometry args={[200, 1, 200]} />
-                    <meshStandardMaterial color="#86efac" />
-                  </mesh>
-                </RigidBody>
-                {customObjects.map(obj => <UserMapObjectMesh key={obj.id} obj={obj} />)}
-              </>
+              // 유저 제작 월드 — 기본 그라운드 없음. 필요하면 평면 직접 배치
+              <>{customObjects.map(obj => <UserMapObjectMesh key={obj.id} obj={obj} />)}</>
             ) : (
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
