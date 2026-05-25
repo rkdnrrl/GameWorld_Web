@@ -467,6 +467,7 @@ export default function CharacterPage() {
   const [modelUrl, setModelUrl]     = useState('');
   const [modelScale, setModelScale] = useState(0.01);
   const [modelRotX, setModelRotX]   = useState(-Math.PI / 2);
+  const [modelOffsetY, setModelOffsetY] = useState(0);   // 발 높이 미세 조정 (m)
   const [modelName, setModelName]   = useState('');
   // 애니메이션 매핑 — 6가지 상태
   const [availableAnims, setAvailableAnims] = useState<{ name: string; duration: number }[]>([]);
