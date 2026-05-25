@@ -675,6 +675,8 @@ function Island() {
 }
 
 /* ── 유저 제작 월드 오브젝트 렌더링 ────── */
+export type MaterialPreset = 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 'plastic' | 'emissive';
+
 interface UserMapObject {
   id: string;
   kind: 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset';
@@ -683,6 +685,86 @@ interface UserMapObject {
   rotation: [number, number, number];
   scale:    [number, number, number];
   color:    string;
+  // 머티리얼/텍스처 (선택)
+  material?:        MaterialPreset;
+  materialColor?:   string;
+  textureAlbedo?:    string;  // URL
+  textureNormal?:    string;
+  textureRoughness?: string;
+  textureTilingX?:   number;
+  textureTilingY?:   number;
+}
+
+/* 머티리얼 프리셋 정의 (PBR 파라미터) */
+export const MATERIAL_PRESETS: Record<Exclude<MaterialPreset, 'default'>, {
+  metalness: number; roughness: number; opacity?: number; transparent?: boolean;
+  defaultColor: string; emissive?: string; emissiveIntensity?: number;
+}> = {
+  wood:     { defaultColor: '#8b6f47', metalness: 0,   roughness: 0.85 },
+  metal:    { defaultColor: '#b0b0b0', metalness: 1.0, roughness: 0.3  },
+  stone:    { defaultColor: '#7a7a7a', metalness: 0,   roughness: 0.95 },
+  glass:    { defaultColor: '#a0c8e0', metalness: 0,   roughness: 0.05, opacity: 0.3, transparent: true },
+  plastic:  { defaultColor: '#ffffff', metalness: 0,   roughness: 0.5  },
+  emissive: { defaultColor: '#ffffff', metalness: 0,   roughness: 0.6, emissive: '#ffaa44', emissiveIntensity: 1.5 },
+};
+
+/* 텍스처 로딩 (URL 캐시) */
+const textureCache = new Map<string, THREE.Texture>();
+function loadTexture(url: string): THREE.Texture {
+  let tex = textureCache.get(url);
+  if (!tex) {
+    tex = new THREE.TextureLoader().load(url);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    textureCache.set(url, tex);
+  }
+  return tex;
+}
+
+/* 오브젝트로부터 머티리얼 생성 */
+function buildMaterial(obj: UserMapObject, fallbackColor?: string): THREE.MeshStandardMaterial {
+  const presetKey = obj.material && obj.material !== 'default' ? obj.material : null;
+  const preset = presetKey ? MATERIAL_PRESETS[presetKey] : null;
+
+  const baseColor = obj.materialColor || (preset ? preset.defaultColor : fallbackColor) || '#ffffff';
+
+  const mat = new THREE.MeshStandardMaterial({
+    color:       baseColor,
+    metalness:   preset?.metalness ?? 0,
+    roughness:   preset?.roughness ?? 0.5,
+    opacity:     preset?.opacity ?? 1,
+    transparent: preset?.transparent ?? false,
+    emissive:    preset?.emissive ?? '#000000',
+    emissiveIntensity: preset?.emissiveIntensity ?? 0,
+  });
+
+  const tilingX = obj.textureTilingX || 1;
+  const tilingY = obj.textureTilingY || 1;
+
+  if (obj.textureAlbedo) {
+    const t = loadTexture(obj.textureAlbedo).clone();
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(tilingX, tilingY);
+    t.needsUpdate = true;
+    mat.map = t;
+  }
+  if (obj.textureNormal) {
+    const t = loadTexture(obj.textureNormal).clone();
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(tilingX, tilingY);
+    t.colorSpace = THREE.NoColorSpace;
+    t.needsUpdate = true;
+    mat.normalMap = t;
+  }
+  if (obj.textureRoughness) {
+    const t = loadTexture(obj.textureRoughness).clone();
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(tilingX, tilingY);
+    t.colorSpace = THREE.NoColorSpace;
+    t.needsUpdate = true;
+    mat.roughnessMap = t;
+  }
+  return mat;
 }
 
 function UserMapObjectMesh({ obj }: { obj: UserMapObject }) {
