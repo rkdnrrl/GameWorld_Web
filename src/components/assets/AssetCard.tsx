@@ -33,6 +33,7 @@ export default function AssetCard({
   onEdit, onPreview, onEditTags, onEditFolder, onClickTag, onClickFolder,
   onToggleSelect, onTogglePublic, onDelete,
 }: Props) {
+  const [hovered, setHovered] = useState(false);
   const t = useTranslations('Assets');
   const kindId  = asset.kind || detectKindFromUrl(asset.modelUrl, kinds);
   const kindDef = kinds.find(k => k.id === kindId);
