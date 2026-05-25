@@ -898,9 +898,9 @@ export default function StudioCanvas() {
             makeDefault
             enableZoom={true}
             mouseButtons={{
-              LEFT:   THREE.MOUSE.ROTATE,
+              LEFT:   undefined as unknown as THREE.MOUSE,
               MIDDLE: THREE.MOUSE.PAN,
-              RIGHT:  THREE.MOUSE.PAN,
+              RIGHT:  THREE.MOUSE.ROTATE,
             }}
           />
           <DraggingDetector setOrbitEnabled={setOrbitEnabled} />
