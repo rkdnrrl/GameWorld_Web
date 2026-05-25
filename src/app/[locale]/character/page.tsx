@@ -145,6 +145,7 @@ function CustomPreview({
   const animClips = useRef<THREE.AnimationClip[]>([]);
   const liveBox = useRef(new THREE.Box3());
   const baseMinY = useRef(0);
+  const basePosY = useRef(0);
 
   useEffect(() => {
     if (!url) return;
@@ -153,6 +154,7 @@ function CustomPreview({
     const onLoaded = (loaded: THREE.Object3D, anims: THREE.AnimationClip[] = []) => {
       if (cancelled) return;
       autoNormalize(loaded, rotX, 1.8);
+      basePosY.current = loaded.position.y;
       baseMinY.current = getMeshMinYLocal(loaded, liveBox.current);
       animClips.current = anims;
       if (anims.length) {
@@ -179,6 +181,7 @@ function CustomPreview({
   useEffect(() => {
     if (!obj) return;
     autoNormalize(obj, rotX, 1.8);
+    basePosY.current = obj.position.y;
     baseMinY.current = getMeshMinYLocal(obj, liveBox.current);
   }, [rotX, obj]);
 
@@ -217,7 +220,7 @@ function CustomPreview({
     mixer.current?.update(dt);
     if (obj) {
       const nowMinY = getMeshMinYLocal(obj, liveBox.current);
-      obj.position.y -= (nowMinY - baseMinY.current);
+      obj.position.y = basePosY.current - (nowMinY - baseMinY.current);
     }
   });
 

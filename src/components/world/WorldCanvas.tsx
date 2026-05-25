@@ -159,6 +159,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   const currentState    = useRef<AnimState | null>(null);
   const liveBox         = useRef(new THREE.Box3());
   const baseMinY        = useRef(0);
+  const basePosY        = useRef(0);
 
   useEffect(() => {
     if (!url) return;
@@ -195,6 +196,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       if (cancelled) return;
       cloned.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = castShadow; });
       autoNormalize(cloned, rotX, 1.8);
+      basePosY.current = cloned.position.y;
       baseMinY.current = getMeshMinYLocal(cloned, liveBox.current);
       setupMixer(cloned, anims);
       setObj(cloned);
@@ -221,7 +223,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
     mixer.current?.update(dt);
     if (obj) {
       const nowMinY = getMeshMinYLocal(obj, liveBox.current);
-      obj.position.y -= (nowMinY - baseMinY.current);
+      obj.position.y = basePosY.current - (nowMinY - baseMinY.current);
     }
     if (!mixer.current) return;
 
