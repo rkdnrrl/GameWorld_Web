@@ -158,7 +158,7 @@ function CustomModel({ url, userScale, rotX, animStateRef, animNames, animTrims,
       if (cancelled) return;
       const cloned = await cloneFBX(source);
       if (cancelled) return;
-      cloned.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = true; });
+      cloned.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = castShadow; });
       autoNormalize(cloned, 1.8);
       setupMixer(cloned, anims);
       setObj(cloned);
