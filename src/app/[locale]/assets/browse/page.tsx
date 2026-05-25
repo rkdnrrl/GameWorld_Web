@@ -195,12 +195,13 @@ export default function AssetBrowsePage() {
 
             <select
               value={sort}
-              onChange={e => setQuery({ sort: e.target.value === 'recent' ? null : e.target.value })}
+              onChange={e => setQuery({ sort: e.target.value === 'popular' ? null : e.target.value })}
               style={{
                 padding: '7px 10px', fontSize: 12,
                 background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)',
                 borderRadius: 8, color: '#fff', outline: 'none', cursor: 'pointer',
               }}>
+              <option value="popular">{t('sortPopular')}</option>
               <option value="recent">{t('sortRecent')}</option>
               <option value="name">{t('sortName')}</option>
             </select>
