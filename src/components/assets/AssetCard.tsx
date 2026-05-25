@@ -51,6 +51,9 @@ export default function AssetCard({
 
   return (
     <div
+      draggable
+      onDragStart={e => { setDragging(true); onDragStart(asset, e); }}
+      onDragEnd={() => { setDragging(false); onDragEnd(); }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -58,8 +61,10 @@ export default function AssetCard({
         borderRadius: 14,
         border: `1px solid ${selected ? 'rgba(99,102,241,0.6)' : 'rgba(255,255,255,0.08)'}`,
         overflow: 'hidden',
-        transition: 'border-color .15s, background .15s',
+        transition: 'border-color .15s, background .15s, opacity .15s',
         position: 'relative',
+        opacity: dragging ? 0.4 : 1,
+        cursor: 'grab',
       }}>
       {/* 썸네일 영역 */}
       <div
