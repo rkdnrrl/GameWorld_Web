@@ -3,6 +3,7 @@
  * 에셋 카드 — kind 핸들러에서 Thumbnail/Editor 가져옴
  * 미등록 kind 는 일반 박스로 fallback (다운로드만 가능)
  */
+import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { Asset, AssetKind } from '@/lib/assets/types';
 import { detectKindFromUrl } from '@/lib/assets/types';
