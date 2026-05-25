@@ -20,6 +20,7 @@ import AssetTagEditor     from '@/components/assets/AssetTagEditor';
 import AssetFolderEditor  from '@/components/assets/AssetFolderEditor';
 import AssetBulkBar       from '@/components/assets/AssetBulkBar';
 import AssetVersionsModal from '@/components/assets/AssetVersionsModal';
+import MyPacksModal       from '@/components/assets/MyPacksModal';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
@@ -36,6 +37,7 @@ export default function AssetsPage() {
   const [taggingAsset, setTaggingAsset] = useState<Asset | null>(null);
   const [foldingAsset, setFoldingAsset] = useState<Asset | null>(null);
   const [versionsAsset, setVersionsAsset] = useState<Asset | null>(null);
+  const [packsOpen, setPacksOpen] = useState(false);
   // 다중 선택
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const lastClickedRef = useRef<string | null>(null);
@@ -376,6 +378,9 @@ export default function AssetsPage() {
           }}
         />
       )}
+      {packsOpen && (
+        <MyPacksModal allAssets={assets} onClose={() => setPacksOpen(false)} />
+      )}
 
       <AssetBulkBar
         selectedCount={selectedIds.size}
@@ -397,6 +402,14 @@ export default function AssetsPage() {
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>{t('title')}</h1>
             <p style={{ margin: 0, fontSize: 13, opacity: 0.5 }}>{t('headerSubtitle', { count: kinds.length })}</p>
           </div>
+          <button onClick={() => setPacksOpen(true)} style={{
+            fontSize: 12, color: '#a5b4fc', fontWeight: 700, cursor: 'pointer',
+            padding: '8px 14px', background: 'rgba(99,102,241,0.10)',
+            border: '1px solid rgba(99,102,241,0.25)', borderRadius: 8,
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+          }}>
+            📦 {t('myPacksLink')}
+          </button>
           <Link href="/assets/browse" style={{
             fontSize: 12, color: '#a5b4fc', textDecoration: 'none', fontWeight: 700,
             padding: '8px 14px', background: 'rgba(99,102,241,0.18)', borderRadius: 8,
