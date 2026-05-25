@@ -249,6 +249,7 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true }: {
         rotX={rotX}
         offsetY={offsetY}
         castShadow={castShadow}
+        // 인라인 주석: rotX/offsetY/scale 후 발 정렬은 CustomModel 내부에서 처리
         animStateRef={animStateRef}
         animNames={{
           idle:   appearance.idleAnim   as string | undefined,
