@@ -48,6 +48,15 @@ export default function AssetBrowsePage() {
   const [reportingAsset, setReportingAsset] = useState<Asset | null>(null);
   const [reportedIds, setReportedIds] = useState<Set<string>>(new Set());
 
+  // 팩 탭 상태
+  const [packs, setPacks] = useState<PackWithMeta[]>([]);
+  const [packTotal, setPackTotal] = useState(0);
+  const [packPage, setPackPage]   = useState(1);
+  const [packHasMore, setPackHasMore] = useState(false);
+  const [packLoading, setPackLoading] = useState(false);
+  const [importingPackId, setImportingPackId] = useState<string | null>(null);
+  const [importedPackIds, setImportedPackIds] = useState<Set<string>>(new Set());
+
   // 검색 입력 — URL 동기화 + 디바운스
   const q       = searchParams.get('q') || '';
   const kindSel = searchParams.get('kind') || '';
