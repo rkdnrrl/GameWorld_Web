@@ -126,6 +126,13 @@ export default function WorldPage() {
         posesRef={posesRef}
         onMove={sendMove}
         customObjects={customObjects ?? undefined}
+        graphics={graphics}
+      />
+
+      <GraphicsPanel
+        settings={graphics}
+        updateSettings={updateGraphics}
+        applyPreset={applyGraphicsPreset}
       />
 
       {/* HUD — 상단 */}
