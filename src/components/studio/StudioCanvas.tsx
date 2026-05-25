@@ -803,6 +803,23 @@ export default function StudioCanvas() {
         <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.55)', borderRadius: 20, padding: '6px 16px', color: '#fff', fontSize: 12, backdropFilter: 'blur(8px)' }}>
           {t('hudHint')}
         </div>
+
+        {texPicker && (
+          <TexturePickerModal
+            assets={myAssets}
+            title={t('texPickerTitle')}
+            onClose={() => setTexPicker(null)}
+            onSelect={(url) => {
+              const field =
+                texPicker === 'albedo'    ? 'textureAlbedo' :
+                texPicker === 'normal'    ? 'textureNormal' :
+                                            'textureRoughness';
+              updateMaterialField(field, url);
+              pushHistory(objects);
+              setTexPicker(null);
+            }}
+          />
+        )}
       </div>
     </div>
   );
