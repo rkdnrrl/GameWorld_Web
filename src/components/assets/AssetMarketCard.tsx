@@ -100,8 +100,15 @@ export default function AssetMarketCard({
         <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {asset.name}
         </div>
-        <div style={{ fontSize: 11, opacity: 0.55, marginBottom: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {t('byAuthor', { name: asset.creator?.username || t('anonymousAuthor') })}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+          <div style={{ flex: 1, fontSize: 11, opacity: 0.55, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {t('byAuthor', { name: asset.creator?.username || t('anonymousAuthor') })}
+          </div>
+          {(asset.importCount ?? 0) > 0 && (
+            <span style={{ fontSize: 10, opacity: 0.5, whiteSpace: 'nowrap' }} title={t('importCountTooltip')}>
+              ↓ {asset.importCount}
+            </span>
+          )}
         </div>
 
         {/* 태그 (읽기 전용, 최대 3개) */}
