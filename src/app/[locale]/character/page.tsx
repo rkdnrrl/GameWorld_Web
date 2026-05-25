@@ -1146,6 +1146,7 @@ export default function CharacterPage() {
             </button>
           </div>
         </div>
+        </div>
       </div>
     </>
   );
