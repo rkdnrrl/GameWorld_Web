@@ -1,7 +1,10 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { session } from '@/lib/api';
+
+const AssetMaterialEditor = dynamic(() => import('@/components/assets/AssetMaterialEditor'), { ssr: false });
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
