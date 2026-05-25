@@ -779,7 +779,7 @@ export default function StudioCanvas() {
   }
 
   return (
-    <div style={{ display: 'flex', width: '100vw', height: '100vh', background: '#0f172a', overflow: 'hidden', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif" }}>
+    <div style={{ display: 'flex', width: '100%', height: '100%', background: '#0f172a', overflow: 'hidden', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif" }}>
 
       {/* ── 좌측 패널 ──────────────────────── */}
       <div style={{ width: 260, background: '#1e293b', borderRight: '1px solid rgba(255,255,255,0.08)', padding: 16, overflowY: 'auto', color: '#fff' }}>
