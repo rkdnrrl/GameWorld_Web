@@ -36,6 +36,39 @@ export type AnimState = 'idle' | 'walk' | 'run' | 'jump' | 'crouch' | 'prone';
 
 export interface AnimTrim { start?: number; end?: number; }
 
+/* ── FBX 캐시 — 같은 URL 한 번만 로드 ───── */
+type FBXLoaded = { obj: THREE.Object3D; anims: THREE.AnimationClip[] };
+const fbxCache    = new Map<string, FBXLoaded>();
+const fbxLoading  = new Map<string, Promise<FBXLoaded>>();
+
+async function loadFBXCached(url: string): Promise<FBXLoaded> {
+  if (fbxCache.has(url))    return fbxCache.get(url)!;
+  if (fbxLoading.has(url))  return fbxLoading.get(url)!;
+
+  const p = new Promise<FBXLoaded>((resolve, reject) => {
+    import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
+      new FBXLoader().load(url, (fbx) => {
+        const result: FBXLoaded = {
+          obj:   fbx,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          anims: ((fbx as any).animations as THREE.AnimationClip[]) ?? [],
+        };
+        fbxCache.set(url, result);
+        fbxLoading.delete(url);
+        resolve(result);
+      }, undefined, reject);
+    });
+  });
+  fbxLoading.set(url, p);
+  return p;
+}
+
+/** 스킨드 메쉬 + 본 구조 보존 복제 (THREE.clone()은 skeleton bind 깨짐) */
+async function cloneFBX(source: THREE.Object3D): Promise<THREE.Object3D> {
+  const { SkeletonUtils } = await import('three/examples/jsm/utils/SkeletonUtils.js');
+  return SkeletonUtils.clone(source);
+}
+
 /** start~end 초 구간만 잘라낸 새 AnimationClip 반환 (트림 없으면 원본) */
 function trimClip(source: THREE.AnimationClip, trim?: AnimTrim): THREE.AnimationClip {
   if (!trim) return source;
