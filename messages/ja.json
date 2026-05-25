@@ -1307,8 +1307,11 @@
     "trimSec": "秒",
     "trimFull": "全体",
     "myCharacters": "マイキャラクター",
+    "newCharacter": "新規キャラクター",
     "activeCharacter": "使用中",
     "selectCharacter": "選択",
+    "deleteCharacter": "削除",
+    "confirmDeleteCharacter": "キャラクター「{name}」を削除しますか？",
     "saveAndEnterWorld": "保存してワールドへ 🌍"
   },
   "Assets": {

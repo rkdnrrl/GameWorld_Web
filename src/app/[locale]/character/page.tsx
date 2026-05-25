@@ -564,6 +564,8 @@ export default function CharacterPage() {
   const [error, setError]         = useState('');
   const [myChars, setMyChars]     = useState<MyCharacter[]>([]);
   const [selectingId, setSelectingId] = useState('');
+  const [deletingId, setDeletingId] = useState('');
+  const [creatingNew, setCreatingNew] = useState(false);
 
   const setColor = (key: string) => (val: string) =>
     setAppearance(prev => ({ ...prev, [key]: val }));
@@ -591,6 +593,26 @@ export default function CharacterPage() {
       prone: String(ap.proneAnim || ''),
     });
     setAnimTrims((ap.animTrims as Record<string, { start: number; end: number }>) || {});
+    setCreatingNew(false);
+  };
+
+  const resetEditorForNewCharacter = () => {
+    setName('');
+    setAppearance({
+      bodyColor: '#4f46e5',
+      skinColor: '#fcd9b0',
+      hairColor: '#1e293b',
+      pantsColor: '#1e293b',
+    });
+    setModelUrl('');
+    setModelName('');
+    setModelScale(1.0);
+    setModelRotX(-Math.PI / 2);
+    setModelOffsetY(0);
+    setAvailableAnims([]);
+    setAnimMap({ idle: '', walk: '', run: '', jump: '', crouch: '', prone: '' });
+    setAnimTrims({});
+    setCreatingNew(true);
   };
 
   const loadCharacters = async () => {
@@ -677,9 +699,9 @@ export default function CharacterPage() {
       const token = session.getToken();
       const active = myChars.find((c) => c.isActive);
       const targetUrl = active
-        ? `${API}/api/characters/${encodeURIComponent(active.id)}`
+        ? (creatingNew ? `${API}/api/characters` : `${API}/api/characters/${encodeURIComponent(active.id)}`)
         : `${API}/api/characters`;
-      const method = active ? 'PATCH' : 'POST';
+      const method = active ? (creatingNew ? 'POST' : 'PATCH') : 'POST';
       const res = await fetch(targetUrl, {
         method,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -691,6 +713,7 @@ export default function CharacterPage() {
         return;
       }
       await loadCharacters();
+      setCreatingNew(false);
       router.replace('/world');
     } catch {
       setError(t('networkError'));
@@ -718,6 +741,32 @@ export default function CharacterPage() {
       setError(t('networkError'));
     } finally {
       setSelectingId('');
+    }
+  };
+
+  const handleDeleteCharacter = async (id: string) => {
+    const target = myChars.find((c) => c.id === id);
+    if (!target) return;
+    if (!window.confirm(t('confirmDeleteCharacter', { name: target.name }))) return;
+
+    setDeletingId(id);
+    setError('');
+    try {
+      const token = session.getToken();
+      const res = await fetch(`${API}/api/characters/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.error?.message || t('saveFailed'));
+        return;
+      }
+      await loadCharacters();
+    } catch {
+      setError(t('networkError'));
+    } finally {
+      setDeletingId('');
     }
   };
 
@@ -801,25 +850,65 @@ export default function CharacterPage() {
                 background: 'rgba(16,185,129,0.08)', borderRadius: 12,
                 border: '1px solid rgba(16,185,129,0.2)',
               }}>
-                <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, marginBottom: 8 }}>{t('myCharacters')}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>{t('myCharacters')}</div>
+                  <button
+                    onClick={resetEditorForNewCharacter}
+                    style={{
+                      border: '1px solid rgba(99,102,241,0.45)',
+                      background: creatingNew ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.15)',
+                      color: '#c7d2fe',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      borderRadius: 6,
+                      padding: '4px 8px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {t('newCharacter')}
+                  </button>
+                </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 140, overflowY: 'auto' }}>
                   {myChars.map((ch) => (
-                    <button
+                    <div
                       key={ch.id}
-                      onClick={() => { applyCharacterToEditor(ch); handleSelectCharacter(ch.id); }}
-                      disabled={selectingId === ch.id}
                       style={{
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none',
-                        background: ch.isActive ? 'rgba(16,185,129,0.25)' : 'rgba(255,255,255,0.08)',
-                        color: '#fff', fontSize: 12, cursor: 'pointer',
+                        display: 'flex', gap: 6, alignItems: 'center',
                       }}
                     >
-                      <span style={{ textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ch.name}</span>
-                      <span style={{ opacity: 0.8, fontSize: 11 }}>
-                        {selectingId === ch.id ? t('saving') : (ch.isActive ? t('activeCharacter') : t('selectCharacter'))}
-                      </span>
-                    </button>
+                      <button
+                        onClick={() => { applyCharacterToEditor(ch); handleSelectCharacter(ch.id); }}
+                        disabled={selectingId === ch.id || deletingId === ch.id}
+                        style={{
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          flex: 1, padding: '8px 10px', borderRadius: 8, border: 'none',
+                          background: ch.isActive ? 'rgba(16,185,129,0.25)' : 'rgba(255,255,255,0.08)',
+                          color: '#fff', fontSize: 12, cursor: 'pointer',
+                        }}
+                      >
+                        <span style={{ textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ch.name}</span>
+                        <span style={{ opacity: 0.8, fontSize: 11 }}>
+                          {selectingId === ch.id ? t('saving') : (ch.isActive ? t('activeCharacter') : t('selectCharacter'))}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCharacter(ch.id)}
+                        disabled={deletingId === ch.id || selectingId === ch.id}
+                        style={{
+                          border: '1px solid rgba(239,68,68,0.45)',
+                          background: 'rgba(239,68,68,0.15)',
+                          color: '#fecaca',
+                          borderRadius: 8,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: '8px 8px',
+                          cursor: 'pointer',
+                          minWidth: 44,
+                        }}
+                      >
+                        {deletingId === ch.id ? t('saving') : t('deleteCharacter')}
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>

@@ -1307,8 +1307,11 @@
     "trimSec": "s",
     "trimFull": "Full",
     "myCharacters": "My Characters",
+    "newCharacter": "New Character",
     "activeCharacter": "Active",
     "selectCharacter": "Select",
+    "deleteCharacter": "Delete",
+    "confirmDeleteCharacter": "Delete character \"{name}\"?",
     "saveAndEnterWorld": "Save & Enter World 🌍"
   },
   "Assets": {

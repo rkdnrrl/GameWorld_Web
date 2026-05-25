@@ -1307,8 +1307,11 @@
     "trimSec": "초",
     "trimFull": "전체",
     "myCharacters": "내 캐릭터",
+    "newCharacter": "새 캐릭터",
     "activeCharacter": "사용 중",
     "selectCharacter": "선택",
+    "deleteCharacter": "삭제",
+    "confirmDeleteCharacter": "\"{name}\" 캐릭터를 삭제할까요?",
     "saveAndEnterWorld": "저장 후 월드 입장 🌍"
   },
   "Assets": {

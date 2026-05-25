@@ -1307,8 +1307,11 @@
     "trimSec": "秒",
     "trimFull": "全部",
     "myCharacters": "我的角色",
+    "newCharacter": "新建角色",
     "activeCharacter": "使用中",
     "selectCharacter": "选择",
+    "deleteCharacter": "删除",
+    "confirmDeleteCharacter": "要删除角色「{name}」吗？",
     "saveAndEnterWorld": "保存并进入世界 🌍"
   },
   "Assets": {
