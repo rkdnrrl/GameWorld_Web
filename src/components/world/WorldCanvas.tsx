@@ -686,8 +686,6 @@ export default function WorldCanvas({ character, players, posesRef, onMove, cust
   const shadowMapSize: [number, number] = [graphics.shadowSize || 1024, graphics.shadowSize || 1024];
   return (
       <Canvas
-        // key로 antialias 변경 시 Canvas 재생성 (gl 옵션은 init-only)
-        key={`aa-${graphics.antialias ? 1 : 0}`}
         shadows={shadowsEnabled}
         camera={{ fov: 60, near: 0.1, far: graphics.farClip, position: [0, 8, 12] }}
         dpr={graphics.dpr}
