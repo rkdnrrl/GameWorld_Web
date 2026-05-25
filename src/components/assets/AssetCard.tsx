@@ -35,7 +35,7 @@ const MAX_VISIBLE_TAGS = 3;
 export default function AssetCard({
   asset, kinds, selectedTags = [], selectedFolder, selected = false,
   onEdit, onPreview, onEditTags, onEditFolder, onClickTag, onClickFolder,
-  onToggleSelect, onTogglePublic, onDelete,
+  onToggleSelect, onTogglePublic, onDelete, onEditVersions,
   onDragStart, onDragEnd,
 }: Props) {
   const [hovered, setHovered] = useState(false);
