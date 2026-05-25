@@ -82,8 +82,6 @@ const btnTiny = (active: boolean) => ({
   color: '#fff', cursor: 'pointer',
 } as const);
 
-const WORLD_CHARACTER_BASE_Y = -0.63;
-
 function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   // 재호출 시 누적 방지 — 매번 fresh 한 상태에서 시작
   obj.position.set(0, 0, 0);
@@ -196,7 +194,7 @@ function CustomPreview({
   // offsetY 는 사용자가 발 높이 미세조정 (m)
   return (
     <group ref={g}>
-      <group scale={userScale} position={[0, WORLD_CHARACTER_BASE_Y + offsetY, 0]}>
+      <group scale={userScale} position={[0, offsetY, 0]}>
         <primitive object={obj} />
       </group>
     </group>
@@ -238,7 +236,7 @@ function BlockPreview({ appearance }: { appearance: Record<string, string> }) {
   const hair = appearance.hairColor || '#1e293b';
   const pants = appearance.pantsColor || '#1e293b';
   return (
-    <group ref={g} position={[0, WORLD_CHARACTER_BASE_Y, 0]}>
+    <group ref={g}>
       <mesh position={[0, 0.35, 0]}><boxGeometry args={[0.55, 0.65, 0.28]} /><meshStandardMaterial color={body} /></mesh>
       <mesh position={[0, 0.95, 0]}><boxGeometry args={[0.48, 0.48, 0.48]} /><meshStandardMaterial color={skin} /></mesh>
       <mesh position={[0, 1.22, 0]}><boxGeometry args={[0.50, 0.14, 0.50]} /><meshStandardMaterial color={hair} /></mesh>
