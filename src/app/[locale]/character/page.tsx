@@ -460,38 +460,83 @@ export default function CharacterPage() {
                   ['jump',   t('jumpAnimLabel')],
                   ['crouch', t('crouchAnimLabel')],
                   ['prone',  t('proneAnimLabel')],
-                ] as const).map(([slot, label]) => (
-                  <div key={slot} style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, marginBottom: 2 }}>{label}</div>
-                      <select
-                        value={animMap[slot]}
-                        onChange={e => {
-                          setAnimMap(prev => ({ ...prev, [slot]: e.target.value }));
-                          setPreviewSlot(slot);
-                        }}
-                        onFocus={() => setPreviewSlot(slot)}
-                        style={{
-                          width: '100%', background: 'rgba(0,0,0,0.4)',
-                          border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6,
-                          color: '#fff', fontSize: 11, padding: '5px 8px', outline: 'none',
-                        }}
-                      >
-                        <option value="">{t('noneOption')}</option>
-                        {availableAnims.map(a => (
-                          <option key={a.name} value={a.name}>{a.name} ({a.duration.toFixed(1)}s)</option>
-                        ))}
-                      </select>
+                ] as const).map(([slot, label]) => {
+                  const animName = animMap[slot];
+                  const animMeta = availableAnims.find(a => a.name === animName);
+                  const duration = animMeta?.duration ?? 0;
+                  const trim     = animTrims[slot] ?? { start: 0, end: duration };
+                  return (
+                    <div key={slot} style={{
+                      marginBottom: 8, padding: 6,
+                      background: previewSlot === slot ? 'rgba(16,185,129,0.08)' : 'transparent',
+                      borderRadius: 6, border: previewSlot === slot ? '1px solid rgba(16,185,129,0.25)' : '1px solid transparent',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, marginBottom: 2 }}>{label}</div>
+                          <select
+                            value={animName}
+                            onChange={e => {
+                              const name = e.target.value;
+                              setAnimMap(prev => ({ ...prev, [slot]: name }));
+                              // 새 애니메이션 선택 시 트림 리셋
+                              const dur = availableAnims.find(a => a.name === name)?.duration ?? 0;
+                              setAnimTrims(prev => ({ ...prev, [slot]: { start: 0, end: dur } }));
+                              setPreviewSlot(slot);
+                            }}
+                            onFocus={() => setPreviewSlot(slot)}
+                            style={{
+                              width: '100%', background: 'rgba(0,0,0,0.4)',
+                              border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6,
+                              color: '#fff', fontSize: 11, padding: '5px 8px', outline: 'none',
+                            }}
+                          >
+                            <option value="">{t('noneOption')}</option>
+                            {availableAnims.map(a => (
+                              <option key={a.name} value={a.name}>{a.name} ({a.duration.toFixed(1)}s)</option>
+                            ))}
+                          </select>
+                        </div>
+                        <button onClick={() => setPreviewSlot(slot)}
+                          title={t('previewLabel')}
+                          style={{
+                            marginTop: 12, padding: '5px 8px', borderRadius: 5, border: 'none',
+                            background: previewSlot === slot ? '#10b981' : 'rgba(255,255,255,0.08)',
+                            color: '#fff', cursor: 'pointer', fontSize: 10, flexShrink: 0,
+                          }}>▶</button>
+                      </div>
+
+                      {/* 트림 (애니메이션 선택된 경우) */}
+                      {animName && duration > 0 && (
+                        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, width: 26 }}>{t('trimStart')}</span>
+                          <input type="number" step={0.05} min={0} max={duration}
+                            value={trim.start.toFixed(2)}
+                            onChange={e => {
+                              const s = Math.max(0, Math.min(duration, Number(e.target.value) || 0));
+                              setAnimTrims(prev => ({ ...prev, [slot]: { start: s, end: Math.max(s + 0.05, trim.end) } }));
+                            }}
+                            style={{ width: 50, background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, color: '#fff', fontSize: 10, padding: '2px 4px', outline: 'none', textAlign: 'right' }}
+                          />
+                          <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, width: 18 }}>{t('trimEnd')}</span>
+                          <input type="number" step={0.05} min={0} max={duration}
+                            value={trim.end.toFixed(2)}
+                            onChange={e => {
+                              const eVal = Math.max(trim.start + 0.05, Math.min(duration, Number(e.target.value) || duration));
+                              setAnimTrims(prev => ({ ...prev, [slot]: { start: trim.start, end: eVal } }));
+                            }}
+                            style={{ width: 50, background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, color: '#fff', fontSize: 10, padding: '2px 4px', outline: 'none', textAlign: 'right' }}
+                          />
+                          <button onClick={() => setAnimTrims(prev => ({ ...prev, [slot]: { start: 0, end: duration } }))}
+                            style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: 9, padding: '3px 6px', borderRadius: 3, cursor: 'pointer' }}>
+                            {t('trimFull')}
+                          </button>
+                          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 9, marginLeft: 'auto' }}>{(trim.end - trim.start).toFixed(2)}{t('trimSec')}</span>
+                        </div>
+                      )}
                     </div>
-                    <button onClick={() => setPreviewSlot(slot)}
-                      title={t('previewLabel')}
-                      style={{
-                        marginTop: 12, padding: '5px 8px', borderRadius: 5, border: 'none',
-                        background: previewSlot === slot ? '#10b981' : 'rgba(255,255,255,0.08)',
-                        color: '#fff', cursor: 'pointer', fontSize: 10, flexShrink: 0,
-                      }}>▶</button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
