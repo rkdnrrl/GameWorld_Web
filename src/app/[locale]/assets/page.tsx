@@ -11,9 +11,11 @@ import { getKind } from '@/lib/assets/registry';
 // 사이드이펙트 import — 모든 kind 핸들러 등록
 import '@/lib/assets/kinds';
 
-import AssetSidebar from '@/components/assets/AssetSidebar';
-import AssetToolbar from '@/components/assets/AssetToolbar';
-import AssetGrid    from '@/components/assets/AssetGrid';
+import AssetSidebar       from '@/components/assets/AssetSidebar';
+import AssetToolbar       from '@/components/assets/AssetToolbar';
+import AssetGrid          from '@/components/assets/AssetGrid';
+import AssetActiveFilters from '@/components/assets/AssetActiveFilters';
+import AssetTagEditor     from '@/components/assets/AssetTagEditor';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
