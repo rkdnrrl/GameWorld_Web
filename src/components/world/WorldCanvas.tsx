@@ -21,21 +21,20 @@ function lerpAngle(current: number, target: number, t: number): number {
  *  rotX 를 미리 적용한 뒤 측정/align 해야 Z-up FBX (Meshy 등) 도 발이 y=0 에 옴
  */
 function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
-  // 1) 회전 먼저 (Z-up → Y-up 변환 포함)
+  // 재호출 시 누적 방지 — 매번 fresh 한 상태에서 시작
   obj.position.set(0, 0, 0);
   obj.rotation.set(rotX, 0, 0);
+  obj.scale.set(1, 1, 1);
   obj.updateMatrixWorld(true);
 
-  // 2) 회전 적용 상태에서 높이 측정 → 스케일
   const box  = new THREE.Box3().setFromObject(obj);
   const size = box.getSize(new THREE.Vector3());
   const h    = Math.max(size.x, size.y, size.z);
   if (h > 0) {
-    obj.scale.multiplyScalar(targetHeight / h);
+    obj.scale.setScalar(targetHeight / h);
     obj.updateMatrixWorld(true);
   }
 
-  // 3) 회전·스케일 적용 후 실제 발 위치(box.min.y)를 y=0 으로
   const box2 = new THREE.Box3().setFromObject(obj);
   obj.position.y -= box2.min.y;
 }
