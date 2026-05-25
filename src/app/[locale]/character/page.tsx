@@ -702,6 +702,23 @@ export default function CharacterPage() {
                       ))}
                     </div>
                   </div>
+                  {/* Y 오프셋 — 발 높이 미세 조정 */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                      <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>{t('offsetYLabel')}</span>
+                      <span style={{ color: '#a5b4fc', fontSize: 11 }}>{modelOffsetY >= 0 ? '+' : ''}{modelOffsetY.toFixed(2)}m</span>
+                    </div>
+                    <input type="range" min={-0.5} max={0.5} step={0.01}
+                      value={modelOffsetY} onChange={e => setModelOffsetY(Number(e.target.value))}
+                      style={{ width: '100%' }} />
+                    <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                      <button onClick={() => setModelOffsetY(0)} style={{
+                        flex: 1, fontSize: 10, padding: '2px 0', borderRadius: 4, border: 'none',
+                        background: Math.abs(modelOffsetY) < 0.005 ? '#4f46e5' : 'rgba(255,255,255,0.1)',
+                        color: '#fff', cursor: 'pointer',
+                      }}>{t('offsetYReset')}</button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
