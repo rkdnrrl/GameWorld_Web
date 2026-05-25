@@ -133,19 +133,16 @@ function CustomModel({ url, userScale, rotX, animStateRef, animNames, animTrims 
       }
     };
 
-    const onLoaded = (loaded: THREE.Object3D, anims: THREE.AnimationClip[] = []) => {
+    (async () => {
+      const { obj: source, anims } = await loadFBXCached(url);
       if (cancelled) return;
-      loaded.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = true; });
-      autoNormalize(loaded, 1.8);
-      setupMixer(loaded, anims);
-      setObj(loaded);
-    };
-
-    import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
-      new FBXLoader().load(url, (fbx) => {
-        onLoaded(fbx, (fbx as unknown as { animations: THREE.AnimationClip[] }).animations ?? []);
-      });
-    });
+      const cloned = await cloneFBX(source);
+      if (cancelled) return;
+      cloned.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = true; });
+      autoNormalize(cloned, 1.8);
+      setupMixer(cloned, anims);
+      setObj(cloned);
+    })();
     return () => {
       cancelled = true;
       mixer.current?.stopAllAction();
