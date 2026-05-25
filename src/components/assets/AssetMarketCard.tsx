@@ -11,6 +11,9 @@ import { getKind } from '@/lib/assets/registry';
 
 interface MarketAsset extends Asset {
   creator?: { username: string | null };
+  liked?: boolean;
+  likeCount?: number;
+  importCount?: number;
 }
 
 interface Props {
@@ -18,12 +21,15 @@ interface Props {
   kinds: AssetKind[];
   importing?: boolean;
   imported?: boolean;
+  liking?: boolean;
   onPreview: (a: Asset) => void;
   onImport: (a: Asset) => void;
+  onToggleLike: (a: MarketAsset) => void;
 }
 
 export default function AssetMarketCard({
-  asset, kinds, importing, imported, onPreview, onImport,
+  asset, kinds, importing, imported, liking,
+  onPreview, onImport, onToggleLike,
 }: Props) {
   const t = useTranslations('Assets');
   const [hovered, setHovered] = useState(false);
