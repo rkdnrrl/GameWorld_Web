@@ -16,13 +16,13 @@ interface Props {
   selectedKinds: string[];
   selectedTags: string[];
   selectedFolder: string | null;
-  /** 드래그 중 여부 — 드롭 타겟 강조 활성화 */
+  /** 내부 카드 드래그 중 여부 — 드롭 타겟 강조 활성화 */
   dragActive?: boolean;
   onSelectKinds: (next: string[]) => void;
   onToggleTag: (tag: string) => void;
   onSelectFolder: (folder: string | null) => void;
-  /** 폴더에 에셋 드롭 — folder null = 루트로 */
-  onDropToFolder: (folder: string | null) => void;
+  /** 폴더에 드롭 — files 가 있으면 업로드, 없으면 카드 이동 */
+  onDropToFolder: (folder: string | null, files?: File[]) => void;
 }
 
 const INITIAL_TAG_LIMIT = 12;
