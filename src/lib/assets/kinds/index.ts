@@ -4,4 +4,6 @@
  */
 import './model';
 import './image';
-// 새 kind 추가 시 여기에 import 한 줄 추가 (예: import './audio';)
+import './audio';
+import './video';
+// 새 kind 추가 시 여기에 import 한 줄 추가
