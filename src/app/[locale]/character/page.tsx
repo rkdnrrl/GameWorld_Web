@@ -675,8 +675,13 @@ export default function CharacterPage() {
       : appearance;
     try {
       const token = session.getToken();
-      const res = await fetch(`${API}/api/characters`, {
-        method: 'POST',
+      const active = myChars.find((c) => c.isActive);
+      const targetUrl = active
+        ? `${API}/api/characters/${encodeURIComponent(active.id)}`
+        : `${API}/api/characters`;
+      const method = active ? 'PATCH' : 'POST';
+      const res = await fetch(targetUrl, {
+        method,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ name: name.trim(), appearance: fullAppearance }),
       });
