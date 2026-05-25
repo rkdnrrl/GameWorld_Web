@@ -102,3 +102,25 @@ export function countByKind(assets: Asset[], kinds: AssetKind[]): Record<string,
   }
   return counts;
 }
+
+/** 태그별 카운트 — 사이드바용 */
+export function countByTag(assets: Asset[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const a of assets) {
+    for (const t of a.tags || []) {
+      const key = t.trim();
+      if (!key) continue;
+      counts[key] = (counts[key] || 0) + 1;
+    }
+  }
+  return counts;
+}
+
+/** 카운트 내림차순으로 정렬된 태그 리스트 */
+export function topTags(assets: Asset[], limit?: number): { tag: string; count: number }[] {
+  const counts = countByTag(assets);
+  const entries = Object.entries(counts)
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+  return typeof limit === 'number' ? entries.slice(0, limit) : entries;
+}
