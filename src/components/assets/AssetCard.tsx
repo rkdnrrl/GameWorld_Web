@@ -82,9 +82,47 @@ export default function AssetCard({
 
       {/* 정보 */}
       <div style={{ padding: '10px 12px' }}>
-        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {asset.name}
         </div>
+
+        {/* 태그 라인 */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8, minHeight: 18 }}>
+          {(asset.tags || []).slice(0, MAX_VISIBLE_TAGS).map(tag => {
+            const active = selectedTags.includes(tag);
+            return (
+              <button key={tag}
+                onClick={e => { e.stopPropagation(); onClickTag(tag); }}
+                title={t('tagClickToFilter')}
+                style={{
+                  padding: '1px 6px', fontSize: 10,
+                  background: active ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.06)',
+                  color: active ? '#fff' : 'rgba(255,255,255,0.65)',
+                  border: 'none', borderRadius: 4,
+                  cursor: 'pointer', fontWeight: active ? 700 : 500,
+                }}>
+                #{tag}
+              </button>
+            );
+          })}
+          {(asset.tags || []).length > MAX_VISIBLE_TAGS && (
+            <span style={{ fontSize: 10, opacity: 0.5, padding: '1px 4px' }}>
+              +{(asset.tags || []).length - MAX_VISIBLE_TAGS}
+            </span>
+          )}
+          <button
+            onClick={e => { e.stopPropagation(); onEditTags(asset); }}
+            title={t('editTags')}
+            style={{
+              padding: '0 6px', fontSize: 10,
+              background: 'transparent', color: 'rgba(255,255,255,0.4)',
+              border: '1px dashed rgba(255,255,255,0.15)', borderRadius: 4,
+              cursor: 'pointer',
+            }}>
+            + {t('tag')}
+          </button>
+        </div>
+
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <a
             href={asset.modelUrl}
