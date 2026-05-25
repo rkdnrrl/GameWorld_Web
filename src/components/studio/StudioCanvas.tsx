@@ -548,6 +548,8 @@ export default function StudioCanvas() {
   const [orbitEnabled, setOrbitEnabled] = useState(true);
   const [activeAssetPicker, setActiveAssetPicker] = useState(false);
   const [texPicker, setTexPicker] = useState<null | 'albedo' | 'normal' | 'roughness'>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const orbitRef = useRef<OrbitRef | null>(null);
 
   const token = () => session.getToken() || '';
@@ -672,6 +674,17 @@ export default function StudioCanvas() {
     return () => window.removeEventListener('keydown', onKey);
   }, [selectedId, undo, redo, pushHistory]);
 
+  useEffect(() => {
+    const check = () => {
+      const mobile = window.matchMedia?.('(max-width: 900px)')?.matches ?? false;
+      setIsMobile(mobile);
+      if (!mobile) setMobilePanelOpen(false);
+    };
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
   function addPrimitive(kind: 'cube' | 'sphere' | 'cylinder' | 'plane') {
     const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     setObjects(prev => {
@@ -779,10 +792,36 @@ export default function StudioCanvas() {
   }
 
   return (
-    <div style={{ display: 'flex', width: '100%', height: '100%', background: '#0f172a', overflow: 'hidden', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif" }}>
+    <div style={{ display: 'flex', width: '100%', height: '100%', background: '#0f172a', overflow: 'hidden', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif", position: 'relative' }}>
 
       {/* ── 좌측 패널 ──────────────────────── */}
-      <div style={{ width: 260, background: '#1e293b', borderRight: '1px solid rgba(255,255,255,0.08)', padding: 16, overflowY: 'auto', color: '#fff' }}>
+      <div style={{
+        width: 260,
+        background: '#1e293b',
+        borderRight: '1px solid rgba(255,255,255,0.08)',
+        padding: 16,
+        overflowY: 'auto',
+        color: '#fff',
+        position: isMobile ? 'absolute' : 'relative',
+        left: isMobile ? 0 : undefined,
+        top: isMobile ? 0 : undefined,
+        bottom: isMobile ? 0 : undefined,
+        zIndex: isMobile ? 220 : undefined,
+        transform: isMobile ? (mobilePanelOpen ? 'translateX(0)' : 'translateX(-108%)') : undefined,
+        transition: isMobile ? 'transform 180ms ease' : undefined,
+        boxShadow: isMobile ? '0 0 0 1px rgba(255,255,255,0.1), 8px 0 30px rgba(2,6,23,0.6)' : undefined,
+      }}>
+        {isMobile && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+            <button
+              type="button"
+              onClick={() => setMobilePanelOpen(false)}
+              style={{ border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)', color: '#fff', borderRadius: 8, width: 32, height: 32, fontWeight: 700 }}
+            >
+              ×
+            </button>
+          </div>
+        )}
         <h2 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 800 }}>{t('title')}</h2>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12 }}>
           <button
@@ -1028,6 +1067,12 @@ export default function StudioCanvas() {
           </a>
         )}
       </div>
+      {isMobile && mobilePanelOpen && (
+        <div
+          onClick={() => setMobilePanelOpen(false)}
+          style={{ position: 'absolute', inset: 0, background: 'rgba(2,6,23,0.5)', zIndex: 210 }}
+        />
+      )}
 
       {myWorldsOpen && (
         <div
@@ -1126,6 +1171,28 @@ export default function StudioCanvas() {
         <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.55)', borderRadius: 20, padding: '6px 16px', color: '#fff', fontSize: 12, backdropFilter: 'blur(8px)' }}>
           {t('hudHint')}
         </div>
+        {isMobile && (
+          <button
+            type="button"
+            onClick={() => setMobilePanelOpen(true)}
+            style={{
+              position: 'absolute',
+              top: 16,
+              left: 16,
+              width: 40,
+              height: 40,
+              borderRadius: 10,
+              border: '1px solid rgba(255,255,255,0.2)',
+              background: 'rgba(2,6,23,0.55)',
+              color: '#fff',
+              fontSize: 20,
+              fontWeight: 700,
+              zIndex: 230,
+            }}
+          >
+            ☰
+          </button>
+        )}
 
         {texPicker && (
           <TexturePickerModal

@@ -1,7 +1,7 @@
 'use client';
 import React, { Suspense, useRef, useEffect, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Sky, Text } from '@react-three/drei';
+import { Html, Sky, Text } from '@react-three/drei';
 import { Physics, RigidBody, CapsuleCollider, useRapier } from '@react-three/rapier';
 import * as THREE from 'three';
 import type { RemotePlayer, PlayerPose } from '@/lib/world/useGameSocket';
@@ -430,6 +430,11 @@ function Player({
   const lastSend = useRef(0);
   const jumpPrev = useRef(false);
   const lastPos  = useRef(new THREE.Vector3(0, 1, 0));
+  const isMobileRef = useRef(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const moveTouchRef = useRef({ active: false, x: 0, y: 0, pointerId: -1 });
+  const lookTouchRef = useRef({ active: false, pointerId: -1, lastX: 0, lastY: 0 });
+  const jumpTouchQueued = useRef(false);
   // 현재 애니메이션 상태 (CustomModel이 참조)
   const animStateRef = useRef<AnimState>('idle');
   // 토글 키: C(앉기), Z(엎드리기)
@@ -439,6 +444,19 @@ function Player({
   const jumpHoldUntil = useRef(0);
 
   /* 키보드 + 포인터 락 */
+  useEffect(() => {
+    const detectMobile = () => {
+      const coarse = window.matchMedia?.('(pointer: coarse)')?.matches ?? false;
+      const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      const m = coarse || touch;
+      isMobileRef.current = m;
+      setIsMobile(m);
+    };
+    detectMobile();
+    window.addEventListener('resize', detectMobile);
+    return () => window.removeEventListener('resize', detectMobile);
+  }, []);
+
   useEffect(() => {
     const el = gl.domElement;
 
@@ -460,7 +478,10 @@ function Player({
       camV.current  = Math.max(-1.1, Math.min(1.3, camV.current + e.movementY * 0.003));
     };
     const onLockChange = () => { isLocked.current = !!document.pointerLockElement; };
-    const onClick = () => el.requestPointerLock();
+    const onClick = () => {
+      if (isMobileRef.current) return;
+      el.requestPointerLock();
+    };
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       camDist.current = Math.max(1.1, Math.min(14, camDist.current + e.deltaY * 0.01));
@@ -518,6 +539,13 @@ function Player({
       if (left)     { mx -= cosH; mz += sinH; }
       if (right)    { mx += cosH; mz -= sinH; }
 
+      if (moveTouchRef.current.active) {
+        const jx = moveTouchRef.current.x;
+        const jy = -moveTouchRef.current.y;
+        mx += (-sinH * jy) + (cosH * jx);
+        mz += (-cosH * jy) + (-sinH * jx);
+      }
+
       const len = Math.sqrt(mx * mx + mz * mz);
       if (len > 0) { mx /= len; mz /= len; }
       body.current.setLinvel({ x: mx * SPEED, y: vel.y, z: mz * SPEED }, true);
@@ -528,8 +556,9 @@ function Player({
       const onGround = !!(hit && hit.timeOfImpact < 0.7);
 
       // 점프: Space가 새로 눌렸을 때만 1번 (앉기/엎드리기 중엔 점프 금지)
-      const jumpJustPressed = jump && !jumpPrev.current;
+      const jumpJustPressed = (jump && !jumpPrev.current) || jumpTouchQueued.current;
       jumpPrev.current = jump;
+      jumpTouchQueued.current = false;
       if (jumpJustPressed && onGround && !isCrouch && !isProne) {
         // 7 m/s → 약 1.1m 점프, 공중 체공 시간 ~0.64초
         body.current.setLinvel({ x: vel.x, y: 7, z: vel.z }, true);
@@ -589,6 +618,157 @@ function Player({
       <group ref={mesh} position={[0, PLAYER_MESH_Y, 0]}>
         <CharacterMesh appearance={appearance} animStateRef={animStateRef} />
       </group>
+      {isMobile && (
+        <Html fullscreen>
+          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+            <div
+              style={{
+                position: 'absolute',
+                left: 18,
+                bottom: 18,
+                width: 120,
+                height: 120,
+                borderRadius: '50%',
+                background: 'rgba(15,23,42,0.45)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                pointerEvents: 'auto',
+                touchAction: 'none',
+              }}
+              onPointerDown={(e) => {
+                moveTouchRef.current.active = true;
+                moveTouchRef.current.pointerId = e.pointerId;
+                (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+              }}
+              onPointerMove={(e) => {
+                if (!moveTouchRef.current.active || moveTouchRef.current.pointerId !== e.pointerId) return;
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                const cx = rect.left + rect.width / 2;
+                const cy = rect.top + rect.height / 2;
+                const dx = e.clientX - cx;
+                const dy = e.clientY - cy;
+                const r = rect.width * 0.42;
+                const len = Math.hypot(dx, dy);
+                const clamped = len > r ? r / len : 1;
+                moveTouchRef.current.x = (dx * clamped) / r;
+                moveTouchRef.current.y = (dy * clamped) / r;
+              }}
+              onPointerUp={(e) => {
+                if (moveTouchRef.current.pointerId !== e.pointerId) return;
+                moveTouchRef.current.active = false;
+                moveTouchRef.current.x = 0;
+                moveTouchRef.current.y = 0;
+                moveTouchRef.current.pointerId = -1;
+              }}
+              onPointerCancel={(e) => {
+                if (moveTouchRef.current.pointerId !== e.pointerId) return;
+                moveTouchRef.current.active = false;
+                moveTouchRef.current.x = 0;
+                moveTouchRef.current.y = 0;
+                moveTouchRef.current.pointerId = -1;
+              }}
+            />
+
+            <div
+              style={{
+                position: 'absolute',
+                right: 0,
+                top: 0,
+                width: '52%',
+                height: '100%',
+                pointerEvents: 'auto',
+                touchAction: 'none',
+              }}
+              onPointerDown={(e) => {
+                lookTouchRef.current.active = true;
+                lookTouchRef.current.pointerId = e.pointerId;
+                lookTouchRef.current.lastX = e.clientX;
+                lookTouchRef.current.lastY = e.clientY;
+                (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+              }}
+              onPointerMove={(e) => {
+                if (!lookTouchRef.current.active || lookTouchRef.current.pointerId !== e.pointerId) return;
+                const dx = e.clientX - lookTouchRef.current.lastX;
+                const dy = e.clientY - lookTouchRef.current.lastY;
+                lookTouchRef.current.lastX = e.clientX;
+                lookTouchRef.current.lastY = e.clientY;
+                camH.current -= dx * 0.005;
+                camV.current = Math.max(-1.1, Math.min(1.3, camV.current + dy * 0.005));
+              }}
+              onPointerUp={(e) => {
+                if (lookTouchRef.current.pointerId !== e.pointerId) return;
+                lookTouchRef.current.active = false;
+                lookTouchRef.current.pointerId = -1;
+              }}
+              onPointerCancel={(e) => {
+                if (lookTouchRef.current.pointerId !== e.pointerId) return;
+                lookTouchRef.current.active = false;
+                lookTouchRef.current.pointerId = -1;
+              }}
+            />
+
+            <button
+              type="button"
+              onClick={() => { jumpTouchQueued.current = true; }}
+              style={{
+                position: 'absolute',
+                right: 24,
+                bottom: 86,
+                width: 56,
+                height: 56,
+                borderRadius: '50%',
+                border: '1px solid rgba(255,255,255,0.35)',
+                background: 'rgba(59,130,246,0.45)',
+                color: '#fff',
+                fontSize: 20,
+                fontWeight: 700,
+                pointerEvents: 'auto',
+              }}
+            >
+              ⤴
+            </button>
+            <button
+              type="button"
+              onClick={() => { camDist.current = Math.max(1.1, camDist.current - 0.45); }}
+              style={{
+                position: 'absolute',
+                right: 24,
+                bottom: 56,
+                width: 56,
+                height: 24,
+                borderRadius: 999,
+                border: '1px solid rgba(255,255,255,0.35)',
+                background: 'rgba(15,23,42,0.6)',
+                color: '#fff',
+                fontSize: 16,
+                lineHeight: '16px',
+                pointerEvents: 'auto',
+              }}
+            >
+              +
+            </button>
+            <button
+              type="button"
+              onClick={() => { camDist.current = Math.min(14, camDist.current + 0.45); }}
+              style={{
+                position: 'absolute',
+                right: 24,
+                bottom: 24,
+                width: 56,
+                height: 24,
+                borderRadius: 999,
+                border: '1px solid rgba(255,255,255,0.35)',
+                background: 'rgba(15,23,42,0.6)',
+                color: '#fff',
+                fontSize: 16,
+                lineHeight: '16px',
+                pointerEvents: 'auto',
+              }}
+            >
+              −
+            </button>
+          </div>
+        </Html>
+      )}
     </RigidBody>
   );
 }
