@@ -353,6 +353,7 @@ export default function CharacterPage() {
                     userScale={modelScale}
                     rotX={modelRotX}
                     previewAnim={animMap[previewSlot]}
+                    previewTrim={animTrims[previewSlot]}
                     onAnimationsLoaded={setAvailableAnims}
                   />
                 : <BlockPreview appearance={appearance} />
