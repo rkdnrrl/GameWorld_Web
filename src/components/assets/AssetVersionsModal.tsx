@@ -20,7 +20,7 @@ interface Props {
 export default function AssetVersionsModal({ asset, onClose, onAssetChanged }: Props) {
   const t = useTranslations('Assets');
   const [versions, setVersions] = useState<Version[] | null>(null);
-  const [current, setCurrent]   = useState<number>(asset.metadata?.currentVersion ?? 1);
+  const [current, setCurrent]   = useState<number>(asset.currentVersion ?? 1);
   const [error, setError]   = useState('');
   const [acting, setActing] = useState<number | null>(null);
 
