@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+import json, sys, io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+T = {
+  'ko': { 'Studio': {
+    'material': '재질',
+    'matDefault':  '기본',
+    'matWood':     '🪵 나무',
+    'matMetal':    '⚙️ 금속',
+    'matStone':    '🪨 돌',
+    'matGlass':    '💎 유리',
+    'matPlastic':  '🟦 플라스틱',
+    'matEmissive': '✨ 발광',
+    'materialColor': '재질 색상',
+    'texture': '텍스처',
+    'texAlbedo':    '베이스 (Albedo)',
+    'texNormal':    '노멀',
+    'texRoughness': '러프니스',
+    'texChoose': '선택…',
+    'texRemove': '제거',
+    'texTilingX': '반복 X',
+    'texTilingY': '반복 Y',
+    'texPickerTitle': '🖼️ 텍스처 선택',
+    'noTextures': '업로드된 이미지가 없습니다.',
+    'uploadAtAssets': '에서 PNG/JPG 업로드',
+  } },
+  'en': { 'Studio': {
+    'material': 'Material',
+    'matDefault':  'Default',
+    'matWood':     '🪵 Wood',
+    'matMetal':    '⚙️ Metal',
+    'matStone':    '🪨 Stone',
+    'matGlass':    '💎 Glass',
+    'matPlastic':  '🟦 Plastic',
+    'matEmissive': '✨ Emissive',
+    'materialColor': 'Material Color',
+    'texture': 'Texture',
+    'texAlbedo':    'Base (Albedo)',
+    'texNormal':    'Normal',
+    'texRoughness': 'Roughness',
+    'texChoose': 'Choose…',
+    'texRemove': 'Remove',
+    'texTilingX': 'Tile X',
+    'texTilingY': 'Tile Y',
+    'texPickerTitle': '🖼️ Select Texture',
+    'noTextures': 'No images uploaded.',
+    'uploadAtAssets': 'to upload PNG/JPG',
+  } },
+  'ja': { 'Studio': {
+    'material': 'マテリアル',
+    'matDefault':  'デフォルト',
+    'matWood':     '🪵 木',
+    'matMetal':    '⚙️ 金属',
+    'matStone':    '🪨 石',
+    'matGlass':    '💎 ガラス',
+    'matPlastic':  '🟦 プラスチック',
+    'matEmissive': '✨ 発光',
+    'materialColor': 'マテリアルカラー',
+    'texture': 'テクスチャ',
+    'texAlbedo':    'ベース (Albedo)',
+    'texNormal':    'ノーマル',
+    'texRoughness': 'ラフネス',
+    'texChoose': '選択…',
+    'texRemove': '削除',
+    'texTilingX': 'タイル X',
+    'texTilingY': 'タイル Y',
+    'texPickerTitle': '🖼️ テクスチャ選択',
+    'noTextures': 'アップロードされた画像なし',
+    'uploadAtAssets': 'で PNG/JPG をアップロード',
+  } },
+  'zh': { 'Studio': {
+    'material': '材质',
+    'matDefault':  '默认',
+    'matWood':     '🪵 木材',
+    'matMetal':    '⚙️ 金属',
+    'matStone':    '🪨 石头',
+    'matGlass':    '💎 玻璃',
+    'matPlastic':  '🟦 塑料',
+    'matEmissive': '✨ 发光',
+    'materialColor': '材质颜色',
+    'texture': '纹理',
+    'texAlbedo':    '基础 (Albedo)',
+    'texNormal':    '法线',
+    'texRoughness': '粗糙度',
+    'texChoose': '选择…',
+    'texRemove': '移除',
+    'texTilingX': '平铺 X',
+    'texTilingY': '平铺 Y',
+    'texPickerTitle': '🖼️ 选择纹理',
+    'noTextures': '未上传图像',
+    'uploadAtAssets': '上传 PNG/JPG',
+  } },
+}
+for lang, sections in T.items():
+    path = f'messages/{lang}.json'
+    with open(path, encoding='utf-8') as f:
+        data = json.load(f)
+    for section, keys in sections.items():
+        data.setdefault(section, {}).update(keys)
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    print(f'[OK] {path}')
