@@ -537,7 +537,7 @@ export default function CharacterPage() {
     setError('');
     const fullAppearance = modelUrl
       ? {
-          ...appearance, modelUrl, modelScale, fbxRotX: modelRotX,
+          ...appearance, modelUrl, modelScale, fbxRotX: modelRotX, fbxOffsetY: modelOffsetY,
           idleAnim:   animMap.idle,
           walkAnim:   animMap.walk,
           runAnim:    animMap.run,
