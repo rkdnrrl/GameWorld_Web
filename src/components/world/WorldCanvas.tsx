@@ -341,6 +341,12 @@ function GraphicsApplier({ shadowSize, shadowFilter, shadowRadius }: {
       if (light.isDirectionalLight && light.shadow) {
         light.shadow.mapSize.set(shadowSize || 1024, shadowSize || 1024);
         light.shadow.radius = shadowRadius;
+        // 그림자 아티팩트 (peter-panning, acne) 감소
+        light.shadow.bias       = -0.0005;
+        light.shadow.normalBias = 0.02;
+        // 카메라 범위 좁혀서 텍셀 밀도 ↑ → 선명도 ↑
+        light.shadow.camera.near = 0.5;
+        light.shadow.camera.far  = 120;
         if (light.shadow.map) {
           light.shadow.map.dispose();
           light.shadow.map = null;
