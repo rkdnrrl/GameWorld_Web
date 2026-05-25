@@ -1287,5 +1287,26 @@
     "confirmDelete": "确定删除？",
     "uploadFailed": "上传失败",
     "networkError": "网络错误"
+  },
+  "Graphics": {
+    "title": "⚙️ 图形设置",
+    "preset": "预设",
+    "presetLow": "低",
+    "presetMedium": "中",
+    "presetHigh": "高",
+    "presetUltra": "极高",
+    "shadow": "阴影",
+    "shadowSize": "阴影质量",
+    "antialias": "抗锯齿",
+    "pixelRatio": "渲染分辨率",
+    "farClip": "视野距离",
+    "on": "开",
+    "off": "关",
+    "shadowOff": "关",
+    "shadowLow": "低",
+    "shadowMid": "中",
+    "shadowHigh": "高",
+    "shadowUltra": "极高",
+    "reset": "重置"
   }
 }

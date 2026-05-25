@@ -1287,5 +1287,26 @@
     "confirmDelete": "Delete this asset?",
     "uploadFailed": "Upload failed",
     "networkError": "Network error"
+  },
+  "Graphics": {
+    "title": "⚙️ Graphics",
+    "preset": "Preset",
+    "presetLow": "Low",
+    "presetMedium": "Medium",
+    "presetHigh": "High",
+    "presetUltra": "Ultra",
+    "shadow": "Shadow",
+    "shadowSize": "Shadow Quality",
+    "antialias": "Antialiasing",
+    "pixelRatio": "Render Resolution",
+    "farClip": "View Distance",
+    "on": "On",
+    "off": "Off",
+    "shadowOff": "Off",
+    "shadowLow": "Low",
+    "shadowMid": "Mid",
+    "shadowHigh": "High",
+    "shadowUltra": "Ultra",
+    "reset": "Reset"
   }
 }

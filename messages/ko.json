@@ -1287,5 +1287,26 @@
     "confirmDelete": "삭제하시겠습니까?",
     "uploadFailed": "업로드 실패",
     "networkError": "네트워크 오류"
+  },
+  "Graphics": {
+    "title": "⚙️ 그래픽 설정",
+    "preset": "프리셋",
+    "presetLow": "낮음",
+    "presetMedium": "중간",
+    "presetHigh": "높음",
+    "presetUltra": "최상",
+    "shadow": "그림자",
+    "shadowSize": "그림자 품질",
+    "antialias": "안티앨리어싱",
+    "pixelRatio": "렌더 해상도",
+    "farClip": "시야 거리",
+    "on": "켬",
+    "off": "끔",
+    "shadowOff": "끔",
+    "shadowLow": "저",
+    "shadowMid": "중",
+    "shadowHigh": "고",
+    "shadowUltra": "최고",
+    "reset": "기본값"
   }
 }

@@ -1287,5 +1287,26 @@
     "confirmDelete": "削除しますか？",
     "uploadFailed": "アップロード失敗",
     "networkError": "ネットワークエラー"
+  },
+  "Graphics": {
+    "title": "⚙️ グラフィック設定",
+    "preset": "プリセット",
+    "presetLow": "低",
+    "presetMedium": "中",
+    "presetHigh": "高",
+    "presetUltra": "最高",
+    "shadow": "影",
+    "shadowSize": "影の品質",
+    "antialias": "アンチエイリアス",
+    "pixelRatio": "レンダー解像度",
+    "farClip": "視野距離",
+    "on": "オン",
+    "off": "オフ",
+    "shadowOff": "オフ",
+    "shadowLow": "低",
+    "shadowMid": "中",
+    "shadowHigh": "高",
+    "shadowUltra": "最高",
+    "reset": "リセット"
   }
 }
