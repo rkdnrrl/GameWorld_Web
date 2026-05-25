@@ -176,11 +176,12 @@ function TexturePicker({ images, onSelect, onClose, title }: {
 }
 
 /* ── 메인 에디터 모달 ────────────────────── */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved }: {
   asset: Asset;
   allAssets: Asset[];
   onClose: () => void;
-  onSaved: (updated: Asset) => void;
+  onSaved: (updated: any) => void;
 }) {
   const t = useTranslations('Studio');
   const [cfg, setCfg] = useState<MaterialConfig>(asset.materialConfig || {});
