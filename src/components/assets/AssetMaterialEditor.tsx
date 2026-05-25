@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, Suspense } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
 import { useTranslations } from 'next-intl';
 import * as THREE from 'three';
 import { session } from '@/lib/api';
