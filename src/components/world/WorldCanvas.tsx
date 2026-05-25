@@ -5,6 +5,8 @@ import { Sky, Text } from '@react-three/drei';
 import { Physics, RigidBody, CapsuleCollider, useRapier } from '@react-three/rapier';
 import * as THREE from 'three';
 import type { RemotePlayer, PlayerPose } from '@/lib/world/useGameSocket';
+import type { GraphicsSettings } from '@/lib/world/graphicsSettings';
+import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
 
 /** 두 각도 간 짧은 방향으로 보간 (-π~π 경계 넘어가도 한바퀴 안 돔) */
 function lerpAngle(current: number, target: number, t: number): number {
