@@ -12,10 +12,13 @@ interface Props {
   asset: Asset;
   kinds: AssetKind[];
   selectedTags?: string[];
+  selectedFolder?: string | null;
   onEdit: (a: Asset) => void;
   onPreview: (a: Asset) => void;
   onEditTags: (a: Asset) => void;
+  onEditFolder: (a: Asset) => void;
   onClickTag: (tag: string) => void;
+  onClickFolder: (folder: string) => void;
   onTogglePublic: (a: Asset) => void;
   onDelete: (id: string) => void;
 }
@@ -23,8 +26,8 @@ interface Props {
 const MAX_VISIBLE_TAGS = 3;
 
 export default function AssetCard({
-  asset, kinds, selectedTags = [],
-  onEdit, onPreview, onEditTags, onClickTag,
+  asset, kinds, selectedTags = [], selectedFolder,
+  onEdit, onPreview, onEditTags, onEditFolder, onClickTag, onClickFolder,
   onTogglePublic, onDelete,
 }: Props) {
   const t = useTranslations('Assets');
