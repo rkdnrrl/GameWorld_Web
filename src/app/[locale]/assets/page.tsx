@@ -169,6 +169,20 @@ export default function AssetsPage() {
     }
   }
 
+  async function saveTags(asset: Asset, tags: string[]) {
+    const r = await fetch(`${API}/api/assets/${asset.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+      body: JSON.stringify({ tags }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err?.error?.message || 'save failed');
+    }
+    const { asset: updated } = await r.json();
+    setAssets(prev => prev.map(a => a.id === updated.id ? updated : a));
+  }
+
   /* ── 필터링/정렬 ── */
   const visibleAssets = useMemo(() => {
     const filtered = filterAssets(assets, { q, kinds: selectedKinds, visibility }, kinds);
