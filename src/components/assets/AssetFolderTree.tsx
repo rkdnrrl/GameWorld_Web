@@ -11,9 +11,9 @@ interface Props {
   selectedFolder: string | null;
   rootCount: number;
   onSelect: (path: string | null) => void;
-  /** 드롭 발생 — folder 가 null = 루트, "" 도 루트로 취급 */
-  onDrop: (folder: string | null) => void;
-  /** 드래그 중 여부 (외부에서 알려줘야 드롭 영역 강조됨) */
+  /** 드롭 발생 — files 있으면 OS 파일 업로드, 없으면 카드 이동 */
+  onDrop: (folder: string | null, files?: File[]) => void;
+  /** 내부 카드 드래그 중 여부 (외부에서 알려줘야 드롭 영역 강조됨) */
   dragActive: boolean;
 }
 
