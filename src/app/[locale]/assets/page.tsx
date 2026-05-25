@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { api, session } from '@/lib/api';
 
@@ -18,6 +19,7 @@ import AssetActiveFilters from '@/components/assets/AssetActiveFilters';
 import AssetTagEditor     from '@/components/assets/AssetTagEditor';
 import AssetFolderEditor  from '@/components/assets/AssetFolderEditor';
 import AssetBulkBar       from '@/components/assets/AssetBulkBar';
+import AssetVersionsModal from '@/components/assets/AssetVersionsModal';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
@@ -33,10 +35,16 @@ export default function AssetsPage() {
   const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
   const [taggingAsset, setTaggingAsset] = useState<Asset | null>(null);
   const [foldingAsset, setFoldingAsset] = useState<Asset | null>(null);
+  const [versionsAsset, setVersionsAsset] = useState<Asset | null>(null);
   // 다중 선택
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const lastClickedRef = useRef<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
+
+  // 드래그 상태 — 드롭 타겟 강조용
+  const [dragActive, setDragActive] = useState(false);
+  // 드래그 중인 에셋 id 들 (선택돼 있으면 selectedIds, 아니면 해당 카드 단건)
+  const dragIdsRef = useRef<string[]>([]);
 
   /* ── 업로드 ── */
   const [uploading, setUploading] = useState(false);
@@ -244,6 +252,46 @@ export default function AssetsPage() {
   }, [visibleAssets]);
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
+  /* ── 드래그앤드롭 ── */
+  function onCardDragStart(asset: Asset, e: React.DragEvent) {
+    // 선택된 게 있으면 그 전체, 아니면 단건 (드래그된 카드가 선택돼 있어야 다른 것도 같이)
+    const ids = selectedIds.has(asset.id) && selectedIds.size > 0
+      ? Array.from(selectedIds)
+      : [asset.id];
+    dragIdsRef.current = ids;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', JSON.stringify(ids));   // fallback
+    setDragActive(true);
+  }
+  function onCardDragEnd() {
+    setDragActive(false);
+    dragIdsRef.current = [];
+  }
+  async function onDropToFolder(folder: string | null) {
+    const ids = dragIdsRef.current;
+    setDragActive(false);
+    dragIdsRef.current = [];
+    if (ids.length === 0) return;
+    // 이미 그 폴더에 있는 건 제외
+    const filtered = ids.filter(id => {
+      const a = assets.find(x => x.id === id);
+      return a && (a.folder ?? null) !== folder;
+    });
+    if (filtered.length === 0) return;
+
+    // optimistic 업데이트
+    setAssets(prev => prev.map(a => filtered.includes(a.id) ? { ...a, folder } : a));
+    try {
+      const tk = session.getToken() || '';
+      await api.batchUpdateAssets(tk, { ids: filtered, action: 'move', value: folder });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'move failed');
+      // 실패 시 재로드 (간단)
+      fetch(`${API}/api/assets/my`, { headers: { Authorization: `Bearer ${token()}` } })
+        .then(r => r.json()).then(d => setAssets(d.assets || [])).catch(() => {});
+    }
+  }
+
   /* ── 일괄 작업 ── */
   async function runBulk(
     action: 'delete' | 'move' | 'addTags' | 'removeTags' | 'setPublic',
@@ -318,6 +366,16 @@ export default function AssetsPage() {
           onSave={(folder) => saveFolder(foldingAsset, folder)}
         />
       )}
+      {versionsAsset && (
+        <AssetVersionsModal
+          asset={versionsAsset}
+          onClose={() => setVersionsAsset(null)}
+          onAssetChanged={(updated) => {
+            setAssets(prev => prev.map(a => a.id === updated.id ? updated : a));
+            setVersionsAsset(updated);
+          }}
+        />
+      )}
 
       <AssetBulkBar
         selectedCount={selectedIds.size}
@@ -335,10 +393,17 @@ export default function AssetsPage() {
         {/* 헤더 */}
         <div style={{ padding: '20px 32px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 26 }}>📦</span>
-          <div>
+          <div style={{ flex: 1 }}>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>{t('title')}</h1>
             <p style={{ margin: 0, fontSize: 13, opacity: 0.5 }}>{t('headerSubtitle', { count: kinds.length })}</p>
           </div>
+          <Link href="/assets/browse" style={{
+            fontSize: 12, color: '#a5b4fc', textDecoration: 'none', fontWeight: 700,
+            padding: '8px 14px', background: 'rgba(99,102,241,0.18)', borderRadius: 8,
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+          }}>
+            🛒 {t('marketBrowseLink')}
+          </Link>
         </div>
 
         {/* 본문: 사이드바 + 메인 */}
@@ -349,9 +414,11 @@ export default function AssetsPage() {
             selectedKinds={selectedKinds}
             selectedTags={selectedTags}
             selectedFolder={selectedFolder}
+            dragActive={dragActive}
             onSelectKinds={ks => setQuery({ kind: ks })}
             onToggleTag={toggleTag}
             onSelectFolder={f => setQuery({ folder: f })}
+            onDropToFolder={onDropToFolder}
           />
 
           <div style={{ flex: 1, padding: '20px 32px' }}>
@@ -451,6 +518,9 @@ export default function AssetsPage() {
               onToggleSelect={toggleSelect}
               onTogglePublic={togglePublic}
               onDelete={deleteAsset}
+              onEditVersions={setVersionsAsset}
+              onDragStart={onCardDragStart}
+              onDragEnd={onCardDragEnd}
             />
           </div>
         </div>

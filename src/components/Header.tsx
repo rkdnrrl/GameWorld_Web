@@ -4,6 +4,7 @@ import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import Logo from "./Logo";
+import NotificationBell from "./notifications/NotificationBell";
 import { SESSION_CHANGE_EVENT, SESSION_EXPIRED_EVENT, session } from "@/lib/api";
 
 const LOCALES = [
@@ -169,6 +170,7 @@ export default function Header() {
                 {t("inventory")}
               </Link>
             )}
+            {loggedIn && <NotificationBell />}
             {loggedIn && typeof alpCoins === "number" && (
               <span className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-600 sm:max-w-[11rem] sm:px-3 sm:text-sm dark:bg-violet-900/30 dark:text-violet-400">
                 <span className="shrink-0">💎</span>

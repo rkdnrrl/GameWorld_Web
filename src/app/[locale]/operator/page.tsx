@@ -28,6 +28,7 @@ export default function OperatorIndexPage() {
         { href: "/operator/categories", emoji: "🏷️", label: "게임 유형 관리", desc: "게임 유형을 추가·수정·삭제합니다." },
         { href: "/operator/genres", emoji: "🗂️", label: "게임 카테고리 관리", desc: "게임 카테고리(장르)를 추가·수정·삭제합니다." },
         { href: "/operator/asset-kinds", emoji: "📦", label: "에셋 타입 관리", desc: "에셋 카테고리(3D/이미지/오디오 등)를 추가·수정·삭제합니다." },
+        { href: "/operator/asset-reports", emoji: "⚠️", label: "에셋 신고 검토", desc: "공개 에셋에 대한 신고를 검토·처리합니다." },
         { href: "/operator/shared-pixel-arts", emoji: "🖼️", label: t("menuSharedPixelArts"), desc: t("menuSharedPixelArtsDesc") },
         { href: "/operator/fishing-items", emoji: "🎣", label: t("menuFishingItems"), desc: t("menuFishingItemsDesc") },
         { href: "/operator/equip-arts", emoji: "⚒️", label: t("menuEquipArts"), desc: t("menuEquipArtsDesc") },
