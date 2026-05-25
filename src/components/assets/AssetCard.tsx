@@ -25,6 +25,8 @@ interface Props {
   onTogglePublic: (a: Asset) => void;
   onDelete: (id: string) => void;
   onEditVersions: (a: Asset) => void;
+  /** 이름 변경 — 성공 시 부모가 state 갱신 */
+  onRename: (a: Asset, newName: string) => Promise<void> | void;
   /** 드래그 시작 — 부모가 어떤 id 들 함께 보낼지 결정 */
   onDragStart: (a: Asset, e: React.DragEvent) => void;
   onDragEnd: () => void;
