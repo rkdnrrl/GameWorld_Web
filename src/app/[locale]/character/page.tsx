@@ -187,9 +187,10 @@ function CustomPreview({
   if (!obj) return null;
   // rotX 와 발 정렬은 autoNormalize 가 obj 안에서 처리.
   // 외곽 group y=-1 은 카메라(y=0.5)에서 적당한 시야 위치 잡으려고 유지.
+  // offsetY 는 사용자가 발 높이 미세조정 (m)
   return (
     <group ref={g} position={[0, -1, 0]}>
-      <group scale={userScale}>
+      <group scale={userScale} position={[0, offsetY, 0]}>
         <primitive object={obj} />
       </group>
     </group>
