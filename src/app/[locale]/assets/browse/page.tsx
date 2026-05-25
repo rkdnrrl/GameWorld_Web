@@ -38,6 +38,7 @@ export default function AssetBrowsePage() {
   const [error,   setError]   = useState('');
   const [importingId, setImportingId] = useState<string | null>(null);
   const [importedIds, setImportedIds] = useState<Set<string>>(new Set());
+  const [likingId, setLikingId]       = useState<string | null>(null);
   const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
 
   // 검색 입력 — URL 동기화 + 디바운스
