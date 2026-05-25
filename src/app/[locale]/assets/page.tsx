@@ -26,6 +26,7 @@ export default function AssetsPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [kinds,  setKinds]  = useState<AssetKind[]>([]);
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+  const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
 
   /* ── 업로드 ── */
   const [uploading, setUploading] = useState(false);
