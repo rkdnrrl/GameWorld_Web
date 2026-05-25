@@ -463,6 +463,11 @@ export default function StudioCanvas() {
     setObjects(prev => prev.map(o => o.id === id ? { ...o, color } : o));
   }
 
+  function updateMaterialField<K extends keyof MapObject>(field: K, value: MapObject[K]) {
+    if (!selectedId) return;
+    setObjects(prev => prev.map(o => o.id === selectedId ? { ...o, [field]: value } : o));
+  }
+
   function updateAxis(field: 'position' | 'rotation' | 'scale', axisIdx: number, value: number) {
     if (!selectedId) return;
     setObjects(prev => prev.map(o => {
