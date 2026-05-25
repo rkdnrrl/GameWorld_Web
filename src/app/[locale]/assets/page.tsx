@@ -233,7 +233,9 @@ export default function AssetsPage() {
             assets={assets}
             kinds={kinds}
             selectedKinds={selectedKinds}
+            selectedTags={selectedTags}
             onSelectKinds={ks => setQuery({ kind: ks })}
+            onToggleTag={toggleTag}
           />
 
           <div style={{ flex: 1, padding: '20px 32px' }}>
