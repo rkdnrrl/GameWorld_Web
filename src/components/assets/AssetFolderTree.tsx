@@ -53,7 +53,7 @@ function FolderBranch({ node, depth, selectedFolder, onSelect, onDrop, dragActiv
   depth: number;
   selectedFolder: string | null;
   onSelect: (path: string | null) => void;
-  onDrop: (folder: string | null) => void;
+  onDrop: (folder: string | null, files?: File[]) => void;
   dragActive: boolean;
 }) {
   const [open, setOpen] = useState(depth < 2);
