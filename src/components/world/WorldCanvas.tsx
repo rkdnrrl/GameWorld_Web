@@ -797,7 +797,7 @@ function PrimitiveMesh({ obj, shape }: { obj: UserMapObject; shape: React.ReactE
     return mat;
   }, [obj.material, obj.materialColor, obj.color, obj.textureAlbedo, obj.textureNormal, obj.textureRoughness, obj.textureTilingX, obj.textureTilingY, obj.kind]);
 
-  React.useEffect(() => () => material.dispose(), [material]);
+  React.useEffect(() => () => disposeMaterial(material), [material]);
 
   return (
     <mesh castShadow receiveShadow material={material}>
