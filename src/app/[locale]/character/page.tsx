@@ -5,6 +5,7 @@ import { OrbitControls } from '@react-three/drei';
 import { useRouter } from '@/i18n/navigation';
 import { useTranslations } from 'next-intl';
 import { session } from '@/lib/api';
+import CreatorNav from '@/components/creator/CreatorNav';
 import * as THREE from 'three';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
