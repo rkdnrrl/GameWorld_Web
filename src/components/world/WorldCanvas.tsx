@@ -263,7 +263,13 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true }: {
       />
     );
   }
-  return <BlockMesh appearance={appearance as Record<string, string>} />;
+  // BlockMesh 의 다리 바닥(block-local y=-0.58)이 mesh wrapper local y=-0.28 (= body local -0.63 = 캡슐 바닥)
+  // 에 오도록 +0.30 만큼 올린다.
+  return (
+    <group position={[0, 0.30, 0]}>
+      <BlockMesh appearance={appearance as Record<string, string>} />
+    </group>
+  );
 }
 
 /* ── 블록형 기본 캐릭터 ─────────────────── */
