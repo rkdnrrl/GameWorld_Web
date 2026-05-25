@@ -222,10 +222,12 @@ export default function AssetsPage() {
                   border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden',
                   transition: 'border-color .15s',
                 }}>
-                  {/* 썸네일 */}
-                  <div style={{
-                    width: '100%', aspectRatio: '1', background: 'rgba(255,255,255,0.03)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
+                  {/* 썸네일 — FBX는 클릭 시 머티리얼 에디터 */}
+                  <div onClick={() => { if (!isImage) setEditingAsset(a); }}
+                    style={{
+                      width: '100%', aspectRatio: '1', background: 'rgba(255,255,255,0.03)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
+                      cursor: isImage ? 'default' : 'pointer',
                   }}>
                     {isImage
                       ? <img src={a.modelUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
