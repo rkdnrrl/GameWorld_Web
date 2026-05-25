@@ -16,6 +16,12 @@ function lerpAngle(current: number, target: number, t: number): number {
   return current + diff * t;
 }
 
+function keepFeetOnGround(obj: THREE.Object3D, scratchBox: THREE.Box3) {
+  obj.updateMatrixWorld(true);
+  scratchBox.setFromObject(obj);
+  if (Number.isFinite(scratchBox.min.y)) obj.position.y -= scratchBox.min.y;
+}
+
 /* ── 커스텀 3D 모델 (Suspense 없이 명령형 로드 — RigidBody 리셋 방지) ── */
 /** 모델을 목표 높이(m)에 맞춰 자동 정규화 + 회전 적용 + 발 정렬
  *  rotX 를 미리 적용한 뒤 측정/align 해야 Z-up FBX (Meshy 등) 도 발이 y=0 에 옴
@@ -134,6 +140,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   const clipByState     = useRef<Map<AnimState, THREE.AnimationClip>>(new Map());
   const currentAction   = useRef<THREE.AnimationAction | null>(null);
   const currentState    = useRef<AnimState | null>(null);
+  const liveBox         = useRef(new THREE.Box3());
 
   useEffect(() => {
     if (!url) return;
@@ -193,6 +200,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   // 단일 액션 크로스페이드 (state 바뀔 때만 전환)
   useFrame((_, dt) => {
     mixer.current?.update(dt);
+    if (obj) keepFeetOnGround(obj, liveBox.current);
     if (!mixer.current) return;
 
     const desired = animStateRef?.current || 'idle';
