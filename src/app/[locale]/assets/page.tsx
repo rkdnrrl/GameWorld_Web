@@ -221,7 +221,9 @@ export default function AssetsPage() {
                     width: '100%', aspectRatio: '1', background: 'rgba(255,255,255,0.03)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
                   }}>
-                    {a.thumbnailUrl
+                    {isImage
+                      ? <img src={a.modelUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : a.thumbnailUrl
                       ? <img src={a.thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : <span style={{ fontSize: 44, opacity: 0.4 }}>📦</span>
                     }
