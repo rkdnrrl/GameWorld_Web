@@ -985,7 +985,7 @@ export default function StudioCanvas() {
           camera={{ position: [8, 8, 8], fov: 50 }}
           dpr={[1, 2]}
           gl={{ antialias: true }}
-          onPointerMissed={() => setSelectedId(null)}
+          onPointerMissed={() => { if (!isGizmoActive()) setSelectedId(null); }}
         >
           <ambientLight intensity={0.5} />
           <directionalLight position={[20, 30, 10]} intensity={1.5} castShadow shadow-mapSize={[2048, 2048]} />
