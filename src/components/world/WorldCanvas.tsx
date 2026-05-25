@@ -428,7 +428,7 @@ function Player({
       animStateRef.current = state;
 
       const now = Date.now();
-      if (now - lastSend.current > 50) {
+      if (now - lastSend.current > 100) {
         lastSend.current = now;
         onMove({ x: posT.x, y: posT.y, z: posT.z, rotY: mesh.current?.rotation.y ?? 0, animState: state });
       }
