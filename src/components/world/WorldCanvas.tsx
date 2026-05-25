@@ -694,7 +694,7 @@ export default function WorldCanvas({ character, players, posesRef, onMove, cust
   const shadowMapSize: [number, number] = [graphics.shadowSize || 1024, graphics.shadowSize || 1024];
   return (
       <Canvas
-        shadows={shadowsEnabled}
+        shadows={{ enabled: true, type: THREE.PCFShadowMap, autoUpdate: true }}
         camera={{ fov: 60, near: 0.1, far: graphics.farClip, position: [0, 8, 12] }}
         dpr={graphics.dpr}
         gl={{
