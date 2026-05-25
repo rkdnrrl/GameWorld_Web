@@ -62,6 +62,7 @@ export default function AssetBrowsePage() {
   const kindSel = searchParams.get('kind') || '';
   const tagSel  = searchParams.get('tag') || '';
   const sort    = (searchParams.get('sort') || 'popular') as 'recent' | 'name' | 'popular';
+  const tab     = (searchParams.get('tab') || 'assets') as 'assets' | 'packs';
   const [qInput, setQInput] = useState(q);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
