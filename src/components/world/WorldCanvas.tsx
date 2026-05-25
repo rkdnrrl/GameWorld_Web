@@ -8,6 +8,10 @@ import type { RemotePlayer, PlayerPose } from '@/lib/world/useGameSocket';
 import type { GraphicsSettings } from '@/lib/world/graphicsSettings';
 import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
 
+const PLAYER_CAPSULE_HALF_HEIGHT = 0.35;
+const PLAYER_CAPSULE_RADIUS = 0.28;
+const PLAYER_MESH_Y = -(PLAYER_CAPSULE_HALF_HEIGHT + PLAYER_CAPSULE_RADIUS);
+
 /** 두 각도 간 짧은 방향으로 보간 (-π~π 경계 넘어가도 한바퀴 안 돔) */
 function lerpAngle(current: number, target: number, t: number): number {
   const TAU = Math.PI * 2;
@@ -21,6 +25,30 @@ function lerpAngle(current: number, target: number, t: number): number {
  *  rotX 를 미리 적용한 뒤 측정/align 해야 Z-up FBX (Meshy 등) 도 발이 y=0 에 옴
  */
 /** 크기·회전·발 정렬(bind pose box.min.y → y=0) — 자동 클리어런스 X. 사용자가 offsetY 슬라이더로 수동 조정 */
+function getRenderableBounds(obj: THREE.Object3D) {
+  const worldBox = new THREE.Box3();
+  const tmp = new THREE.Box3();
+  let hasMesh = false;
+
+  obj.traverse((child) => {
+    if (!(child as THREE.Mesh).isMesh) return;
+    const mesh = child as THREE.Mesh;
+    if (!mesh.geometry) return;
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+    if (!mesh.geometry.boundingBox) return;
+    tmp.copy(mesh.geometry.boundingBox).applyMatrix4(mesh.matrixWorld);
+    if (!hasMesh) {
+      worldBox.copy(tmp);
+      hasMesh = true;
+    } else {
+      worldBox.union(tmp);
+    }
+  });
+
+  if (!hasMesh) worldBox.setFromObject(obj);
+  return worldBox;
+}
+
 function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   // 재호출 시 누적 방지 — 매번 fresh 한 상태에서 시작
   obj.position.set(0, 0, 0);
@@ -28,15 +56,15 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   obj.scale.set(1, 1, 1);
   obj.updateMatrixWorld(true);
 
-  const box  = new THREE.Box3().setFromObject(obj);
+  const box  = getRenderableBounds(obj);
   const size = box.getSize(new THREE.Vector3());
-  const h    = Math.max(size.x, size.y, size.z);
+  const h    = size.y > 0 ? size.y : Math.max(size.x, size.y, size.z);
   if (h > 0) {
     obj.scale.setScalar(targetHeight / h);
     obj.updateMatrixWorld(true);
   }
 
-  const box2 = new THREE.Box3().setFromObject(obj);
+  const box2 = getRenderableBounds(obj);
   obj.position.y -= box2.min.y;            // 발 -> y=0
 }
 
@@ -220,7 +248,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   // 여기 추가 보정은 월드 지면 관통 방지용 미세값.
   // offsetY: 사용자 수동 조정 (캐릭터마다 미세 조정).
   return (
-    <group scale={userScale} position={[0, -0.22 + offsetY, 0]}>
+    <group scale={userScale} position={[0, offsetY, 0]}>
       <primitive object={obj} />
     </group>
   );
@@ -263,7 +291,7 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true }: {
   // BlockMesh 의 다리 바닥(block-local y=-0.58)이 mesh wrapper local y=-0.28 (= body local -0.63 = 캡슐 바닥)
   // 에 오도록 +0.30 만큼 올린다.
   return (
-    <group position={[0, 0.30, 0]}>
+    <group position={[0, 0.58, 0]}>
       <BlockMesh appearance={appearance as Record<string, string>} />
     </group>
   );
@@ -548,8 +576,8 @@ function Player({
       position={[0, 4, 0]}
       linearDamping={0.6}
     >
-      <CapsuleCollider args={[0.35, 0.28]} />
-      <group ref={mesh} position={[0, -0.35, 0]}>
+      <CapsuleCollider args={[PLAYER_CAPSULE_HALF_HEIGHT, PLAYER_CAPSULE_RADIUS]} />
+      <group ref={mesh} position={[0, PLAYER_MESH_Y, 0]}>
         <CharacterMesh appearance={appearance} animStateRef={animStateRef} />
       </group>
     </RigidBody>
@@ -581,7 +609,7 @@ function RemotePlayerMesh({ player, posesRef, castShadow }: {
 
   return (
     <group ref={g}>
-      <group position={[0, -0.35, 0]}>
+      <group position={[0, PLAYER_MESH_Y, 0]}>
         <CharacterMesh appearance={appearance} animStateRef={animStateRef} castShadow={castShadow ?? false} />
       </group>
       <Text
