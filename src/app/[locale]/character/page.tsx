@@ -75,8 +75,12 @@ function autoMatchAnims(
 }
 
 /* ── 자동 정규화 (1.8m 기준) ────────────── */
-function autoNormalize(obj: THREE.Object3D, targetHeight = 1.8) {
+function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
+  // 회전을 obj 에 직접 적용 후 측정해야 Z-up FBX 도 발이 y=0 으로 정확히 정렬됨
+  obj.position.set(0, 0, 0);
+  obj.rotation.set(rotX, 0, 0);
   obj.updateMatrixWorld(true);
+
   const box  = new THREE.Box3().setFromObject(obj);
   const size = box.getSize(new THREE.Vector3());
   const h    = Math.max(size.x, size.y, size.z);
@@ -112,7 +116,7 @@ function CustomPreview({
 
     const onLoaded = (loaded: THREE.Object3D, anims: THREE.AnimationClip[] = []) => {
       if (cancelled) return;
-      autoNormalize(loaded, 1.8);
+      autoNormalize(loaded, rotX, 1.8);
       animClips.current = anims;
       if (anims.length) {
         mixer.current = new THREE.AnimationMixer(loaded);
