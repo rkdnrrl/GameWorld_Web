@@ -334,48 +334,82 @@ export default function AssetBrowsePage() {
             </div>
           )}
 
-          {/* 그리드 */}
-          {assets.length === 0 && !loading ? (
-            <div style={{ textAlign: 'center', opacity: 0.4, padding: '60px 0', fontSize: 14 }}>
-              {t('marketEmpty')}
-            </div>
+          {/* 그리드 — 탭에 따라 분기 */}
+          {tab === 'assets' ? (
+            <>
+              {assets.length === 0 && !loading ? (
+                <div style={{ textAlign: 'center', opacity: 0.4, padding: '60px 0', fontSize: 14 }}>
+                  {t('marketEmpty')}
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
+                  {assets.map(a => (
+                    <AssetMarketCard
+                      key={a.id}
+                      asset={a}
+                      kinds={kinds}
+                      importing={importingId === a.id}
+                      imported={importedIds.has(a.id)}
+                      liking={likingId === a.id}
+                      reported={reportedIds.has(a.id)}
+                      onPreview={setPreviewAsset}
+                      onImport={importAsset}
+                      onToggleLike={toggleLike}
+                      onReport={setReportingAsset}
+                    />
+                  ))}
+                </div>
+              )}
+              {hasMore && (
+                <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                  <button onClick={loadMore} disabled={loading}
+                    style={{
+                      padding: '10px 24px', fontSize: 13, fontWeight: 700,
+                      background: 'rgba(99,102,241,0.18)', color: '#c7d2fe',
+                      border: 'none', borderRadius: 8, cursor: 'pointer',
+                    }}>
+                    {loading ? t('marketLoading') : t('marketLoadMore')}
+                  </button>
+                </div>
+              )}
+              {!hasMore && assets.length > 0 && (
+                <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 11, opacity: 0.4 }}>
+                  {t('marketEndOfList')}
+                </div>
+              )}
+            </>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
-              {assets.map(a => (
-                <AssetMarketCard
-                  key={a.id}
-                  asset={a}
-                  kinds={kinds}
-                  importing={importingId === a.id}
-                  imported={importedIds.has(a.id)}
-                  liking={likingId === a.id}
-                  reported={reportedIds.has(a.id)}
-                  onPreview={setPreviewAsset}
-                  onImport={importAsset}
-                  onToggleLike={toggleLike}
-                  onReport={setReportingAsset}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* 더 보기 */}
-          {hasMore && (
-            <div style={{ textAlign: 'center', padding: '24px 0' }}>
-              <button onClick={loadMore} disabled={loading}
-                style={{
-                  padding: '10px 24px', fontSize: 13, fontWeight: 700,
-                  background: 'rgba(99,102,241,0.18)', color: '#c7d2fe',
-                  border: 'none', borderRadius: 8, cursor: 'pointer',
-                }}>
-                {loading ? t('marketLoading') : t('marketLoadMore')}
-              </button>
-            </div>
-          )}
-          {!hasMore && assets.length > 0 && (
-            <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 11, opacity: 0.4 }}>
-              {t('marketEndOfList')}
-            </div>
+            <>
+              {packs.length === 0 && !packLoading ? (
+                <div style={{ textAlign: 'center', opacity: 0.4, padding: '60px 0', fontSize: 14 }}>
+                  {t('packMarketEmpty')}
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
+                  {packs.map(p => (
+                    <PackCard
+                      key={p.id}
+                      pack={p}
+                      importing={importingPackId === p.id}
+                      imported={importedPackIds.has(p.id)}
+                      onImport={importPack}
+                    />
+                  ))}
+                </div>
+              )}
+              {packHasMore && (
+                <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                  <button onClick={loadMorePacks} disabled={packLoading}
+                    style={{
+                      padding: '10px 24px', fontSize: 13, fontWeight: 700,
+                      background: 'rgba(99,102,241,0.18)', color: '#c7d2fe',
+                      border: 'none', borderRadius: 8, cursor: 'pointer',
+                    }}>
+                    {packLoading ? t('marketLoading') : t('marketLoadMore')}
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
