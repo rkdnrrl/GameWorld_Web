@@ -703,7 +703,7 @@ export default function WorldCanvas({ character, players, onMove, customObjects 
           position={[25, 40, 15]}
           intensity={1.8}
           castShadow
-          shadow-mapSize={[2048, 2048]}
+          shadow-mapSize={[1024, 1024]}
           shadow-camera-left={-60}
           shadow-camera-right={60}
           shadow-camera-top={60}
