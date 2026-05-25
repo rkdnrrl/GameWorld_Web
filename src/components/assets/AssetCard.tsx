@@ -150,9 +150,42 @@ export default function AssetCard({
 
       {/* 정보 */}
       <div style={{ padding: '10px 12px' }}>
-        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {asset.name}
-        </div>
+        {editing ? (
+          <input
+            ref={inputRef}
+            value={draft}
+            disabled={saving}
+            onChange={e => setDraft(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
+              else if (e.key === 'Escape') { setEditing(false); setDraft(asset.name); }
+            }}
+            onClick={e => e.stopPropagation()}
+            maxLength={100}
+            style={{
+              width: '100%', padding: '4px 6px', fontSize: 13, fontWeight: 700,
+              background: 'rgba(0,0,0,0.4)', color: '#fff',
+              border: '1px solid rgba(99,102,241,0.5)', borderRadius: 4,
+              outline: 'none', marginBottom: 6,
+            }}
+          />
+        ) : (
+          <div
+            onClick={e => { e.stopPropagation(); setEditing(true); }}
+            title={t('renameHint')}
+            style={{
+              fontWeight: 700, fontSize: 13, marginBottom: 6,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              cursor: 'text', padding: '4px 6px', margin: '-4px -6px 2px',
+              borderRadius: 4,
+              background: hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
+              transition: 'background .12s',
+            }}>
+            {asset.name}
+            {hovered && <span style={{ marginLeft: 6, opacity: 0.4, fontSize: 10, fontWeight: 400 }}>✎</span>}
+          </div>
+        )}
 
         {/* 폴더 배지 — 클릭=필터, 길게 클릭/우클릭=편집 (간단히 ⋯ 버튼으로) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6, minHeight: 18 }}>
