@@ -313,7 +313,7 @@ function AssetMesh({ obj, selected, onClick, assetConfig }: {
   if (!model) return null;
   return (
     <group position={obj.position} rotation={obj.rotation} scale={obj.scale}
-      onClick={onClick} userData={{ id: obj.id }}>
+      onPointerDown={onClick} userData={{ id: obj.id }}>
       <primitive object={model} />
       {/* 선택 시 바운딩 박스 윤곽 */}
       {selected && <SelectedBoxOutline target={model} />}
