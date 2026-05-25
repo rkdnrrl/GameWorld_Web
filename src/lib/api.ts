@@ -880,8 +880,11 @@ export const api = {
     });
   },
 
-  /** 마켓플레이스: 공개 에셋 검색 + 페이지네이션 */
-  listPublicAssets(params: { q?: string; kind?: string; tag?: string; sort?: 'recent' | 'name'; page?: number; pageSize?: number } = {}) {
+  /** 마켓플레이스: 공개 에셋 검색 + 페이지네이션. token 전달 시 liked 필드 포함 */
+  listPublicAssets(
+    params: { q?: string; kind?: string; tag?: string; sort?: 'recent' | 'name' | 'popular'; page?: number; pageSize?: number } = {},
+    token?: string,
+  ) {
     const sp = new URLSearchParams();
     if (params.q)        sp.set('q', params.q);
     if (params.kind)     sp.set('kind', params.kind);
@@ -893,6 +896,7 @@ export const api = {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return request<{ assets: any[]; page: number; pageSize: number; total: number; hasMore: boolean }>(
       `/api/assets/public${qs ? `?${qs}` : ''}`,
+      token ? { headers: authHeaders(token) } : undefined,
     );
   },
 
@@ -901,6 +905,29 @@ export const api = {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return request<{ asset: any }>(`/api/assets/${encodeURIComponent(id)}/clone`, {
       method: "POST",
+      headers: authHeaders(token),
+    });
+  },
+
+  /** 좋아요 */
+  likeAsset(token: string, id: string) {
+    return request<{ liked: boolean; likeCount: number }>(`/api/assets/${encodeURIComponent(id)}/like`, {
+      method: "POST",
+      headers: authHeaders(token),
+    });
+  },
+
+  /** 좋아요 취소 */
+  unlikeAsset(token: string, id: string) {
+    return request<{ liked: boolean; likeCount: number }>(`/api/assets/${encodeURIComponent(id)}/like`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+    });
+  },
+
+  /** 내가 좋아요한 에셋 id 목록 */
+  listMyAssetLikes(token: string) {
+    return request<{ ids: string[] }>("/api/assets/my-likes", {
       headers: authHeaders(token),
     });
   },
