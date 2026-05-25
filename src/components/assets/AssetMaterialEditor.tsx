@@ -233,6 +233,12 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
               <Suspense fallback={null}>
                 <PreviewModel url={asset.modelUrl} config={cfg} />
               </Suspense>
+              <OrbitControls
+                enableDamping
+                minDistance={1}
+                maxDistance={20}
+                target={[0, 0, 0]}
+              />
             </Canvas>
           </div>
         </div>
