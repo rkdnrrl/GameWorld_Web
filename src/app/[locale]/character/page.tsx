@@ -747,15 +747,29 @@ export default function CharacterPage() {
                       <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>{t('offsetYLabel')}</span>
                       <span style={{ color: '#a5b4fc', fontSize: 11 }}>{modelOffsetY >= 0 ? '+' : ''}{modelOffsetY.toFixed(2)}m</span>
                     </div>
-                    <input type="range" min={-0.5} max={0.5} step={0.01}
+                    <input type="range" min={-2} max={2} step={0.01}
                       value={modelOffsetY} onChange={e => setModelOffsetY(Number(e.target.value))}
                       style={{ width: '100%' }} />
-                    <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-                      <button onClick={() => setModelOffsetY(0)} style={{
-                        flex: 1, fontSize: 10, padding: '2px 0', borderRadius: 4, border: 'none',
-                        background: Math.abs(modelOffsetY) < 0.005 ? '#4f46e5' : 'rgba(255,255,255,0.1)',
-                        color: '#fff', cursor: 'pointer',
-                      }}>{t('offsetYReset')}</button>
+                    <div style={{ display: 'flex', gap: 4, marginTop: 4, alignItems: 'center' }}>
+                      <button onClick={() => setModelOffsetY(modelOffsetY - 0.01)}
+                        title="−1cm"
+                        style={btnTiny(false)}>−</button>
+                      <input type="number" step={0.01} min={-5} max={5}
+                        value={modelOffsetY.toFixed(2)}
+                        onChange={e => {
+                          const v = Number(e.target.value);
+                          if (Number.isFinite(v)) setModelOffsetY(v);
+                        }}
+                        style={{
+                          flex: 1, padding: '3px 6px', fontSize: 11, textAlign: 'center',
+                          background: 'rgba(0,0,0,0.4)', color: '#fff',
+                          border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, outline: 'none',
+                        }} />
+                      <button onClick={() => setModelOffsetY(modelOffsetY + 0.01)}
+                        title="+1cm"
+                        style={btnTiny(false)}>+</button>
+                      <button onClick={() => setModelOffsetY(0)}
+                        style={btnTiny(Math.abs(modelOffsetY) < 0.005)}>0</button>
                     </div>
                   </div>
                 </div>
