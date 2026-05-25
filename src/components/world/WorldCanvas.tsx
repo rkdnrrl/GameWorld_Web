@@ -213,10 +213,11 @@ function CustomModel({ url, userScale, rotX, animStateRef, animNames, animTrims,
   });
 
   if (!obj) return null;
-  // rotX 와 발 정렬은 autoNormalize 가 obj 안에서 처리.
-  // 캡슐 콜라이더 바닥에 발 맞추기 (캡슐 바닥은 body 중심 -0.63m)
+  // rotX 와 발 정렬(발이 y=0) 은 autoNormalize 가 obj 안에서 처리.
+  // 외곽 mesh 래퍼가 이미 y=-0.35 에 있고 (CharacterController 참조),
+  // 여기 추가 -0.28 → 합계 -0.63 = 캡슐 바닥
   return (
-    <group scale={userScale} position={[0, -0.63, 0]}>
+    <group scale={userScale} position={[0, -0.28, 0]}>
       <primitive object={obj} />
     </group>
   );
