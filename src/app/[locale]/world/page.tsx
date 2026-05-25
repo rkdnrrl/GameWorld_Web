@@ -87,6 +87,7 @@ export default function WorldPage() {
       .catch((e) => console.warn('[world] 네트워크 오류:', e));
   }, [API, worldIdParam]);
 
+  const { settings: graphics, updateSettings: updateGraphics, applyPreset: applyGraphicsPreset } = useGraphicsSettings();
   const { players, posesRef, chatLog, connected, sendMove, sendChat } = useGameSocket({
     worldId:   worldIdParam || 'default',
     playerId:  userId,
