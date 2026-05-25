@@ -1314,7 +1314,14 @@
     "selectCharacter": "Select",
     "deleteCharacter": "Delete",
     "confirmDeleteCharacter": "Delete character \"{name}\"?",
-    "saveAndEnterWorld": "Save & Enter World 🌍"
+    "saveAndEnterWorld": "Save & Enter World 🌍",
+    "shareCharacter": "Share",
+    "sharedOn": "Shared",
+    "sharedCharacters": "Shared Characters",
+    "sharedSearchPlaceholder": "Search character/creator",
+    "sharedEmpty": "No shared characters.",
+    "importCharacter": "Import",
+    "unknownCreator": "Unknown creator"
   },
   "Assets": {
     "title": "Asset Library",

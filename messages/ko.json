@@ -1314,7 +1314,14 @@
     "selectCharacter": "선택",
     "deleteCharacter": "삭제",
     "confirmDeleteCharacter": "\"{name}\" 캐릭터를 삭제할까요?",
-    "saveAndEnterWorld": "저장 후 월드 입장 🌍"
+    "saveAndEnterWorld": "저장 후 월드 입장 🌍",
+    "shareCharacter": "??",
+    "sharedOn": "???",
+    "sharedCharacters": "?? ???",
+    "sharedSearchPlaceholder": "???/??? ??",
+    "sharedEmpty": "??? ???? ????.",
+    "importCharacter": "????",
+    "unknownCreator": "? ? ?? ???"
   },
   "Assets": {
     "title": "에셋 라이브러리",

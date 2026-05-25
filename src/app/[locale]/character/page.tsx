@@ -24,6 +24,17 @@ interface MyCharacter {
   name: string;
   appearance: Record<string, unknown>;
   isActive: boolean;
+  isPublic?: boolean;
+  shareSlug?: string | null;
+  updatedAt?: string;
+}
+
+interface PublicCharacter {
+  id: string;
+  name: string;
+  appearance: Record<string, unknown>;
+  creatorName?: string | null;
+  shareSlug?: string | null;
   updatedAt?: string;
 }
 
@@ -564,8 +575,12 @@ export default function CharacterPage() {
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
   const [myChars, setMyChars]     = useState<MyCharacter[]>([]);
+  const [publicChars, setPublicChars] = useState<PublicCharacter[]>([]);
+  const [publicQuery, setPublicQuery] = useState('');
   const [selectingId, setSelectingId] = useState('');
   const [deletingId, setDeletingId] = useState('');
+  const [sharingId, setSharingId] = useState('');
+  const [importingId, setImportingId] = useState('');
   const [creatingNew, setCreatingNew] = useState(false);
 
   const setColor = (key: string) => (val: string) =>
@@ -630,9 +645,29 @@ export default function CharacterPage() {
     if (active) applyCharacterToEditor(active);
   };
 
+  const loadPublicCharacters = async (q = '') => {
+    const token = session.getToken();
+    if (!token) return;
+    const qs = q.trim() ? `?q=${encodeURIComponent(q.trim())}` : '';
+    const res = await fetch(`${API}/api/characters/public${qs}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    setPublicChars(data.characters || []);
+  };
+
   useEffect(() => {
     loadCharacters().catch(() => {});
+    loadPublicCharacters().catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadPublicCharacters(publicQuery).catch(() => {});
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [publicQuery]);
 
   const handleSelectAsset = (asset: Asset) => {
     setModelUrl(asset.modelUrl);
@@ -768,6 +803,52 @@ export default function CharacterPage() {
       setError(t('networkError'));
     } finally {
       setDeletingId('');
+    }
+  };
+
+  const handleToggleShareCharacter = async (id: string, isPublic: boolean) => {
+    setSharingId(id);
+    setError('');
+    try {
+      const token = session.getToken();
+      const res = await fetch(`${API}/api/characters/${encodeURIComponent(id)}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ isPublic: !isPublic }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.error?.message || t('saveFailed'));
+        return;
+      }
+      await loadCharacters();
+      await loadPublicCharacters(publicQuery);
+    } catch {
+      setError(t('networkError'));
+    } finally {
+      setSharingId('');
+    }
+  };
+
+  const handleImportCharacter = async (id: string) => {
+    setImportingId(id);
+    setError('');
+    try {
+      const token = session.getToken();
+      const res = await fetch(`${API}/api/characters/import/${encodeURIComponent(id)}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.error?.message || t('saveFailed'));
+        return;
+      }
+      await loadCharacters();
+    } catch {
+      setError(t('networkError'));
+    } finally {
+      setImportingId('');
     }
   };
 
@@ -912,11 +993,100 @@ export default function CharacterPage() {
                       >
                         {deletingId === ch.id ? t('saving') : t('deleteCharacter')}
                       </button>
+                      <button
+                        onClick={() => handleToggleShareCharacter(ch.id, !!ch.isPublic)}
+                        disabled={sharingId === ch.id || deletingId === ch.id || selectingId === ch.id}
+                        style={{
+                          border: '1px solid rgba(59,130,246,0.45)',
+                          background: ch.isPublic ? 'rgba(59,130,246,0.2)' : 'rgba(59,130,246,0.1)',
+                          color: '#bfdbfe',
+                          borderRadius: 8,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: '8px 8px',
+                          cursor: 'pointer',
+                          minWidth: 56,
+                        }}
+                      >
+                        {sharingId === ch.id
+                          ? t('saving')
+                          : (ch.isPublic ? t('sharedOn') : t('shareCharacter'))}
+                      </button>
                     </div>
                   ))}
                 </div>
               </div>
             )}
+
+            <div style={{
+              marginBottom: 16, padding: '12px 14px',
+              background: 'rgba(59,130,246,0.08)', borderRadius: 12,
+              border: '1px solid rgba(59,130,246,0.2)',
+            }}>
+              <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, marginBottom: 8 }}>
+                {t('sharedCharacters')}
+              </div>
+              <input
+                value={publicQuery}
+                onChange={(e) => setPublicQuery(e.target.value)}
+                placeholder={t('sharedSearchPlaceholder')}
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: 8, color: '#fff', fontSize: 12, padding: '7px 10px',
+                  outline: 'none', marginBottom: 8,
+                }}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 140, overflowY: 'auto' }}>
+                {publicChars.length === 0 && (
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{t('sharedEmpty')}</div>
+                )}
+                {publicChars.map((ch) => (
+                  <div
+                    key={ch.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '7px 8px',
+                    }}
+                  >
+                    <button
+                      onClick={() => applyCharacterToEditor({
+                        id: ch.id,
+                        name: ch.name,
+                        appearance: ch.appearance || {},
+                        isActive: false,
+                      })}
+                      style={{
+                        flex: 1, border: 'none', background: 'transparent', color: '#fff',
+                        fontSize: 12, textAlign: 'left', cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ch.name}</div>
+                      <div style={{ fontSize: 10, opacity: 0.7 }}>
+                        {(ch.creatorName || t('unknownCreator'))}
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleImportCharacter(ch.id)}
+                      disabled={importingId === ch.id}
+                      style={{
+                        border: '1px solid rgba(16,185,129,0.45)',
+                        background: 'rgba(16,185,129,0.12)',
+                        color: '#a7f3d0',
+                        borderRadius: 8,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '7px 8px',
+                        cursor: 'pointer',
+                        minWidth: 56,
+                      }}
+                    >
+                      {importingId === ch.id ? t('saving') : t('importCharacter')}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
 
             {/* 이름 */}
             <div style={{ marginBottom: 16 }}>

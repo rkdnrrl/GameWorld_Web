@@ -1314,7 +1314,14 @@
     "selectCharacter": "选择",
     "deleteCharacter": "删除",
     "confirmDeleteCharacter": "要删除角色「{name}」吗？",
-    "saveAndEnterWorld": "保存并进入世界 🌍"
+    "saveAndEnterWorld": "保存并进入世界 🌍",
+    "shareCharacter": "??",
+    "sharedOn": "???",
+    "sharedCharacters": "????",
+    "sharedSearchPlaceholder": "????/??",
+    "sharedEmpty": "???????",
+    "importCharacter": "??",
+    "unknownCreator": "????"
   },
   "Assets": {
     "title": "资源库",
