@@ -91,6 +91,18 @@ export type GameCategory = {
   createdAt: string;
 };
 
+export type AssetKind = {
+  id: string;
+  label: string;
+  icon: string | null;
+  extensions: string[];
+  mimeTypes: string[];
+  maxSizeMb: number;
+  sortOrder: number;
+  enabled: boolean;
+  createdAt?: string;
+};
+
 export type UgcGame = {
   slug: string;
   ownerUserId: string | null;
