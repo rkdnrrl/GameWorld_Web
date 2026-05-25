@@ -247,6 +247,7 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true }: {
         url={modelUrl}
         userScale={userScale}
         rotX={rotX}
+        offsetY={offsetY}
         castShadow={castShadow}
         animStateRef={animStateRef}
         animNames={{
