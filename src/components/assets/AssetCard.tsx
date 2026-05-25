@@ -231,6 +231,16 @@ export default function AssetCard({
             {asset.isPublic ? t('publishing') : t('private')}
           </button>
           <button
+            onClick={() => onEditVersions(asset)}
+            title={t('versionsTitle')}
+            style={{
+              fontSize: 11, cursor: 'pointer', padding: '3px 8px', borderRadius: 5, border: 'none',
+              background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.55)',
+            }}
+          >
+            v{(asset.metadata?.currentVersion ?? 1)}
+          </button>
+          <button
             onClick={() => onDelete(asset.id)}
             style={{
               fontSize: 11, cursor: 'pointer', padding: '3px 8px', borderRadius: 5, border: 'none',
