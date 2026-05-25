@@ -29,7 +29,8 @@ const INITIAL_TAG_LIMIT = 12;
 
 export default function AssetSidebar({
   assets, kinds, selectedKinds, selectedTags, selectedFolder,
-  onSelectKinds, onToggleTag, onSelectFolder,
+  dragActive = false,
+  onSelectKinds, onToggleTag, onSelectFolder, onDropToFolder,
 }: Props) {
   const t = useTranslations('Assets');
   const counts     = countByKind(assets, kinds);
