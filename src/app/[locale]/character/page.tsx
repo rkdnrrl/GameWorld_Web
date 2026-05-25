@@ -478,8 +478,8 @@ export default function CharacterPage() {
                         }}
                       >
                         <option value="">{t('noneOption')}</option>
-                        {availableAnims.map(name => (
-                          <option key={name} value={name}>{name}</option>
+                        {availableAnims.map(a => (
+                          <option key={a.name} value={a.name}>{a.name} ({a.duration.toFixed(1)}s)</option>
                         ))}
                       </select>
                     </div>
