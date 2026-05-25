@@ -31,7 +31,7 @@ export default function AssetFolderTree({ nodes, selectedFolder, rootCount, onSe
           hasChildren={false}
           dragActive={dragActive}
           onClick={() => onSelect(selectedFolder === '' ? null : '')}
-          onDrop={() => onDrop(null)}
+          onDrop={(files) => onDrop(null, files)}
         />
       )}
       {nodes.map(n => (
