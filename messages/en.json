@@ -1197,7 +1197,7 @@
     "saveFailed": "Save failed",
     "playTest": "▶ Test Play",
     "newWorldDefault": "New World",
-    "hudHint": "L-click: Rotate · R-click: Pan · Wheel: Zoom · Click: Select · Del: Delete · Ctrl+Z/Y: Undo",
+    "hudHint": "R-click: Rotate · Wheel: Zoom · WASD: Move · QE: Up/Down · Shift: Fast · Click: Select · Del: Delete · Ctrl+Z/Y: Undo",
     "material": "Material",
     "matDefault": "Default",
     "matWood": "🪵 Wood",

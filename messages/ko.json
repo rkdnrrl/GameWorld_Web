@@ -1197,7 +1197,7 @@
     "saveFailed": "저장 실패",
     "playTest": "▶ 플레이 테스트",
     "newWorldDefault": "새 월드",
-    "hudHint": "좌클릭: 회전 · 우클릭: 이동 · 휠: 확대/축소 · 클릭: 선택 · Del: 삭제 · Ctrl+Z/Y: 되돌리기",
+    "hudHint": "우클릭: 회전 · 휠: 확대/축소 · WASD: 이동 · QE: 상하 · Shift: 가속 · 클릭: 선택 · Del: 삭제 · Ctrl+Z/Y: 되돌리기",
     "material": "재질",
     "matDefault": "기본",
     "matWood": "🪵 나무",
