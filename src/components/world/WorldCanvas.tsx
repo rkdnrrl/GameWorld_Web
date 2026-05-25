@@ -214,9 +214,10 @@ function CustomModel({ url, userScale, rotX, animStateRef, animNames, animTrims,
   });
 
   if (!obj) return null;
-  // position y=-0.28: 캡슐 콜라이더 바닥에 발 맞추기 (body 중심 -0.63 = 캡슐 바닥, mesh 그룹은 -0.35 → 추가 -0.28 필요)
+  // rotX 와 발 정렬은 autoNormalize 가 obj 안에서 처리.
+  // 캡슐 콜라이더 바닥에 발 맞추기 (캡슐 바닥은 body 중심 -0.63m)
   return (
-    <group scale={userScale} rotation={[rotX, 0, 0]} position={[0, -0.28, 0]}>
+    <group scale={userScale} position={[0, -0.63, 0]}>
       <primitive object={obj} />
     </group>
   );
