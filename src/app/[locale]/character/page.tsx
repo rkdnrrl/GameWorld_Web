@@ -295,6 +295,7 @@ export default function CharacterPage() {
           jumpAnim:   animMap.jump,
           crouchAnim: animMap.crouch,
           proneAnim:  animMap.prone,
+          animTrims,
         }
       : appearance;
     try {
