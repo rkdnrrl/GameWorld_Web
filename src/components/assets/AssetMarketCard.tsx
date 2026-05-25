@@ -72,6 +72,27 @@ export default function AssetMarketCard({
             {kindDef.icon} {kindDef.label}
           </span>
         )}
+
+        {/* 좋아요 버튼 — 우상단 */}
+        <button
+          onClick={e => { e.stopPropagation(); onToggleLike(asset); }}
+          disabled={liking}
+          title={asset.liked ? t('unlike') : t('like')}
+          aria-label={asset.liked ? t('unlike') : t('like')}
+          style={{
+            position: 'absolute', top: 6, right: 6, zIndex: 2,
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            padding: '3px 8px',
+            background: asset.liked ? 'rgba(239,68,68,0.85)' : 'rgba(0,0,0,0.55)',
+            color: '#fff', fontSize: 11, fontWeight: 700,
+            border: 'none', borderRadius: 12,
+            cursor: liking ? 'default' : 'pointer',
+            backdropFilter: 'blur(4px)',
+            opacity: liking ? 0.6 : 1,
+          }}>
+          <span style={{ fontSize: 11 }}>{asset.liked ? '♥' : '♡'}</span>
+          {(asset.likeCount ?? 0) > 0 && <span>{asset.likeCount}</span>}
+        </button>
       </div>
 
       {/* 정보 */}
