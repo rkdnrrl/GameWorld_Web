@@ -15,6 +15,8 @@ interface Asset {
   thumbnailUrl: string | null;
   isPublic: boolean;
   createdAt: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  materialConfig?: any;
 }
 
 const ACCEPT = '.fbx,.png,.jpg,.jpeg,.webp';
