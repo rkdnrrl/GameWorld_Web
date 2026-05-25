@@ -943,6 +943,44 @@ export const api = {
     } }>(`/api/users/${encodeURIComponent(username)}/profile`);
   },
 
+  /** 에셋 신고 */
+  reportAsset(token: string, id: string, body: { reason: 'inappropriate' | 'copyright' | 'spam' | 'malware' | 'other'; comment?: string }) {
+    return request<{ ok: true; reportCount: number; autoHidden: boolean }>(`/api/assets/${encodeURIComponent(id)}/report`, {
+      method: "POST",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  },
+
+  /** 운영자: 신고 큐 */
+  operatorListAssetReports(token: string, params: { status?: 'pending' | 'dismissed' | 'resolved' | 'all'; page?: number } = {}) {
+    const sp = new URLSearchParams();
+    if (params.status) sp.set('status', params.status);
+    if (params.page)   sp.set('page', String(params.page));
+    const qs = sp.toString();
+    return request<{
+      reports: Array<{
+        id: string; assetId: string; reporterId: string; reason: string; comment: string | null;
+        status: string; resolution: string | null; createdAt: string;
+        asset: {
+          id: string; name: string; kind: string | null; modelUrl: string; thumbnailUrl: string | null;
+          isPublic: boolean; reportCount: number; creatorId: string;
+          creator: { username: string | null } | null;
+        };
+      }>;
+      page: number; pageSize: number; total: number; hasMore: boolean;
+    }>(`/api/operator/asset-reports${qs ? `?${qs}` : ''}`, { headers: authHeaders(token) });
+  },
+
+  /** 운영자: 신고 처리 */
+  operatorResolveAssetReport(token: string, id: string, resolution: 'dismiss' | 'hide' | 'delete') {
+    return request<{ ok: true }>(`/api/operator/asset-reports/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify({ resolution }),
+    });
+  },
+
   /** 작가의 공개 에셋 목록 */
   listUserAssets(
     username: string,
