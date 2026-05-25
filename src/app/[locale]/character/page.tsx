@@ -14,6 +14,7 @@ interface Asset {
   name: string;
   modelUrl: string;
   thumbnailUrl: string | null;
+  tags?: string[];
 }
 
 /* ── 자동 정규화 (1.8m 기준) ────────────── */
