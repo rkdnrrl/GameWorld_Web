@@ -73,11 +73,12 @@ export default function AssetBrowsePage() {
     api.listAssetKinds().then(d => setKinds(d.kinds)).catch(() => {});
   }, []);
 
-  // 필터 변경 시 첫 페이지부터 다시 로드
+  // 필터 변경 시 첫 페이지부터 다시 로드 (로그인 상태면 liked 함께)
   useEffect(() => {
     setLoading(true);
     setPage(1);
-    api.listPublicAssets({ q, kind: kindSel, tag: tagSel, sort, page: 1, pageSize: PAGE_SIZE })
+    const tk = session.getToken() || undefined;
+    api.listPublicAssets({ q, kind: kindSel, tag: tagSel, sort, page: 1, pageSize: PAGE_SIZE }, tk)
       .then(d => {
         setAssets(d.assets as MarketAsset[]);
         setTotal(d.total);
@@ -93,7 +94,8 @@ export default function AssetBrowsePage() {
     setLoading(true);
     try {
       const next = page + 1;
-      const d = await api.listPublicAssets({ q, kind: kindSel, tag: tagSel, sort, page: next, pageSize: PAGE_SIZE });
+      const tk = session.getToken() || undefined;
+      const d = await api.listPublicAssets({ q, kind: kindSel, tag: tagSel, sort, page: next, pageSize: PAGE_SIZE }, tk);
       setAssets(prev => [...prev, ...(d.assets as MarketAsset[])]);
       setPage(next);
       setHasMore(d.hasMore);
@@ -101,6 +103,22 @@ export default function AssetBrowsePage() {
       setError(e instanceof Error ? e.message : 'load failed');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function toggleLike(a: MarketAsset) {
+    const tk = session.getToken();
+    if (!tk) { router.push('/login'); return; }
+    setLikingId(a.id);
+    try {
+      const res = a.liked
+        ? await api.unlikeAsset(tk, a.id)
+        : await api.likeAsset(tk, a.id);
+      setAssets(prev => prev.map(x => x.id === a.id ? { ...x, liked: res.liked, likeCount: res.likeCount } : x));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'like failed');
+    } finally {
+      setLikingId(null);
     }
   }
 
