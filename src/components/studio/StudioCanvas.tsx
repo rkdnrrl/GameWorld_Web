@@ -196,10 +196,41 @@ function Mesh3D({ obj, selected, onClick, assetConfig }: {
     <mesh ref={ref} position={obj.position} rotation={obj.rotation} scale={obj.scale}
       onClick={handle} castShadow receiveShadow userData={{ id: obj.id }}>
       {geometry}
-      <meshStandardMaterial color={obj.color} side={obj.kind === 'plane' ? THREE.DoubleSide : THREE.FrontSide} />
+      <PrimitiveMaterial obj={obj} />
       {selected && <Outlines thickness={3} color="#22d3ee" screenspace />}
     </mesh>
   );
+}
+
+function PrimitiveMaterial({ obj }: { obj: MapObject }) {
+  const matRef = useRef<THREE.MeshStandardMaterial | null>(null);
+  const [, forceUpdate] = useState(0);
+  const cfg = {
+    material:         obj.material,
+    materialColor:    obj.materialColor,
+    textureAlbedo:    obj.textureAlbedo,
+    textureNormal:    obj.textureNormal,
+    textureRoughness: obj.textureRoughness,
+    textureTilingX:   obj.textureTilingX,
+    textureTilingY:   obj.textureTilingY,
+  };
+  const cfgKey = JSON.stringify(cfg);
+
+  useEffect(() => {
+    if (matRef.current) { disposeMat(matRef.current); matRef.current = null; }
+    const mat = buildMat(cfg, () => forceUpdate(n => n + 1));
+    matRef.current = mat;
+    forceUpdate(n => n + 1);
+    return () => { if (matRef.current) { disposeMat(matRef.current); matRef.current = null; } };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfgKey]);
+
+  const side = obj.kind === 'plane' ? THREE.DoubleSide : THREE.FrontSide;
+  if (matRef.current) {
+    matRef.current.side = side;
+    return <primitive object={matRef.current} attach="material" />;
+  }
+  return <meshStandardMaterial color={obj.color} side={side} />;
 }
 
 function AssetMesh({ obj, selected, onClick, assetConfig }: {
