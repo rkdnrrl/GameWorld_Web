@@ -72,22 +72,21 @@ export default function AssetCard({
           ? <Thumb asset={asset} />
           : <span style={{ fontSize: 44, opacity: 0.4 }}>{kindDef?.icon || '📄'}</span>}
 
-        {/* 선택 체크박스 — 좌상단, 선택됐을 땐 항상 표시 */}
+        {/* 선택 체크박스 — 좌상단, 선택/호버 시 표시 */}
         <button
           onClick={e => { e.stopPropagation(); onToggleSelect(asset.id, e); }}
           title={t('selectToggle')}
           aria-label={t('selectToggle')}
-          className="alp-asset-card-checkbox"
           style={{
             position: 'absolute', top: 6, left: 6, zIndex: 2,
-            width: 20, height: 20, padding: 0,
+            width: 22, height: 22, padding: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: selected ? '#6366f1' : 'rgba(0,0,0,0.55)',
             color: '#fff', fontSize: 12, fontWeight: 900,
             border: `1px solid ${selected ? '#a5b4fc' : 'rgba(255,255,255,0.3)'}`,
             borderRadius: 4, cursor: 'pointer',
             backdropFilter: 'blur(4px)',
-            opacity: selected ? 1 : 0, /* 호버 시 노출 (CSS) */
+            opacity: (selected || hovered) ? 1 : 0,
             transition: 'opacity .12s',
           }}>
           {selected ? '✓' : ''}
