@@ -66,6 +66,7 @@ export default function WorldPage() {
   const [mapSearch, setMapSearch] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
   const [mapSort, setMapSort] = useState<'popular' | 'latest'>('popular');
+  const [previewWorldKey, setPreviewWorldKey] = useState('');
   const [switchingCharId, setSwitchingCharId] = useState('');
   const [myChars, setMyChars] = useState<MyCharacter[]>([]);
   const [myWorlds, setMyWorlds] = useState<HubWorld[]>([]);
@@ -206,6 +207,7 @@ export default function WorldPage() {
     setMapSearch('');
     setSelectedTag('');
     setMapSort('popular');
+    setPreviewWorldKey('__home__');
     setMapModalOpen(true);
   }
 
@@ -247,6 +249,36 @@ export default function WorldPage() {
     });
     return list;
   }, [currentWorldList, mapSearch, selectedTag, mapSort]);
+
+  const previewCandidates = useMemo(() => {
+    if (mapTab === 'home') {
+      return [{
+        id: '__home__',
+        worldId: '',
+        name: t('homeHubMap'),
+        description: '',
+        thumbnailUrl: null as string | null,
+        ownerName: username || '-',
+        playCount: 0,
+        tags: [] as string[],
+      }];
+    }
+    return filteredWorlds.map((w) => ({
+      id: `world-${w.id}`,
+      worldId: w.id,
+      name: w.name,
+      description: w.description || '',
+      thumbnailUrl: w.thumbnailUrl || null,
+      ownerName: w.ownerName || '-',
+      playCount: w.playCount || 0,
+      tags: w.tags || [],
+    }));
+  }, [mapTab, filteredWorlds, t, username]);
+
+  const previewWorld = useMemo(
+    () => previewCandidates.find((c) => c.id === previewWorldKey) || previewCandidates[0] || null,
+    [previewCandidates, previewWorldKey],
+  );
 
   const submitChat = () => {
     const msg = chatInput.trim();
@@ -413,7 +445,70 @@ export default function WorldPage() {
                   )}
                 </div>
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+              {previewWorld && (
+                <div style={{ border: '1px solid rgba(255,255,255,0.22)', borderRadius: 12, overflow: 'hidden', background: 'rgba(255,255,255,0.04)', marginBottom: 12 }}>
+                  <div
+                    key={`preview-hero-${previewWorld.id}`}
+                    style={{
+                      height: 220,
+                      background: previewWorld.thumbnailUrl
+                        ? `url(${previewWorld.thumbnailUrl}) center/cover`
+                        : 'linear-gradient(135deg, #1d4ed8 0%, #0f766e 100%)',
+                      animation: 'worldPreviewFadeIn 220ms ease',
+                    }}
+                  />
+                  <div style={{ padding: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 18, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{previewWorld.name}</div>
+                        {!!previewWorld.description && <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>{previewWorld.description}</div>}
+                        <div style={{ fontSize: 11, opacity: 0.65, marginTop: 6 }}>
+                          {previewWorld.ownerName} · {previewWorld.playCount}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => { moveWorld(previewWorld.worldId); setMapModalOpen(false); }}
+                        style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, padding: '10px 14px', cursor: 'pointer', background: 'rgba(16,185,129,0.28)', color: '#fff', fontSize: 13, fontWeight: 800, flexShrink: 0 }}
+                      >
+                        {t('moveMap')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10, maxHeight: 210, overflowY: 'auto', paddingRight: 2 }}>
+                {previewCandidates.map((w) => (
+                  <button
+                    key={w.id}
+                    onClick={() => setPreviewWorldKey(w.id)}
+                    style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, padding: 0, overflow: 'hidden', background: previewWorldKey === w.id ? 'rgba(79,70,229,0.4)' : 'rgba(255,255,255,0.06)', cursor: 'pointer', color: '#fff', textAlign: 'left', transition: 'transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease' }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+                      e.currentTarget.style.borderColor = 'rgba(99,102,241,0.85)';
+                      e.currentTarget.style.boxShadow = '0 10px 20px rgba(37,99,235,0.28)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    <div style={{ height: 84, backgroundImage: w.thumbnailUrl ? `url(${w.thumbnailUrl})` : 'linear-gradient(135deg, #334155 0%, #111827 100%)', backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' }}>
+                      {((w.worldId || '') === (worldIdParam || '') || (w.worldId === '' && !worldIdParam)) && (
+                        <div style={{ position: 'absolute', top: 6, right: 6, padding: '2px 6px', borderRadius: 999, background: 'rgba(16,185,129,0.9)', color: '#fff', fontSize: 10, fontWeight: 800 }}>
+                          {t('activeCharacter')}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ padding: '8px 9px' }}>
+                      <div style={{ fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{w.name}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ display: 'none', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
                 {mapTab === 'home' && (
                   <button
                     onClick={() => { moveWorld(''); setMapModalOpen(false); }}
@@ -460,6 +555,13 @@ export default function WorldPage() {
       <div style={{ position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.35)', borderRadius: 10, padding: '5px 14px', color: 'rgba(255,255,255,0.6)', fontSize: 11, backdropFilter: 'blur(6px)', textAlign: 'center', pointerEvents: 'none' }}>
         {t('controlHint')}
       </div>
+
+      <style jsx global>{`
+        @keyframes worldPreviewFadeIn {
+          from { opacity: 0.45; transform: scale(1.01); }
+          to   { opacity: 1;    transform: scale(1); }
+        }
+      `}</style>
 
       <div style={{ position: 'absolute', bottom: 24, right: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
         {chatOpen && (
