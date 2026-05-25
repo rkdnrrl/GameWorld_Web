@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { session } from '@/lib/api';
+import CreatorNav from '@/components/creator/CreatorNav';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
