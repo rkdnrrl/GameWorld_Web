@@ -159,6 +159,13 @@ export default function AssetBrowsePage() {
       {previewAsset && PreviewComp && (
         <PreviewComp asset={previewAsset} onClose={() => setPreviewAsset(null)} />
       )}
+      {reportingAsset && (
+        <AssetReportModal
+          asset={reportingAsset}
+          onClose={() => setReportingAsset(null)}
+          onSubmit={submitReport}
+        />
+      )}
 
       <div style={{ minHeight: '100vh', background: '#0f172a', color: '#fff', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif" }}>
         {/* 헤더 */}
