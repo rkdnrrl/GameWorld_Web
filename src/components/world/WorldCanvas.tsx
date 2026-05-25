@@ -469,47 +469,29 @@ function Player({
 }
 
 /* ── 원격 플레이어 ──────────────────────── */
-function RemotePlayerMesh({ player }: { player: RemotePlayer & { animState?: AnimState } }) {
+function RemotePlayerMesh({ player, posesRef }: {
+  player: RemotePlayer;
+  posesRef: React.RefObject<Map<string, PlayerPose>>;
+}) {
   const g    = useRef<THREE.Group>(null);
-  const tPos = useRef(new THREE.Vector3(player.x, player.y, player.z));
-  const tRot = useRef(player.rotY);
-  const lastUpdate     = useRef(Date.now());
-  const animStateRef   = useRef<AnimState>('idle');
-  const prevTargetXZ   = useRef({ x: player.x, z: player.z });
+  const tPos = useRef(new THREE.Vector3());
+  const animStateRef = useRef<AnimState>('idle');
 
-  // 서버에서 받은 animState 우선, 없으면 위치 변화로 판단
-  useEffect(() => {
-    if (player.animState) {
-      animStateRef.current = player.animState;
-      lastUpdate.current = Date.now();
-    } else {
-      const dx = player.x - prevTargetXZ.current.x;
-      const dz = player.z - prevTargetXZ.current.z;
-      const moved = Math.hypot(dx, dz) > 0.02;
-      if (moved) {
-        animStateRef.current = 'walk';
-        lastUpdate.current = Date.now();
-      }
-    }
-    prevTargetXZ.current = { x: player.x, z: player.z };
-    tPos.current.set(player.x, player.y, player.z);
-    tRot.current = player.rotY;
-  }, [player.x, player.y, player.z, player.rotY, player.animState]);
-
+  // 매 프레임: ref에서 직접 읽음 → React 재렌더 안 함
   useFrame((_, dt) => {
     if (!g.current) return;
-    g.current.position.lerp(tPos.current, 10 * dt);
-    g.current.rotation.y = lerpAngle(g.current.rotation.y, tRot.current, Math.min(1, 10 * dt));
-    // 서버 animState 없을 때만: 200ms 이상 위치 업데이트 없으면 idle
-    if (!player.animState && Date.now() - lastUpdate.current > 200) {
-      animStateRef.current = 'idle';
-    }
+    const pose = posesRef.current?.get(player.id);
+    if (!pose) return;
+    tPos.current.set(pose.x, pose.y, pose.z);
+    g.current.position.lerp(tPos.current, Math.min(1, 10 * dt));
+    g.current.rotation.y = lerpAngle(g.current.rotation.y, pose.rotY, Math.min(1, 10 * dt));
+    animStateRef.current = pose.animState ?? 'idle';
   });
 
-  const appearance = (player.character?.appearance ?? {}) as Record<string, string>;
+  const appearance = ((player.character as Record<string, unknown>)?.appearance ?? {}) as Record<string, unknown>;
 
   return (
-    <group ref={g} position={[player.x, player.y, player.z]}>
+    <group ref={g}>
       <group position={[0, -0.35, 0]}>
         <CharacterMesh appearance={appearance} animStateRef={animStateRef} castShadow={false} />
       </group>
@@ -683,6 +665,7 @@ function UserAsset({ url }: { url: string }) {
 interface WorldCanvasProps {
   character: Record<string, unknown>;
   players: Record<string, RemotePlayer>;
+  posesRef: React.RefObject<Map<string, PlayerPose>>;
   onMove: (pos: { x: number; y: number; z: number; rotY: number; animState?: AnimState }) => void;
   customObjects?: UserMapObject[];
 }
