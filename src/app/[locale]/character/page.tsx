@@ -586,10 +586,23 @@ export default function CharacterPage() {
                     previewAnim={animMap[previewSlot]}
                     previewTrim={animTrims[previewSlot]}
                     onAnimationsLoaded={setAvailableAnims}
+                    onPlayingClip={setPlayingClip}
                   />
                 : <BlockPreview appearance={appearance} />
               }
             </Canvas>
+            {/* 디버그: 현재 재생 중인 clip 이름 */}
+            {modelUrl && (
+              <div style={{
+                position: 'absolute', bottom: 8, left: 8,
+                background: 'rgba(0,0,0,0.7)', color: '#fff',
+                fontSize: 10, padding: '4px 8px', borderRadius: 4,
+                fontFamily: 'monospace',
+                pointerEvents: 'none',
+              }}>
+                ▶ {playingClip || '(정지)'} · slot: {previewSlot}
+              </div>
+            )}
           </div>
 
           {/* 설정 패널 */}
