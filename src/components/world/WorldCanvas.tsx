@@ -861,7 +861,17 @@ function UserAsset({ url, matObj }: { url: string; matObj: UserMapObject }) {
       const m = c as THREE.Mesh;
       if (m.isMesh) m.material = newMat;
     });
-    return () => { newMat.dispose(); };
+    return () => {
+      // 정리 전에 원본으로 복원 (disposed 머티리얼이 mesh에 남지 않도록)
+      obj.traverse(c => {
+        const m = c as THREE.Mesh;
+        if (m.isMesh) {
+          const orig = originalMats.current.get(m);
+          if (orig) m.material = orig;
+        }
+      });
+      disposeMaterial(newMat);
+    };
   }, [obj, matObj.material, matObj.materialColor, matObj.textureAlbedo, matObj.textureNormal, matObj.textureRoughness, matObj.textureTilingX, matObj.textureTilingY]);
 
   if (!obj) return null;
