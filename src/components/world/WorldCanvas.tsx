@@ -84,8 +84,8 @@ async function loadFBXCached(url: string): Promise<FBXLoaded> {
 
 /** 스킨드 메쉬 + 본 구조 보존 복제 (THREE.clone()은 skeleton bind 깨짐) */
 async function cloneFBX(source: THREE.Object3D): Promise<THREE.Object3D> {
-  const { SkeletonUtils } = await import('three/examples/jsm/utils/SkeletonUtils.js');
-  return SkeletonUtils.clone(source);
+  const mod = await import('three/examples/jsm/utils/SkeletonUtils.js');
+  return mod.clone(source);
 }
 
 /** start~end 초 구간만 잘라낸 새 AnimationClip 반환 (트림 없으면 원본) */
