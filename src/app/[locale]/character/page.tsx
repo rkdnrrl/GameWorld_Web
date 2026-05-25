@@ -180,8 +180,8 @@ function CustomPreview({
     onPlayingClip?.(clip.name);
   }, [previewAnim, previewTrim, obj, onPlayingClip]);
 
+  // 자동 회전 제거 — OrbitControls 로 사용자가 직접 회전 (충돌 방지)
   useFrame((_, dt) => {
-    if (g.current) g.current.rotation.y += dt * 0.6;
     mixer.current?.update(dt);
   });
 
