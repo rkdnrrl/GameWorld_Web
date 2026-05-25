@@ -75,6 +75,8 @@ function autoMatchAnims(
 }
 
 /* ── 자동 정규화 (1.8m 기준) ────────────── */
+const FOOT_CLEARANCE = 0.05;
+
 function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   // 재호출 시 누적 방지 — 매번 fresh 한 상태에서 시작
   obj.position.set(0, 0, 0);
@@ -91,6 +93,7 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   }
   const box2 = new THREE.Box3().setFromObject(obj);
   obj.position.y -= box2.min.y;
+  obj.position.y += FOOT_CLEARANCE;
 }
 
 /* ── 커스텀 모델 프리뷰 (명령형 로드) ───── */
