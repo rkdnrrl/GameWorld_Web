@@ -302,10 +302,21 @@ export default function AssetsPage() {
               resultCount={visibleAssets.length}
             />
 
+            {/* 활성 필터 칩 */}
+            <AssetActiveFilters
+              selectedKinds={selectedKinds}
+              selectedTags={selectedTags}
+              kinds={kinds}
+              onRemoveKind={(id) => setQuery({ kind: selectedKinds.filter(x => x !== id) })}
+              onRemoveTag={(tag) => setQuery({ tag: selectedTags.filter(x => x !== tag) })}
+              onClearAll={() => setQuery({ kind: null, tag: null })}
+            />
+
             {/* 그리드 */}
             <AssetGrid
               assets={visibleAssets}
               kinds={kinds}
+              selectedTags={selectedTags}
               emptyMessage={
                 assets.length === 0
                   ? `${t('emptyState')}\n${t('emptyHint')}`
@@ -313,6 +324,8 @@ export default function AssetsPage() {
               }
               onEdit={setEditingAsset}
               onPreview={setPreviewAsset}
+              onEditTags={setTaggingAsset}
+              onClickTag={toggleTag}
               onTogglePublic={togglePublic}
               onDelete={deleteAsset}
             />
