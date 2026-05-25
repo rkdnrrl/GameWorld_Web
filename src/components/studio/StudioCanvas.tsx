@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, TransformControls, Grid, Sky, Outlines } from '@react-three/drei';
 import * as THREE from 'three';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -158,19 +158,34 @@ function SelectedTransform({ targetId, mode, onChange, onDragEnd }: {
   onDragEnd: () => void;
 }) {
   const { scene } = useThree();
-  if (!targetId) return null;
+  const [target, setTarget] = useState<THREE.Object3D | null>(null);
 
-  let actualTarget: THREE.Object3D | null = null;
-  scene.traverse(o => { if (o.userData?.id === targetId) actualTarget = o; });
-  if (!actualTarget) return null;
+  // targetId가 바뀌거나, scene 트리가 바뀐 후 매 프레임 검사
+  useFrame(() => {
+    if (!targetId) {
+      if (target) setTarget(null);
+      return;
+    }
+    let found: THREE.Object3D | null = null;
+    scene.traverse(o => { if (o.userData?.id === targetId) found = o; });
+    // 대상이 scene 트리에 실제 연결돼 있는지 확인 (이게 빠지면 TransformControls 에러 999개)
+    if (found && (found as THREE.Object3D).parent) {
+      if (target !== found) setTarget(found);
+    } else {
+      if (target) setTarget(null);
+    }
+  });
+
+  if (!target) return null;
 
   return (
     <TransformControls
-      object={actualTarget}
+      key={targetId ?? 'none'}
+      object={target}
       mode={mode}
       onObjectChange={() => {
-        const o = actualTarget!;
-        onChange(targetId, {
+        const o = target;
+        onChange(targetId!, {
           p: [o.position.x, o.position.y, o.position.z],
           r: [o.rotation.x, o.rotation.y, o.rotation.z],
           s: [o.scale.x,    o.scale.y,    o.scale.z],
