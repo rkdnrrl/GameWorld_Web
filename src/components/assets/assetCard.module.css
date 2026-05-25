@@ -1,4 +1,0 @@
-/* 호버 시 체크박스 노출 — AssetCard 의 인라인 스타일을 보완 */
-.alp-asset-card:hover .alp-asset-card-checkbox {
-  opacity: 1 !important;
-}

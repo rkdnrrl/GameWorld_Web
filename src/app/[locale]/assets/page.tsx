@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { session } from '@/lib/api';
+import { api, session } from '@/lib/api';
 
 import type { Asset, AssetKind } from '@/lib/assets/types';
 import type { SortMode, VisibilityFilter } from '@/lib/assets/filters';
@@ -17,6 +17,7 @@ import AssetGrid          from '@/components/assets/AssetGrid';
 import AssetActiveFilters from '@/components/assets/AssetActiveFilters';
 import AssetTagEditor     from '@/components/assets/AssetTagEditor';
 import AssetFolderEditor  from '@/components/assets/AssetFolderEditor';
+import AssetBulkBar       from '@/components/assets/AssetBulkBar';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
@@ -32,6 +33,10 @@ export default function AssetsPage() {
   const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
   const [taggingAsset, setTaggingAsset] = useState<Asset | null>(null);
   const [foldingAsset, setFoldingAsset] = useState<Asset | null>(null);
+  // 다중 선택
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const lastClickedRef = useRef<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   /* ── 업로드 ── */
   const [uploading, setUploading] = useState(false);
@@ -52,6 +57,9 @@ export default function AssetsPage() {
   const selectedTags = searchParams.get('tag')
     ? searchParams.get('tag')!.split(',').filter(Boolean)
     : [];
+  // 폴더: 미설정=null (필터 없음), "" = 루트만, "/캐릭터" = 그 하위 전부
+  const folderParam = searchParams.get('folder');
+  const selectedFolder: string | null = folderParam === null ? null : folderParam;
 
   const toggleTag = useCallback((tag: string) => {
     const next = selectedTags.includes(tag)
@@ -185,11 +193,95 @@ export default function AssetsPage() {
     setAssets(prev => prev.map(a => a.id === updated.id ? updated : a));
   }
 
+  async function saveFolder(asset: Asset, folder: string | null) {
+    const r = await fetch(`${API}/api/assets/${asset.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+      body: JSON.stringify({ folder }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err?.error?.message || 'save failed');
+    }
+    const { asset: updated } = await r.json();
+    setAssets(prev => prev.map(a => a.id === updated.id ? updated : a));
+  }
+
   /* ── 필터링/정렬 ── */
   const visibleAssets = useMemo(() => {
-    const filtered = filterAssets(assets, { q, kinds: selectedKinds, tags: selectedTags, visibility }, kinds);
+    const filtered = filterAssets(
+      assets,
+      { q, kinds: selectedKinds, tags: selectedTags, visibility, folder: selectedFolder },
+      kinds,
+    );
     return sortAssets(filtered, sort, kinds);
-  }, [assets, q, selectedKinds, selectedTags, visibility, sort, kinds]);
+  }, [assets, q, selectedKinds, selectedTags, selectedFolder, visibility, sort, kinds]);
+
+  /* ── 선택 토글 + Shift 범위 선택 ── */
+  const toggleSelect = useCallback((id: string, e: React.MouseEvent) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      // Shift + 클릭 — 마지막 클릭과 사이 전부 선택
+      if (e.shiftKey && lastClickedRef.current) {
+        const ids = visibleAssets.map(a => a.id);
+        const a = ids.indexOf(lastClickedRef.current);
+        const b = ids.indexOf(id);
+        if (a >= 0 && b >= 0) {
+          const [lo, hi] = a < b ? [a, b] : [b, a];
+          for (let i = lo; i <= hi; i++) next.add(ids[i]);
+          lastClickedRef.current = id;
+          return next;
+        }
+      }
+      if (next.has(id)) next.delete(id); else next.add(id);
+      lastClickedRef.current = id;
+      return next;
+    });
+  }, [visibleAssets]);
+
+  const selectAllVisible = useCallback(() => {
+    setSelectedIds(new Set(visibleAssets.map(a => a.id)));
+  }, [visibleAssets]);
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  /* ── 일괄 작업 ── */
+  async function runBulk(
+    action: 'delete' | 'move' | 'addTags' | 'removeTags' | 'setPublic',
+    value?: unknown,
+  ) {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const tk = session.getToken() || '';
+      const res = await api.batchUpdateAssets(tk, { ids, action, value });
+      // 로컬 반영
+      setAssets(prev => {
+        if (action === 'delete') return prev.filter(a => !selectedIds.has(a.id));
+        if (action === 'move')   return prev.map(a => selectedIds.has(a.id) ? { ...a, folder: (value as string | null) ?? null } : a);
+        if (action === 'setPublic') return prev.map(a => selectedIds.has(a.id) ? { ...a, isPublic: Boolean(value) } : a);
+        if (action === 'addTags' || action === 'removeTags') {
+          const incoming = (value as string[]) || [];
+          return prev.map(a => {
+            if (!selectedIds.has(a.id)) return a;
+            const cur = a.tags || [];
+            const next = action === 'addTags'
+              ? Array.from(new Set([...cur, ...incoming])).slice(0, 30)
+              : cur.filter(t => !incoming.includes(t));
+            return { ...a, tags: next };
+          });
+        }
+        return prev;
+      });
+      if (res.skipped > 0) setError(t('bulkSkippedSome', { count: res.skipped }));
+      else setError('');
+      if (action === 'delete') setSelectedIds(new Set());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'bulk failed');
+    } finally {
+      setBulkBusy(false);
+    }
+  }
 
   /* ── 에디터/프리뷰 (kind 핸들러에서 가져옴) ── */
   const editorHandler  = editingAsset ? getKind(editingAsset.kind) : null;
@@ -218,6 +310,26 @@ export default function AssetsPage() {
           onSave={(tags) => saveTags(taggingAsset, tags)}
         />
       )}
+      {foldingAsset && (
+        <AssetFolderEditor
+          asset={foldingAsset}
+          allAssets={assets}
+          onClose={() => setFoldingAsset(null)}
+          onSave={(folder) => saveFolder(foldingAsset, folder)}
+        />
+      )}
+
+      <AssetBulkBar
+        selectedCount={selectedIds.size}
+        totalVisible={visibleAssets.length}
+        busy={bulkBusy}
+        onSelectAll={selectAllVisible}
+        onClear={clearSelection}
+        onBulkDelete={() => runBulk('delete')}
+        onBulkMove={(folder) => runBulk('move', folder)}
+        onBulkAddTags={(tags) => runBulk('addTags', tags)}
+        onBulkSetPublic={(isPublic) => runBulk('setPublic', isPublic)}
+      />
 
       <div style={{ minHeight: '100vh', background: '#0f172a', color: '#fff', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif" }}>
         {/* 헤더 */}
@@ -236,8 +348,10 @@ export default function AssetsPage() {
             kinds={kinds}
             selectedKinds={selectedKinds}
             selectedTags={selectedTags}
+            selectedFolder={selectedFolder}
             onSelectKinds={ks => setQuery({ kind: ks })}
             onToggleTag={toggleTag}
+            onSelectFolder={f => setQuery({ folder: f })}
           />
 
           <div style={{ flex: 1, padding: '20px 32px' }}>
@@ -308,10 +422,12 @@ export default function AssetsPage() {
             <AssetActiveFilters
               selectedKinds={selectedKinds}
               selectedTags={selectedTags}
+              selectedFolder={selectedFolder}
               kinds={kinds}
               onRemoveKind={(id) => setQuery({ kind: selectedKinds.filter(x => x !== id) })}
               onRemoveTag={(tag) => setQuery({ tag: selectedTags.filter(x => x !== tag) })}
-              onClearAll={() => setQuery({ kind: null, tag: null })}
+              onRemoveFolder={() => setQuery({ folder: null })}
+              onClearAll={() => setQuery({ kind: null, tag: null, folder: null })}
             />
 
             {/* 그리드 */}
@@ -319,6 +435,8 @@ export default function AssetsPage() {
               assets={visibleAssets}
               kinds={kinds}
               selectedTags={selectedTags}
+              selectedFolder={selectedFolder}
+              selectedIds={selectedIds}
               emptyMessage={
                 assets.length === 0
                   ? `${t('emptyState')}\n${t('emptyHint')}`
@@ -327,7 +445,10 @@ export default function AssetsPage() {
               onEdit={setEditingAsset}
               onPreview={setPreviewAsset}
               onEditTags={setTaggingAsset}
+              onEditFolder={setFoldingAsset}
               onClickTag={toggleTag}
+              onClickFolder={(f) => setQuery({ folder: f })}
+              onToggleSelect={toggleSelect}
               onTogglePublic={togglePublic}
               onDelete={deleteAsset}
             />
