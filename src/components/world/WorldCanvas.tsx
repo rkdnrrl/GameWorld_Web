@@ -308,8 +308,31 @@ function BlockMesh({ appearance }: { appearance: Record<string, string> }) {
 }
 
 /* ── 그래픽 설정 변경 시 셰도우맵 강제 갱신 ── */
-function GraphicsApplier({ shadowSize }: { shadowSize: number }) {
+function GraphicsApplier({ shadowSize, shadowFilter, shadowRadius }: {
+  shadowSize: number;
+  shadowFilter: 'basic' | 'pcf' | 'pcfsoft';
+  shadowRadius: number;
+}) {
   const { gl, scene } = useThree();
+
+  // 셰도우 필터 타입 변경
+  useEffect(() => {
+    gl.shadowMap.type =
+      shadowFilter === 'basic'   ? THREE.BasicShadowMap   :
+      shadowFilter === 'pcfsoft' ? THREE.PCFSoftShadowMap :
+                                   THREE.PCFShadowMap;
+    gl.shadowMap.needsUpdate = true;
+    // 모든 머티리얼 셰이더 재컴파일 필요 (필터 타입 바뀌면 셰이더가 달라짐)
+    scene.traverse(obj => {
+      const mesh = obj as THREE.Mesh;
+      if (mesh.isMesh && mesh.material) {
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        mats.forEach(m => { m.needsUpdate = true; });
+      }
+    });
+  }, [shadowFilter, gl, scene]);
+
+  // 셰도우맵 사이즈 + radius 변경
   useEffect(() => {
     gl.shadowMap.needsUpdate = true;
     scene.traverse(obj => {
@@ -317,6 +340,7 @@ function GraphicsApplier({ shadowSize }: { shadowSize: number }) {
       const light = obj as any;
       if (light.isDirectionalLight && light.shadow) {
         light.shadow.mapSize.set(shadowSize || 1024, shadowSize || 1024);
+        light.shadow.radius = shadowRadius;
         if (light.shadow.map) {
           light.shadow.map.dispose();
           light.shadow.map = null;
@@ -324,7 +348,7 @@ function GraphicsApplier({ shadowSize }: { shadowSize: number }) {
         light.shadow.camera.updateProjectionMatrix();
       }
     });
-  }, [shadowSize, gl, scene]);
+  }, [shadowSize, shadowRadius, gl, scene]);
   return null;
 }
 
@@ -740,7 +764,11 @@ export default function WorldCanvas({ character, players, posesRef, onMove, cust
         />
         <hemisphereLight args={['#87ceeb', '#4ade80', 0.3]} />
 
-        <GraphicsApplier shadowSize={graphics.shadowSize} />
+        <GraphicsApplier
+          shadowSize={graphics.shadowSize}
+          shadowFilter={graphics.shadowFilter}
+          shadowRadius={graphics.shadowRadius}
+        />
 
         <Sky sunPosition={[25, 10, 15]} turbidity={0.4} rayleigh={0.25} />
 
