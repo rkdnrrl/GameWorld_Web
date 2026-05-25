@@ -31,6 +31,7 @@ export default function AssetsPage() {
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
   const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
   const [taggingAsset, setTaggingAsset] = useState<Asset | null>(null);
+  const [foldingAsset, setFoldingAsset] = useState<Asset | null>(null);
 
   /* ── 업로드 ── */
   const [uploading, setUploading] = useState(false);
