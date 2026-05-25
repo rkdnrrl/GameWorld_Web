@@ -202,12 +202,17 @@ function Mesh3D({ obj, selected, onClick, assetConfig }: {
   );
 }
 
-function AssetMesh({ obj, selected, onClick }: {
+function AssetMesh({ obj, selected, onClick, assetConfig }: {
   obj: MapObject;
   selected: boolean;
   onClick: (e: { stopPropagation: () => void }) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  assetConfig?: any;
 }) {
   const [model, setModel] = useState<THREE.Object3D | null>(null);
+  const originalMatsRef = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
+  const appliedMatsRef = useRef<THREE.MeshStandardMaterial[]>([]);
+  const [, forceUpdate] = useState(0);
 
   useEffect(() => {
     if (!obj.assetUrl) return;
@@ -220,12 +225,53 @@ function AssetMesh({ obj, selected, onClick }: {
         const size = box.getSize(new THREE.Vector3());
         const h = Math.max(size.x, size.y, size.z);
         if (h > 0) fbx.scale.multiplyScalar(1 / h);
-        fbx.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = true; });
+        const origMap = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
+        fbx.traverse(c => {
+          const m = c as THREE.Mesh;
+          if (m.isMesh) {
+            m.castShadow = true;
+            origMap.set(m, m.material);
+          }
+        });
+        originalMatsRef.current = origMap;
         setModel(fbx);
       });
     });
     return () => { cancelled = true; };
   }, [obj.assetUrl]);
+
+  // obj 자체 머티리얼 필드 우선, 없으면 에셋의 저장된 materialConfig 사용
+  const objHasMat = obj.material || obj.materialColor || obj.textureAlbedo || obj.textureNormal || obj.textureRoughness;
+  const effectiveCfg = objHasMat
+    ? { material: obj.material, materialColor: obj.materialColor,
+        textureAlbedo: obj.textureAlbedo, textureNormal: obj.textureNormal, textureRoughness: obj.textureRoughness,
+        textureTilingX: obj.textureTilingX, textureTilingY: obj.textureTilingY }
+    : assetConfig;
+  const cfgKey = JSON.stringify(effectiveCfg || null);
+
+  useEffect(() => {
+    if (!model) return;
+    // 이전 적용 머티리얼 정리
+    appliedMatsRef.current.forEach(disposeMat);
+    appliedMatsRef.current = [];
+
+    const mat = buildMat(effectiveCfg, () => forceUpdate(n => n + 1));
+    originalMatsRef.current.forEach((origMat, mesh) => {
+      if (mat) {
+        mesh.material = mat;
+      } else {
+        mesh.material = origMat;
+      }
+    });
+    if (mat) appliedMatsRef.current.push(mat);
+    forceUpdate(n => n + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [model, cfgKey]);
+
+  useEffect(() => () => {
+    appliedMatsRef.current.forEach(disposeMat);
+    appliedMatsRef.current = [];
+  }, []);
 
   if (!model) return null;
   return (
