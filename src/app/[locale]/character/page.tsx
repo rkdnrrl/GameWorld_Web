@@ -574,6 +574,7 @@ export default function CharacterPage() {
             width: 220, height: 340, borderRadius: 16, overflow: 'hidden', flexShrink: 0,
             background: 'linear-gradient(160deg,#1e293b,#0f172a)',
             border: '1px solid rgba(255,255,255,0.1)',
+            position: 'relative',
           }}>
             <Canvas camera={{ position: [0, 0.5, 3.5], fov: 45 }}>
               <ambientLight intensity={0.5} />
