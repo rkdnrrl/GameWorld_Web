@@ -673,7 +673,9 @@ interface WorldCanvasProps {
   graphics?: GraphicsSettings;
 }
 
-export default function WorldCanvas({ character, players, posesRef, onMove, customObjects }: WorldCanvasProps) {
+export default function WorldCanvas({ character, players, posesRef, onMove, customObjects, graphics = DEFAULT_SETTINGS }: WorldCanvasProps) {
+  const shadowsEnabled = graphics.shadowSize > 0;
+  const shadowMapSize: [number, number] = [graphics.shadowSize || 1024, graphics.shadowSize || 1024];
   return (
       <Canvas
         shadows
