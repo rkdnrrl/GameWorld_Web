@@ -11,13 +11,22 @@ import { getKind } from '@/lib/assets/registry';
 interface Props {
   asset: Asset;
   kinds: AssetKind[];
+  selectedTags?: string[];
   onEdit: (a: Asset) => void;
   onPreview: (a: Asset) => void;
+  onEditTags: (a: Asset) => void;
+  onClickTag: (tag: string) => void;
   onTogglePublic: (a: Asset) => void;
   onDelete: (id: string) => void;
 }
 
-export default function AssetCard({ asset, kinds, onEdit, onPreview, onTogglePublic, onDelete }: Props) {
+const MAX_VISIBLE_TAGS = 3;
+
+export default function AssetCard({
+  asset, kinds, selectedTags = [],
+  onEdit, onPreview, onEditTags, onClickTag,
+  onTogglePublic, onDelete,
+}: Props) {
   const t = useTranslations('Assets');
   const kindId  = asset.kind || detectKindFromUrl(asset.modelUrl, kinds);
   const kindDef = kinds.find(k => k.id === kindId);
