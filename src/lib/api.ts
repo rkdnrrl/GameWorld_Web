@@ -103,6 +103,18 @@ export type AssetKind = {
   createdAt?: string;
 };
 
+export type FolderPack = {
+  id: string;
+  creatorId: string;
+  path: string;
+  isPublic: boolean;
+  description: string | null;
+  coverAssetId: string | null;
+  importCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type UgcGame = {
   slug: string;
   ownerUserId: string | null;
