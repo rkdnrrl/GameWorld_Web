@@ -45,12 +45,27 @@ export default function AssetSidebar({
   const [tagExpanded, setTagExpanded] = useState(false);
   const visibleTags = tagExpanded ? tags : tags.slice(0, INITIAL_TAG_LIMIT);
 
-  // 폴더 트리
-  const folderTree = useMemo(() => buildFolderTree(listFolders(assets)), [assets]);
+  // 폴더 트리 — 에셋이 가진 폴더 + 사용자가 만든 빈 폴더 머지
+  const folderTree = useMemo(() => {
+    const fromAssets = listFolders(assets);
+    const all = Array.from(new Set([...fromAssets, ...manualFolders])).sort();
+    return buildFolderTree(all);
+  }, [assets, manualFolders]);
   const rootCount  = useMemo(
     () => assets.filter(a => !normalizeFolder(a.folder)).length,
     [assets],
   );
+
+  // 새 폴더 입력 UI
+  const [creating, setCreating] = useState(false);
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  function commitCreate() {
+    const normalized = normalizeFolder(draft);
+    if (normalized) onCreateFolder(normalized);
+    setCreating(false);
+    setDraft('');
+  }
 
   return (
     <aside style={{
