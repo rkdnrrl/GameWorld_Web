@@ -708,28 +708,36 @@ export const MATERIAL_PRESETS: Record<Exclude<MaterialPreset, 'default'>, {
   emissive: { defaultColor: '#ffffff', metalness: 0,   roughness: 0.6, emissive: '#ffaa44', emissiveIntensity: 1.5 },
 };
 
-/* 텍스처 로딩 (URL 캐시) */
-const textureCache = new Map<string, THREE.Texture>();
-function loadTexture(url: string): THREE.Texture {
-  let tex = textureCache.get(url);
-  if (!tex) {
-    tex = new THREE.TextureLoader().load(url);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    textureCache.set(url, tex);
-  }
+/* 텍스처 로딩 — 캐시/clone 없이 인스턴스별로 새로 로드 (needsUpdate 전파 보장) */
+function loadFreshTexture(url: string, colorSpace: THREE.ColorSpace, tx: number, ty: number, onLoad: () => void): THREE.Texture {
+  const loader = new THREE.TextureLoader();
+  loader.setCrossOrigin('anonymous');
+  const tex = loader.load(
+    url,
+    () => {
+      tex.needsUpdate = true;
+      onLoad();
+    },
+    undefined,
+    (err) => console.error('[texture] 로드 실패:', url, err),
+  );
+  tex.colorSpace = colorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(tx, ty);
   return tex;
 }
 
 /* 오브젝트로부터 머티리얼 생성 */
-function buildMaterial(obj: UserMapObject, fallbackColor?: string): THREE.MeshStandardMaterial {
+function buildMaterial(obj: UserMapObject, fallbackColor?: string, onTextureLoad?: () => void): THREE.MeshStandardMaterial {
   const presetKey = obj.material && obj.material !== 'default' ? obj.material : null;
   const preset = presetKey ? MATERIAL_PRESETS[presetKey] : null;
 
   const baseColor = obj.materialColor || (preset ? preset.defaultColor : fallbackColor) || '#ffffff';
+  const hasAnyTexture = obj.textureAlbedo || obj.textureNormal || obj.textureRoughness;
 
   const mat = new THREE.MeshStandardMaterial({
-    color:       baseColor,
+    // 텍스처 있으면 색상을 흰색으로 (텍스처 색 살리기)
+    color:       hasAnyTexture && !obj.materialColor ? '#ffffff' : baseColor,
     metalness:   preset?.metalness ?? 0,
     roughness:   preset?.roughness ?? 0.5,
     opacity:     preset?.opacity ?? 1,
@@ -740,31 +748,26 @@ function buildMaterial(obj: UserMapObject, fallbackColor?: string): THREE.MeshSt
 
   const tilingX = obj.textureTilingX || 1;
   const tilingY = obj.textureTilingY || 1;
+  const trigger = () => { mat.needsUpdate = true; onTextureLoad?.(); };
 
   if (obj.textureAlbedo) {
-    const t = loadTexture(obj.textureAlbedo).clone();
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.repeat.set(tilingX, tilingY);
-    t.needsUpdate = true;
-    mat.map = t;
+    mat.map = loadFreshTexture(obj.textureAlbedo, THREE.SRGBColorSpace, tilingX, tilingY, trigger);
   }
   if (obj.textureNormal) {
-    const t = loadTexture(obj.textureNormal).clone();
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.repeat.set(tilingX, tilingY);
-    t.colorSpace = THREE.NoColorSpace;
-    t.needsUpdate = true;
-    mat.normalMap = t;
+    mat.normalMap = loadFreshTexture(obj.textureNormal, THREE.NoColorSpace, tilingX, tilingY, trigger);
   }
   if (obj.textureRoughness) {
-    const t = loadTexture(obj.textureRoughness).clone();
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.repeat.set(tilingX, tilingY);
-    t.colorSpace = THREE.NoColorSpace;
-    t.needsUpdate = true;
-    mat.roughnessMap = t;
+    mat.roughnessMap = loadFreshTexture(obj.textureRoughness, THREE.NoColorSpace, tilingX, tilingY, trigger);
   }
   return mat;
+}
+
+/** 머티리얼이 사용 중인 텍스처까지 모두 dispose */
+function disposeMaterial(mat: THREE.MeshStandardMaterial) {
+  mat.map?.dispose();
+  mat.normalMap?.dispose();
+  mat.roughnessMap?.dispose();
+  mat.dispose();
 }
 
 function UserMapObjectMesh({ obj }: { obj: UserMapObject }) {
