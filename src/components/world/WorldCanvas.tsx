@@ -719,7 +719,7 @@ export default function WorldCanvas({ character, players, posesRef, onMove, cust
             )}
             <Player character={character} onMove={onMove} />
             {Object.values(players).map((p) => (
-              <RemotePlayerMesh key={p.id} player={p} />
+              <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} />
             ))}
           </Physics>
         </Suspense>
