@@ -780,10 +780,13 @@ export default function CharacterPage() {
       <div style={{
         width: '100vw', minHeight: '100vh',
         background: 'linear-gradient(135deg,#0f172a,#1e1b4b)',
-        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
         fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif",
-        padding: '24px 16px',
         boxSizing: 'border-box',
+      }}>
+        <CreatorNav />
+        <div style={{
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+        padding: '24px 16px',
       }}>
         <div style={{
           display: 'flex', gap: 28, alignItems: 'flex-start',
