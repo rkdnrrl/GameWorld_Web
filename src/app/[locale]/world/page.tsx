@@ -1,6 +1,6 @@
 'use client';
 import dynamic from 'next/dynamic';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from '@/i18n/navigation';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -35,10 +35,16 @@ interface HubWorld {
   thumbnailUrl?: string | null;
   playCount?: number;
   ownerName?: string | null;
+  tags?: string[];
+  creator?: { username?: string };
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export default function WorldPage() {
   const t = useTranslations('World');
+  const tc = useTranslations('Common');
+  const tg = useTranslations('Games');
   const router = useRouter();
   const searchParams = useSearchParams();
   const worldIdParam = searchParams.get('id');
@@ -57,6 +63,9 @@ export default function WorldPage() {
   const [hubOpen, setHubOpen] = useState(false);
   const [mapModalOpen, setMapModalOpen] = useState(false);
   const [mapTab, setMapTab] = useState<'home' | 'mine' | 'public'>('home');
+  const [mapSearch, setMapSearch] = useState('');
+  const [selectedTag, setSelectedTag] = useState('');
+  const [mapSort, setMapSort] = useState<'popular' | 'latest'>('popular');
   const [switchingCharId, setSwitchingCharId] = useState('');
   const [myChars, setMyChars] = useState<MyCharacter[]>([]);
   const [myWorlds, setMyWorlds] = useState<HubWorld[]>([]);
@@ -136,9 +145,18 @@ export default function WorldPage() {
         .catch(() => [] as HubWorld[]),
     ])
       .then(([chars, mine, pub]) => {
+        const normalizeWorld = (w: HubWorld): HubWorld => {
+          const ownerName = w.ownerName || w.creator?.username || null;
+          const rawTags = Array.isArray(w.tags) ? w.tags : [];
+          const text = `${w.name || ''} ${w.description || ''}`;
+          const hashTags = Array.from(
+            new Set((text.match(/#[\p{L}\p{N}_-]+/gu) || []).map((tag) => tag.replace(/^#/, '').trim()).filter(Boolean)),
+          );
+          return { ...w, ownerName, tags: Array.from(new Set([...rawTags, ...hashTags])).slice(0, 20) };
+        };
         if (chars.length > 0) setMyChars(chars);
-        setMyWorlds(mine);
-        setPublicWorlds(pub);
+        setMyWorlds(mine.map(normalizeWorld));
+        setPublicWorlds(pub.map(normalizeWorld));
       });
   }, [API, ready]);
 
@@ -185,8 +203,50 @@ export default function WorldPage() {
 
   function openMapBrowser() {
     setMapTab('home');
+    setMapSearch('');
+    setSelectedTag('');
+    setMapSort('popular');
     setMapModalOpen(true);
   }
+
+  const currentWorldList = useMemo(() => {
+    if (mapTab === 'mine') return myWorlds;
+    if (mapTab === 'public') return publicWorlds;
+    return [] as HubWorld[];
+  }, [mapTab, myWorlds, publicWorlds]);
+
+  const availableTags = useMemo(() => {
+    const counts = new Map<string, number>();
+    currentWorldList.forEach((w) => {
+      (w.tags || []).forEach((tag) => {
+        const key = tag.trim();
+        if (!key) return;
+        counts.set(key, (counts.get(key) || 0) + 1);
+      });
+    });
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 24)
+      .map(([tag]) => tag);
+  }, [currentWorldList]);
+
+  const filteredWorlds = useMemo(() => {
+    const q = mapSearch.trim().toLowerCase();
+    const list = currentWorldList.filter((w) => {
+      if (selectedTag && !(w.tags || []).includes(selectedTag)) return false;
+      if (!q) return true;
+      const hay = `${w.name || ''} ${w.description || ''} ${w.ownerName || ''} ${(w.tags || []).join(' ')}`.toLowerCase();
+      return hay.includes(q);
+    });
+
+    list.sort((a, b) => {
+      if (mapSort === 'popular') return (b.playCount || 0) - (a.playCount || 0);
+      const at = new Date(a.updatedAt || a.createdAt || 0).getTime();
+      const bt = new Date(b.updatedAt || b.createdAt || 0).getTime();
+      return bt - at;
+    });
+    return list;
+  }, [currentWorldList, mapSearch, selectedTag, mapSort]);
 
   const submitChat = () => {
     const msg = chatInput.trim();
@@ -310,6 +370,49 @@ export default function WorldPage() {
             </div>
 
             <div style={{ padding: 16, overflowY: 'auto', maxHeight: 'calc(90vh - 130px)' }}>
+              {mapTab !== 'home' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => setMapSort('popular')}
+                      style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 999, padding: '5px 10px', cursor: 'pointer', background: mapSort === 'popular' ? 'rgba(79,70,229,0.45)' : 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 700 }}
+                    >
+                      🔥 {tg('sortPopular')}
+                    </button>
+                    <button
+                      onClick={() => setMapSort('latest')}
+                      style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 999, padding: '5px 10px', cursor: 'pointer', background: mapSort === 'latest' ? 'rgba(79,70,229,0.45)' : 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 700 }}
+                    >
+                      🕒
+                    </button>
+                  </div>
+                  <input
+                    value={mapSearch}
+                    onChange={(e) => setMapSearch(e.target.value)}
+                    placeholder={tc('search')}
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 9, color: '#fff', fontSize: 13, padding: '8px 10px', outline: 'none' }}
+                  />
+                  {availableTags.length > 0 && (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        onClick={() => setSelectedTag('')}
+                        style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 999, padding: '5px 10px', cursor: 'pointer', background: selectedTag ? 'rgba(255,255,255,0.05)' : 'rgba(79,70,229,0.45)', color: '#fff', fontSize: 12, fontWeight: 700 }}
+                      >
+                        {tc('reset')}
+                      </button>
+                      {availableTags.map((tag) => (
+                        <button
+                          key={tag}
+                          onClick={() => setSelectedTag((prev) => (prev === tag ? '' : tag))}
+                          style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 999, padding: '5px 10px', cursor: 'pointer', background: selectedTag === tag ? 'rgba(16,185,129,0.35)' : 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 700 }}
+                        >
+                          #{tag}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
                 {mapTab === 'home' && (
                   <button
@@ -323,7 +426,7 @@ export default function WorldPage() {
                   </button>
                 )}
 
-                {(mapTab === 'mine' ? myWorlds : mapTab === 'public' ? publicWorlds : []).map((w) => (
+                {filteredWorlds.map((w) => (
                   <button
                     key={`${mapTab}-${w.id}`}
                     onClick={() => { moveWorld(w.id); setMapModalOpen(false); }}
@@ -333,6 +436,15 @@ export default function WorldPage() {
                     <div style={{ padding: 10 }}>
                       <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4 }}>{w.name}</div>
                       {!!w.description && <div style={{ fontSize: 12, opacity: 0.75, lineHeight: 1.35, marginBottom: 6 }}>{w.description}</div>}
+                      {!!(w.tags && w.tags.length > 0) && (
+                        <div style={{ marginTop: 6, marginBottom: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {w.tags.slice(0, 3).map((tag) => (
+                            <span key={`${w.id}-${tag}`} style={{ fontSize: 10, padding: '2px 6px', borderRadius: 999, background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.9)' }}>
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       <div style={{ fontSize: 11, opacity: 0.65 }}>
                         {(w.ownerName || '-')} · {(w.playCount ?? 0)}
                       </div>
