@@ -1,5 +1,5 @@
 'use client';
-import { Suspense, useRef, useEffect, useState } from 'react';
+import React, { Suspense, useRef, useEffect, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Sky, Text } from '@react-three/drei';
 import { Physics, RigidBody, CapsuleCollider, useRapier } from '@react-three/rapier';
@@ -771,7 +771,7 @@ function UserMapObjectMesh({ obj }: { obj: UserMapObject }) {
   if (obj.kind === 'asset' && obj.assetUrl) {
     return (
       <RigidBody type="fixed" colliders="trimesh" position={obj.position} rotation={obj.rotation} scale={obj.scale}>
-        <UserAsset url={obj.assetUrl} />
+        <UserAsset url={obj.assetUrl} matObj={obj} />
       </RigidBody>
     );
   }
@@ -782,16 +782,32 @@ function UserMapObjectMesh({ obj }: { obj: UserMapObject }) {
                               <boxGeometry args={[1, 1, 1]} />;
   return (
     <RigidBody type="fixed" colliders="cuboid" position={obj.position} rotation={obj.rotation} scale={obj.scale}>
-      <mesh castShadow receiveShadow>
-        {shape}
-        <meshStandardMaterial color={obj.color} side={obj.kind === 'plane' ? THREE.DoubleSide : THREE.FrontSide} />
-      </mesh>
+      <PrimitiveMesh obj={obj} shape={shape} />
     </RigidBody>
   );
 }
 
-function UserAsset({ url }: { url: string }) {
+function PrimitiveMesh({ obj, shape }: { obj: UserMapObject; shape: React.ReactElement }) {
+  const material = React.useMemo(() => {
+    const mat = buildMaterial(obj, obj.color);
+    if (obj.kind === 'plane') mat.side = THREE.DoubleSide;
+    return mat;
+  }, [obj.material, obj.materialColor, obj.color, obj.textureAlbedo, obj.textureNormal, obj.textureRoughness, obj.textureTilingX, obj.textureTilingY, obj.kind]);
+
+  React.useEffect(() => () => material.dispose(), [material]);
+
+  return (
+    <mesh castShadow receiveShadow material={material}>
+      {shape}
+    </mesh>
+  );
+}
+
+function UserAsset({ url, matObj }: { url: string; matObj: UserMapObject }) {
   const [obj, setObj] = useState<THREE.Object3D | null>(null);
+  // 원본 머티리얼 백업 (Map<mesh, originalMaterial>)
+  const originalMats = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
+
   useEffect(() => {
     let cancelled = false;
     import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
@@ -802,12 +818,49 @@ function UserAsset({ url }: { url: string }) {
         const size = box.getSize(new THREE.Vector3());
         const h = Math.max(size.x, size.y, size.z);
         if (h > 0) fbx.scale.multiplyScalar(1 / h);
-        fbx.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = true; });
+        // 원본 머티리얼 저장
+        originalMats.current.clear();
+        fbx.traverse(c => {
+          const m = c as THREE.Mesh;
+          if (m.isMesh) {
+            m.castShadow = true;
+            originalMats.current.set(m, m.material);
+          }
+        });
         setObj(fbx);
       });
     });
     return () => { cancelled = true; };
   }, [url]);
+
+  // 머티리얼/텍스처 변경 적용
+  useEffect(() => {
+    if (!obj) return;
+    const hasOverride = matObj.material && matObj.material !== 'default'
+      || matObj.materialColor || matObj.textureAlbedo
+      || matObj.textureNormal || matObj.textureRoughness;
+
+    if (!hasOverride) {
+      // 원본 복원
+      obj.traverse(c => {
+        const m = c as THREE.Mesh;
+        if (m.isMesh) {
+          const orig = originalMats.current.get(m);
+          if (orig) m.material = orig;
+        }
+      });
+      return;
+    }
+
+    // 새 머티리얼로 교체
+    const newMat = buildMaterial(matObj);
+    obj.traverse(c => {
+      const m = c as THREE.Mesh;
+      if (m.isMesh) m.material = newMat;
+    });
+    return () => { newMat.dispose(); };
+  }, [obj, matObj.material, matObj.materialColor, matObj.textureAlbedo, matObj.textureNormal, matObj.textureRoughness, matObj.textureTilingX, matObj.textureTilingY]);
+
   if (!obj) return null;
   return <primitive object={obj} />;
 }
