@@ -138,10 +138,55 @@ export default function AssetSidebar({
       )}
 
       {/* ── 폴더 ── */}
-      <div style={{ fontSize: 10, opacity: 0.4, textTransform: 'uppercase', letterSpacing: 0.5, padding: '20px 8px 6px' }}>
-        {t('sidebarFolder')}
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        padding: '20px 8px 6px',
+      }}>
+        <div style={{ flex: 1, fontSize: 10, opacity: 0.4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          {t('sidebarFolder')}
+        </div>
+        <button
+          onClick={() => {
+            setCreating(true);
+            setDraft(selectedFolder && selectedFolder !== '' ? `${selectedFolder}/` : '/');
+            setTimeout(() => inputRef.current?.focus(), 0);
+          }}
+          title={t('createFolderTitle')}
+          style={{
+            width: 20, height: 20, padding: 0,
+            background: 'transparent', color: 'rgba(255,255,255,0.5)',
+            border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4,
+            cursor: 'pointer', fontSize: 12, lineHeight: 1,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+          +
+        </button>
       </div>
-      {folderTree.length === 0 && rootCount === 0 && !dragActive ? (
+
+      {creating && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 4px 6px' }}>
+          <span style={{ fontSize: 14 }}>📁</span>
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); commitCreate(); }
+              else if (e.key === 'Escape') { setCreating(false); setDraft(''); }
+            }}
+            onBlur={commitCreate}
+            placeholder={t('createFolderPlaceholder')}
+            style={{
+              flex: 1, padding: '4px 6px', fontSize: 11,
+              background: 'rgba(0,0,0,0.4)', color: '#fff',
+              border: '1px solid rgba(99,102,241,0.5)', borderRadius: 4,
+              outline: 'none', fontFamily: 'monospace', minWidth: 0,
+            }}
+          />
+        </div>
+      )}
+
+      {folderTree.length === 0 && rootCount === 0 && !dragActive && !creating ? (
         <div style={{ padding: '6px 10px', fontSize: 11, opacity: 0.35 }}>{t('noFoldersYet')}</div>
       ) : (
         <AssetFolderTree
