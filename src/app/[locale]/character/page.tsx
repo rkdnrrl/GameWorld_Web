@@ -460,6 +460,7 @@ export default function CharacterPage() {
   // 각 슬롯의 트림 구간 (초)
   const [animTrims, setAnimTrims] = useState<Record<string, { start: number; end: number }>>({});
   const [previewSlot, setPreviewSlot] = useState<'idle' | 'walk' | 'run' | 'jump' | 'crouch' | 'prone'>('idle');
+  const [playingClip, setPlayingClip] = useState<string | null>(null);
   const [showPicker, setShowPicker] = useState(false);
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
