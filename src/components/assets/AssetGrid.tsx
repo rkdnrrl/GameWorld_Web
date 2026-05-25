@@ -10,6 +10,7 @@ interface Props {
   kinds: AssetKind[];
   selectedTags?: string[];
   selectedFolder?: string | null;
+  selectedIds?: Set<string>;
   emptyMessage: string;
   onEdit: (a: Asset) => void;
   onPreview: (a: Asset) => void;
@@ -17,14 +18,15 @@ interface Props {
   onEditFolder: (a: Asset) => void;
   onClickTag: (tag: string) => void;
   onClickFolder: (folder: string) => void;
+  onToggleSelect: (id: string, e: React.MouseEvent) => void;
   onTogglePublic: (a: Asset) => void;
   onDelete: (id: string) => void;
 }
 
 export default function AssetGrid({
-  assets, kinds, selectedTags, selectedFolder, emptyMessage,
+  assets, kinds, selectedTags, selectedFolder, selectedIds, emptyMessage,
   onEdit, onPreview, onEditTags, onEditFolder, onClickTag, onClickFolder,
-  onTogglePublic, onDelete,
+  onToggleSelect, onTogglePublic, onDelete,
 }: Props) {
   if (assets.length === 0) {
     return (
@@ -42,12 +44,14 @@ export default function AssetGrid({
           kinds={kinds}
           selectedTags={selectedTags}
           selectedFolder={selectedFolder}
+          selected={selectedIds?.has(a.id) ?? false}
           onEdit={onEdit}
           onPreview={onPreview}
           onEditTags={onEditTags}
           onEditFolder={onEditFolder}
           onClickTag={onClickTag}
           onClickFolder={onClickFolder}
+          onToggleSelect={onToggleSelect}
           onTogglePublic={onTogglePublic}
           onDelete={onDelete}
         />
