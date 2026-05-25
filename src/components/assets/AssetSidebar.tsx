@@ -3,7 +3,7 @@
  * 좌측 사이드바 — 카테고리(kind) + 태그 자동 노출
  * Phase 5 에서 폴더 섹션 추가 예정 (지금은 placeholder)
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { Asset, AssetKind } from '@/lib/assets/types';
 import { countByKind, topTags } from '@/lib/assets/filters';
@@ -16,6 +16,8 @@ interface Props {
   selectedKinds: string[];
   selectedTags: string[];
   selectedFolder: string | null;
+  /** assets.folder 에 없지만 사용자가 명시적으로 만든 빈 폴더들 */
+  manualFolders?: string[];
   /** 내부 카드 드래그 중 여부 — 드롭 타겟 강조 활성화 */
   dragActive?: boolean;
   onSelectKinds: (next: string[]) => void;
@@ -23,6 +25,8 @@ interface Props {
   onSelectFolder: (folder: string | null) => void;
   /** 폴더에 드롭 — files 가 있으면 업로드, 없으면 카드 이동 */
   onDropToFolder: (folder: string | null, files?: File[]) => void;
+  /** 새 폴더 만들기 */
+  onCreateFolder: (path: string) => void;
 }
 
 const INITIAL_TAG_LIMIT = 12;
