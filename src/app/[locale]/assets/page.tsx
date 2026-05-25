@@ -14,7 +14,7 @@ interface Asset {
   createdAt: string;
 }
 
-const ACCEPT = '.fbx';
+const ACCEPT = '.fbx,.png,.jpg,.jpeg,.webp';
 const MAX_MB = 100;
 
 export default function AssetsPage() {
