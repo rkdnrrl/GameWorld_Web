@@ -670,6 +670,7 @@ interface WorldCanvasProps {
   posesRef: React.RefObject<Map<string, PlayerPose>>;
   onMove: (pos: { x: number; y: number; z: number; rotY: number; animState?: AnimState }) => void;
   customObjects?: UserMapObject[];
+  graphics?: GraphicsSettings;
 }
 
 export default function WorldCanvas({ character, players, posesRef, onMove, customObjects }: WorldCanvasProps) {
