@@ -17,6 +17,63 @@ interface Asset {
   tags?: string[];
 }
 
+/* ── 애니메이션 이름 → 슬롯 자동 매칭 ──
+   각 슬롯의 키워드 후보를 우선순위 순으로 매칭.
+   - 정확히 일치 > 단어 경계 일치 > 부분 일치 순
+   - 한 애니메이션은 한 슬롯에만 (이미 다른 슬롯에서 잡은 건 제외)
+*/
+const ANIM_SLOT_KEYWORDS: Record<string, string[]> = {
+  idle:   ['idle', 'stand', 'standing', 'wait', 'rest'],
+  walk:   ['walk', 'walking', 'stroll'],
+  run:    ['run', 'running', 'sprint', 'jog'],
+  jump:   ['jump', 'jumping', 'hop', 'leap'],
+  crouch: ['crouch', 'crouching', 'squat', 'duck', 'sneak'],
+  prone:  ['prone', 'lying', 'lie', 'lay', 'crawl'],
+};
+
+function autoMatchAnims(
+  anims: { name: string; duration: number }[],
+): Record<string, string> {
+  const slots = Object.keys(ANIM_SLOT_KEYWORDS);
+  const result: Record<string, string> = { idle: '', walk: '', run: '', jump: '', crouch: '', prone: '' };
+  const used = new Set<string>();
+
+  // 각 후보 애니메이션을 슬롯별로 점수 매기기
+  // 정확 일치(이름이 키워드와 같거나 키워드_숫자 형태) = 3
+  // 단어 경계 (대문자·언더스코어 직후) = 2
+  // 단순 substring = 1
+  function score(animName: string, kw: string): number {
+    const n = animName.toLowerCase();
+    const k = kw.toLowerCase();
+    if (n === k) return 5;
+    // "Idle", "Idle_3", "Idle3" 형태
+    if (new RegExp(`^${k}([_\\-]?\\d+)?$`, 'i').test(n)) return 4;
+    // "Regular_Jump", "MyJump_01" — 언더스코어/하이픈/대문자 직후
+    if (new RegExp(`(^|[_\\-])${k}([_\\-]|\\d|$)`, 'i').test(animName)) return 3;
+    if (new RegExp(`(^|[A-Z])${k}([A-Z_\\-]|\\d|$)`, 'i').test(animName)) return 2;
+    if (n.includes(k)) return 1;
+    return 0;
+  }
+
+  for (const slot of slots) {
+    const keywords = ANIM_SLOT_KEYWORDS[slot];
+    let best: { name: string; score: number } | null = null;
+    for (const a of anims) {
+      if (used.has(a.name)) continue;
+      let bestKwScore = 0;
+      for (const kw of keywords) bestKwScore = Math.max(bestKwScore, score(a.name, kw));
+      if (bestKwScore > 0 && (!best || bestKwScore > best.score)) {
+        best = { name: a.name, score: bestKwScore };
+      }
+    }
+    if (best) {
+      result[slot] = best.name;
+      used.add(best.name);
+    }
+  }
+  return result;
+}
+
 /* ── 자동 정규화 (1.8m 기준) ────────────── */
 function autoNormalize(obj: THREE.Object3D, targetHeight = 1.8) {
   obj.updateMatrixWorld(true);
@@ -409,6 +466,40 @@ export default function CharacterPage() {
     setAnimMap({ idle: '', walk: '', run: '', jump: '', crouch: '', prone: '' });
     setAnimTrims({});
   };
+
+  // availableAnims 가 새로 로드되면 이름 기반 자동 매칭
+  // (단, 사용자가 이미 직접 슬롯을 채워둔 게 있으면 그건 유지)
+  useEffect(() => {
+    if (availableAnims.length === 0) return;
+    setAnimMap(prev => {
+      const matched = autoMatchAnims(availableAnims);
+      const next: Record<string, string> = { ...prev };
+      let changed = false;
+      for (const slot of Object.keys(matched)) {
+        // 비어있을 때만 자동 채움 (사용자 선택 보존)
+        if (!prev[slot] && matched[slot]) {
+          next[slot] = matched[slot];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    // 새로 채워진 슬롯에 대해 트림도 default 로 (start=0, end=duration)
+    setAnimTrims(prev => {
+      const matched = autoMatchAnims(availableAnims);
+      const next = { ...prev };
+      let changed = false;
+      for (const slot of Object.keys(matched)) {
+        const name = matched[slot];
+        if (name && !prev[slot]) {
+          const dur = availableAnims.find(a => a.name === name)?.duration ?? 0;
+          next[slot] = { start: 0, end: dur };
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [availableAnims]);
 
   const handleSave = async () => {
     if (!name.trim()) { setError(t('nameRequired')); return; }
