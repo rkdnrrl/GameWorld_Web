@@ -175,6 +175,12 @@ export default function AssetBrowsePage() {
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>{t('marketTitle')}</h1>
             <p style={{ margin: 0, fontSize: 13, opacity: 0.5 }}>{t('marketSubtitle')}</p>
           </div>
+          <Link href="/assets/following" style={{
+            fontSize: 12, color: '#a5b4fc', textDecoration: 'none',
+            padding: '7px 14px', background: 'rgba(99,102,241,0.18)', borderRadius: 8,
+          }}>
+            📡 {t('feedLink')}
+          </Link>
           <Link href="/assets" style={{
             fontSize: 12, color: '#a5b4fc', textDecoration: 'none',
             padding: '7px 14px', background: 'rgba(99,102,241,0.18)', borderRadius: 8,
