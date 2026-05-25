@@ -7,7 +7,6 @@ import BackendConnectionBanner from "@/components/BackendConnectionBanner";
 import Header from "@/components/Header";
 import SessionExpiredBanner from "@/components/SessionExpiredBanner";
 import SessionRefresher from "@/components/SessionRefresher";
-import CharacterIframe from "@/components/CharacterIframe";
 
 /** 로컬에서 백엔드 상태 표시. 프로덕션 빌드를 로컬에서 검증하려면 NEXT_PUBLIC_BACKEND_STATUS=1 */
 const showBackendConnectionBanner =
@@ -45,7 +44,6 @@ export default async function LocaleLayout({
         <NextIntlClientProvider messages={messages}>
           <SessionExpiredBanner />
           <SessionRefresher />
-          <CharacterIframe />
           <Header />
           <BackendConnectionBanner enabled={showBackendConnectionBanner} />
           <main className="flex w-full min-w-0 max-w-full flex-1 flex-col overflow-x-hidden">
