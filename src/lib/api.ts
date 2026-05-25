@@ -932,6 +932,37 @@ export const api = {
     });
   },
 
+  /** 작가 공개 프로필 + 통계 */
+  getUserProfile(username: string) {
+    return request<{ profile: {
+      username: string;
+      joinedAt: string;
+      publicCount: number;
+      likesTotal: number;
+      importsTotal: number;
+    } }>(`/api/users/${encodeURIComponent(username)}/profile`);
+  },
+
+  /** 작가의 공개 에셋 목록 */
+  listUserAssets(
+    username: string,
+    params: { q?: string; kind?: string; sort?: 'recent' | 'name' | 'popular'; page?: number; pageSize?: number } = {},
+    token?: string,
+  ) {
+    const sp = new URLSearchParams();
+    if (params.q)        sp.set('q', params.q);
+    if (params.kind)     sp.set('kind', params.kind);
+    if (params.sort)     sp.set('sort', params.sort);
+    if (params.page)     sp.set('page', String(params.page));
+    if (params.pageSize) sp.set('pageSize', String(params.pageSize));
+    const qs = sp.toString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return request<{ assets: any[]; page: number; pageSize: number; total: number; hasMore: boolean }>(
+      `/api/users/${encodeURIComponent(username)}/assets${qs ? `?${qs}` : ''}`,
+      token ? { headers: authHeaders(token) } : undefined,
+    );
+  },
+
   /** 에셋 일괄 작업 — delete/move/addTags/removeTags/setPublic */
   batchUpdateAssets(token: string, body: {
     ids: string[];
