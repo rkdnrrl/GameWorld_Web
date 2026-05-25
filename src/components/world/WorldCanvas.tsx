@@ -206,9 +206,10 @@ function CustomModel({ url, userScale, rotX, animStateRef, animNames, animTrims,
 }
 
 /* ── 캐릭터 메쉬 (커스텀 or 블록형) ───── */
-function CharacterMesh({ appearance, animStateRef }: {
+function CharacterMesh({ appearance, animStateRef, castShadow = true }: {
   appearance: Record<string, unknown>;
   animStateRef?: React.RefObject<AnimState>;
+  castShadow?: boolean;
 }) {
   const modelUrl   = appearance.modelUrl as string | undefined;
   const userScale  = Number(appearance.modelScale) || 1.0;
@@ -221,6 +222,7 @@ function CharacterMesh({ appearance, animStateRef }: {
         url={modelUrl}
         userScale={userScale}
         rotX={rotX}
+        castShadow={castShadow}
         animStateRef={animStateRef}
         animNames={{
           idle:   appearance.idleAnim   as string | undefined,
