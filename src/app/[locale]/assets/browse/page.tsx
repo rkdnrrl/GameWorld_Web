@@ -15,6 +15,10 @@ import '@/lib/assets/kinds';   // 사이드이펙트 import
 
 import AssetMarketCard from '@/components/assets/AssetMarketCard';
 import AssetReportModal, { type ReportReason } from '@/components/assets/AssetReportModal';
+import PackCard from '@/components/assets/PackCard';
+import type { FolderPack } from '@/lib/api';
+
+type PackWithMeta = FolderPack & { creator: { username: string | null } | null; assetCount: number; cover: unknown };
 
 interface MarketAsset extends Asset {
   creator?: { username: string | null };
