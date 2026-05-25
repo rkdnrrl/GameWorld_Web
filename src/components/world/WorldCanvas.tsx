@@ -20,9 +20,7 @@ function lerpAngle(current: number, target: number, t: number): number {
 /** 모델을 목표 높이(m)에 맞춰 자동 정규화 + 회전 적용 + 발 정렬
  *  rotX 를 미리 적용한 뒤 측정/align 해야 Z-up FBX (Meshy 등) 도 발이 y=0 에 옴
  */
-/** SkinnedMesh bind pose 와 애니메이션 pose 가 다르면 발이 박스 밖으로 살짝 내려가는 경우가 있음 — 작은 클리어런스로 보정 */
-const FOOT_CLEARANCE = 0.05;
-
+/** 크기·회전·발 정렬(bind pose box.min.y → y=0) — 자동 클리어런스 X. 사용자가 offsetY 슬라이더로 수동 조정 */
 function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   // 재호출 시 누적 방지 — 매번 fresh 한 상태에서 시작
   obj.position.set(0, 0, 0);
@@ -39,8 +37,7 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   }
 
   const box2 = new THREE.Box3().setFromObject(obj);
-  obj.position.y -= box2.min.y;            // 발 → y=0
-  obj.position.y += FOOT_CLEARANCE;        // 살짝 띄워서 애니메이션 시 박힘 방지
+  obj.position.y -= box2.min.y;            // 발 → y=0 (정확히 정렬)
 }
 
 /* ── 애니메이션 상태 타입 ─────────────── */
