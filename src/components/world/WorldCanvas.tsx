@@ -157,9 +157,6 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   const clipByState     = useRef<Map<AnimState, THREE.AnimationClip>>(new Map());
   const currentAction   = useRef<THREE.AnimationAction | null>(null);
   const currentState    = useRef<AnimState | null>(null);
-  const liveBox         = useRef(new THREE.Box3());
-  const baseMinY        = useRef(0);
-  const basePosY        = useRef(0);
 
   useEffect(() => {
     if (!url) return;
@@ -196,8 +193,6 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       if (cancelled) return;
       cloned.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = castShadow; });
       autoNormalize(cloned, rotX, 1.8);
-      basePosY.current = cloned.position.y;
-      baseMinY.current = getMeshMinYLocal(cloned, liveBox.current);
       setupMixer(cloned, anims);
       setObj(cloned);
     })();
@@ -221,10 +216,6 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   // 단일 액션 크로스페이드 (state 바뀔 때만 전환)
   useFrame((_, dt) => {
     mixer.current?.update(dt);
-    if (obj) {
-      const nowMinY = getMeshMinYLocal(obj, liveBox.current);
-      obj.position.y = basePosY.current - (nowMinY - baseMinY.current);
-    }
     if (!mixer.current) return;
 
     const desired = animStateRef?.current || 'idle';

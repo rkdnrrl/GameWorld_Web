@@ -143,9 +143,6 @@ function CustomPreview({
   const g     = useRef<THREE.Group>(null);
   const mixer = useRef<THREE.AnimationMixer | null>(null);
   const animClips = useRef<THREE.AnimationClip[]>([]);
-  const liveBox = useRef(new THREE.Box3());
-  const baseMinY = useRef(0);
-  const basePosY = useRef(0);
 
   useEffect(() => {
     if (!url) return;
@@ -154,8 +151,6 @@ function CustomPreview({
     const onLoaded = (loaded: THREE.Object3D, anims: THREE.AnimationClip[] = []) => {
       if (cancelled) return;
       autoNormalize(loaded, rotX, 1.8);
-      basePosY.current = loaded.position.y;
-      baseMinY.current = getMeshMinYLocal(loaded, liveBox.current);
       animClips.current = anims;
       if (anims.length) {
         mixer.current = new THREE.AnimationMixer(loaded);
@@ -181,8 +176,6 @@ function CustomPreview({
   useEffect(() => {
     if (!obj) return;
     autoNormalize(obj, rotX, 1.8);
-    basePosY.current = obj.position.y;
-    baseMinY.current = getMeshMinYLocal(obj, liveBox.current);
   }, [rotX, obj]);
 
   // 선택된 애니메이션만 재생 (트림 적용)
@@ -218,10 +211,6 @@ function CustomPreview({
   // 자동 회전 제거 — OrbitControls 로 사용자가 직접 회전 (충돌 방지)
   useFrame((_, dt) => {
     mixer.current?.update(dt);
-    if (obj) {
-      const nowMinY = getMeshMinYLocal(obj, liveBox.current);
-      obj.position.y = basePosY.current - (nowMinY - baseMinY.current);
-    }
   });
 
   if (!obj) return null;
