@@ -90,7 +90,7 @@ function autoNormalize(obj: THREE.Object3D, targetHeight = 1.8) {
 
 /* ── 커스텀 모델 프리뷰 (명령형 로드) ───── */
 function CustomPreview({
-  url, userScale, rotX, previewAnim, previewTrim, onAnimationsLoaded,
+  url, userScale, rotX, previewAnim, previewTrim, onAnimationsLoaded, onPlayingClip,
 }: {
   url: string;
   userScale: number;
@@ -98,6 +98,8 @@ function CustomPreview({
   previewAnim?: string;
   previewTrim?: { start?: number; end?: number };
   onAnimationsLoaded?: (anims: { name: string; duration: number }[]) => void;
+  /** 디버그용 — 실제로 mixer에 들어간 clip 이름 알림 */
+  onPlayingClip?: (name: string | null) => void;
 }) {
   const [obj, setObj] = useState<THREE.Object3D | null>(null);
   const g     = useRef<THREE.Group>(null);
