@@ -307,6 +307,27 @@ function BlockMesh({ appearance }: { appearance: Record<string, string> }) {
   );
 }
 
+/* ── 그래픽 설정 변경 시 셰도우맵 강제 갱신 ── */
+function GraphicsApplier({ shadowSize }: { shadowSize: number }) {
+  const { gl, scene } = useThree();
+  useEffect(() => {
+    gl.shadowMap.needsUpdate = true;
+    scene.traverse(obj => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const light = obj as any;
+      if (light.isDirectionalLight && light.shadow) {
+        light.shadow.mapSize.set(shadowSize || 1024, shadowSize || 1024);
+        if (light.shadow.map) {
+          light.shadow.map.dispose();
+          light.shadow.map = null;
+        }
+        light.shadow.camera.updateProjectionMatrix();
+      }
+    });
+  }, [shadowSize, gl, scene]);
+  return null;
+}
+
 /* ── 로컬 플레이어 컨트롤러 ─────────────── */
 function Player({
   character,
