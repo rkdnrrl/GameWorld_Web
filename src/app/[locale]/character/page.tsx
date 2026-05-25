@@ -174,9 +174,11 @@ function CustomPreview({
   });
 
   if (!obj) return null;
+  // rotX 와 발 정렬은 autoNormalize 가 obj 안에서 처리.
+  // 외곽 group y=-1 은 카메라(y=0.5)에서 적당한 시야 위치 잡으려고 유지.
   return (
     <group ref={g} position={[0, -1, 0]}>
-      <group scale={userScale} rotation={[rotX, 0, 0]}>
+      <group scale={userScale}>
         <primitive object={obj} />
       </group>
     </group>
