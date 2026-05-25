@@ -21,12 +21,15 @@ interface Props {
   onToggleSelect: (id: string, e: React.MouseEvent) => void;
   onTogglePublic: (a: Asset) => void;
   onDelete: (id: string) => void;
+  onDragStart: (a: Asset, e: React.DragEvent) => void;
+  onDragEnd: () => void;
 }
 
 export default function AssetGrid({
   assets, kinds, selectedTags, selectedFolder, selectedIds, emptyMessage,
   onEdit, onPreview, onEditTags, onEditFolder, onClickTag, onClickFolder,
   onToggleSelect, onTogglePublic, onDelete,
+  onDragStart, onDragEnd,
 }: Props) {
   if (assets.length === 0) {
     return (
