@@ -13,6 +13,7 @@ export interface Asset {
   tags?: string[];
   folder?: string | null;
   fileSize?: string | null;             // BigInt → string
+  currentVersion?: number;              // 현재 버전 번호 (없으면 v1)
   /** @deprecated metadata.materialConfig 사용 */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   materialConfig?: any;
