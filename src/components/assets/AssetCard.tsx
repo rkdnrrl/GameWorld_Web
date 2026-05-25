@@ -37,11 +37,33 @@ const MAX_VISIBLE_TAGS = 3;
 export default function AssetCard({
   asset, kinds, selectedTags = [], selectedFolder, selected = false,
   onEdit, onPreview, onEditTags, onEditFolder, onClickTag, onClickFolder,
-  onToggleSelect, onTogglePublic, onDelete, onEditVersions,
+  onToggleSelect, onTogglePublic, onDelete, onEditVersions, onRename,
   onDragStart, onDragEnd,
 }: Props) {
   const [hovered, setHovered] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft]     = useState(asset.name);
+  const [saving, setSaving]   = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setDraft(asset.name); }, [asset.name]);
+  useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
+
+  async function commitRename() {
+    const next = draft.trim().slice(0, 100);
+    if (!next || next === asset.name) { setEditing(false); setDraft(asset.name); return; }
+    setSaving(true);
+    try {
+      await onRename(asset, next);
+      setEditing(false);
+    } catch {
+      // 에러 시 원복
+      setDraft(asset.name);
+    } finally {
+      setSaving(false);
+    }
+  }
   const t = useTranslations('Assets');
   const kindId  = asset.kind || detectKindFromUrl(asset.modelUrl, kinds);
   const kindDef = kinds.find(k => k.id === kindId);
