@@ -159,9 +159,11 @@ export default function AssetsPage() {
     return sortAssets(filtered, sort, kinds);
   }, [assets, q, selectedKinds, visibility, sort, kinds]);
 
-  /* ── 에디터 (kind 핸들러에서 가져옴) ── */
-  const editorHandler = editingAsset ? getKind(editingAsset.kind) : null;
-  const EditorComp    = editorHandler?.Editor;
+  /* ── 에디터/프리뷰 (kind 핸들러에서 가져옴) ── */
+  const editorHandler  = editingAsset ? getKind(editingAsset.kind) : null;
+  const EditorComp     = editorHandler?.Editor;
+  const previewHandler = previewAsset ? getKind(previewAsset.kind) : null;
+  const PreviewComp    = previewHandler?.Preview;
 
   return (
     <>
@@ -172,6 +174,9 @@ export default function AssetsPage() {
           onClose={() => setEditingAsset(null)}
           onSaved={(updated: Asset) => setAssets(prev => prev.map(a => a.id === updated.id ? updated : a))}
         />
+      )}
+      {previewAsset && PreviewComp && (
+        <PreviewComp asset={previewAsset} onClose={() => setPreviewAsset(null)} />
       )}
 
       <div style={{ minHeight: '100vh', background: '#0f172a', color: '#fff', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif" }}>
