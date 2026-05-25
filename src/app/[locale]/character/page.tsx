@@ -76,8 +76,6 @@ function autoMatchAnims(
 }
 
 /* ── 자동 정규화 (1.8m 기준) ────────────── */
-const FOOT_CLEARANCE = 0.05;
-
 const btnTiny = (active: boolean) => ({
   width: 26, padding: '3px 0', fontSize: 11, borderRadius: 4, border: 'none',
   background: active ? '#4f46e5' : 'rgba(255,255,255,0.1)',
