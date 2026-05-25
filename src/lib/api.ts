@@ -966,6 +966,37 @@ export const api = {
     );
   },
 
+  /** 알림 목록 */
+  listNotifications(token: string, params: { page?: number } = {}) {
+    const sp = new URLSearchParams();
+    if (params.page) sp.set('page', String(params.page));
+    const qs = sp.toString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return request<{ notifications: Array<{ id: string; type: string; payload: any; readAt: string | null; createdAt: string }>; page: number; pageSize: number; total: number; unread: number; hasMore: boolean }>(
+      `/api/notifications${qs ? `?${qs}` : ''}`,
+      { headers: authHeaders(token) },
+    );
+  },
+
+  /** 안읽음 카운트 (벨 배지 폴링용) */
+  notificationsUnreadCount(token: string) {
+    return request<{ unread: number }>("/api/notifications/unread-count", { headers: authHeaders(token) });
+  },
+
+  /** 단일 읽음 */
+  markNotificationRead(token: string, id: string) {
+    return request<{ ok: true }>(`/api/notifications/${encodeURIComponent(id)}/read`, {
+      method: "PATCH", headers: authHeaders(token),
+    });
+  },
+
+  /** 전체 읽음 */
+  markAllNotificationsRead(token: string) {
+    return request<{ ok: true; marked: number }>("/api/notifications/read-all", {
+      method: "POST", headers: authHeaders(token),
+    });
+  },
+
   /** 내가 팔로우한 작가들의 최근 공개 에셋 */
   listFollowingFeed(token: string, params: { page?: number } = {}) {
     const sp = new URLSearchParams();
