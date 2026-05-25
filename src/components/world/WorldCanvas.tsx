@@ -41,7 +41,26 @@ type FBXLoaded = { obj: THREE.Object3D; anims: THREE.AnimationClip[] };
 const fbxCache    = new Map<string, FBXLoaded>();
 const fbxLoading  = new Map<string, Promise<FBXLoaded>>();
 
+// 스킨 가중치 4개 초과 경고는 정상 동작이므로 묶어서 1회만 표시
+let _warnPatched = false;
+function patchWarnings() {
+  if (_warnPatched || typeof window === 'undefined') return;
+  _warnPatched = true;
+  const origWarn = console.warn;
+  const seen = new Set<string>();
+  console.warn = (...args: unknown[]) => {
+    const first = String(args[0] ?? '');
+    if (first.includes('FBXLoader: Vertex has more than 4 skinning') ||
+        first.includes('PCFSoftShadowMap has been deprecated')) {
+      if (seen.has(first)) return;
+      seen.add(first);
+    }
+    origWarn.apply(console, args);
+  };
+}
+
 async function loadFBXCached(url: string): Promise<FBXLoaded> {
+  patchWarnings();
   if (fbxCache.has(url))    return fbxCache.get(url)!;
   if (fbxLoading.has(url))  return fbxLoading.get(url)!;
 
