@@ -100,7 +100,7 @@ function FolderRow({ name, icon, depth, active, hasChildren, open, dragActive, o
   dragActive: boolean;
   onToggle?: () => void;
   onClick: () => void;
-  onDrop: () => void;
+  onDrop: (files?: File[]) => void;
 }) {
   const [dragOver, setDragOver] = useState(false);
 
@@ -120,16 +120,20 @@ function FolderRow({ name, icon, depth, active, hasChildren, open, dragActive, o
       <button
         onClick={onClick}
         onDragOver={e => {
-          if (!dragActive) return;
+          // 내부 카드 드래그 또는 OS 파일 드래그 (dataTransfer.types 에 'Files')
+          const hasFiles = Array.from(e.dataTransfer.types || []).includes('Files');
+          if (!dragActive && !hasFiles) return;
           e.preventDefault();
-          e.dataTransfer.dropEffect = 'move';
+          e.dataTransfer.dropEffect = hasFiles ? 'copy' : 'move';
           if (!dragOver) setDragOver(true);
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={e => {
           e.preventDefault();
           setDragOver(false);
-          onDrop();
+          const files = Array.from(e.dataTransfer.files || []);
+          if (files.length > 0) onDrop(files);
+          else onDrop();
         }}
         style={{
           flex: 1, display: 'flex', alignItems: 'center', gap: 6,
