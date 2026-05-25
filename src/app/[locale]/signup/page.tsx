@@ -26,6 +26,8 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [doneMessage, setDoneMessage] = useState("");
+  const [pendingEmail, setPendingEmail] = useState("");
+  const [resending, setResending] = useState(false);
 
   useEffect(() => {
     if (loggedIn) router.replace("/");
@@ -61,6 +63,7 @@ export default function SignupPage() {
       }
 
       if (!data.session) {
+        setPendingEmail(email.trim());
         setDoneMessage(t("emailConfirmationSent"));
         return;
       }
@@ -85,6 +88,30 @@ export default function SignupPage() {
       setError(t("signupFailed"));
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleResendEmail() {
+    if (!pendingEmail || resending) return;
+    setResending(true);
+    setError("");
+    try {
+      const locale = document.documentElement.lang || "ko";
+      const redirectTo = `${window.location.origin}/${locale}/auth/callback`;
+      const { error: resendError } = await supabase.auth.resend({
+        type: "signup",
+        email: pendingEmail,
+        options: { emailRedirectTo: redirectTo },
+      });
+      if (resendError) {
+        setError(resendError.message || t("signupFailed"));
+        return;
+      }
+      setDoneMessage(t("emailConfirmationSent"));
+    } catch {
+      setError(t("signupFailed"));
+    } finally {
+      setResending(false);
     }
   }
 
@@ -141,6 +168,16 @@ export default function SignupPage() {
         />
         {error ? <p className="text-sm text-red-500">{error}</p> : null}
         {doneMessage ? <p className="text-sm text-emerald-500">{doneMessage}</p> : null}
+        {pendingEmail ? (
+          <button
+            type="button"
+            onClick={handleResendEmail}
+            disabled={resending}
+            className="w-full rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+          >
+            {resending ? t("submitting") : t("resendEmail")}
+          </button>
+        ) : null}
         <button
           type="submit"
           disabled={submitting}
