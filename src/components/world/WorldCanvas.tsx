@@ -18,7 +18,15 @@ function lerpAngle(current: number, target: number, t: number): number {
 
 function keepFeetOnGround(obj: THREE.Object3D, scratchBox: THREE.Box3) {
   obj.updateMatrixWorld(true);
-  scratchBox.setFromObject(obj);
+  let hasMesh = false;
+  scratchBox.makeEmpty();
+  obj.traverse((c) => {
+    const m = c as THREE.Mesh;
+    if (!m.isMesh) return;
+    hasMesh = true;
+    scratchBox.expandByObject(m);
+  });
+  if (!hasMesh) scratchBox.setFromObject(obj);
   if (Number.isFinite(scratchBox.min.y)) obj.position.y -= scratchBox.min.y;
 }
 
