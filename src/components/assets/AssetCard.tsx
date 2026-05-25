@@ -35,8 +35,10 @@ export default function AssetCard({
   asset, kinds, selectedTags = [], selectedFolder, selected = false,
   onEdit, onPreview, onEditTags, onEditFolder, onClickTag, onClickFolder,
   onToggleSelect, onTogglePublic, onDelete,
+  onDragStart, onDragEnd,
 }: Props) {
   const [hovered, setHovered] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const t = useTranslations('Assets');
   const kindId  = asset.kind || detectKindFromUrl(asset.modelUrl, kinds);
   const kindDef = kinds.find(k => k.id === kindId);
