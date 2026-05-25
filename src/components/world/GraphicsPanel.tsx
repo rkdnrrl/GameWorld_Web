@@ -96,6 +96,15 @@ export default function GraphicsPanel({ settings, updateSettings, applyPreset }:
             />
           </Section>
 
+          {/* 다른 플레이어 그림자 */}
+          <Section label={t('remoteShadows')}>
+            <ToggleButtons
+              value={settings.remoteShadows}
+              onChange={v => updateSettings({ remoteShadows: v })}
+              labels={[t('off'), t('on')]}
+            />
+          </Section>
+
           {/* 픽셀 비율 */}
           <Section label={`${t('pixelRatio')} (${settings.dpr.toFixed(1)}x)`}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
