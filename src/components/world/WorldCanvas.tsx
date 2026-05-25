@@ -478,9 +478,10 @@ function Player({
 }
 
 /* ── 원격 플레이어 ──────────────────────── */
-function RemotePlayerMesh({ player, posesRef }: {
+function RemotePlayerMesh({ player, posesRef, castShadow }: {
   player: RemotePlayer;
   posesRef: React.RefObject<Map<string, PlayerPose>>;
+  castShadow?: boolean;
 }) {
   const g    = useRef<THREE.Group>(null);
   const tPos = useRef(new THREE.Vector3());
