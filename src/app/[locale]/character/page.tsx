@@ -603,11 +603,12 @@ export default function CharacterPage() {
       )}
 
       <div style={{
-        width: '100vw', height: '100vh', overflowY: 'auto',
+        width: '100vw', minHeight: '100vh',
         background: 'linear-gradient(135deg,#0f172a,#1e1b4b)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
         fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif",
-        padding: '24px 0',
+        padding: '24px 16px',
+        boxSizing: 'border-box',
       }}>
         <div style={{
           display: 'flex', gap: 28, alignItems: 'flex-start',
