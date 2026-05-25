@@ -14,6 +14,7 @@ import { getKind } from '@/lib/assets/registry';
 import '@/lib/assets/kinds';   // 사이드이펙트 import
 
 import AssetMarketCard from '@/components/assets/AssetMarketCard';
+import AssetReportModal, { type ReportReason } from '@/components/assets/AssetReportModal';
 
 interface MarketAsset extends Asset {
   creator?: { username: string | null };
