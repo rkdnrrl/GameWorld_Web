@@ -1009,7 +1009,7 @@ export default function StudioCanvas() {
               selected={obj.id === selectedId}
               onClick={() => setSelectedId(obj.id)}
               assetConfig={obj.kind === 'asset' && obj.assetUrl
-                ? myAssets.find(a => a.modelUrl === obj.assetUrl)?.materialConfig
+                ? getAssetMaterialConfig(myAssets.find(a => a.modelUrl === obj.assetUrl))
                 : undefined} />
           ))}
 
