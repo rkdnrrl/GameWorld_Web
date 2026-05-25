@@ -217,10 +217,10 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   if (!obj) return null;
   // rotX 와 발 정렬(발이 y=0) 은 autoNormalize 가 obj 안에서 처리.
   // 외곽 mesh 래퍼가 이미 y=-0.35 에 있고 (CharacterController 참조),
-  // 여기 추가 -0.28 → 합계 -0.63 = 캡슐 바닥.
+  // 여기 추가 보정은 월드 지면 관통 방지용 미세값.
   // offsetY: 사용자 수동 조정 (캐릭터마다 미세 조정).
   return (
-    <group scale={userScale} position={[0, -0.28 + offsetY, 0]}>
+    <group scale={userScale} position={[0, -0.22 + offsetY, 0]}>
       <primitive object={obj} />
     </group>
   );
