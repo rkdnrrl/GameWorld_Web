@@ -174,6 +174,14 @@ function CustomModel({ url, userScale, rotX, animStateRef, animNames, animTrims,
     };
   }, [url, animNames, animTrims]);
 
+  // castShadow prop 변경 시 모든 mesh에 즉시 반영
+  useEffect(() => {
+    if (!obj) return;
+    obj.traverse(c => {
+      if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = castShadow;
+    });
+  }, [castShadow, obj]);
+
   // 단일 액션 크로스페이드 (state 바뀔 때만 전환)
   useFrame((_, dt) => {
     mixer.current?.update(dt);
