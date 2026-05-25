@@ -143,7 +143,9 @@
     "errorInvalidEmail": "请输入正确的电子邮件地址。",
     "errorNoPassword": "请输入密码。",
     "errorInvalidCredentials": "电子邮件或密码不正确。",
-    "errorServerUnavailable": "无法连接登录服务器，请稍后再试。"
+    "errorServerUnavailable": "无法连接登录服务器，请稍后再试。",
+    "continueWithGoogle": "使用 Google 登录",
+    "googleLoginFailed": "无法启动 Google 登录，请稍后重试。"
   },
   "Signup": {
     "title": "注册",

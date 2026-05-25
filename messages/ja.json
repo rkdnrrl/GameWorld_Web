@@ -143,7 +143,9 @@
     "errorInvalidEmail": "正しいメールアドレスを入力してください。",
     "errorNoPassword": "パスワードを入力してください。",
     "errorInvalidCredentials": "メールアドレスまたはパスワードが正しくありません。",
-    "errorServerUnavailable": "ログインサーバーに接続できませんでした。しばらくしてから再試行してください。"
+    "errorServerUnavailable": "ログインサーバーに接続できませんでした。しばらくしてから再試行してください。",
+    "continueWithGoogle": "Google でログイン",
+    "googleLoginFailed": "Google ログインの開始に失敗しました。再試行してください。"
   },
   "Signup": {
     "title": "新規登録",

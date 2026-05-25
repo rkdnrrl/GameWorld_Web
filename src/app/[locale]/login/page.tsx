@@ -79,6 +79,27 @@ export default function LoginPage() {
     }
   }
 
+  async function onGoogleLogin() {
+    if (submitting) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const locale = document.documentElement.lang || "ko";
+      const redirectTo = `${window.location.origin}/${locale}/auth/callback`;
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo },
+      });
+      if (oauthError) {
+        setError(t("googleLoginFailed"));
+      }
+    } catch {
+      setError(t("googleLoginFailed"));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <section className="mx-auto w-full max-w-md px-4 py-12">
       <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -113,6 +134,14 @@ export default function LoginPage() {
           className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
         >
           {submitting ? t("submitting") : t("submit")}
+        </button>
+        <button
+          type="button"
+          onClick={onGoogleLogin}
+          disabled={submitting}
+          className="w-full rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+        >
+          {t("continueWithGoogle")}
         </button>
       </form>
       <p className="mt-5 text-sm text-zinc-500">

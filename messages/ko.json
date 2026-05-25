@@ -143,7 +143,9 @@
     "errorInvalidEmail": "올바른 이메일을 입력해주세요.",
     "errorNoPassword": "비밀번호를 입력해주세요.",
     "errorInvalidCredentials": "이메일 또는 비밀번호가 올바르지 않습니다.",
-    "errorServerUnavailable": "로그인 서버 연결에 실패했습니다. 잠시 후 다시 시도해 주세요."
+    "errorServerUnavailable": "로그인 서버 연결에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+    "continueWithGoogle": "Google로 로그인",
+    "googleLoginFailed": "Google 로그인 시작에 실패했습니다. 다시 시도해 주세요."
   },
   "Signup": {
     "title": "회원가입",

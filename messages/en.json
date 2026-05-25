@@ -143,7 +143,9 @@
     "errorInvalidEmail": "Please enter a valid email address.",
     "errorNoPassword": "Please enter your password.",
     "errorInvalidCredentials": "Invalid email or password.",
-    "errorServerUnavailable": "Could not connect to the login server. Please try again shortly."
+    "errorServerUnavailable": "Could not connect to the login server. Please try again shortly.",
+    "continueWithGoogle": "Continue with Google",
+    "googleLoginFailed": "Failed to start Google login. Please try again."
   },
   "Signup": {
     "title": "Sign Up",
