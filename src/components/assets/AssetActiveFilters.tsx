@@ -9,15 +9,17 @@ import type { AssetKind } from '@/lib/assets/types';
 interface Props {
   selectedKinds: string[];
   selectedTags: string[];
+  selectedFolder: string | null;
   kinds: AssetKind[];
   onRemoveKind: (id: string) => void;
   onRemoveTag: (tag: string) => void;
+  onRemoveFolder: () => void;
   onClearAll: () => void;
 }
 
 export default function AssetActiveFilters(p: Props) {
   const t = useTranslations('Assets');
-  const hasAny = p.selectedKinds.length > 0 || p.selectedTags.length > 0;
+  const hasAny = p.selectedKinds.length > 0 || p.selectedTags.length > 0 || p.selectedFolder !== null;
   if (!hasAny) return null;
 
   return (
@@ -34,6 +36,12 @@ export default function AssetActiveFilters(p: Props) {
             label={k?.label || id} onRemove={() => p.onRemoveKind(id)} />
         );
       })}
+
+      {p.selectedFolder !== null && (
+        <FilterChip icon="📁"
+          label={p.selectedFolder === '' ? t('folderRoot') : p.selectedFolder}
+          onRemove={p.onRemoveFolder} />
+      )}
 
       {p.selectedTags.map(tag => (
         <FilterChip key={`t-${tag}`} icon="#" label={tag} onRemove={() => p.onRemoveTag(tag)} />
