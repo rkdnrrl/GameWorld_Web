@@ -565,11 +565,12 @@ function Player({
     const p    = lastPos.current;
     const dist = camDist.current;
     const tx   = p.x + dist * Math.sin(camH.current) * Math.cos(camV.current);
-    const ty   = p.y + dist * Math.sin(camV.current) + 0.5;
+    const yOffset = dist <= 2.2 ? 0.25 : 0.5;
+    const ty   = p.y + dist * Math.sin(camV.current) + yOffset;
     const tz   = p.z + dist * Math.cos(camH.current) * Math.cos(camV.current);
     // 카메라 즉시 추적 — lerp 지연이 빠른 이동 시 blur를 유발하므로 직접 set
     camera.position.set(tx, ty, tz);
-    const lookY = dist <= 2.2 ? p.y + 1.25 : p.y + 0.7;
+    const lookY = dist <= 2.2 ? p.y + 0.45 : p.y + 0.7;
     camera.lookAt(p.x, lookY, p.z);
   });
 
