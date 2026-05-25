@@ -1346,6 +1346,8 @@
     "save": "저장",
     "saving": "저장 중…",
     "noFoldersYet": "폴더 없음",
+    "createFolderTitle": "새 폴더 만들기",
+    "createFolderPlaceholder": "/새폴더 (Enter 저장, Esc 취소)",
     "noFolder": "폴더 없음",
     "folderRoot": "(루트)",
     "moveToFolder": "폴더로 이동",

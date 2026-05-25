@@ -48,6 +48,13 @@ export default function AssetsPage() {
   // 드래그 중인 에셋 id 들 (선택돼 있으면 selectedIds, 아니면 해당 카드 단건)
   const dragIdsRef = useRef<string[]>([]);
 
+  // 사용자가 명시적으로 만든 빈 폴더 (assets 에 없지만 트리에 표시)
+  const [manualFolders, setManualFolders] = useState<string[]>([]);
+  function createFolder(path: string) {
+    setManualFolders(prev => prev.includes(path) ? prev : [...prev, path]);
+    setQuery({ folder: path });   // 만든 폴더로 이동
+  }
+
   /* ── 업로드 ── */
   const [uploading, setUploading] = useState(false);
   const [progress,  setProgress]  = useState(0);
@@ -474,11 +481,13 @@ export default function AssetsPage() {
             selectedKinds={selectedKinds}
             selectedTags={selectedTags}
             selectedFolder={selectedFolder}
+            manualFolders={manualFolders}
             dragActive={dragActive}
             onSelectKinds={ks => setQuery({ kind: ks })}
             onToggleTag={toggleTag}
             onSelectFolder={f => setQuery({ folder: f })}
             onDropToFolder={onDropToFolder}
+            onCreateFolder={createFolder}
           />
 
           <div style={{ flex: 1, padding: '20px 32px' }}>

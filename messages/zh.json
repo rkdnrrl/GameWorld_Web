@@ -1346,6 +1346,8 @@
     "save": "保存",
     "saving": "保存中…",
     "noFoldersYet": "暂无文件夹",
+    "createFolderTitle": "新建文件夹",
+    "createFolderPlaceholder": "/新文件夹（Enter保存，Esc取消）",
     "noFolder": "未分类",
     "folderRoot": "（根目录）",
     "moveToFolder": "移到文件夹",

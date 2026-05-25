@@ -1346,6 +1346,8 @@
     "save": "Save",
     "saving": "Saving…",
     "noFoldersYet": "No folders",
+    "createFolderTitle": "Create new folder",
+    "createFolderPlaceholder": "/new-folder (Enter save, Esc cancel)",
     "noFolder": "Unfiled",
     "folderRoot": "(root)",
     "moveToFolder": "Move to folder",

@@ -1346,6 +1346,8 @@
     "save": "保存",
     "saving": "保存中…",
     "noFoldersYet": "フォルダなし",
+    "createFolderTitle": "新規フォルダ作成",
+    "createFolderPlaceholder": "/新規フォルダ（Enter保存、Esc取消）",
     "noFolder": "未分類",
     "folderRoot": "（ルート）",
     "moveToFolder": "フォルダへ移動",
