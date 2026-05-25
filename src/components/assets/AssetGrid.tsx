@@ -10,11 +10,12 @@ interface Props {
   kinds: AssetKind[];
   emptyMessage: string;
   onEdit: (a: Asset) => void;
+  onPreview: (a: Asset) => void;
   onTogglePublic: (a: Asset) => void;
   onDelete: (id: string) => void;
 }
 
-export default function AssetGrid({ assets, kinds, emptyMessage, onEdit, onTogglePublic, onDelete }: Props) {
+export default function AssetGrid({ assets, kinds, emptyMessage, onEdit, onPreview, onTogglePublic, onDelete }: Props) {
   if (assets.length === 0) {
     return (
       <div style={{ textAlign: 'center', opacity: 0.35, padding: '48px 0', fontSize: 14 }}>
