@@ -759,8 +759,8 @@ export default function CharacterPage() {
         };
     setAnimMap(nextAnimMap);
 
-    // 커스텀 슬롯 복원 (운영자 슬롯 제외한 나머지)
-    const operatorSet = new Set(operatorSlots);
+    // 커스텀 슬롯 복원 (운영자 슬롯 + 코어 슬롯 제외한 나머지)
+    const operatorSet = new Set([...operatorSlots, ...(CORE_SLOTS as readonly string[])]);
     const loadedCustom = Object.keys(nextAnimMap).filter(k => !operatorSet.has(k));
     setCustomSlots(loadedCustom);
 
