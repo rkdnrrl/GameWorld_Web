@@ -1266,7 +1266,9 @@
     "manageCharacters": "キャラクター管理へ",
     "moveMap": "マップ移動",
     "homeHubMap": "ホームハブ（基本マップ）",
-    "loadingHub": "ハブ情報を読み込み中…"
+    "loadingHub": "ハブ情報を読み込み中…",
+    "enterFullscreen": "全画面",
+    "exitFullscreen": "全画面を終了"
   },
   "Character": {
     "title": "🎮 キャラクター作成",

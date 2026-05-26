@@ -74,6 +74,7 @@ export default function WorldPage() {
   const [myChars, setMyChars] = useState<MyCharacter[]>([]);
   const [myWorlds, setMyWorlds] = useState<HubWorld[]>([]);
   const [publicWorlds, setPublicWorlds] = useState<HubWorld[]>([]);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -177,6 +178,13 @@ export default function WorldPage() {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [chatLog]);
 
+  useEffect(() => {
+    const sync = () => setIsFullscreen(!!document.fullscreenElement);
+    sync();
+    document.addEventListener('fullscreenchange', sync);
+    return () => document.removeEventListener('fullscreenchange', sync);
+  }, []);
+
   const activeCharId = character?.id ? String(character.id) : '';
 
   async function switchCharacter(id: string) {
@@ -218,6 +226,18 @@ export default function WorldPage() {
     const firstId = (myChars.find((c) => c.id === activeCharId)?.id || myChars[0]?.id || '');
     setPreviewCharId(firstId);
     setCharModalOpen(true);
+  }
+
+  async function toggleFullscreen() {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch {
+      // ignore
+    }
   }
 
   const currentWorldList = useMemo(() => {
@@ -340,6 +360,12 @@ export default function WorldPage() {
       </div>
 
       <div style={{ position: 'absolute', top: 60, right: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <button
+          onClick={toggleFullscreen}
+          style={{ alignSelf: 'flex-end', border: 'none', cursor: 'pointer', borderRadius: 10, padding: '8px 12px', fontSize: 12, fontWeight: 700, background: 'rgba(0,0,0,0.45)', color: '#fff', backdropFilter: 'blur(6px)' }}
+        >
+          {isFullscreen ? t('exitFullscreen') : t('enterFullscreen')}
+        </button>
         <button
           onClick={() => setHubOpen((v) => !v)}
           style={{ alignSelf: 'flex-end', border: 'none', cursor: 'pointer', borderRadius: 10, padding: '8px 12px', fontSize: 12, fontWeight: 700, background: hubOpen ? '#4f46e5' : 'rgba(0,0,0,0.45)', color: '#fff', backdropFilter: 'blur(6px)' }}

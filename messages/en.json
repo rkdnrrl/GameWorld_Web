@@ -1266,7 +1266,9 @@
     "manageCharacters": "Open Character Manager",
     "moveMap": "Move to Map",
     "homeHubMap": "Home Hub (Default Map)",
-    "loadingHub": "Loading hub data…"
+    "loadingHub": "Loading hub data…",
+    "enterFullscreen": "Fullscreen",
+    "exitFullscreen": "Exit Fullscreen"
   },
   "Character": {
     "title": "🎮 Create Character",

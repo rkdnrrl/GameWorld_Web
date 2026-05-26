@@ -1266,7 +1266,9 @@
     "manageCharacters": "前往角色管理",
     "moveMap": "切换地图",
     "homeHubMap": "首页中枢（默认地图）",
-    "loadingHub": "正在加载中枢信息…"
+    "loadingHub": "正在加载中枢信息…",
+    "enterFullscreen": "全屏",
+    "exitFullscreen": "退出全屏"
   },
   "Character": {
     "title": "🎮 创建角色",
