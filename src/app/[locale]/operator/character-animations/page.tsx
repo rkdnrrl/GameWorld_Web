@@ -23,7 +23,6 @@ export default function OperatorCharacterAnimationsPage() {
   const t = useTranslations("OperatorCharacterAnimations");
   const [form, setForm] = useState<SlotForm>({});
   const [slotOrder, setSlotOrder] = useState<string[]>([]);
-  const [assets, setAssets] = useState<Array<{ id: string; name: string; modelUrl: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
@@ -34,11 +33,9 @@ export default function OperatorCharacterAnimationsPage() {
   useEffect(() => {
     const token = session.getToken();
     if (!token) return;
-    Promise.all([
-      fetch("/api/operator/character-animations", { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
-      fetch("/api/assets/my", { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
-    ])
-      .then(([slotRes, assetRes]) => {
+    fetch("/api/operator/character-animations", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then((slotRes) => {
         const slots: Record<string, { name?: string; assetId?: string; modelUrl?: string; enabled?: boolean }> = slotRes.slots || {};
         // 서버가 반환한 순서만 사용 — CORE_SLOTS 강제 삽입 제거
         const serverOrder: string[] = slotRes.order || [];
@@ -55,9 +52,6 @@ export default function OperatorCharacterAnimationsPage() {
           };
         }
         setForm(next);
-        setAssets((assetRes.assets || [])
-          .filter((a: { modelUrl?: string }) => /\.fbx(?:[?#].*)?$/i.test(String(a.modelUrl || "")))
-          .map((a: { id: string; name: string; modelUrl: string }) => ({ id: a.id, name: a.name, modelUrl: a.modelUrl })));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -208,17 +202,6 @@ export default function OperatorCharacterAnimationsPage() {
           onChange={(e) => void uploadAnimation(slot, e.target.files?.[0] || null)}
           className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
         {uploadingSlot === slot && <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">{t("uploading")}</p>}
-
-        <label className="mt-4 block text-xs font-medium text-zinc-500">{t("assetSelect")}</label>
-        <select value={value.assetId || ""}
-          onChange={(e) => {
-            const picked = assets.find(a => a.id === e.target.value);
-            patchSlot(slot, { assetId: picked?.id || null, name: picked?.name || value.name, modelUrl: picked?.modelUrl || value.modelUrl });
-          }}
-          className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
-          <option value="">{t("noAssets")}</option>
-          {assets.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-        </select>
 
         <label className="mt-4 block text-xs font-medium text-zinc-500">{t("manualUrl")}</label>
         <input value={value.modelUrl}
