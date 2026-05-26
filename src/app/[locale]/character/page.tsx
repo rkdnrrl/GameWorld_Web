@@ -744,6 +744,18 @@ export default function CharacterPage() {
   };
 
   useEffect(() => {
+    // 운영자가 등록한 슬롯 로드 (공개 엔드포인트, 인증 불필요)
+    fetch(`${API}/api/character-animations`)
+      .then(r => r.json())
+      .then((data: { order?: string[] }) => {
+        const slots = data.order && data.order.length > 0
+          ? data.order
+          : ['idle', 'walk', 'run', 'jump', 'crouch', 'prone'];
+        setOperatorSlots(slots);
+      })
+      .catch(() => {
+        setOperatorSlots(['idle', 'walk', 'run', 'jump', 'crouch', 'prone']);
+      });
     loadCharacters().catch(() => {});
     loadPublicCharacters().catch(() => {});
   }, []);
