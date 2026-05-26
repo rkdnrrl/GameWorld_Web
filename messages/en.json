@@ -1573,7 +1573,12 @@
     "slotProne": "Prone",
     "customSlotsLabel": "Custom Slots",
     "customSlotPlaceholder": "Slot name (e.g. sleep, swim)",
-    "customSlotAdd": "Add"
+    "customSlotAdd": "Add",
+    "coreSlot": "Core",
+    "coreSlotSection": "Core Slots (physics auto-trigger)",
+    "customSlotSection": "Custom Slots",
+    "newSlotPlaceholder": "Slot name (e.g. swim, skydive)",
+    "addSlot": "+ Add Slot"
   },
   "CreatorNav": {
     "navAssets": "Assets",

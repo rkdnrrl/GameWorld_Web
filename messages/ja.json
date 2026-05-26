@@ -1573,7 +1573,12 @@
     "slotProne": "Prone",
     "customSlotsLabel": "カスタムスロット",
     "customSlotPlaceholder": "スロット名 (例: sleep, swim)",
-    "customSlotAdd": "追加"
+    "customSlotAdd": "追加",
+    "coreSlot": "コア",
+    "coreSlotSection": "コアスロット（物理自動）",
+    "customSlotSection": "カスタムスロット",
+    "newSlotPlaceholder": "スロット名（例: swim, skydive）",
+    "addSlot": "+ スロット追加"
   },
   "CreatorNav": {
     "navAssets": "アセット",
