@@ -1331,7 +1331,9 @@
     "unknownCreator": "Unknown user",
     "mixamoGuideTitle": "Mixamo rigging required",
     "mixamoGuideDesc": "For best animation compatibility, we recommend using a Mixamo-rigged character.",
-    "mixamoGoButton": "Go to Mixamo"
+    "mixamoGoButton": "Go to Mixamo",
+    "loopLabel": "Loop",
+    "oneShotLabel": "Once"
   },
   "Assets": {
     "title": "Asset Library",

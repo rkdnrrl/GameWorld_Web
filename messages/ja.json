@@ -1331,7 +1331,9 @@
     "unknownCreator": "不明なユーザー",
     "mixamoGuideTitle": "Mixamoのリギングが必要です",
     "mixamoGuideDesc": "アニメーション互換性のため、Mixamoでリギングしたキャラクターを推奨します。",
-    "mixamoGoButton": "Mixamoへ"
+    "mixamoGoButton": "Mixamoへ",
+    "loopLabel": "ループ",
+    "oneShotLabel": "1回"
   },
   "Assets": {
     "title": "アセットライブラリ",

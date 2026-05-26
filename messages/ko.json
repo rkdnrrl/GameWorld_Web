@@ -1331,7 +1331,9 @@
     "unknownCreator": "알 수 없는 사용자",
     "mixamoGuideTitle": "Mixamo 리깅이 필요합니다",
     "mixamoGuideDesc": "공통 애니메이션을 사용하려면 Mixamo에서 리깅한 캐릭터를 권장합니다.",
-    "mixamoGoButton": "Mixamo 바로가기"
+    "mixamoGoButton": "Mixamo 바로가기",
+    "loopLabel": "루프",
+    "oneShotLabel": "1회"
   },
   "Assets": {
     "title": "에셋 라이브러리",
