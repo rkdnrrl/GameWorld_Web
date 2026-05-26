@@ -151,7 +151,7 @@ const KEYWORD_FALLBACK: Record<AnimState, string[]> = {
   prone:  ['prone', 'lying', 'lie', '엎드', '눕'],
 };
 
-function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animNames, animTrims, blockedAnimStates, animOneShot, castShadow = true }: {
+function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animNames, animTrims, blockedAnimStates, animOneShot, animSlotUrls, castShadow = true }: {
   url: string;
   userScale: number;
   rotX: number;
@@ -163,6 +163,8 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   blockedAnimStates?: Record<string, boolean>;
   /** 한번만 재생할 슬롯 목록 — 재생 완료 후 idle로 복귀 */
   animOneShot?: string[];
+  /** 슬롯별 외부 FBX URL (EXT_ 접두사 클립으로 로드) */
+  animSlotUrls?: Record<string, string>;
   castShadow?: boolean;
 }) {
   const [obj, setObj]   = useState<THREE.Object3D | null>(null);
@@ -220,6 +222,29 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       const platformClips = await loadPlatformAnimationStateClips(cloned) as Map<AnimState, THREE.AnimationClip>;
       if (cancelled) return;
       setupMixer(cloned, retargetClipsToModel(anims, cloned), platformClips);
+
+      // 슬롯별 외부 FBX 클립 비동기 로드 (EXT_{slot} 이름으로 clipByState에 추가)
+      if (animSlotUrls && Object.keys(animSlotUrls).length > 0) {
+        const { FBXLoader } = await import('three/examples/jsm/loaders/FBXLoader.js');
+        for (const [slot, extUrl] of Object.entries(animSlotUrls)) {
+          if (cancelled || !extUrl) continue;
+          try {
+            const extFbx = await new Promise<THREE.Object3D>((resolve, reject) =>
+              new FBXLoader().load(extUrl, resolve, undefined, reject)
+            );
+            const extAnims = (extFbx as unknown as { animations?: THREE.AnimationClip[] }).animations || [];
+            if (!extAnims.length) continue;
+            const retargeted = retargetClipsToModel([extAnims[0]], cloned);
+            if (!retargeted.length) continue;
+            const clip = retargeted[0].clone();
+            clip.name = `EXT_${slot}`;
+            clipByState.current.set(slot, clip); // slot 이름으로 직접 등록
+          } catch (e) {
+            console.warn(`[world-ext-anim] ${slot}:`, e);
+          }
+        }
+      }
+
       setObj(cloned);
     })();
     return () => {
@@ -229,7 +254,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       currentAction.current = null;
       currentState.current = null;
     };
-  }, [url, animNames, animTrims, blockedAnimStates]);
+  }, [url, animNames, animTrims, blockedAnimStates, animSlotUrls]);
 
   // castShadow prop 변경 시 모든 mesh에 즉시 반영
   useEffect(() => {
@@ -328,6 +353,8 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true }: {
     ? (appearance.animOneShot as unknown[]).map(String)
     : undefined;
 
+  const animSlotUrls = (appearance.animSlotUrls as Record<string, string> | undefined) || undefined;
+
   if (modelUrl) {
     return (
       <CustomModel
@@ -341,6 +368,7 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true }: {
         animTrims={trims}
         blockedAnimStates={blockedAnimStates}
         animOneShot={animOneShot}
+        animSlotUrls={animSlotUrls}
       />
     );
   }

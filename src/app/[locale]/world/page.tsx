@@ -79,15 +79,34 @@ export default function WorldPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   // 이모트 (커스텀 애니메이션 슬롯 트리거)
   const [emoteSlot, setEmoteSlot] = useState<string | null>(null);
+  const [platformEmoteSlots, setPlatformEmoteSlots] = useState<string[]>([]);
   const CORE_ANIM_SLOTS = useMemo(() => new Set(['idle', 'walk', 'run', 'jump', 'crouch', 'prone']), []);
+
+  // 운영자 등록 플랫폼 애니메이션 중 비코어 슬롯 → 이모트 바에 표시
+  useEffect(() => {
+    fetch(`${API}/api/character-animations`)
+      .then(r => r.json())
+      .then((d: { slots?: Record<string, { enabled?: boolean }>; order?: string[] }) => {
+        const order = d.order || Object.keys(d.slots || {});
+        const nonCore = order.filter(s => !CORE_ANIM_SLOTS.has(s) && d.slots?.[s]?.enabled !== false);
+        setPlatformEmoteSlots(nonCore);
+      })
+      .catch(() => {});
+  }, [API, CORE_ANIM_SLOTS]);
+
   const emoteSlots = useMemo(() => {
-    if (!character) return [];
-    const ap = (character.appearance || {}) as Record<string, unknown>;
-    const slots = (ap.animSlots as Record<string, string>) || {};
-    // 코어 슬롯 제외, 애니메이션 또는 외부 URL이 설정된 슬롯만
-    const slotUrls = (ap.animSlotUrls as Record<string, string>) || {};
-    return Object.keys(slots).filter(s => !CORE_ANIM_SLOTS.has(s) && (slots[s] || slotUrls[s]));
-  }, [character, CORE_ANIM_SLOTS]);
+    // 플랫폼 슬롯(운영자 등록) + 캐릭터 개인 매핑 슬롯 합산, 중복 제거
+    const set = new Set(platformEmoteSlots);
+    if (character) {
+      const ap = (character.appearance || {}) as Record<string, unknown>;
+      const slots = (ap.animSlots as Record<string, string>) || {};
+      const slotUrls = (ap.animSlotUrls as Record<string, string>) || {};
+      Object.keys(slots).forEach(s => {
+        if (!CORE_ANIM_SLOTS.has(s) && (slots[s] || slotUrls[s])) set.add(s);
+      });
+    }
+    return [...set];
+  }, [character, platformEmoteSlots, CORE_ANIM_SLOTS]);
 
   useEffect(() => {
     async function load() {
