@@ -446,9 +446,9 @@ function Player({
   /* 키보드 + 포인터 락 */
   useEffect(() => {
     const detectMobile = () => {
-      const coarse = window.matchMedia?.('(pointer: coarse)')?.matches ?? false;
       const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-      const m = coarse || touch;
+      const smallViewport = window.matchMedia?.('(max-width: 1024px)')?.matches ?? false;
+      const m = touch && smallViewport;
       isMobileRef.current = m;
       setIsMobile(m);
     };
@@ -479,7 +479,6 @@ function Player({
     };
     const onLockChange = () => { isLocked.current = !!document.pointerLockElement; };
     const tryLockPointer = () => {
-      if (isMobileRef.current) return;
       if (document.pointerLockElement === el) return;
       el.requestPointerLock();
     };
