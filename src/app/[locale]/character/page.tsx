@@ -664,9 +664,11 @@ export default function CharacterPage() {
     setModelOffsetY(sanitizeOffsetY(ap.fbxOffsetY));
     // 새 포맷(animSlots) 우선, 없으면 이전 개별 필드에서 읽기
     const savedSlots = ap.animSlots as Record<string, string> | undefined;
+    const baseMap: Record<string, string> = Object.fromEntries(operatorSlots.map(s => [s, '']));
     const nextAnimMap: Record<string, string> = savedSlots
-      ? { idle: '', walk: '', run: '', jump: '', crouch: '', prone: '', ...savedSlots }
+      ? { ...baseMap, ...savedSlots }
       : {
+          ...baseMap,
           idle: String(ap.idleAnim || ''),
           walk: String(ap.walkAnim || ''),
           run: String(ap.runAnim || ''),
@@ -676,9 +678,9 @@ export default function CharacterPage() {
         };
     setAnimMap(nextAnimMap);
 
-    // 커스텀 슬롯 복원 (코어 슬롯 제외한 나머지)
-    const coreSet = new Set(CORE_SLOTS as readonly string[]);
-    const loadedCustom = Object.keys(nextAnimMap).filter(k => !coreSet.has(k));
+    // 커스텀 슬롯 복원 (운영자 슬롯 제외한 나머지)
+    const operatorSet = new Set(operatorSlots);
+    const loadedCustom = Object.keys(nextAnimMap).filter(k => !operatorSet.has(k));
     setCustomSlots(loadedCustom);
 
     const savedBlocked = Array.isArray(ap.animAutoMapBlocked) ? ap.animAutoMapBlocked.map(String) : [];
