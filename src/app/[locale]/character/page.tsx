@@ -1356,6 +1356,19 @@ export default function CharacterPage() {
                             background: active ? '#10b981' : 'rgba(255,255,255,0.07)',
                             color: '#fff', cursor: 'pointer', fontSize: 9,
                           }}>▶</button>
+                          {/* 루프/1회 토글 */}
+                          <button
+                            title={animOneShot.includes(slot) ? t('oneShotLabel') : t('loopLabel')}
+                            onClick={() => setAnimOneShot(prev =>
+                              prev.includes(slot) ? prev.filter(s => s !== slot) : [...prev, slot]
+                            )}
+                            style={{
+                              width: 26, height: 26, borderRadius: 4, border: 'none', flexShrink: 0,
+                              background: animOneShot.includes(slot) ? 'rgba(251,146,60,0.25)' : 'rgba(255,255,255,0.07)',
+                              color: animOneShot.includes(slot) ? '#fb923c' : 'rgba(255,255,255,0.35)',
+                              cursor: 'pointer', fontSize: 9,
+                            }}
+                          >{animOneShot.includes(slot) ? '1×' : '∞'}</button>
                         </div>
                         {/* 트림 — 활성 슬롯 + 애니메이션 선택 시만 표시 */}
                         {active && animName && duration > 0 && (
