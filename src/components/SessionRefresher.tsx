@@ -36,10 +36,28 @@ export default function SessionRefresher() {
         const { data, error } = await supabase.auth.refreshSession({ refresh_token: refreshToken });
         if (error || !data.session) return;
         const user = session.getUser();
-        if (user) {
-          session.save({ token: data.session.access_token, user });
-          session.saveRefreshInfo(data.session.refresh_token, data.session.expires_at ?? 0);
-        }
+        if (!user) return;
+
+        // Supabase 갱신 후 플랫폼 JWT(7일)로 재교환
+        let platformToken = data.session.access_token;
+        let platformExpiresAt = data.session.expires_at ?? 0;
+        try {
+          const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://airliveplay.com";
+          const exRes = await fetch(`${API_BASE}/api/auth/exchange`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${data.session.access_token}` },
+          });
+          if (exRes.ok) {
+            const exData = await exRes.json() as { token?: string };
+            if (exData.token) {
+              platformToken = exData.token;
+              platformExpiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+            }
+          }
+        } catch { /* 교환 실패 시 Supabase 토큰 폴백 */ }
+
+        session.save({ token: platformToken, user });
+        session.saveRefreshInfo(data.session.refresh_token, platformExpiresAt);
       } catch {
         /* 비치명 */
       }

@@ -50,9 +50,10 @@ export default function LoginPage() {
       const expiresAt = data.session.expires_at;
 
       let token = supaToken;
+      let platformExchanged = false;
       try {
         const ex = await api.exchange(supaToken);
-        if (ex.token) token = ex.token;
+        if (ex.token) { token = ex.token; platformExchanged = true; }
       } catch {
         // Exchange can fail when backend JWT signing env is unstable.
         // Keep going with Supabase access token as fallback.
@@ -68,8 +69,12 @@ export default function LoginPage() {
         return;
       }
       session.save({ token, user });
-      if (refreshToken && expiresAt) {
-        session.saveRefreshInfo(refreshToken, expiresAt);
+      if (refreshToken) {
+        // 플랫폼 JWT 교환 성공 시 7일 expiry, 실패 시 Supabase 1시간 expiry
+        const storeExpiresAt = platformExchanged
+          ? Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60
+          : (expiresAt ?? 0);
+        session.saveRefreshInfo(refreshToken, storeExpiresAt);
       }
       router.replace("/");
     } catch {
