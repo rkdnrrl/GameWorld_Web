@@ -73,7 +73,7 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
 /* ── 애니메이션 상태 타입 ─────────────── */
 // 코어 슬롯은 물리엔진이 자동 트리거. 커스텀 슬롯(swim, skydive 등)은 게임 코드가 직접 setState.
 export type AnimState = string;
-export const CORE_ANIM_STATES = ['idle', 'walk', 'run', 'jump', 'crouch', 'prone'] as const;
+export const CORE_ANIM_STATES = ['idle', 'walk', 'run', 'jump', 'fall', 'crouch', 'crouch_walk', 'prone', 'prone_move'] as const;
 
 export interface AnimTrim { start?: number; end?: number; }
 
@@ -143,12 +143,15 @@ function trimClip(source: THREE.AnimationClip, trim?: AnimTrim): THREE.Animation
 }
 
 const KEYWORD_FALLBACK: Record<AnimState, string[]> = {
-  idle:   ['idle', 'stand', 'tpose', 't-pose', '유휴', '대기'],
-  walk:   ['walk', 'walking', '걷기', '걷다'],
-  run:    ['run', 'running', 'sprint', 'jog', '달리', '뛰'],
-  jump:   ['jump', 'jumping', '점프'],
-  crouch: ['crouch', 'crouching', 'duck', '앉', 'squat'],
-  prone:  ['prone', 'lying', 'lie', '엎드', '눕'],
+  idle:        ['idle', 'stand', 'tpose', 't-pose', '유휴', '대기'],
+  walk:        ['walk', 'walking', '걷기', '걷다'],
+  run:         ['run', 'running', 'sprint', 'jog', '달리', '뛰'],
+  jump:        ['jump', 'jumping', '점프'],
+  fall:        ['fall', 'falling', 'drop', '낙하'],
+  crouch:      ['crouch', 'crouching', 'duck', '앉', 'squat'],
+  crouch_walk: ['crouch_walk', 'crouchwalk', 'sneak', 'sneaking', '포복'],
+  prone:       ['prone', 'lying', 'lie', '엎드', '눕'],
+  prone_move:  ['prone_move', 'pronemove', 'crawl', 'crawling', '기어'],
 };
 
 function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animNames, animTrims, blockedAnimStates, animOneShot, animSlotUrls, castShadow = true }: {
@@ -709,10 +712,18 @@ function Player({
       const moving      = len > 0;
       const inJumpHold  = Date.now() < jumpHoldUntil.current;
       let state: AnimState = 'idle';
-      if (!onGround || inJumpHold) state = 'jump';
-      else if (isProne)            state = 'prone';
-      else if (isCrouch)           state = 'crouch';
-      else if (moving)             state = sprint ? 'run' : 'walk';
+      if (inJumpHold) {
+        state = 'jump';
+      } else if (!onGround) {
+        // 공중: 상승 중이거나 수직속도 미미하면 jump, 낙하 중이면 fall
+        state = vel.y < -0.5 ? 'fall' : 'jump';
+      } else if (isProne) {
+        state = moving ? 'prone_move' : 'prone';
+      } else if (isCrouch) {
+        state = moving ? 'crouch_walk' : 'crouch';
+      } else if (moving) {
+        state = sprint ? 'run' : 'walk';
+      }
       // 이모트 오버라이드: 활성화 중이면 다른 애니메이션 차단
       if (emoteSlotRef.current) {
         state = emoteSlotRef.current;

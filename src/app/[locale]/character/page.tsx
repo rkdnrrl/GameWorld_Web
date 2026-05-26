@@ -46,16 +46,19 @@ interface PublicCharacter {
    - 한 애니메이션은 한 슬롯에만 (이미 다른 슬롯에서 잡은 건 제외)
 */
 const ANIM_SLOT_KEYWORDS: Record<string, string[]> = {
-  idle:   ['idle', 'stand', 'standing', 'wait', 'rest'],
-  walk:   ['walk', 'walking', 'stroll'],
-  run:    ['run', 'running', 'sprint', 'jog'],
-  jump:   ['jump', 'jumping', 'hop', 'leap'],
-  crouch: ['crouch', 'crouching', 'squat', 'duck', 'sneak'],
-  prone:  ['prone', 'lying', 'lie', 'lay', 'crawl'],
+  idle:        ['idle', 'stand', 'standing', 'wait', 'rest'],
+  walk:        ['walk', 'walking', 'stroll'],
+  run:         ['run', 'running', 'sprint', 'jog'],
+  jump:        ['jump', 'jumping', 'hop', 'leap'],
+  fall:        ['fall', 'falling', 'drop'],
+  crouch:      ['crouch', 'crouching', 'squat', 'duck'],
+  crouch_walk: ['crouch_walk', 'crouchwalk', 'sneak', 'sneaking'],
+  prone:       ['prone', 'lying', 'lie', 'lay'],
+  prone_move:  ['prone_move', 'pronemove', 'crawl', 'crawling'],
 };
 
 // 코어 슬롯 — 물리엔진이 자동 트리거 (항상 표시)
-const CORE_SLOTS = ['idle', 'walk', 'run', 'jump', 'crouch', 'prone'] as const;
+const CORE_SLOTS = ['idle', 'walk', 'run', 'jump', 'fall', 'crouch', 'crouch_walk', 'prone', 'prone_move'] as const;
 type CoreSlot = typeof CORE_SLOTS[number];
 // 하위 호환용
 const ANIM_SLOTS = CORE_SLOTS;

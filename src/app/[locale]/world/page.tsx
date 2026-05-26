@@ -80,7 +80,7 @@ export default function WorldPage() {
   // 이모트 (커스텀 애니메이션 슬롯 트리거)
   const [emoteSlot, setEmoteSlot] = useState<string | null>(null);
   const [platformEmoteSlots, setPlatformEmoteSlots] = useState<string[]>([]);
-  const CORE_ANIM_SLOTS = useMemo(() => new Set(['idle', 'walk', 'run', 'jump', 'crouch', 'prone']), []);
+  const CORE_ANIM_SLOTS = useMemo(() => new Set(['idle', 'walk', 'run', 'jump', 'fall', 'crouch', 'crouch_walk', 'prone', 'prone_move']), []);
 
   // 운영자 등록 플랫폼 애니메이션 중 비코어 슬롯 → 이모트 바에 표시
   useEffect(() => {

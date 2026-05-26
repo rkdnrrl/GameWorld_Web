@@ -13,7 +13,7 @@ type SlotValue = {
 };
 type SlotForm = Record<string, SlotValue>;
 
-const CORE_SLOTS = ["idle", "walk", "run", "jump", "crouch", "prone"];
+const CORE_SLOTS = ["idle", "walk", "run", "jump", "fall", "crouch", "crouch_walk", "prone", "prone_move"];
 
 function emptySlot(): SlotValue {
   return { name: "", assetId: null, modelUrl: "", enabled: true };
