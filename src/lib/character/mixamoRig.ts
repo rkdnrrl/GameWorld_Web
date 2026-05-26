@@ -52,6 +52,13 @@ function canonicalBoneName(name: string): string | null {
   return ALIAS_TO_MIXAMO.get(cleanBoneName(name)) || null;
 }
 
+/** FBX 오브젝트에 뼈(Bone)가 하나라도 있으면 true */
+export function hasSkeleton(root: THREE.Object3D): boolean {
+  let found = false;
+  root.traverse(child => { if ((child as THREE.Bone).isBone) found = true; });
+  return found;
+}
+
 export function findMixamoCompatibleBones(root: THREE.Object3D): Map<string, string> {
   const bones = new Map<string, string>();
   root.traverse((child) => {
