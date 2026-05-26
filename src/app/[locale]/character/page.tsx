@@ -707,6 +707,7 @@ export default function CharacterPage() {
     setAnimTrims({});
     setCustomSlots([]);
     setNewSlotName('');
+    setAnimOneShot([]);
     setCreatingNew(true);
   };
 
