@@ -764,7 +764,7 @@ export default function CharacterPage() {
     setModelRotX(-Math.PI / 2);
     setModelOffsetY(0);
     setAvailableAnims([]);
-    setAnimMap({ idle: '', walk: '', run: '', jump: '', crouch: '', prone: '' });
+    setAnimMap(Object.fromEntries(operatorSlots.map(s => [s, ''])));
     setAutoMapBlocked({});
     setAnimTrims({});
   };
