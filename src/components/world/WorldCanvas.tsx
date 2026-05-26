@@ -307,8 +307,21 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
     if (desired === '__done__') return; // Player가 처리할 sentinel — skip
     if (desired === currentState.current) return;
 
-    // 매칭되는 클립 없으면 idle로 폴백
-    const targetClip = clipByState.current.get(desired) || clipByState.current.get('idle');
+    // 클립 폴백 체인: 슬롯 전용 클립 없으면 유사 슬롯 → idle 순으로 대체
+    const STATE_FALLBACKS: Record<string, string[]> = {
+      fall:        ['jump'],
+      crouch_walk: ['crouch', 'walk'],
+      prone_move:  ['prone'],
+    };
+    const fallbacks = STATE_FALLBACKS[desired] ?? [];
+    let targetClip = clipByState.current.get(desired);
+    if (!targetClip) {
+      for (const fb of fallbacks) {
+        targetClip = clipByState.current.get(fb);
+        if (targetClip) break;
+      }
+    }
+    if (!targetClip) targetClip = clipByState.current.get('idle');
     if (!targetClip) return;
 
     const nextAction = mixer.current.clipAction(targetClip);
