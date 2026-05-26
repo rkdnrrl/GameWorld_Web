@@ -1044,11 +1044,12 @@ export default function CharacterPage() {
           boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
         }}>
 
-          {/* 3D 프리뷰 */}
+          {/* 3D 프리뷰 — sticky로 스크롤 따라옴 */}
           <div style={{
             width: 360, height: 500, borderRadius: 16, overflow: 'hidden', flexShrink: 0,
             background: 'linear-gradient(160deg,#1e293b,#0f172a)',
             border: '1px solid rgba(255,255,255,0.1)',
+            position: 'sticky', top: 24, alignSelf: 'flex-start',
             position: 'relative',
           }}>
             <Canvas camera={{ position: [0, 0.5, 4.2], fov: 35 }}>
