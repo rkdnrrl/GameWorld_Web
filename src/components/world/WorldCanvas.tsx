@@ -129,23 +129,7 @@ async function cloneFBX(source: THREE.Object3D): Promise<THREE.Object3D> {
   return mod.clone(source);
 }
 
-/** position 트랙의 Y 채널만 0으로 고정 → 메쉬가 물리와 독립적으로 상하이동 안 함
- *  트랙 자체는 유지하므로 팔다리 X/Z 이동 등 나머지 본 애니메이션은 정상 재생됨 */
-function stripRootMotion(clip: THREE.AnimationClip): THREE.AnimationClip {
-  let changed = false;
-  const tracks = clip.tracks.map(t => {
-    if (!t.name.endsWith('.position')) return t;
-    // XYZ 중 Y(index 1, 4, 7, …)만 0으로
-    const values = new Float32Array(t.values as ArrayLike<number>);
-    for (let i = 1; i < values.length; i += 3) values[i] = 0;
-    changed = true;
-    return new THREE.VectorKeyframeTrack(t.name, t.times as Float32Array, values);
-  });
-  if (!changed) return clip;
-  return new THREE.AnimationClip(clip.name, clip.duration, tracks);
-}
-
-// 루트 모션을 제거해야 하는 슬롯 (물리가 위치를 담당하므로 메쉬가 스스로 올라가면 안 됨)
+// 루트 모션(obj.position.y)을 물리 기준으로 고정해야 하는 슬롯
 const ROOT_MOTION_SLOTS = new Set(['jump', 'fall']);
 
 /** start~end 초 구간만 잘라낸 새 AnimationClip 반환 (트림 없으면 원본) */
@@ -190,6 +174,8 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   castShadow?: boolean;
 }) {
   const [obj, setObj]   = useState<THREE.Object3D | null>(null);
+  const objRef          = useRef<THREE.Object3D | null>(null); // useFrame 클로저용
+  const normalizeBaseY  = useRef(0); // autoNormalize 후 obj.position.y 기준값
   const mixer           = useRef<THREE.AnimationMixer | null>(null);
   const clipByState     = useRef<Map<string, THREE.AnimationClip>>(new Map());
   const currentAction   = useRef<THREE.AnimationAction | null>(null);
@@ -210,8 +196,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
 
       // 1. 플랫폼 공통 애니메이션을 폴백으로 먼저 세팅
       platformClips.forEach((clip, state) => {
-        const processed = ROOT_MOTION_SLOTS.has(state) ? stripRootMotion(clip) : clip;
-        clipByState.current.set(state, trimClip(processed, animTrims?.[state]));
+        clipByState.current.set(state, trimClip(clip, animTrims?.[state]));
       });
 
       // 2. 캐릭터 개별 슬롯 (코어 + 커스텀 모두) — 공통보다 우선, blocked 슬롯은 건너뜀
@@ -226,10 +211,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       Object.entries(animNames ?? {}).forEach(([state, clipName]) => {
         if (blockedAnimStates?.[state]) return;
         const src = findByExact(clipName) ?? findByKeyword(KEYWORD_FALLBACK[state] ?? []);
-        if (src) {
-          const processed = ROOT_MOTION_SLOTS.has(state) ? stripRootMotion(src) : src;
-          clipByState.current.set(state, trimClip(processed, animTrims?.[state]));
-        }
+        if (src) clipByState.current.set(state, trimClip(src, animTrims?.[state]));
       });
 
       // 3. 아무 클립도 없으면 첫 번째를 idle 폴백으로 사용
@@ -245,6 +227,8 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       if (cancelled) return;
       cloned.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = castShadow; });
       autoNormalize(cloned, rotX, 1.8);
+      normalizeBaseY.current = cloned.position.y; // 루트 모션 상쇄용 기준 Y 저장
+      objRef.current = cloned;
       const platformClips = await loadPlatformAnimationStateClips(cloned) as Map<AnimState, THREE.AnimationClip>;
       if (cancelled) return;
       setupMixer(cloned, retargetClipsToModel(anims, cloned), platformClips);
@@ -314,6 +298,12 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
     if (!mixer.current) return;
 
     const desired = animStateRef?.current || 'idle';
+
+    // 루트 모션 상쇄: jump/fall 중 obj.position.y를 autoNormalize 기준으로 고정
+    // → 물리(RigidBody)가 캐릭터를 올리고, 애니메이션 root motion이 추가로 올리는 이중 이동 방지
+    if (objRef.current && ROOT_MOTION_SLOTS.has(desired)) {
+      objRef.current.position.y = normalizeBaseY.current;
+    }
     if (desired === '__done__') return; // Player가 처리할 sentinel — skip
     if (desired === currentState.current) return;
 
