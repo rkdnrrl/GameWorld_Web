@@ -154,21 +154,28 @@ function getRenderableBounds(obj: THREE.Object3D) {
 }
 
 function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
-  // 재호출 시 누적 방지 — 매번 fresh 한 상태에서 시작
+  // 1. 회전 없이 원본 크기 측정 — 회전이 스케일에 영향 주지 않도록
   obj.position.set(0, 0, 0);
-  obj.rotation.set(rotX, 0, 0);
+  obj.rotation.set(0, 0, 0);
   obj.scale.set(1, 1, 1);
   obj.updateMatrixWorld(true);
 
-  const box  = getRenderableBounds(obj);
-  const size = box.getSize(new THREE.Vector3());
-  const h    = size.y > 0 ? size.y : Math.max(size.x, size.y, size.z);
+  const box0 = getRenderableBounds(obj);
+  const size0 = box0.getSize(new THREE.Vector3());
+  // 최대 치수를 기준 높이로 사용 → 회전해도 스케일 불변
+  const h = Math.max(size0.x, size0.y, size0.z);
   if (h > 0) {
     obj.scale.setScalar(targetHeight / h);
     obj.updateMatrixWorld(true);
   }
-  const box2 = getRenderableBounds(obj);
-  obj.position.y -= box2.min.y;            // 발 -> y=0
+
+  // 2. 회전 적용
+  obj.rotation.set(rotX, 0, 0);
+  obj.updateMatrixWorld(true);
+
+  // 3. 발 -> y=0 정렬
+  const box1 = getRenderableBounds(obj);
+  obj.position.y -= box1.min.y;
 }
 
 /* ── 커스텀 모델 프리뷰 (명령형 로드) ───── */
