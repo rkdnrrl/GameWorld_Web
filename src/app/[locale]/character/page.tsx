@@ -621,6 +621,8 @@ export default function CharacterPage() {
     idle: '', walk: '', run: '', jump: '', crouch: '', prone: '',
   });
   const [autoMapBlocked, setAutoMapBlocked] = useState<Record<string, boolean>>({});
+  // 운영자가 서버에 등록한 슬롯 목록 (서버에서 로드)
+  const [operatorSlots, setOperatorSlots] = useState<string[]>([]);
   // 커스텀 슬롯 목록 (유저 정의: sleep, swim, skydive 등)
   const [customSlots, setCustomSlots] = useState<string[]>([]);
   const [newSlotName, setNewSlotName] = useState('');
