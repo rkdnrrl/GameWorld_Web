@@ -1057,11 +1057,11 @@ export default function CharacterPage() {
               {/* 사용자가 마우스로 자유 회전·줌 */}
               <OrbitControls
                 target={[0, -0.2, 0]}
-                enablePan={false}
                 minDistance={2}
                 maxDistance={8}
                 minPolarAngle={Math.PI * 0.15}
                 maxPolarAngle={Math.PI * 0.85}
+                panSpeed={0.8}
               />
               {/* 바닥 기준 — 캐릭터 발이 여기 맞아야 함 */}
               {modelUrl && <GroundRef />}
