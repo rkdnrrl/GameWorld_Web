@@ -149,7 +149,7 @@ const KEYWORD_FALLBACK: Record<AnimState, string[]> = {
   prone:  ['prone', 'lying', 'lie', '엎드', '눕'],
 };
 
-function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animNames, animTrims, castShadow = true }: {
+function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animNames, animTrims, blockedAnimStates, castShadow = true }: {
   url: string;
   userScale: number;
   rotX: number;
@@ -157,6 +157,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   animStateRef?: React.RefObject<AnimState>;
   animNames?: Partial<Record<AnimState, string>>;
   animTrims?: Partial<Record<AnimState, AnimTrim>>;
+  blockedAnimStates?: Partial<Record<AnimState, boolean>>;
   castShadow?: boolean;
 }) {
   const [obj, setObj]   = useState<THREE.Object3D | null>(null);
@@ -179,6 +180,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       clipByState.current.clear();
 
       platformClips.forEach((clip, state) => {
+        if (blockedAnimStates?.[state]) return;
         clipByState.current.set(state, trimClip(clip, animTrims?.[state]));
       });
 
@@ -191,13 +193,14 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
         });
 
       (['idle', 'walk', 'run', 'jump', 'crouch', 'prone'] as AnimState[]).forEach(state => {
+        if (blockedAnimStates?.[state]) return;
         if (clipByState.current.has(state)) return;
         const src = findByExact(animNames?.[state]) ?? findByKeyword(KEYWORD_FALLBACK[state]);
         if (src) clipByState.current.set(state, trimClip(src, animTrims?.[state]));
       });
 
       // 클립이 하나도 매칭 안 됐고 애니메이션은 있으면 첫 번째를 idle로 사용
-      if (clipByState.current.size === 0 && anims.length > 0) {
+      if (clipByState.current.size === 0 && anims.length > 0 && !blockedAnimStates?.idle) {
         clipByState.current.set('idle', trimClip(anims[0], animTrims?.idle));
       }
     };
@@ -221,7 +224,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       currentAction.current = null;
       currentState.current = null;
     };
-  }, [url, animNames, animTrims]);
+  }, [url, animNames, animTrims, blockedAnimStates]);
 
   // castShadow prop 변경 시 모든 mesh에 즉시 반영
   useEffect(() => {
@@ -278,6 +281,9 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true }: {
   const rotX       = Number(appearance.fbxRotX ?? -Math.PI / 2);
   const offsetY    = Number(appearance.fbxOffsetY ?? 0);
   const trims      = (appearance.animTrims ?? {}) as Partial<Record<AnimState, AnimTrim>>;
+  const blockedAnimStates = Array.isArray(appearance.animAutoMapBlocked)
+    ? Object.fromEntries((appearance.animAutoMapBlocked as unknown[]).map((slot) => [String(slot), true])) as Partial<Record<AnimState, boolean>>
+    : undefined;
 
   if (modelUrl) {
     return (
@@ -298,6 +304,7 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true }: {
           prone:  appearance.proneAnim  as string | undefined,
         }}
         animTrims={trims}
+        blockedAnimStates={blockedAnimStates}
       />
     );
   }

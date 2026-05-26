@@ -166,6 +166,34 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
 }
 
 /* ── 커스텀 모델 프리뷰 (명령형 로드) ───── */
+type ObjectPose = {
+  obj: THREE.Object3D;
+  position: THREE.Vector3;
+  quaternion: THREE.Quaternion;
+  scale: THREE.Vector3;
+};
+
+function captureObjectPose(root: THREE.Object3D): ObjectPose[] {
+  const poses: ObjectPose[] = [];
+  root.traverse((obj) => {
+    poses.push({
+      obj,
+      position: obj.position.clone(),
+      quaternion: obj.quaternion.clone(),
+      scale: obj.scale.clone(),
+    });
+  });
+  return poses;
+}
+
+function restoreObjectPose(poses: ObjectPose[]) {
+  poses.forEach(({ obj, position, quaternion, scale }) => {
+    obj.position.copy(position);
+    obj.quaternion.copy(quaternion);
+    obj.scale.copy(scale);
+  });
+}
+
 function CustomPreview({
   url, userScale, rotX, offsetY = 0, previewAnim, previewTrim, onAnimationsLoaded, onPlayingClip,
 }: {
@@ -183,6 +211,7 @@ function CustomPreview({
   const g     = useRef<THREE.Group>(null);
   const mixer = useRef<THREE.AnimationMixer | null>(null);
   const animClips = useRef<THREE.AnimationClip[]>([]);
+  const restPose = useRef<ObjectPose[]>([]);
 
   useEffect(() => {
     if (!url) return;
@@ -196,6 +225,7 @@ function CustomPreview({
       const compatibleAnims = retargetClipsToModel(anims, loaded);
       const combinedAnims = [...platformClips.values(), ...compatibleAnims];
       animClips.current = combinedAnims;
+      restPose.current = captureObjectPose(loaded);
       if (combinedAnims.length) {
         mixer.current = new THREE.AnimationMixer(loaded);
       }
@@ -228,10 +258,12 @@ function CustomPreview({
     mixer.current.stopAllAction();
     // mixer 의 캐시된 액션까지 정리 — 캐시된 액션이 새 clip 재생을 방해할 수 있음
     mixer.current.uncacheRoot(mixer.current.getRoot());
+    restoreObjectPose(restPose.current);
     if (!previewAnim) { onPlayingClip?.(null); return; }
     const src = animClips.current.find(c => c.name === previewAnim);
     if (!src) {
       console.warn('[preview] clip not found:', previewAnim, 'available:', animClips.current.map(c => c.name));
+      restoreObjectPose(restPose.current);
       onPlayingClip?.(`(없음: ${previewAnim})`);
       return;
     }
