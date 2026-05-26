@@ -684,6 +684,7 @@ export default function CharacterPage() {
     }
     setAutoMapBlocked(blocked);
     setAnimTrims((ap.animTrims as Record<string, { start: number; end: number }>) || {});
+    setAnimOneShot(Array.isArray(ap.animOneShot) ? (ap.animOneShot as unknown[]).map(String) : []);
     setCreatingNew(false);
   };
 
