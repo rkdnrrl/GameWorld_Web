@@ -208,7 +208,7 @@ function restoreObjectPose(poses: ObjectPose[]) {
 }
 
 function CustomPreview({
-  url, userScale, rotX, offsetY = 0, previewAnim, previewTrim, onAnimationsLoaded, onPlayingClip, onNoSkeleton,
+  url, userScale, rotX, offsetY = 0, previewAnim, previewTrim, previewIsOneShot, onAnimationsLoaded, onPlayingClip, onNoSkeleton,
   extraSlotUrls,
 }: {
   url: string;
@@ -217,6 +217,8 @@ function CustomPreview({
   offsetY?: number;
   previewAnim?: string;
   previewTrim?: { start?: number; end?: number };
+  /** true면 LoopOnce로 재생 (한번만 재생) */
+  previewIsOneShot?: boolean;
   onAnimationsLoaded?: (anims: { name: string; duration: number }[]) => void;
   /** 디버그용 — 실제로 mixer에 들어간 clip 이름 알림 */
   onPlayingClip?: (name: string | null) => void;
@@ -302,10 +304,17 @@ function CustomPreview({
       }
     }
     const action = mixer.current.clipAction(clip);
+    if (previewIsOneShot) {
+      action.setLoop(THREE.LoopOnce, 1);
+      action.clampWhenFinished = true;
+    } else {
+      action.setLoop(THREE.LoopRepeat, Infinity);
+      action.clampWhenFinished = false;
+    }
     action.reset();
     action.play();
     onPlayingClip?.(clip.name);
-  }, [previewAnim, previewTrim, obj, onPlayingClip]);
+  }, [previewAnim, previewTrim, previewIsOneShot, obj, onPlayingClip]);
 
   // 슬롯별 외부 FBX 로드 — 유저가 각 슬롯에 직접 지정한 에셋
   const extraSlotUrlsKey = JSON.stringify(extraSlotUrls || {});
@@ -1050,7 +1059,6 @@ export default function CharacterPage() {
             background: 'linear-gradient(160deg,#1e293b,#0f172a)',
             border: '1px solid rgba(255,255,255,0.1)',
             position: 'sticky', top: 24, alignSelf: 'flex-start',
-            position: 'relative',
           }}>
             <Canvas camera={{ position: [0, 0.5, 4.2], fov: 35 }}>
               <ambientLight intensity={0.5} />
@@ -1077,6 +1085,7 @@ export default function CharacterPage() {
                       (availableAnims.some(a => a.name === `ALP_${previewSlot}`) ? `ALP_${previewSlot}` : undefined)
                     }
                     previewTrim={animMap[previewSlot] && !animMap[previewSlot].startsWith('EXT_') ? animTrims[previewSlot] : undefined}
+                    previewIsOneShot={animOneShot.includes(previewSlot)}
                     onNoSkeleton={() => setShowMixamoGuide(true)}
                     onAnimationsLoaded={setAvailableAnims}
                     onPlayingClip={setPlayingClip}
