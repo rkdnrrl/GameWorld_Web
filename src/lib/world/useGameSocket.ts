@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useCallback, useState } from 'react';
 
-export type AnimState = 'idle' | 'walk' | 'run' | 'jump' | 'crouch' | 'prone';
+export type AnimState = string;
 
 /** 정적 정보 — 입장/퇴장 시에만 변경 (React 재렌더 트리거) */
 export interface RemotePlayer {
