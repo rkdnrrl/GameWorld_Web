@@ -141,6 +141,28 @@ export default function OperatorCharacterAnimationsPage() {
 
   function SlotCard({ slot }: { slot: string }) {
     const value = form[slot] || emptySlot();
+    const holdTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+    const [holdProgress, setHoldProgress] = useState(0); // 0~100
+    const HOLD_MS = 1500;
+    const TICK_MS = 30;
+
+    function startHold() {
+      let elapsed = 0;
+      holdTimer.current = setInterval(() => {
+        elapsed += TICK_MS;
+        const pct = Math.min(100, Math.round((elapsed / HOLD_MS) * 100));
+        setHoldProgress(pct);
+        if (elapsed >= HOLD_MS) {
+          cancelHold();
+          removeSlot(slot);
+        }
+      }, TICK_MS);
+    }
+    function cancelHold() {
+      if (holdTimer.current) { clearInterval(holdTimer.current); holdTimer.current = null; }
+      setHoldProgress(0);
+    }
+
     return (
       <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
         <div className="mb-4 flex items-center justify-between gap-2">
@@ -150,8 +172,26 @@ export default function OperatorCharacterAnimationsPage() {
               className={`rounded-full px-3 py-1 text-xs font-semibold ${value.enabled ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-300"}`}>
               {value.enabled ? t("enabled") : t("disabled")}
             </button>
-            <button type="button" onClick={() => removeSlot(slot)}
-              className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-950">✕</button>
+            {/* 홀드-투-딜리트: 1.5초 꾹 눌러야 삭제 */}
+            <button
+              type="button"
+              title={t("holdToDelete")}
+              onMouseDown={startHold}
+              onMouseUp={cancelHold}
+              onMouseLeave={cancelHold}
+              onTouchStart={startHold}
+              onTouchEnd={cancelHold}
+              className="relative overflow-hidden rounded px-2 py-1 text-xs text-red-400 hover:text-red-600 select-none"
+              style={{ minWidth: 28 }}
+            >
+              <span className="relative z-10">✕</span>
+              {holdProgress > 0 && (
+                <span
+                  className="absolute inset-0 bg-red-100 dark:bg-red-900 transition-none"
+                  style={{ width: `${holdProgress}%` }}
+                />
+              )}
+            </button>
           </div>
         </div>
 
