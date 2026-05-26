@@ -955,8 +955,11 @@ export default function CharacterPage() {
                     userScale={modelScale}
                     rotX={modelRotX}
                     offsetY={modelOffsetY}
-                    previewAnim={animMap[previewSlot]}
-                    previewTrim={animTrims[previewSlot]}
+                    previewAnim={
+                      animMap[previewSlot] ||
+                      (availableAnims.some(a => a.name === `ALP_${previewSlot}`) ? `ALP_${previewSlot}` : undefined)
+                    }
+                    previewTrim={animMap[previewSlot] ? animTrims[previewSlot] : undefined}
                     onAnimationsLoaded={setAvailableAnims}
                     onPlayingClip={setPlayingClip}
                   />
