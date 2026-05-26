@@ -1333,7 +1333,10 @@
     "mixamoGuideDesc": "アニメーション互換性のため、Mixamoでリギングしたキャラクターを推奨します。",
     "mixamoGoButton": "Mixamoへ",
     "loopLabel": "ループ",
-    "oneShotLabel": "1回"
+    "oneShotLabel": "1回",
+    "customSlotsLabel": "カスタムスロット",
+    "customSlotPlaceholder": "スロット名（例: sleep, swim）",
+    "customSlotAdd": "追加"
   },
   "Assets": {
     "title": "アセットライブラリ",

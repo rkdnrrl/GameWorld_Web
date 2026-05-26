@@ -1333,7 +1333,10 @@
     "mixamoGuideDesc": "공통 애니메이션을 사용하려면 Mixamo에서 리깅한 캐릭터를 권장합니다.",
     "mixamoGoButton": "Mixamo 바로가기",
     "loopLabel": "루프",
-    "oneShotLabel": "1회"
+    "oneShotLabel": "1회",
+    "customSlotsLabel": "커스텀 슬롯",
+    "customSlotPlaceholder": "슬롯 이름 (예: sleep, swim)",
+    "customSlotAdd": "추가"
   },
   "Assets": {
     "title": "에셋 라이브러리",

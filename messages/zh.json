@@ -1333,7 +1333,10 @@
     "mixamoGuideDesc": "为获得最佳动画兼容性，建议使用Mixamo绑定的角色。",
     "mixamoGoButton": "前往Mixamo",
     "loopLabel": "循环",
-    "oneShotLabel": "单次"
+    "oneShotLabel": "单次",
+    "customSlotsLabel": "自定义槽位",
+    "customSlotPlaceholder": "槽位名称（例: sleep, swim）",
+    "customSlotAdd": "添加"
   },
   "Assets": {
     "title": "资源库",

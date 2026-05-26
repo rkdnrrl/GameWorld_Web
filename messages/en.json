@@ -1333,7 +1333,10 @@
     "mixamoGuideDesc": "For best animation compatibility, we recommend using a Mixamo-rigged character.",
     "mixamoGoButton": "Go to Mixamo",
     "loopLabel": "Loop",
-    "oneShotLabel": "Once"
+    "oneShotLabel": "Once",
+    "customSlotsLabel": "Custom Slots",
+    "customSlotPlaceholder": "Slot name (e.g. sleep, swim)",
+    "customSlotAdd": "Add"
   },
   "Assets": {
     "title": "Asset Library",
