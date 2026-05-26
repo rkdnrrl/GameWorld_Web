@@ -4,7 +4,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Html, Sky, Text } from '@react-three/drei';
 import { Physics, RigidBody, CapsuleCollider, useRapier } from '@react-three/rapier';
 import * as THREE from 'three';
-import type { RemotePlayer, PlayerPose } from '@/lib/world/useGameSocket';
+import type { ChatBubble, RemotePlayer, PlayerPose } from '@/lib/world/useGameSocket';
 import type { GraphicsSettings } from '@/lib/world/graphicsSettings';
 import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
 
@@ -409,9 +409,11 @@ function GraphicsApplier({ shadowSize, shadowFilter, shadowRadius }: {
 /* ── 로컬 플레이어 컨트롤러 ─────────────── */
 function Player({
   character,
+  bubble,
   onMove,
 }: {
   character: Record<string, unknown>;
+  bubble?: ChatBubble;
   onMove: (p: { x: number; y: number; z: number; rotY: number; animState?: AnimState }) => void;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -622,6 +624,27 @@ function Player({
       <group ref={mesh} position={[0, PLAYER_MESH_Y, 0]}>
         <CharacterMesh appearance={appearance} animStateRef={animStateRef} />
       </group>
+      {bubble && (
+        <Html position={[0, 1.95, 0]} center>
+          <div
+            style={{
+              maxWidth: 220,
+              background: 'rgba(255,255,255,0.92)',
+              color: '#111827',
+              fontSize: 12,
+              fontWeight: 700,
+              padding: '7px 10px',
+              borderRadius: 12,
+              boxShadow: '0 6px 18px rgba(0,0,0,0.35)',
+              wordBreak: 'break-word',
+              textAlign: 'center',
+              pointerEvents: 'none',
+            }}
+          >
+            {bubble.message}
+          </div>
+        </Html>
+      )}
       {isMobile && (
         <Html fullscreen>
           <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
@@ -781,6 +804,7 @@ function Player({
 function RemotePlayerMesh({ player, posesRef, castShadow }: {
   player: RemotePlayer;
   posesRef: React.RefObject<Map<string, PlayerPose>>;
+  bubble?: ChatBubble;
   castShadow?: boolean;
 }) {
   const g    = useRef<THREE.Group>(null);
@@ -815,6 +839,27 @@ function RemotePlayerMesh({ player, posesRef, castShadow }: {
       >
         {player.username}
       </Text>
+      {bubble && (
+        <Html position={[0, 2.12, 0]} center>
+          <div
+            style={{
+              maxWidth: 220,
+              background: 'rgba(255,255,255,0.92)',
+              color: '#111827',
+              fontSize: 12,
+              fontWeight: 700,
+              padding: '7px 10px',
+              borderRadius: 12,
+              boxShadow: '0 6px 18px rgba(0,0,0,0.35)',
+              wordBreak: 'break-word',
+              textAlign: 'center',
+              pointerEvents: 'none',
+            }}
+          >
+            {bubble.message}
+          </div>
+        </Html>
+      )}
     </group>
   );
 }
@@ -1122,14 +1167,16 @@ function UserAsset({ url, matObj }: { url: string; matObj: UserMapObject }) {
 /* ── 메인 캔버스 ────────────────────────── */
 interface WorldCanvasProps {
   character: Record<string, unknown>;
+  playerId: string;
   players: Record<string, RemotePlayer>;
   posesRef: React.RefObject<Map<string, PlayerPose>>;
+  chatBubbles: Record<string, ChatBubble>;
   onMove: (pos: { x: number; y: number; z: number; rotY: number; animState?: AnimState }) => void;
   customObjects?: UserMapObject[];
   graphics?: GraphicsSettings;
 }
 
-export default function WorldCanvas({ character, players, posesRef, onMove, customObjects, graphics = DEFAULT_SETTINGS }: WorldCanvasProps) {
+export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, graphics = DEFAULT_SETTINGS }: WorldCanvasProps) {
   const shadowsEnabled = graphics.shadowSize > 0;
   const shadowMapSize: [number, number] = [graphics.shadowSize || 1024, graphics.shadowSize || 1024];
   return (
@@ -1176,9 +1223,9 @@ export default function WorldCanvas({ character, players, posesRef, onMove, cust
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} onMove={onMove} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} />
             {Object.values(players).map((p) => (
-              <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} castShadow={graphics.remoteShadows} />
+              <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}
           </Physics>
         </Suspense>

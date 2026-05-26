@@ -166,7 +166,7 @@ export default function WorldPage() {
   }, [API, ready]);
 
   const { settings: graphics, updateSettings: updateGraphics, applyPreset: applyGraphicsPreset } = useGraphicsSettings();
-  const { players, posesRef, chatLog, connected, sendMove, sendChat } = useGameSocket({
+  const { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat } = useGameSocket({
     worldId: worldIdParam || 'default',
     playerId: userId,
     username,
@@ -333,8 +333,10 @@ export default function WorldPage() {
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
       <WorldCanvas
         character={character ?? {}}
+        playerId={userId}
         players={players}
         posesRef={posesRef}
+        chatBubbles={chatBubbles}
         onMove={sendMove}
         customObjects={worldIdParam ? (customObjects ?? undefined) : undefined}
         graphics={graphics}

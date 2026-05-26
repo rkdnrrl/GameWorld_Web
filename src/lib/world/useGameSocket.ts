@@ -27,6 +27,11 @@ export interface ChatMessage {
   time: number;
 }
 
+export interface ChatBubble {
+  message: string;
+  time: number;
+}
+
 interface Options {
   worldId: string;
   playerId: string;
@@ -38,12 +43,14 @@ interface Options {
 export function useGameSocket({ worldId, playerId, username, character, enabled }: Options) {
   const [players, setPlayers]     = useState<Record<string, RemotePlayer>>({});
   const [chatLog, setChatLog]     = useState<ChatMessage[]>([]);
+  const [chatBubbles, setChatBubbles] = useState<Record<string, ChatBubble>>({});
   const [connected, setConnected] = useState(false);
   /** 위치/회전/애니메이션 상태 — 재렌더 없이 매 프레임 mutate */
   const posesRef = useRef<Map<string, PlayerPose>>(new Map());
 
   const ws    = useRef<WebSocket | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const bubbleTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const dead  = useRef(false);
   const sessionIdRef = useRef(0);
 
@@ -117,7 +124,19 @@ export function useGameSocket({ worldId, playerId, username, character, enabled 
       }
       else if (msg.type === 'chat') {
         const { id, username: un, message } = msg as { id: string; username: string; message: string };
-        setChatLog(prev => [...prev.slice(-49), { id, username: un, message, time: Date.now() }]);
+        const now = Date.now();
+        setChatLog(prev => [...prev.slice(-49), { id, username: un, message, time: now }]);
+        setChatBubbles((prev) => ({ ...prev, [id]: { message, time: now } }));
+        if (bubbleTimers.current[id]) clearTimeout(bubbleTimers.current[id]);
+        bubbleTimers.current[id] = setTimeout(() => {
+          setChatBubbles((prev) => {
+            if (!prev[id]) return prev;
+            const next = { ...prev };
+            delete next[id];
+            return next;
+          });
+          delete bubbleTimers.current[id];
+        }, 6000);
       }
     };
 
@@ -137,12 +156,17 @@ export function useGameSocket({ worldId, playerId, username, character, enabled 
     dead.current = false;
     posesRef.current = new Map();
     setPlayers({});
+    setChatBubbles({});
     setConnected(false);
+    Object.values(bubbleTimers.current).forEach(clearTimeout);
+    bubbleTimers.current = {};
     clearTimeout(timer.current);
     connect();
     return () => {
       dead.current = true;
       clearTimeout(timer.current);
+      Object.values(bubbleTimers.current).forEach(clearTimeout);
+      bubbleTimers.current = {};
       ws.current?.close();
     };
   }, [connect]);
@@ -159,5 +183,5 @@ export function useGameSocket({ worldId, playerId, username, character, enabled 
     }
   }, []);
 
-  return { players, posesRef, chatLog, connected, sendMove, sendChat };
+  return { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat };
 }
