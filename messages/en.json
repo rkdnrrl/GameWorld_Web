@@ -1328,7 +1328,10 @@
     "sharedSearchPlaceholder": "Search character/creator",
     "sharedEmpty": "No shared characters.",
     "importCharacter": "Import",
-    "unknownCreator": "Unknown creator"
+    "unknownCreator": "Unknown creator",
+    "mixamoGuideTitle": "Mixamo rigging required",
+    "mixamoGuideDesc": "This model doesn't have a compatible skeleton. Upload your character to Mixamo (free), auto-rig it, download as 'Without Skin', then re-upload here.",
+    "mixamoGoButton": "Rig for free on Mixamo"
   },
   "Assets": {
     "title": "Asset Library",

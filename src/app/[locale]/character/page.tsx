@@ -992,6 +992,34 @@ export default function CharacterPage() {
             )}
           </div>
 
+          {/* Mixamo 리깅 안내 */}
+          {showMixamoGuide && (
+            <div style={{
+              marginTop: 10, padding: '12px 14px', borderRadius: 12,
+              background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.35)',
+            }}>
+              <div style={{ color: '#fbbf24', fontWeight: 700, fontSize: 12, marginBottom: 6 }}>
+                ⚠️ {t('mixamoGuideTitle')}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, lineHeight: 1.6, marginBottom: 10 }}>
+                {t('mixamoGuideDesc')}
+              </div>
+              <a
+                href="https://www.mixamo.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-block', padding: '7px 14px',
+                  background: '#f97316', color: '#fff',
+                  borderRadius: 8, fontSize: 12, fontWeight: 700,
+                  textDecoration: 'none',
+                }}
+              >
+                {t('mixamoGoButton')} ↗
+              </a>
+            </div>
+          )}
+
           {/* 설정 패널 */}
           <div style={{ width: 300 }}>
             <h2 style={{ color: '#fff', margin: '0 0 18px', fontSize: 20, fontWeight: 800 }}>{t('title')}</h2>

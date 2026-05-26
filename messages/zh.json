@@ -1328,7 +1328,10 @@
     "sharedSearchPlaceholder": "????/??",
     "sharedEmpty": "???????",
     "importCharacter": "??",
-    "unknownCreator": "????"
+    "unknownCreator": "????",
+    "mixamoGuideTitle": "需要Mixamo绑定骨骼",
+    "mixamoGuideDesc": "此模型没有兼容的骨骼。请将角色上传到Mixamo（免费），完成自动绑定后选择'Without Skin'下载，再重新上传。",
+    "mixamoGoButton": "在Mixamo免费绑定"
   },
   "Assets": {
     "title": "资源库",
