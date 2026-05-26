@@ -45,22 +45,34 @@ export function useGameSocket({ worldId, playerId, username, character, enabled 
   const ws    = useRef<WebSocket | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const dead  = useRef(false);
+  const sessionIdRef = useRef(0);
 
   const connect = useCallback(() => {
     if (dead.current || !enabled) return;
+    const mySessionId = sessionIdRef.current;
     const isLocal = typeof window !== 'undefined' && window.location.hostname === 'localhost';
     const wsBase  = isLocal
       ? (process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000')
       : 'wss://play.airliveplay.com';
+
+    if (ws.current && ws.current.readyState !== WebSocket.CLOSED) {
+      try { ws.current.close(); } catch {}
+    }
+
     const sock = new WebSocket(`${wsBase}/_alp/world-ws?worldId=${worldId}`);
     ws.current = sock;
 
     sock.onopen = () => {
+      if (mySessionId !== sessionIdRef.current) {
+        try { sock.close(); } catch {}
+        return;
+      }
       setConnected(true);
       sock.send(JSON.stringify({ type: 'join', worldId, playerId, username, character }));
     };
 
     sock.onmessage = (e) => {
+      if (mySessionId !== sessionIdRef.current) return;
       let msg: Record<string, unknown>;
       try { msg = JSON.parse(e.data as string); } catch { return; }
 
@@ -110,14 +122,23 @@ export function useGameSocket({ worldId, playerId, username, character, enabled 
     };
 
     sock.onclose = () => {
+      if (mySessionId !== sessionIdRef.current) return;
       setConnected(false);
       if (!dead.current) timer.current = setTimeout(connect, 3000);
     };
-    sock.onerror = () => sock.close();
+    sock.onerror = () => {
+      if (mySessionId !== sessionIdRef.current) return;
+      sock.close();
+    };
   }, [worldId, playerId, username, character, enabled]);
 
   useEffect(() => {
+    sessionIdRef.current += 1;
     dead.current = false;
+    posesRef.current = new Map();
+    setPlayers({});
+    setConnected(false);
+    clearTimeout(timer.current);
     connect();
     return () => {
       dead.current = true;
