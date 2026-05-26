@@ -54,7 +54,11 @@ const ANIM_SLOT_KEYWORDS: Record<string, string[]> = {
   prone:  ['prone', 'lying', 'lie', 'lay', 'crawl'],
 };
 
-const ANIM_SLOTS = ['idle', 'walk', 'run', 'jump', 'crouch', 'prone'] as const;
+// 코어 슬롯 — 물리엔진이 자동 트리거 (항상 표시)
+const CORE_SLOTS = ['idle', 'walk', 'run', 'jump', 'crouch', 'prone'] as const;
+type CoreSlot = typeof CORE_SLOTS[number];
+// 하위 호환용
+const ANIM_SLOTS = CORE_SLOTS;
 
 function autoMatchAnims(
   anims: { name: string; duration: number }[],
@@ -609,12 +613,15 @@ export default function CharacterPage() {
   const [modelRotX, setModelRotX]   = useState(-Math.PI / 2);
   const [modelOffsetY, setModelOffsetY] = useState(0);   // 발 높이 미세 조정 (m)
   const [modelName, setModelName]   = useState('');
-  // 애니메이션 매핑 — 6가지 상태
+  // 애니메이션 매핑 — 코어 슬롯 + 유저 정의 커스텀 슬롯
   const [availableAnims, setAvailableAnims] = useState<{ name: string; duration: number }[]>([]);
   const [animMap, setAnimMap] = useState<Record<string, string>>({
     idle: '', walk: '', run: '', jump: '', crouch: '', prone: '',
   });
   const [autoMapBlocked, setAutoMapBlocked] = useState<Record<string, boolean>>({});
+  // 커스텀 슬롯 목록 (유저 정의: sleep, swim, skydive 등)
+  const [customSlots, setCustomSlots] = useState<string[]>([]);
+  const [newSlotName, setNewSlotName] = useState('');
   // 각 슬롯의 트림 구간 (초)
   const [animTrims, setAnimTrims] = useState<Record<string, { start: number; end: number }>>({});
   const [previewSlot, setPreviewSlot] = useState<'idle' | 'walk' | 'run' | 'jump' | 'crouch' | 'prone'>('idle');
