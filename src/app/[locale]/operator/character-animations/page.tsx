@@ -140,28 +140,19 @@ export default function OperatorCharacterAnimationsPage() {
     return <div className="mx-auto max-w-5xl px-4 py-10 text-sm text-zinc-500">{t("loading")}</div>;
   }
 
-  const coreSlots   = slotOrder.filter(s => CORE_SLOTS.includes(s));
-  const customSlots = slotOrder.filter(s => !CORE_SLOTS.includes(s));
-
   function SlotCard({ slot }: { slot: string }) {
     const value = form[slot] || emptySlot();
-    const isCore = CORE_SLOTS.includes(slot);
     return (
       <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
         <div className="mb-4 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <h2 className="font-semibold text-zinc-900 dark:text-zinc-50 capitalize">{slot}</h2>
-            {isCore && <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">{t("coreSlot")}</span>}
-          </div>
+          <h2 className="font-semibold text-zinc-900 dark:text-zinc-50 capitalize">{slot}</h2>
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => patchSlot(slot, { enabled: !value.enabled })}
               className={`rounded-full px-3 py-1 text-xs font-semibold ${value.enabled ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-300"}`}>
               {value.enabled ? t("enabled") : t("disabled")}
             </button>
-            {!isCore && (
-              <button type="button" onClick={() => removeSlot(slot)}
-                className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-950">✕</button>
-            )}
+            <button type="button" onClick={() => removeSlot(slot)}
+              className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-950">✕</button>
           </div>
         </div>
 
