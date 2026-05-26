@@ -129,10 +129,19 @@ async function cloneFBX(source: THREE.Object3D): Promise<THREE.Object3D> {
   return mod.clone(source);
 }
 
-/** position 트랙 제거 → 루트 모션 없음 (점프/낙하 애니메이션이 메쉬를 직접 올리지 않게) */
+/** position 트랙의 Y 채널만 0으로 고정 → 메쉬가 물리와 독립적으로 상하이동 안 함
+ *  트랙 자체는 유지하므로 팔다리 X/Z 이동 등 나머지 본 애니메이션은 정상 재생됨 */
 function stripRootMotion(clip: THREE.AnimationClip): THREE.AnimationClip {
-  const tracks = clip.tracks.filter(t => !t.name.endsWith('.position'));
-  if (tracks.length === clip.tracks.length) return clip; // position 트랙 없으면 원본 반환
+  let changed = false;
+  const tracks = clip.tracks.map(t => {
+    if (!t.name.endsWith('.position')) return t;
+    // XYZ 중 Y(index 1, 4, 7, …)만 0으로
+    const values = new Float32Array(t.values as ArrayLike<number>);
+    for (let i = 1; i < values.length; i += 3) values[i] = 0;
+    changed = true;
+    return new THREE.VectorKeyframeTrack(t.name, t.times as Float32Array, values);
+  });
+  if (!changed) return clip;
   return new THREE.AnimationClip(clip.name, clip.duration, tracks);
 }
 
