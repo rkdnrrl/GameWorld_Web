@@ -49,6 +49,7 @@ export default function WorldPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const worldIdParam = searchParams.get('id');
+  const worldSocketKey = worldIdParam ? `world:${worldIdParam}` : 'home:default';
   const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
   const [character, setCharacter] = useState<Record<string, unknown> | null>(null);
@@ -120,15 +121,26 @@ export default function WorldPage() {
   }, [API, router]);
 
   useEffect(() => {
-    if (!worldIdParam) return;
+    if (!worldIdParam) {
+      setCustomObjects(null);
+      return;
+    }
+    setCustomObjects(null);
     const tok = session.getToken();
     const headers: Record<string, string> = tok ? { Authorization: `Bearer ${tok}` } : {};
     fetch(`${API}/api/worlds/${worldIdParam}`, { headers })
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`world fetch failed: ${r.status}`))))
       .then((d) => {
-        if (d.world) setCustomObjects(d.world.mapData?.objects || []);
+        if (!d.world) {
+          setCustomObjects([]);
+          return;
+        }
+        setCustomObjects(Array.isArray(d.world.mapData?.objects) ? d.world.mapData.objects : []);
       })
-      .catch(() => {});
+      .catch(() => {
+        // stale map object carry-over 방지
+        setCustomObjects([]);
+      });
   }, [API, worldIdParam]);
 
   useEffect(() => {
@@ -168,7 +180,7 @@ export default function WorldPage() {
 
   const { settings: graphics, updateSettings: updateGraphics, applyPreset: applyGraphicsPreset } = useGraphicsSettings();
   const { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat } = useGameSocket({
-    worldId: worldIdParam || 'default',
+    worldId: worldSocketKey,
     playerId: userId,
     username,
     character: character ?? {},
@@ -357,6 +369,7 @@ export default function WorldPage() {
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
       <WorldCanvas
+        key={worldSocketKey}
         character={character ?? {}}
         playerId={userId}
         players={players}
