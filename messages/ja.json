@@ -1568,7 +1568,10 @@
     "slotRun": "Run",
     "slotJump": "Jump",
     "slotCrouch": "Crouch",
-    "slotProne": "Prone"
+    "slotProne": "Prone",
+    "customSlotsLabel": "カスタムスロット",
+    "customSlotPlaceholder": "スロット名 (例: sleep, swim)",
+    "customSlotAdd": "追加"
   },
   "CreatorNav": {
     "navAssets": "アセット",

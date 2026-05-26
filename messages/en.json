@@ -1568,7 +1568,10 @@
     "slotRun": "Run",
     "slotJump": "Jump",
     "slotCrouch": "Crouch",
-    "slotProne": "Prone"
+    "slotProne": "Prone",
+    "customSlotsLabel": "Custom Slots",
+    "customSlotPlaceholder": "Slot name (e.g. sleep, swim)",
+    "customSlotAdd": "Add"
   },
   "CreatorNav": {
     "navAssets": "Assets",

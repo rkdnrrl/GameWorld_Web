@@ -1568,7 +1568,10 @@
     "slotRun": "Run",
     "slotJump": "Jump",
     "slotCrouch": "Crouch",
-    "slotProne": "Prone"
+    "slotProne": "Prone",
+    "customSlotsLabel": "自定义槽位",
+    "customSlotPlaceholder": "槽位名称 (例: sleep, swim)",
+    "customSlotAdd": "添加"
   },
   "CreatorNav": {
     "navAssets": "资源",

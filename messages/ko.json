@@ -1568,7 +1568,10 @@
     "slotRun": "Run",
     "slotJump": "Jump",
     "slotCrouch": "Crouch",
-    "slotProne": "Prone"
+    "slotProne": "Prone",
+    "customSlotsLabel": "커스텀 슬롯",
+    "customSlotPlaceholder": "슬롯 이름 (예: sleep, swim)",
+    "customSlotAdd": "추가"
   },
   "CreatorNav": {
     "navAssets": "에셋",
