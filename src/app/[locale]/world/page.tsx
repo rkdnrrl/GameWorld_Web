@@ -734,7 +734,7 @@ export default function WorldPage() {
               placeholder={t('chatPlaceholder')}
               style={{ flex: 1, background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, color: '#fff', fontSize: 12, padding: '6px 10px', outline: 'none' }}
             />
-            <button onClick={submitChat} style={{ background: '#4f46e5', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 12, padding: '6px 12px', cursor: 'pointer' }}>
+            <button onClick={() => submitChat()} style={{ background: '#4f46e5', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 12, padding: '6px 12px', cursor: 'pointer' }}>
               {t('send')}
             </button>
           </div>
