@@ -478,10 +478,13 @@ function Player({
       camV.current  = Math.max(-1.1, Math.min(1.3, camV.current + e.movementY * 0.003));
     };
     const onLockChange = () => { isLocked.current = !!document.pointerLockElement; };
-    const onClick = () => {
+    const tryLockPointer = () => {
       if (isMobileRef.current) return;
+      if (document.pointerLockElement === el) return;
       el.requestPointerLock();
     };
+    const onClick = () => tryLockPointer();
+    const onPointerDown = () => tryLockPointer();
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       camDist.current = Math.max(1.1, Math.min(14, camDist.current + e.deltaY * 0.01));
@@ -493,6 +496,7 @@ function Player({
     document.addEventListener('pointerlockchange', onLockChange);
     el.addEventListener('wheel', onWheel, { passive: false });
     el.addEventListener('click', onClick);
+    el.addEventListener('pointerdown', onPointerDown);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
@@ -500,6 +504,7 @@ function Player({
       document.removeEventListener('pointerlockchange', onLockChange);
       el.removeEventListener('wheel', onWheel);
       el.removeEventListener('click', onClick);
+      el.removeEventListener('pointerdown', onPointerDown);
     };
   }, [gl]);
 
