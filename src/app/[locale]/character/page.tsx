@@ -317,13 +317,16 @@ function CustomPreview({
     // oneShot: finished 이벤트로 명시적 정지
     if (previewIsOneShot && mixer.current) {
       const mx = mixer.current;
-      const onDone = (e: THREE.Event) => {
-        if ((e as unknown as { action: THREE.AnimationAction }).action === action) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const onDone = (e: any) => {
+        if (e.action === action) {
           action.paused = true;
-          mx.removeEventListener('finished', onDone as THREE.EventListener);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          mx.removeEventListener('finished', onDone as any);
         }
       };
-      mx.addEventListener('finished', onDone as THREE.EventListener);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mx.addEventListener('finished', onDone as any);
     }
   }, [previewAnim, previewTrim, previewIsOneShot, obj, onPlayingClip]);
 
