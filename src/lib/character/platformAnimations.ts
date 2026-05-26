@@ -3,22 +3,21 @@
 import * as THREE from 'three';
 import { retargetClipsToModel } from './mixamoRig';
 
-export type PlatformAnimState = 'idle' | 'walk' | 'run' | 'jump' | 'crouch' | 'prone';
+// 슬롯은 문자열 — 하드코딩된 6개 외에 운영자가 추가한 슬롯도 지원
+export type PlatformAnimState = string;
 
 export type CharacterAnimationSlot = {
-  slot: PlatformAnimState;
+  slot: string;
   name?: string | null;
   assetId?: string | null;
   modelUrl: string;
   enabled?: boolean;
 };
 
-const SLOT_ORDER: PlatformAnimState[] = ['idle', 'walk', 'run', 'jump', 'crouch', 'prone'];
-
-let slotConfigPromise: Promise<Partial<Record<PlatformAnimState, CharacterAnimationSlot>>> | null = null;
+let slotConfigPromise: Promise<Record<string, CharacterAnimationSlot>> | null = null;
 const fbxClipCache = new Map<string, Promise<THREE.AnimationClip[]>>();
 
-export function platformClipName(slot: PlatformAnimState) {
+export function platformClipName(slot: string) {
   return `ALP_${slot}`;
 }
 
@@ -33,10 +32,10 @@ export async function loadPlatformAnimationSlots() {
     .then(async (res) => {
       if (!res.ok) return {};
       const data = await res.json();
-      const slots = (data?.slots || {}) as Partial<Record<PlatformAnimState, CharacterAnimationSlot>>;
-      const enabled: Partial<Record<PlatformAnimState, CharacterAnimationSlot>> = {};
-      for (const slot of SLOT_ORDER) {
-        const value = slots[slot];
+      const slots = (data?.slots || {}) as Record<string, CharacterAnimationSlot>;
+      // 서버가 반환한 모든 슬롯을 동적으로 로드 (SLOT_ORDER 하드코딩 제거)
+      const enabled: Record<string, CharacterAnimationSlot> = {};
+      for (const [slot, value] of Object.entries(slots)) {
         if (value?.modelUrl && value.enabled !== false) enabled[slot] = value;
       }
       return enabled;
@@ -58,10 +57,9 @@ async function loadClipsFromFbx(url: string) {
 
 export async function loadPlatformAnimationStateClips(targetRoot: THREE.Object3D) {
   const slots = await loadPlatformAnimationSlots();
-  const clipsByState = new Map<PlatformAnimState, THREE.AnimationClip>();
+  const clipsByState = new Map<string, THREE.AnimationClip>();
 
-  await Promise.all(SLOT_ORDER.map(async (slot) => {
-    const config = slots[slot];
+  await Promise.all(Object.entries(slots).map(async ([slot, config]) => {
     if (!config?.modelUrl) return;
     try {
       const rawClips = await loadClipsFromFbx(config.modelUrl);
