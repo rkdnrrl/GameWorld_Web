@@ -1578,7 +1578,8 @@
     "coreSlotSection": "コアスロット（物理自動）",
     "customSlotSection": "カスタムスロット",
     "newSlotPlaceholder": "スロット名（例: swim, skydive）",
-    "addSlot": "+ スロット追加"
+    "addSlot": "+ スロット追加",
+    "holdToDelete": "長押しで削除"
   },
   "CreatorNav": {
     "navAssets": "アセット",

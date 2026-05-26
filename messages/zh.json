@@ -1578,7 +1578,8 @@
     "coreSlotSection": "核心槽位（物理自动触发）",
     "customSlotSection": "自定义槽位",
     "newSlotPlaceholder": "槽位名称（例: swim, skydive）",
-    "addSlot": "+ 添加槽位"
+    "addSlot": "+ 添加槽位",
+    "holdToDelete": "长按删除"
   },
   "CreatorNav": {
     "navAssets": "资源",

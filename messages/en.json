@@ -1578,7 +1578,8 @@
     "coreSlotSection": "Core Slots (physics auto-trigger)",
     "customSlotSection": "Custom Slots",
     "newSlotPlaceholder": "Slot name (e.g. swim, skydive)",
-    "addSlot": "+ Add Slot"
+    "addSlot": "+ Add Slot",
+    "holdToDelete": "Hold to delete"
   },
   "CreatorNav": {
     "navAssets": "Assets",

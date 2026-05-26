@@ -1578,7 +1578,8 @@
     "coreSlotSection": "코어 슬롯 (물리 자동 트리거)",
     "customSlotSection": "커스텀 슬롯",
     "newSlotPlaceholder": "슬롯 이름 (예: swim, skydive)",
-    "addSlot": "+ 슬롯 추가"
+    "addSlot": "+ 슬롯 추가",
+    "holdToDelete": "꾹 눌러서 삭제"
   },
   "CreatorNav": {
     "navAssets": "에셋",
