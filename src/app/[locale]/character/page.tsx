@@ -801,13 +801,9 @@ export default function CharacterPage() {
       ? {
           ...appearance, modelUrl, modelScale, fbxRotX: modelRotX, fbxOffsetY: modelOffsetY,
           rig: 'mixamo-compatible',
-          idleAnim:   animMap.idle,
-          walkAnim:   animMap.walk,
-          runAnim:    animMap.run,
-          jumpAnim:   animMap.jump,
-          crouchAnim: animMap.crouch,
-          proneAnim:  animMap.prone,
-          animAutoMapBlocked: ANIM_SLOTS.filter(slot => autoMapBlocked[slot]),
+          // 신포맷: animSlots에 코어 + 커스텀 슬롯 모두 저장
+          animSlots: animMap,
+          animAutoMapBlocked: Object.keys(animMap).filter(slot => autoMapBlocked[slot]),
           animTrims,
         }
       : appearance;
@@ -1376,6 +1372,98 @@ export default function CharacterPage() {
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* 커스텀 슬롯 — 유저 정의 (sleep, swim, skydive 등) */}
+            {modelUrl && availableAnims.filter(a => !a.name.startsWith('ALP_')).length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, marginBottom: 6, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                  {t('customSlotsLabel')}
+                </div>
+
+                {/* 기존 커스텀 슬롯 */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                  {customSlots.map(slot => {
+                    const animName = animMap[slot] ?? '';
+                    const active = previewSlot === slot;
+                    return (
+                      <div key={slot}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{
+                            width: 46, fontSize: 10, color: active ? '#a78bfa' : 'rgba(255,255,255,0.4)',
+                            flexShrink: 0, fontWeight: active ? 700 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }} title={slot}>{slot}</span>
+                          <select
+                            value={animName}
+                            onChange={e => {
+                              const name = e.target.value;
+                              setAnimMap(prev => ({ ...prev, [slot]: name }));
+                              setPreviewSlot(slot);
+                            }}
+                            onFocus={() => setPreviewSlot(slot)}
+                            style={{
+                              flex: 1, background: 'rgba(0,0,0,0.35)',
+                              border: active ? '1px solid rgba(167,139,250,0.4)' : '1px solid rgba(255,255,255,0.1)',
+                              borderRadius: 5, color: '#fff', fontSize: 11, padding: '4px 6px', outline: 'none',
+                            }}
+                          >
+                            <option value="">{t('noneOption')}</option>
+                            {availableAnims.filter(a => !a.name.startsWith('ALP_')).map(a => (
+                              <option key={a.name} value={a.name}>{a.name} ({a.duration.toFixed(1)}s)</option>
+                            ))}
+                          </select>
+                          <button onClick={() => setPreviewSlot(slot)} style={{
+                            width: 26, height: 26, borderRadius: 4, border: 'none', flexShrink: 0,
+                            background: active ? '#7c3aed' : 'rgba(255,255,255,0.07)',
+                            color: '#fff', cursor: 'pointer', fontSize: 9,
+                          }}>▶</button>
+                          <button
+                            onClick={() => {
+                              setCustomSlots(prev => prev.filter(s => s !== slot));
+                              setAnimMap(prev => { const n = { ...prev }; delete n[slot]; return n; });
+                            }}
+                            style={{ width: 22, height: 26, borderRadius: 4, border: 'none', flexShrink: 0, background: 'rgba(239,68,68,0.15)', color: '#fca5a5', cursor: 'pointer', fontSize: 11 }}
+                          >✕</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 새 슬롯 추가 */}
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <input
+                    value={newSlotName}
+                    onChange={e => setNewSlotName(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+                    placeholder={t('customSlotPlaceholder')}
+                    style={{
+                      flex: 1, background: 'rgba(0,0,0,0.3)', border: '1px dashed rgba(255,255,255,0.15)',
+                      borderRadius: 5, color: '#fff', fontSize: 11, padding: '4px 8px', outline: 'none',
+                    }}
+                    onKeyDown={e => {
+                      if (e.key !== 'Enter') return;
+                      const name = newSlotName.trim();
+                      if (!name || customSlots.includes(name) || (CORE_SLOTS as readonly string[]).includes(name)) return;
+                      setCustomSlots(prev => [...prev, name]);
+                      setAnimMap(prev => ({ ...prev, [name]: '' }));
+                      setNewSlotName('');
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      const name = newSlotName.trim();
+                      if (!name || customSlots.includes(name) || (CORE_SLOTS as readonly string[]).includes(name)) return;
+                      setCustomSlots(prev => [...prev, name]);
+                      setAnimMap(prev => ({ ...prev, [name]: '' }));
+                      setNewSlotName('');
+                    }}
+                    style={{
+                      padding: '4px 10px', borderRadius: 5, border: 'none', fontSize: 11,
+                      background: 'rgba(99,102,241,0.25)', color: '#c7d2fe', cursor: 'pointer',
+                    }}
+                  >+ {t('customSlotAdd')}</button>
                 </div>
               </div>
             )}
