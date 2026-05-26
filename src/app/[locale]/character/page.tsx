@@ -264,8 +264,7 @@ function CustomPreview({
   useEffect(() => {
     if (!mixer.current) { onPlayingClip?.(null); return; }
     mixer.current.stopAllAction();
-    // mixer 의 캐시된 액션까지 정리 — 캐시된 액션이 새 clip 재생을 방해할 수 있음
-    mixer.current.uncacheRoot(mixer.current.getRoot());
+    // 본 위치를 바인드 포즈로 복원 (uncacheRoot 제거 — 클립 전환 시 쓰면 안 됨)
     restoreObjectPose(restPose.current);
     if (!previewAnim) { onPlayingClip?.(null); return; }
     const src = animClips.current.find(c => c.name === previewAnim);
