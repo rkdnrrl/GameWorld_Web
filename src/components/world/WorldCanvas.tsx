@@ -738,10 +738,8 @@ function Player({
       const moving      = len > 0;
       const inJumpHold  = Date.now() < jumpHoldUntil.current;
       let state: AnimState = 'idle';
-      if (inJumpHold) {
-        state = 'jump';
-      } else if (!onGround) {
-        // 공중: 상승 중이거나 수직속도 미미하면 jump, 낙하 중이면 fall
+      if (!onGround || inJumpHold) {
+        // jumpHold 중에도 vel.y로 jump/fall 구분 (hold가 끝날 때까지 기다리면 fall 시간이 너무 짧음)
         state = vel.y < -0.5 ? 'fall' : 'jump';
       } else if (isProne) {
         state = moving ? 'prone_move' : 'prone';
