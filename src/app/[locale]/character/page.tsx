@@ -809,6 +809,7 @@ export default function CharacterPage() {
           animSlots: animMap,
           animAutoMapBlocked: Object.keys(animMap).filter(slot => autoMapBlocked[slot]),
           animTrims,
+          animOneShot,
         }
       : appearance;
     try {
