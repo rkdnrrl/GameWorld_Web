@@ -628,7 +628,8 @@ function Player({
         <Html position={[0, 1.95, 0]} center>
           <div
             style={{
-              maxWidth: 220,
+              minWidth: 96,
+              maxWidth: 260,
               background: 'rgba(255,255,255,0.92)',
               color: '#111827',
               fontSize: 12,
@@ -636,7 +637,10 @@ function Player({
               padding: '7px 10px',
               borderRadius: 12,
               boxShadow: '0 6px 18px rgba(0,0,0,0.35)',
-              wordBreak: 'break-word',
+              whiteSpace: 'normal',
+              wordBreak: 'keep-all',
+              overflowWrap: 'anywhere',
+              lineHeight: 1.35,
               textAlign: 'center',
               pointerEvents: 'none',
             }}
@@ -843,7 +847,8 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow }: {
         <Html position={[0, 2.12, 0]} center>
           <div
             style={{
-              maxWidth: 220,
+              minWidth: 96,
+              maxWidth: 260,
               background: 'rgba(255,255,255,0.92)',
               color: '#111827',
               fontSize: 12,
@@ -851,7 +856,10 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow }: {
               padding: '7px 10px',
               borderRadius: 12,
               boxShadow: '0 6px 18px rgba(0,0,0,0.35)',
-              wordBreak: 'break-word',
+              whiteSpace: 'normal',
+              wordBreak: 'keep-all',
+              overflowWrap: 'anywhere',
+              lineHeight: 1.35,
               textAlign: 'center',
               pointerEvents: 'none',
             }}
