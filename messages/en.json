@@ -1325,10 +1325,10 @@
     "shareCharacter": "Share",
     "sharedOn": "Shared",
     "sharedCharacters": "Shared Characters",
-    "sharedSearchPlaceholder": "Search character/creator",
-    "sharedEmpty": "No shared characters.",
+    "sharedSearchPlaceholder": "Search characters...",
+    "sharedEmpty": "No shared characters yet.",
     "importCharacter": "Import",
-    "unknownCreator": "Unknown creator",
+    "unknownCreator": "Unknown user",
     "mixamoGuideTitle": "Mixamo rigging required",
     "mixamoGuideDesc": "For best animation compatibility, we recommend using a Mixamo-rigged character.",
     "mixamoGoButton": "Go to Mixamo"
