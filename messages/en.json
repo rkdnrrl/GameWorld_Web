@@ -1330,8 +1330,8 @@
     "importCharacter": "Import",
     "unknownCreator": "Unknown creator",
     "mixamoGuideTitle": "Mixamo rigging required",
-    "mixamoGuideDesc": "This model doesn't have a compatible skeleton. Upload your character to Mixamo (free), auto-rig it, download as 'Without Skin', then re-upload here.",
-    "mixamoGoButton": "Rig for free on Mixamo"
+    "mixamoGuideDesc": "For best animation compatibility, we recommend using a Mixamo-rigged character.",
+    "mixamoGoButton": "Go to Mixamo"
   },
   "Assets": {
     "title": "Asset Library",

@@ -1330,8 +1330,8 @@
     "importCharacter": "????",
     "unknownCreator": "??????",
     "mixamoGuideTitle": "Mixamoのリギングが必要です",
-    "mixamoGuideDesc": "このモデルには対応スケルトンがありません。Mixamo（無料）でキャラクターをアップロードして自動リギング後、'Without Skin'でダウンロードして再アップロードしてください。",
-    "mixamoGoButton": "MixamoでΒ無料リギング"
+    "mixamoGuideDesc": "アニメーション互換性のため、Mixamoでリギングしたキャラクターを推奨します。",
+    "mixamoGoButton": "Mixamoへ"
   },
   "Assets": {
     "title": "アセットライブラリ",

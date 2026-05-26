@@ -991,27 +991,23 @@ export default function CharacterPage() {
             )}
           </div>
 
-          {/* Mixamo 리깅 안내 */}
+          {/* Mixamo 리깅 안내 — 작은 주의사항 */}
           {showMixamoGuide && (
             <div style={{
-              marginTop: 10, padding: '12px 14px', borderRadius: 12,
-              background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.35)',
+              marginTop: 8, padding: '7px 10px', borderRadius: 8,
+              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+              display: 'flex', alignItems: 'center', gap: 8,
             }}>
-              <div style={{ color: '#fbbf24', fontWeight: 700, fontSize: 12, marginBottom: 6 }}>
-                ⚠️ {t('mixamoGuideTitle')}
-              </div>
-              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, lineHeight: 1.6, marginBottom: 10 }}>
-                {t('mixamoGuideDesc')}
-              </div>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', flex: 1, lineHeight: 1.5 }}>
+                💡 {t('mixamoGuideDesc')}
+              </span>
               <a
                 href="https://www.mixamo.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
-                  display: 'inline-block', padding: '7px 14px',
-                  background: '#f97316', color: '#fff',
-                  borderRadius: 8, fontSize: 12, fontWeight: 700,
-                  textDecoration: 'none',
+                  flexShrink: 0, fontSize: 10, color: '#a5b4fc',
+                  textDecoration: 'none', whiteSpace: 'nowrap',
                 }}
               >
                 {t('mixamoGoButton')} ↗

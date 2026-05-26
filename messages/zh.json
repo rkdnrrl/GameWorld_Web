@@ -1330,8 +1330,8 @@
     "importCharacter": "??",
     "unknownCreator": "????",
     "mixamoGuideTitle": "需要Mixamo绑定骨骼",
-    "mixamoGuideDesc": "此模型没有兼容的骨骼。请将角色上传到Mixamo（免费），完成自动绑定后选择'Without Skin'下载，再重新上传。",
-    "mixamoGoButton": "在Mixamo免费绑定"
+    "mixamoGuideDesc": "为获得最佳动画兼容性，建议使用Mixamo绑定的角色。",
+    "mixamoGoButton": "前往Mixamo"
   },
   "Assets": {
     "title": "资源库",

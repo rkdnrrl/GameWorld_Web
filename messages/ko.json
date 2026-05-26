@@ -1330,8 +1330,8 @@
     "importCharacter": "????",
     "unknownCreator": "? ? ?? ???",
     "mixamoGuideTitle": "Mixamo 리깅이 필요합니다",
-    "mixamoGuideDesc": "이 모델에 호환 가능한 스켈레톤이 없습니다. Mixamo(무료)에서 캐릭터를 업로드하고 자동 리깅한 뒤 'Without Skin'으로 다운로드해 다시 업로드해주세요.",
-    "mixamoGoButton": "Mixamo에서 무료 리깅하기"
+    "mixamoGuideDesc": "공통 애니메이션을 사용하려면 Mixamo에서 리깅한 캐릭터를 권장합니다.",
+    "mixamoGoButton": "Mixamo 바로가기"
   },
   "Assets": {
     "title": "에셋 라이브러리",
