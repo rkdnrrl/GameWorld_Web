@@ -62,9 +62,10 @@ const ANIM_SLOTS = CORE_SLOTS;
 
 function autoMatchAnims(
   anims: { name: string; duration: number }[],
+  slotsToMatch: string[] = Object.keys(ANIM_SLOT_KEYWORDS),
 ): Record<string, string> {
-  const slots = Object.keys(ANIM_SLOT_KEYWORDS);
-  const result: Record<string, string> = { idle: '', walk: '', run: '', jump: '', crouch: '', prone: '' };
+  const result: Record<string, string> = {};
+  for (const s of slotsToMatch) result[s] = '';
   const used = new Set<string>();
 
   // 각 후보 애니메이션을 슬롯별로 점수 매기기
@@ -84,8 +85,9 @@ function autoMatchAnims(
     return 0;
   }
 
-  for (const slot of slots) {
+  for (const slot of slotsToMatch) {
     const keywords = ANIM_SLOT_KEYWORDS[slot];
+    if (!keywords) continue;
     let best: { name: string; score: number } | null = null;
     for (const a of anims) {
       if (used.has(a.name)) continue;
