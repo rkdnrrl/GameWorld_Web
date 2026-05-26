@@ -195,7 +195,7 @@ function restoreObjectPose(poses: ObjectPose[]) {
 }
 
 function CustomPreview({
-  url, userScale, rotX, offsetY = 0, previewAnim, previewTrim, onAnimationsLoaded, onPlayingClip,
+  url, userScale, rotX, offsetY = 0, previewAnim, previewTrim, onAnimationsLoaded, onPlayingClip, onNoSkeleton,
 }: {
   url: string;
   userScale: number;
@@ -206,6 +206,8 @@ function CustomPreview({
   onAnimationsLoaded?: (anims: { name: string; duration: number }[]) => void;
   /** 디버그용 — 실제로 mixer에 들어간 clip 이름 알림 */
   onPlayingClip?: (name: string | null) => void;
+  /** 스켈레톤 없는 메시 감지 시 호출 */
+  onNoSkeleton?: () => void;
 }) {
   const [obj, setObj] = useState<THREE.Object3D | null>(null);
   const g     = useRef<THREE.Group>(null);
