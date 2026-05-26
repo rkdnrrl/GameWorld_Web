@@ -411,10 +411,12 @@ function Player({
   character,
   bubble,
   onMove,
+  inputLocked = false,
 }: {
   character: Record<string, unknown>;
   bubble?: ChatBubble;
   onMove: (p: { x: number; y: number; z: number; rotY: number; animState?: AnimState }) => void;
+  inputLocked?: boolean;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body      = useRef<any>(null);
@@ -464,6 +466,7 @@ function Player({
 
     // 키보드
     const onKeyDown = (e: KeyboardEvent) => {
+      if (inputLocked) return;
       if (e.repeat) return;
       keys.current.add(e.code);
       if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
@@ -507,13 +510,23 @@ function Player({
       el.removeEventListener('click', onClick);
       el.removeEventListener('pointerdown', onPointerDown);
     };
-  }, [gl]);
+  }, [gl, inputLocked]);
+
+  useEffect(() => {
+    if (!inputLocked) return;
+    keys.current.clear();
+    moveTouchRef.current.active = false;
+    moveTouchRef.current.x = 0;
+    moveTouchRef.current.y = 0;
+    moveTouchRef.current.pointerId = -1;
+    jumpTouchQueued.current = false;
+  }, [inputLocked]);
 
   useFrame((_, dt) => {
     /* ── 물리 바디가 준비된 경우에만 이동 처리 ── */
     if (body.current) {
       try {
-      const k = keys.current;
+      const k = inputLocked ? new Set<string>() : keys.current;
       const forward  = k.has('KeyW') || k.has('ArrowUp');
       const backward = k.has('KeyS') || k.has('ArrowDown');
       const left     = k.has('KeyA') || k.has('ArrowLeft');
@@ -545,7 +558,7 @@ function Player({
       if (left)     { mx -= cosH; mz += sinH; }
       if (right)    { mx += cosH; mz -= sinH; }
 
-      if (moveTouchRef.current.active) {
+      if (!inputLocked && moveTouchRef.current.active) {
         const jx = moveTouchRef.current.x;
         const jy = -moveTouchRef.current.y;
         mx += (-sinH * jy) + (cosH * jx);
@@ -666,6 +679,7 @@ function Player({
                 touchAction: 'none',
               }}
               onPointerDown={(e) => {
+                if (inputLocked) return;
                 moveTouchRef.current.active = true;
                 moveTouchRef.current.pointerId = e.pointerId;
                 (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -739,7 +753,7 @@ function Player({
 
             <button
               type="button"
-              onClick={() => { jumpTouchQueued.current = true; }}
+              onClick={() => { if (!inputLocked) jumpTouchQueued.current = true; }}
               style={{
                 position: 'absolute',
                 right: 24,
@@ -1182,9 +1196,10 @@ interface WorldCanvasProps {
   onMove: (pos: { x: number; y: number; z: number; rotY: number; animState?: AnimState }) => void;
   customObjects?: UserMapObject[];
   graphics?: GraphicsSettings;
+  chatInputActive?: boolean;
 }
 
-export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, graphics = DEFAULT_SETTINGS }: WorldCanvasProps) {
+export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, graphics = DEFAULT_SETTINGS, chatInputActive = false }: WorldCanvasProps) {
   const shadowsEnabled = graphics.shadowSize > 0;
   const shadowMapSize: [number, number] = [graphics.shadowSize || 1024, graphics.shadowSize || 1024];
   return (
