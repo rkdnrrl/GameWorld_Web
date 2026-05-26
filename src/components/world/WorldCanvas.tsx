@@ -536,6 +536,17 @@ function Player({
       const vel  = body.current.linvel();
       const posT = body.current.translation();
 
+      if (inputLocked) {
+        body.current.setLinvel({ x: 0, y: vel.y, z: 0 }, true);
+        animStateRef.current = 'idle';
+        const now = Date.now();
+        if (now - lastSend.current > 100) {
+          lastSend.current = now;
+          onMove({ x: posT.x, y: posT.y, z: posT.z, rotY: mesh.current?.rotation.y ?? 0, animState: 'idle' });
+        }
+        return;
+      }
+
       // 상태 기반 속도
       const isCrouch = crouchRef.current;
       const isProne  = proneRef.current;
