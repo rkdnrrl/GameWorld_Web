@@ -1320,21 +1320,19 @@ export default function CharacterPage() {
             </div>
 
             {/* 애니메이션 매핑 */}
-            {modelUrl && availableAnims.length > 0 && (
+            {modelUrl && availableAnims.length > 0 && operatorSlots.length > 0 && (
               <div style={{ marginBottom: 16 }}>
                 <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, marginBottom: 6, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                   {t('animMapping', { count: availableAnims.filter(a => !a.name.startsWith('ALP_')).length })}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {([
-                    ['idle',   t('idleAnimLabel')],
-                    ['walk',   t('walkAnimLabel')],
-                    ['run',    t('runAnimLabel')],
-                    ['jump',   t('jumpAnimLabel')],
-                    ['crouch', t('crouchAnimLabel')],
-                    ['prone',  t('proneAnimLabel')],
-                  ] as const).map(([slot, label]) => {
-                    const animName = animMap[slot];
+                  {operatorSlots.map(slot => {
+                    const knownLabels: Record<string, string> = {
+                      idle: t('idleAnimLabel'), walk: t('walkAnimLabel'), run: t('runAnimLabel'),
+                      jump: t('jumpAnimLabel'), crouch: t('crouchAnimLabel'), prone: t('proneAnimLabel'),
+                    };
+                    const label = knownLabels[slot] ?? slot;
+                    const animName = animMap[slot] ?? '';
                     const animMeta = availableAnims.find(a => a.name === animName);
                     const duration = animMeta?.duration ?? 0;
                     const trim     = animTrims[slot] ?? { start: 0, end: duration };
