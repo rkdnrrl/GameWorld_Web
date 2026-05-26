@@ -29,6 +29,7 @@ export default function OperatorCharacterAnimationsPage() {
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [newSlotName, setNewSlotName] = useState("");
+  const [deletedSlots, setDeletedSlots] = useState<string[]>([]);
 
   useEffect(() => {
     const token = session.getToken();
@@ -83,6 +84,7 @@ export default function OperatorCharacterAnimationsPage() {
   function removeSlot(slot: string) {
     setSlotOrder(prev => prev.filter(s => s !== slot));
     setForm(prev => { const n = { ...prev }; delete n[slot]; return n; });
+    setDeletedSlots(prev => prev.includes(slot) ? prev : [...prev, slot]);
   }
 
   async function save() {
@@ -103,6 +105,16 @@ export default function OperatorCharacterAnimationsPage() {
         body: JSON.stringify({ slots: payload }),
       });
       if (!res.ok) throw new Error();
+      // 삭제된 슬롯을 서버 DB에서도 제거
+      await Promise.all(
+        deletedSlots.map(slot =>
+          fetch(`/api/operator/character-animations/${encodeURIComponent(slot)}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        )
+      );
+      setDeletedSlots([]);
       setMessage(t("saved"));
     } catch {
       setMessage(t("saveFailed"));
