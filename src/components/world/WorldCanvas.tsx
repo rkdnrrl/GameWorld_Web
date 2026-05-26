@@ -151,7 +151,7 @@ const KEYWORD_FALLBACK: Record<AnimState, string[]> = {
   prone:  ['prone', 'lying', 'lie', '엎드', '눕'],
 };
 
-function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animNames, animTrims, blockedAnimStates, castShadow = true }: {
+function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animNames, animTrims, blockedAnimStates, animOneShot, castShadow = true }: {
   url: string;
   userScale: number;
   rotX: number;
@@ -161,6 +161,8 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   animNames?: Record<string, string>;
   animTrims?: Record<string, AnimTrim>;
   blockedAnimStates?: Record<string, boolean>;
+  /** 한번만 재생할 슬롯 목록 — 재생 완료 후 idle로 복귀 */
+  animOneShot?: string[];
   castShadow?: boolean;
 }) {
   const [obj, setObj]   = useState<THREE.Object3D | null>(null);
