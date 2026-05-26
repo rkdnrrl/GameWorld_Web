@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import { session } from '@/lib/api';
 import CreatorNav from '@/components/creator/CreatorNav';
 import * as THREE from 'three';
-import { retargetClipsToModel } from '@/lib/character/mixamoRig';
+import { retargetClipsToModel, hasSkeleton } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
