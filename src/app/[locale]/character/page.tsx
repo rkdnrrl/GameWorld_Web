@@ -221,13 +221,12 @@ function CustomPreview({
 
     const onLoaded = async (loaded: THREE.Object3D, anims: THREE.AnimationClip[] = []) => {
       if (cancelled) return;
-      // 스켈레톤 없거나 Mixamo 호환 아님 → 안내 표시
-      const skelExists = hasSkeleton(loaded);
-      const isMixamo   = skelExists && findMixamoCompatibleBones(loaded).size > 0;
-      if (!isMixamo) {
+      // 뼈 없으면 미리보기 불가 — Mixamo 안내는 항상 표시 (모델 선택 시 무조건)
+      if (!hasSkeleton(loaded)) {
         onNoSkeleton?.();
-        if (!skelExists) return; // 뼈 자체 없으면 미리보기 불가
+        return;
       }
+      onNoSkeleton?.();
       autoNormalize(loaded, rotX, 1.8);
       const platformClips = await loadPlatformAnimationStateClips(loaded);
       if (cancelled) return;
