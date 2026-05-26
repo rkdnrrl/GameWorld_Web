@@ -622,6 +622,7 @@ export default function CharacterPage() {
   const [previewSlot, setPreviewSlot] = useState<'idle' | 'walk' | 'run' | 'jump' | 'crouch' | 'prone'>('idle');
   const [playingClip, setPlayingClip] = useState<string | null>(null);
   const [showPicker, setShowPicker] = useState(false);
+  const [showMixamoGuide, setShowMixamoGuide] = useState(false);
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
   const [myChars, setMyChars]     = useState<MyCharacter[]>([]);
