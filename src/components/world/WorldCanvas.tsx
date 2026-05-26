@@ -678,10 +678,8 @@ function Player({
       else if (isProne)            state = 'prone';
       else if (isCrouch)           state = 'crouch';
       else if (moving)             state = sprint ? 'run' : 'walk';
-      // 이모트 오버라이드: 움직이면 해제, idle이면 이모트 유지
-      if (state !== 'idle') {
-        emoteSlotRef.current = null;
-      } else if (emoteSlotRef.current) {
+      // 이모트 오버라이드: 활성화 중이면 다른 애니메이션 차단
+      if (emoteSlotRef.current) {
         state = emoteSlotRef.current;
       }
       animStateRef.current = state;
