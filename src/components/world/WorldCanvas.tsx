@@ -478,12 +478,14 @@ function Player({
 
     // 마우스
     const onMouseMove = (e: MouseEvent) => {
+      if (inputLocked) return;
       if (!isLocked.current) return;
       camH.current -= e.movementX * 0.003;
       camV.current  = Math.max(-1.1, Math.min(1.3, camV.current + e.movementY * 0.003));
     };
     const onLockChange = () => { isLocked.current = !!document.pointerLockElement; };
     const tryLockPointer = () => {
+      if (inputLocked) return;
       if (document.pointerLockElement === el) return;
       el.requestPointerLock();
     };
@@ -515,10 +517,15 @@ function Player({
   useEffect(() => {
     if (!inputLocked) return;
     keys.current.clear();
+    if (document.pointerLockElement) {
+      document.exitPointerLock();
+    }
     moveTouchRef.current.active = false;
     moveTouchRef.current.x = 0;
     moveTouchRef.current.y = 0;
     moveTouchRef.current.pointerId = -1;
+    lookTouchRef.current.active = false;
+    lookTouchRef.current.pointerId = -1;
     jumpTouchQueued.current = false;
   }, [inputLocked]);
 
@@ -696,6 +703,7 @@ function Player({
                 (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
               }}
               onPointerMove={(e) => {
+                if (inputLocked) return;
                 if (!moveTouchRef.current.active || moveTouchRef.current.pointerId !== e.pointerId) return;
                 const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                 const cx = rect.left + rect.width / 2;
@@ -735,6 +743,7 @@ function Player({
                 touchAction: 'none',
               }}
               onPointerDown={(e) => {
+                if (inputLocked) return;
                 lookTouchRef.current.active = true;
                 lookTouchRef.current.pointerId = e.pointerId;
                 lookTouchRef.current.lastX = e.clientX;
@@ -742,6 +751,7 @@ function Player({
                 (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
               }}
               onPointerMove={(e) => {
+                if (inputLocked) return;
                 if (!lookTouchRef.current.active || lookTouchRef.current.pointerId !== e.pointerId) return;
                 const dx = e.clientX - lookTouchRef.current.lastX;
                 const dy = e.clientY - lookTouchRef.current.lastY;
