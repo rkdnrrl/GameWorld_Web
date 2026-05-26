@@ -63,11 +63,12 @@ export default function OperatorCharacterAnimationsPage() {
     for (const slot of SLOT_ORDER) {
       const value = form[slot];
       if (!value) continue;
+      const modelUrl = value.modelUrl.trim();
       payload[slot] = {
         name: value.name,
         assetId: value.assetId,
-        modelUrl: value.modelUrl.trim(),
-        enabled: value.enabled,
+        modelUrl,
+        enabled: value.enabled && Boolean(modelUrl),
       };
     }
     return payload;
