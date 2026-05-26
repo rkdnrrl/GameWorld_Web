@@ -732,6 +732,7 @@ export default function CharacterPage() {
     setModelUrl(asset.modelUrl);
     setModelName(asset.name);
     setShowPicker(false);
+    setShowMixamoGuide(false);
     setModelScale(1.0);
     setModelRotX(-Math.PI / 2);
     setModelOffsetY(0);
