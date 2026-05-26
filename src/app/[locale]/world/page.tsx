@@ -60,6 +60,7 @@ export default function WorldPage() {
   const [chatInput, setChatInput] = useState('');
   const [customObjects, setCustomObjects] = useState<MapObject[] | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<HTMLInputElement>(null);
 
   const [hubOpen, setHubOpen] = useState(false);
   const [mapModalOpen, setMapModalOpen] = useState(false);
@@ -177,6 +178,26 @@ export default function WorldPage() {
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [chatLog]);
+
+  useEffect(() => {
+    if (!chatOpen) return;
+    const t = setTimeout(() => chatInputRef.current?.focus(), 0);
+    return () => clearTimeout(t);
+  }, [chatOpen]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter') return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      e.preventDefault();
+      setChatOpen(true);
+      setTimeout(() => chatInputRef.current?.focus(), 0);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   useEffect(() => {
     const sync = () => setIsFullscreen(!!document.fullscreenElement);
@@ -702,6 +723,7 @@ export default function WorldPage() {
         {chatOpen && (
           <div style={{ display: 'flex', gap: 6 }}>
             <input
+              ref={chatInputRef}
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitChat(); } }}
