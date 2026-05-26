@@ -71,7 +71,9 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
 }
 
 /* ── 애니메이션 상태 타입 ─────────────── */
-export type AnimState = 'idle' | 'walk' | 'run' | 'jump' | 'crouch' | 'prone';
+// 코어 슬롯은 물리엔진이 자동 트리거. 커스텀 슬롯(swim, skydive 등)은 게임 코드가 직접 setState.
+export type AnimState = string;
+export const CORE_ANIM_STATES = ['idle', 'walk', 'run', 'jump', 'crouch', 'prone'] as const;
 
 export interface AnimTrim { start?: number; end?: number; }
 
