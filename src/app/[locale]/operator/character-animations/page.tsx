@@ -29,6 +29,7 @@ export default function OperatorCharacterAnimationsPage() {
   const [assets, setAssets] = useState<Array<{ id: string; name: string; modelUrl: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingSlot, setUploadingSlot] = useState<Slot | null>(null);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -101,6 +102,35 @@ export default function OperatorCharacterAnimationsPage() {
     }
   }
 
+  async function uploadAnimation(slot: Slot, file: File | null) {
+    const token = session.getToken();
+    if (!token || !file) return;
+    setUploadingSlot(slot);
+    setMessage("");
+    try {
+      const formData = new FormData();
+      formData.append("animation", file);
+      const res = await fetch(`/api/operator/character-animations/${slot}/upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.slot?.modelUrl) throw new Error("upload failed");
+      patchSlot(slot, {
+        name: data.slot.name || file.name.replace(/\.fbx$/i, ""),
+        assetId: null,
+        modelUrl: data.slot.modelUrl,
+        enabled: true,
+      });
+      setMessage(t("saved"));
+    } catch {
+      setMessage(t("uploadFailed"));
+    } finally {
+      setUploadingSlot(null);
+    }
+  }
+
   if (loading) {
     return <div className="mx-auto max-w-5xl px-4 py-10 text-sm text-zinc-500">{t("loading")}</div>;
   }
@@ -133,7 +163,19 @@ export default function OperatorCharacterAnimationsPage() {
                 </button>
               </div>
 
-              <label className="block text-xs font-medium text-zinc-500">{t("assetSelect")}</label>
+              <label className="block text-xs font-medium text-zinc-500">{t("uploadFile")}</label>
+              <input
+                type="file"
+                accept=".fbx"
+                disabled={uploadingSlot === slot}
+                onChange={(e) => void uploadAnimation(slot, e.target.files?.[0] || null)}
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              />
+              {uploadingSlot === slot && (
+                <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">{t("uploading")}</p>
+              )}
+
+              <label className="mt-4 block text-xs font-medium text-zinc-500">{t("assetSelect")}</label>
               <select
                 value={value.assetId || ""}
                 onChange={(e) => {
