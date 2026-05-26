@@ -656,18 +656,28 @@ export default function CharacterPage() {
     setModelScale(clamp(Number(ap.modelScale ?? 1.0) || 1.0, 0.1, 3));
     setModelRotX(sanitizeRotX(ap.fbxRotX));
     setModelOffsetY(sanitizeOffsetY(ap.fbxOffsetY));
-    const nextAnimMap = {
-      idle: String(ap.idleAnim || ''),
-      walk: String(ap.walkAnim || ''),
-      run: String(ap.runAnim || ''),
-      jump: String(ap.jumpAnim || ''),
-      crouch: String(ap.crouchAnim || ''),
-      prone: String(ap.proneAnim || ''),
-    };
+    // 새 포맷(animSlots) 우선, 없으면 이전 개별 필드에서 읽기
+    const savedSlots = ap.animSlots as Record<string, string> | undefined;
+    const nextAnimMap: Record<string, string> = savedSlots
+      ? { idle: '', walk: '', run: '', jump: '', crouch: '', prone: '', ...savedSlots }
+      : {
+          idle: String(ap.idleAnim || ''),
+          walk: String(ap.walkAnim || ''),
+          run: String(ap.runAnim || ''),
+          jump: String(ap.jumpAnim || ''),
+          crouch: String(ap.crouchAnim || ''),
+          prone: String(ap.proneAnim || ''),
+        };
     setAnimMap(nextAnimMap);
+
+    // 커스텀 슬롯 복원 (코어 슬롯 제외한 나머지)
+    const coreSet = new Set(CORE_SLOTS as readonly string[]);
+    const loadedCustom = Object.keys(nextAnimMap).filter(k => !coreSet.has(k));
+    setCustomSlots(loadedCustom);
+
     const savedBlocked = Array.isArray(ap.animAutoMapBlocked) ? ap.animAutoMapBlocked.map(String) : [];
     const blocked: Record<string, boolean> = {};
-    for (const slot of ANIM_SLOTS) {
+    for (const slot of Object.keys(nextAnimMap)) {
       blocked[slot] = savedBlocked.includes(slot) || !nextAnimMap[slot];
     }
     setAutoMapBlocked(blocked);
