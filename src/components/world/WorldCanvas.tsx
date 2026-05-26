@@ -801,7 +801,7 @@ function Player({
 }
 
 /* ── 원격 플레이어 ──────────────────────── */
-function RemotePlayerMesh({ player, posesRef, castShadow }: {
+function RemotePlayerMesh({ player, posesRef, bubble, castShadow }: {
   player: RemotePlayer;
   posesRef: React.RefObject<Map<string, PlayerPose>>;
   bubble?: ChatBubble;
