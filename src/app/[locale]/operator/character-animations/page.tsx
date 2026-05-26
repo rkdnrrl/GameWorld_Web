@@ -81,7 +81,6 @@ export default function OperatorCharacterAnimationsPage() {
   }
 
   function removeSlot(slot: string) {
-    if (CORE_SLOTS.includes(slot)) return; // 코어 슬롯은 삭제 불가
     setSlotOrder(prev => prev.filter(s => s !== slot));
     setForm(prev => { const n = { ...prev }; delete n[slot]; return n; });
   }
