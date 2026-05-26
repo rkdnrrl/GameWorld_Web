@@ -712,9 +712,9 @@ function Player({
       if (len > 0) { mx /= len; mz /= len; }
       body.current.setLinvel({ x: mx * SPEED, y: vel.y, z: mz * SPEED }, true);
 
-      // 지면 체크
+      // 지면 체크 — 자기 RigidBody 제외 (제외 없으면 캡슐 내부 → TOI=0 → 항상 onGround=true)
       const ray = new rapier.Ray({ x: posT.x, y: posT.y, z: posT.z }, { x: 0, y: -1, z: 0 });
-      const hit = rWorld.castRay(ray, 1.3, true);
+      const hit = rWorld.castRay(ray, 1.3, true, undefined, undefined, undefined, body.current ?? undefined);
       const onGround = !!(hit && hit.timeOfImpact < 0.7);
 
       // 점프: Space가 새로 눌렸을 때만 1번 (앉기/엎드리기 중엔 점프 금지)
