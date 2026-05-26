@@ -324,6 +324,10 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true }: {
         prone:  String(appearance.proneAnim  ?? ''),
       };
 
+  const animOneShot = Array.isArray(appearance.animOneShot)
+    ? (appearance.animOneShot as unknown[]).map(String)
+    : undefined;
+
   if (modelUrl) {
     return (
       <CustomModel
@@ -336,6 +340,7 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true }: {
         animNames={animNames}
         animTrims={trims}
         blockedAnimStates={blockedAnimStates}
+        animOneShot={animOneShot}
       />
     );
   }
