@@ -1053,12 +1053,12 @@ export default function CharacterPage() {
           boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
         }}>
 
-          {/* 3D 프리뷰 — sticky로 스크롤 따라옴 */}
+          {/* 3D 프리뷰 */}
           <div style={{
             width: 360, height: 500, borderRadius: 16, overflow: 'hidden', flexShrink: 0,
             background: 'linear-gradient(160deg,#1e293b,#0f172a)',
             border: '1px solid rgba(255,255,255,0.1)',
-            position: 'sticky', top: 24, alignSelf: 'flex-start',
+            position: 'relative', alignSelf: 'flex-start',
           }}>
             <Canvas camera={{ position: [0, 0.5, 4.2], fov: 35 }}>
               <ambientLight intensity={0.5} />
@@ -1130,8 +1130,8 @@ export default function CharacterPage() {
             )}
           </div>
 
-          {/* 설정 패널 */}
-          <div style={{ width: 300 }}>
+          {/* 설정 패널 — 독립 스크롤 */}
+          <div style={{ width: 300, overflowY: 'auto', maxHeight: 'calc(100vh - 120px)' }}>
             <h2 style={{ color: '#fff', margin: '0 0 18px', fontSize: 20, fontWeight: 800 }}>{t('title')}</h2>
 
             {myChars.length > 0 && (
