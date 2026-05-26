@@ -157,16 +157,17 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   rotX: number;
   offsetY?: number;
   animStateRef?: React.RefObject<AnimState>;
-  animNames?: Partial<Record<AnimState, string>>;
-  animTrims?: Partial<Record<AnimState, AnimTrim>>;
-  blockedAnimStates?: Partial<Record<AnimState, boolean>>;
+  /** 슬롯명 → FBX 클립명 (코어 슬롯 + 커스텀 슬롯 모두 포함) */
+  animNames?: Record<string, string>;
+  animTrims?: Record<string, AnimTrim>;
+  blockedAnimStates?: Record<string, boolean>;
   castShadow?: boolean;
 }) {
   const [obj, setObj]   = useState<THREE.Object3D | null>(null);
   const mixer           = useRef<THREE.AnimationMixer | null>(null);
-  const clipByState     = useRef<Map<AnimState, THREE.AnimationClip>>(new Map());
+  const clipByState     = useRef<Map<string, THREE.AnimationClip>>(new Map());
   const currentAction   = useRef<THREE.AnimationAction | null>(null);
-  const currentState    = useRef<AnimState | null>(null);
+  const currentState    = useRef<string | null>(null);
 
   useEffect(() => {
     if (!url) return;
@@ -175,18 +176,18 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
     const setupMixer = (
       loaded: THREE.Object3D,
       anims: THREE.AnimationClip[],
-      platformClips: Map<AnimState, THREE.AnimationClip>,
+      platformClips: Map<string, THREE.AnimationClip>,
     ) => {
       if (!anims.length && platformClips.size === 0) return;
       mixer.current = new THREE.AnimationMixer(loaded);
       clipByState.current.clear();
 
-      // 1. 플랫폼 공통 애니메이션을 폴백으로 먼저 세팅 (blockedAnimStates 무시 — 공통 애님은 항상 적용)
+      // 1. 플랫폼 공통 애니메이션을 폴백으로 먼저 세팅
       platformClips.forEach((clip, state) => {
         clipByState.current.set(state, trimClip(clip, animTrims?.[state]));
       });
 
-      // 2. 캐릭터 개별 애니메이션이 공통보다 우선 적용 (blocked 슬롯은 건너뜀)
+      // 2. 캐릭터 개별 슬롯 (코어 + 커스텀 모두) — 공통보다 우선, blocked 슬롯은 건너뜀
       const findByExact = (name?: string) => name ? anims.find(a => a.name === name) : undefined;
       const findByKeyword = (needles: string[]) =>
         anims.find(a => {
@@ -194,13 +195,14 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
           return needles.some(n => lname.includes(n.toLowerCase()));
         });
 
-      (['idle', 'walk', 'run', 'jump', 'crouch', 'prone'] as AnimState[]).forEach(state => {
+      // animNames에 정의된 모든 슬롯 처리 (idle, walk, run, ... swim, skydive, sleep 등)
+      Object.entries(animNames ?? {}).forEach(([state, clipName]) => {
         if (blockedAnimStates?.[state]) return;
-        const src = findByExact(animNames?.[state]) ?? findByKeyword(KEYWORD_FALLBACK[state]);
+        const src = findByExact(clipName) ?? findByKeyword(KEYWORD_FALLBACK[state] ?? []);
         if (src) clipByState.current.set(state, trimClip(src, animTrims?.[state]));
       });
 
-      // 3. 아무 클립도 없고 FBX에 애니메이션이 있으면 첫 번째를 idle 폴백으로 사용
+      // 3. 아무 클립도 없으면 첫 번째를 idle 폴백으로 사용
       if (clipByState.current.size === 0 && anims.length > 0 && !blockedAnimStates?.idle) {
         clipByState.current.set('idle', trimClip(anims[0], animTrims?.idle));
       }
