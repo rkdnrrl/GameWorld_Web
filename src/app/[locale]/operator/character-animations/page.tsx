@@ -236,6 +236,19 @@ export default function OperatorCharacterAnimationsPage() {
         {slotOrder.map(slot => <SlotCard key={slot} slot={slot} />)}
       </div>
 
+      {/* 코어 슬롯 빠른 추가 */}
+      {CORE_SLOTS.filter(s => !slotOrder.includes(s)).length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {CORE_SLOTS.filter(s => !slotOrder.includes(s)).map(s => (
+            <button key={s} type="button"
+              onClick={() => { setSlotOrder(prev => [...prev, s]); setForm(prev => ({ ...prev, [s]: emptySlot() })); }}
+              className="rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-900">
+              + {s}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* 새 슬롯 추가 */}
       <div className="flex gap-2 mb-8">
         <input
