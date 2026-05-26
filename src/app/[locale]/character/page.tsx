@@ -989,31 +989,29 @@ export default function CharacterPage() {
                 ▶ {playingClip || '(정지)'} · slot: {previewSlot}
               </div>
             )}
+            {/* Mixamo 리깅 안내 — 프리뷰 내 상단 오버레이 */}
+            {showMixamoGuide && (
+              <div style={{
+                position: 'absolute', top: 8, left: 8, right: 8,
+                padding: '5px 8px', borderRadius: 6,
+                background: 'rgba(0,0,0,0.55)',
+                display: 'flex', alignItems: 'center', gap: 6,
+                pointerEvents: 'auto',
+              }}>
+                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', flex: 1, lineHeight: 1.4 }}>
+                  💡 {t('mixamoGuideDesc')}
+                </span>
+                <a
+                  href="https://www.mixamo.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ flexShrink: 0, fontSize: 10, color: '#a5b4fc', textDecoration: 'none', whiteSpace: 'nowrap' }}
+                >
+                  {t('mixamoGoButton')} ↗
+                </a>
+              </div>
+            )}
           </div>
-
-          {/* Mixamo 리깅 안내 — 작은 주의사항 */}
-          {showMixamoGuide && (
-            <div style={{
-              marginTop: 8, padding: '7px 10px', borderRadius: 8,
-              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-              display: 'flex', alignItems: 'center', gap: 8,
-            }}>
-              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', flex: 1, lineHeight: 1.5 }}>
-                💡 {t('mixamoGuideDesc')}
-              </span>
-              <a
-                href="https://www.mixamo.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  flexShrink: 0, fontSize: 10, color: '#a5b4fc',
-                  textDecoration: 'none', whiteSpace: 'nowrap',
-                }}
-              >
-                {t('mixamoGoButton')} ↗
-              </a>
-            </div>
-          )}
 
           {/* 설정 패널 */}
           <div style={{ width: 300 }}>
@@ -1337,7 +1335,7 @@ export default function CharacterPage() {
                             }}
                           >
                             <option value="">{t('noneOption')}</option>
-                            {availableAnims.map(a => (
+                            {availableAnims.filter(a => !a.name.startsWith('ALP_')).map(a => (
                               <option key={a.name} value={a.name}>{a.name} ({a.duration.toFixed(1)}s)</option>
                             ))}
                           </select>
