@@ -239,6 +239,24 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
     });
   }, [castShadow, obj]);
 
+  // oneShot 완료 감지 — mixer 'finished' 이벤트로 idle 복귀
+  useEffect(() => {
+    if (!mixer.current || !animStateRef) return;
+    const onFinished = (e: THREE.Event) => {
+      const action = (e as unknown as { action: THREE.AnimationAction }).action;
+      if (action !== currentAction.current) return;
+      // 한번만 재생 슬롯이 완료되면 idle로 복귀
+      if (animOneShot?.includes(currentState.current ?? '')) {
+        if (animStateRef.current === currentState.current) {
+          animStateRef.current = 'idle';
+        }
+        currentState.current = null; // 강제 재평가
+      }
+    };
+    mixer.current.addEventListener('finished', onFinished);
+    return () => { mixer.current?.removeEventListener('finished', onFinished); };
+  }, [obj, animOneShot, animStateRef]);
+
   // 단일 액션 크로스페이드 (state 바뀔 때만 전환)
   useFrame((_, dt) => {
     mixer.current?.update(dt);
@@ -257,6 +275,10 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       return;
     }
 
+    // oneShot 슬롯이면 LoopOnce, 아니면 LoopRepeat
+    const isOneShot = animOneShot?.includes(desired) ?? false;
+    nextAction.setLoop(isOneShot ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
+    nextAction.clampWhenFinished = isOneShot;
     nextAction.reset().fadeIn(0.2).play();
     if (currentAction.current) currentAction.current.fadeOut(0.2);
     currentAction.current = nextAction;
