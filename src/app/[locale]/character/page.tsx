@@ -702,6 +702,8 @@ export default function CharacterPage() {
     setAnimMap({ idle: '', walk: '', run: '', jump: '', crouch: '', prone: '' });
     setAutoMapBlocked({});
     setAnimTrims({});
+    setCustomSlots([]);
+    setNewSlotName('');
     setCreatingNew(true);
   };
 
