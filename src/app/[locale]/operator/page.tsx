@@ -3,8 +3,10 @@
 import { Link } from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
 import { useEffect, useState } from "react";
-import { session, api, ApiError } from "@/lib/api";
+import { session } from "@/lib/api";
 import { useTranslations } from "next-intl";
+
+const API = process.env.NEXT_PUBLIC_API_URL || "https://airliveplay.com";
 
 export default function OperatorIndexPage() {
   const router = useRouter();
@@ -15,25 +17,13 @@ export default function OperatorIndexPage() {
 
   const MENU = [
     {
-      section: t("sectionUserManagement"),
-      items: [
-        { href: "/operator/activity-logs", emoji: "📋", label: t("menuActivityLogs"), desc: t("menuActivityLogsDesc") },
-        { href: "/operator/smelt-stock", emoji: "⚗️", label: t("menuSmeltStock"), desc: t("menuSmeltStockDesc") },
-      ],
-    },
-    {
       section: t("sectionContentManagement"),
       items: [
         { href: "/operator/games/pending", emoji: "🎮", label: t("menuPendingGames"), desc: t("menuPendingGamesDesc") },
         { href: "/operator/games/manage", emoji: "🗂️", label: t("menuManageGames"), desc: t("menuManageGamesDesc") },
         { href: "/operator/character-animations", emoji: "🦴", label: tAnim("title"), desc: tAnim("subtitle") },
-        { href: "/operator/categories", emoji: "🏷️", label: "게임 유형 관리", desc: "게임 유형을 추가·수정·삭제합니다." },
-        { href: "/operator/genres", emoji: "🗂️", label: "게임 카테고리 관리", desc: "게임 카테고리(장르)를 추가·수정·삭제합니다." },
         { href: "/operator/asset-kinds", emoji: "📦", label: "에셋 타입 관리", desc: "에셋 카테고리(3D/이미지/오디오 등)를 추가·수정·삭제합니다." },
         { href: "/operator/asset-reports", emoji: "⚠️", label: "에셋 신고 검토", desc: "공개 에셋에 대한 신고를 검토·처리합니다." },
-        { href: "/operator/shared-pixel-arts", emoji: "🖼️", label: t("menuSharedPixelArts"), desc: t("menuSharedPixelArtsDesc") },
-        { href: "/operator/fishing-items", emoji: "🎣", label: t("menuFishingItems"), desc: t("menuFishingItemsDesc") },
-        { href: "/operator/equip-arts", emoji: "⚒️", label: t("menuEquipArts"), desc: t("menuEquipArtsDesc") },
       ],
     },
   ];
@@ -41,10 +31,11 @@ export default function OperatorIndexPage() {
   useEffect(() => {
     const tk = session.getToken();
     if (!tk) { router.replace("/login"); return; }
-    api.operatorActivityLogs(tk, { limit: 1 })
-      .catch((err) => {
-        if (err instanceof ApiError && err.status === 403) setForbidden(true);
-      })
+    fetch(`${API}/api/operator/character-animations`, {
+      headers: { Authorization: `Bearer ${tk}` },
+    })
+      .then((r) => { if (r.status === 403) setForbidden(true); })
+      .catch(() => {})
       .finally(() => setChecking(false));
   }, [router]);
 
