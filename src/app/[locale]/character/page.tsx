@@ -622,6 +622,8 @@ export default function CharacterPage() {
   // 커스텀 슬롯 목록 (유저 정의: sleep, swim, skydive 등)
   const [customSlots, setCustomSlots] = useState<string[]>([]);
   const [newSlotName, setNewSlotName] = useState('');
+  // 한번만 재생할 슬롯 목록 (나머지는 루프)
+  const [animOneShot, setAnimOneShot] = useState<string[]>([]);
   // 각 슬롯의 트림 구간 (초)
   const [animTrims, setAnimTrims] = useState<Record<string, { start: number; end: number }>>({});
   const [previewSlot, setPreviewSlot] = useState<string>('idle');
