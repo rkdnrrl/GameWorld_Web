@@ -270,10 +270,10 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
     const onFinished = (e: THREE.Event) => {
       const action = (e as unknown as { action: THREE.AnimationAction }).action;
       if (action !== currentAction.current) return;
-      // 한번만 재생 슬롯이 완료되면 idle로 복귀
+      // 한번만 재생 슬롯이 완료되면 '__done__' 마커 설정 (Player가 emote 해제)
       if (animOneShot?.includes(currentState.current ?? '')) {
         if (animStateRef.current === currentState.current) {
-          animStateRef.current = 'idle';
+          animStateRef.current = '__done__';
         }
         currentState.current = null; // 강제 재평가
       }
@@ -288,6 +288,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
     if (!mixer.current) return;
 
     const desired = animStateRef?.current || 'idle';
+    if (desired === '__done__') return; // Player가 처리할 sentinel — skip
     if (desired === currentState.current) return;
 
     // 매칭되는 클립 없으면 idle로 폴백
@@ -619,6 +620,12 @@ function Player({
   }, [inputLocked]);
 
   useFrame((_, dt) => {
+    /* ── oneShot 완료 sentinel 처리 — emote 해제 ── */
+    if (animStateRef.current === '__done__') {
+      emoteSlotRef.current = null;
+      animStateRef.current = 'idle';
+    }
+
     /* ── 물리 바디가 준비된 경우에만 이동 처리 ── */
     if (body.current) {
       try {

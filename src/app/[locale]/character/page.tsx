@@ -314,6 +314,17 @@ function CustomPreview({
     action.reset();
     action.play();
     onPlayingClip?.(clip.name);
+    // oneShot: finished 이벤트로 명시적 정지
+    if (previewIsOneShot && mixer.current) {
+      const mx = mixer.current;
+      const onDone = (e: THREE.Event) => {
+        if ((e as unknown as { action: THREE.AnimationAction }).action === action) {
+          action.paused = true;
+          mx.removeEventListener('finished', onDone as THREE.EventListener);
+        }
+      };
+      mx.addEventListener('finished', onDone as THREE.EventListener);
+    }
   }, [previewAnim, previewTrim, previewIsOneShot, obj, onPlayingClip]);
 
   // 슬롯별 외부 FBX 로드 — 유저가 각 슬롯에 직접 지정한 에셋
