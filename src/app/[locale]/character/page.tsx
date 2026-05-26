@@ -8,6 +8,7 @@ import { session } from '@/lib/api';
 import CreatorNav from '@/components/creator/CreatorNav';
 import * as THREE from 'three';
 import { retargetClipsToModel } from '@/lib/character/mixamoRig';
+import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
@@ -185,22 +186,25 @@ function CustomPreview({
     if (!url) return;
     let cancelled = false;
 
-    const onLoaded = (loaded: THREE.Object3D, anims: THREE.AnimationClip[] = []) => {
+    const onLoaded = async (loaded: THREE.Object3D, anims: THREE.AnimationClip[] = []) => {
       if (cancelled) return;
       autoNormalize(loaded, rotX, 1.8);
+      const platformClips = await loadPlatformAnimationStateClips(loaded);
+      if (cancelled) return;
       const compatibleAnims = retargetClipsToModel(anims, loaded);
-      animClips.current = compatibleAnims;
-      if (compatibleAnims.length) {
+      const combinedAnims = [...platformClips.values(), ...compatibleAnims];
+      animClips.current = combinedAnims;
+      if (combinedAnims.length) {
         mixer.current = new THREE.AnimationMixer(loaded);
       }
-      onAnimationsLoaded?.(compatibleAnims.map(a => ({ name: a.name, duration: a.duration })));
+      onAnimationsLoaded?.(combinedAnims.map(a => ({ name: a.name, duration: a.duration })));
       setObj(loaded);
     };
 
     // FBX만 지원
     import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
       new FBXLoader().load(url, (fbx) => {
-        onLoaded(fbx, (fbx as unknown as { animations: THREE.AnimationClip[] }).animations ?? []);
+        void onLoaded(fbx, (fbx as unknown as { animations: THREE.AnimationClip[] }).animations ?? []);
       });
     });
     return () => {

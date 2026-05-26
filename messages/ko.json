@@ -1543,6 +1543,27 @@
     "shadowFilterPCFSoft": "매우 소프트",
     "shadowSoftness": "그림자 부드러움"
   },
+  "OperatorCharacterAnimations": {
+    "title": "캐릭터 공통 애니메이션",
+    "subtitle": "운영자가 등록한 FBX 애니메이션을 모든 휴머노이드 캐릭터에 적용합니다.",
+    "back": "운영 메뉴로 돌아가기",
+    "loading": "불러오는 중...",
+    "save": "저장",
+    "saving": "저장 중...",
+    "saved": "저장되었습니다.",
+    "saveFailed": "저장하지 못했습니다.",
+    "assetSelect": "내 FBX 에셋에서 선택",
+    "manualUrl": "또는 FBX URL 직접 입력",
+    "enabled": "사용",
+    "disabled": "끄기",
+    "noAssets": "사용 가능한 FBX 에셋이 없습니다.",
+    "slotIdle": "Idle",
+    "slotWalk": "Walk",
+    "slotRun": "Run",
+    "slotJump": "Jump",
+    "slotCrouch": "Crouch",
+    "slotProne": "Prone"
+  },
   "CreatorNav": {
     "navAssets": "에셋",
     "navCharacter": "캐릭터",

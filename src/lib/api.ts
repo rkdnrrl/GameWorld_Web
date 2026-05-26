@@ -103,6 +103,15 @@ export type AssetKind = {
   createdAt?: string;
 };
 
+export type CharacterAnimationSlot = {
+  slot: "idle" | "walk" | "run" | "jump" | "crouch" | "prone";
+  name?: string | null;
+  assetId?: string | null;
+  modelUrl: string;
+  enabled?: boolean;
+  updatedAt?: string;
+};
+
 export type FolderPack = {
   id: string;
   creatorId: string;
@@ -893,6 +902,45 @@ export const api = {
   },
 
   /** 마켓플레이스: 공개 에셋 검색 + 페이지네이션. token 전달 시 liked 필드 포함 */
+  listMyAssets(token: string) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return request<{ assets: any[] }>("/api/assets/my", {
+      headers: authHeaders(token),
+    });
+  },
+
+  getCharacterAnimations() {
+    return request<{
+      slots: Partial<Record<CharacterAnimationSlot["slot"], CharacterAnimationSlot>>;
+      order: CharacterAnimationSlot["slot"][];
+    }>("/api/character-animations");
+  },
+
+  operatorGetCharacterAnimations(token: string) {
+    return request<{
+      slots: Partial<Record<CharacterAnimationSlot["slot"], CharacterAnimationSlot>>;
+      order: CharacterAnimationSlot["slot"][];
+    }>("/api/operator/character-animations", {
+      headers: authHeaders(token),
+    });
+  },
+
+  operatorUpdateCharacterAnimations(
+    token: string,
+    slots: Partial<Record<CharacterAnimationSlot["slot"], Partial<CharacterAnimationSlot>>>,
+  ) {
+    return request<{
+      ok: true;
+      saved: string[];
+      slots: Partial<Record<CharacterAnimationSlot["slot"], CharacterAnimationSlot>>;
+      order: CharacterAnimationSlot["slot"][];
+    }>("/api/operator/character-animations", {
+      method: "PUT",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify({ slots }),
+    });
+  },
+
   listPublicAssets(
     params: { q?: string; kind?: string; tag?: string; sort?: 'recent' | 'name' | 'popular'; page?: number; pageSize?: number } = {},
     token?: string,

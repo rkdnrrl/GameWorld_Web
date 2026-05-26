@@ -8,6 +8,7 @@ import type { ChatBubble, RemotePlayer, PlayerPose } from '@/lib/world/useGameSo
 import type { GraphicsSettings } from '@/lib/world/graphicsSettings';
 import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
 import { retargetClipsToModel } from '@/lib/character/mixamoRig';
+import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
 
 const PLAYER_CAPSULE_HALF_HEIGHT = 0.35;
 const PLAYER_CAPSULE_RADIUS = 0.28;
@@ -168,10 +169,18 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
     if (!url) return;
     let cancelled = false;
 
-    const setupMixer = (loaded: THREE.Object3D, anims: THREE.AnimationClip[]) => {
-      if (!anims.length) return;
+    const setupMixer = (
+      loaded: THREE.Object3D,
+      anims: THREE.AnimationClip[],
+      platformClips: Map<AnimState, THREE.AnimationClip>,
+    ) => {
+      if (!anims.length && platformClips.size === 0) return;
       mixer.current = new THREE.AnimationMixer(loaded);
       clipByState.current.clear();
+
+      platformClips.forEach((clip, state) => {
+        clipByState.current.set(state, trimClip(clip, animTrims?.[state]));
+      });
 
       // 각 state별로 명시 이름 우선, 없으면 키워드 휴리스틱으로 매칭
       const findByExact = (name?: string) => name ? anims.find(a => a.name === name) : undefined;
@@ -182,6 +191,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
         });
 
       (['idle', 'walk', 'run', 'jump', 'crouch', 'prone'] as AnimState[]).forEach(state => {
+        if (clipByState.current.has(state)) return;
         const src = findByExact(animNames?.[state]) ?? findByKeyword(KEYWORD_FALLBACK[state]);
         if (src) clipByState.current.set(state, trimClip(src, animTrims?.[state]));
       });
@@ -199,7 +209,9 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       if (cancelled) return;
       cloned.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = castShadow; });
       autoNormalize(cloned, rotX, 1.8);
-      setupMixer(cloned, retargetClipsToModel(anims, cloned));
+      const platformClips = await loadPlatformAnimationStateClips(cloned) as Map<AnimState, THREE.AnimationClip>;
+      if (cancelled) return;
+      setupMixer(cloned, retargetClipsToModel(anims, cloned), platformClips);
       setObj(cloned);
     })();
     return () => {

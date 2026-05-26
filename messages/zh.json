@@ -1543,6 +1543,27 @@
     "shadowFilterPCFSoft": "非常柔和",
     "shadowSoftness": "阴影柔和度"
   },
+  "OperatorCharacterAnimations": {
+    "title": "角色通用动画",
+    "subtitle": "运营者上传的 FBX 动画会重定向到所有人形角色。",
+    "back": "返回运营菜单",
+    "loading": "加载中...",
+    "save": "保存",
+    "saving": "保存中...",
+    "saved": "已保存。",
+    "saveFailed": "保存失败。",
+    "assetSelect": "从我的 FBX 资源选择",
+    "manualUrl": "或直接输入 FBX URL",
+    "enabled": "启用",
+    "disabled": "关闭",
+    "noAssets": "没有可用的 FBX 资源。",
+    "slotIdle": "Idle",
+    "slotWalk": "Walk",
+    "slotRun": "Run",
+    "slotJump": "Jump",
+    "slotCrouch": "Crouch",
+    "slotProne": "Prone"
+  },
   "CreatorNav": {
     "navAssets": "资源",
     "navCharacter": "角色",

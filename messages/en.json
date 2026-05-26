@@ -1543,6 +1543,27 @@
     "shadowFilterPCFSoft": "Very Soft",
     "shadowSoftness": "Shadow Softness"
   },
+  "OperatorCharacterAnimations": {
+    "title": "Shared Character Animations",
+    "subtitle": "Operator FBX animations are retargeted to every humanoid character.",
+    "back": "Back to operator menu",
+    "loading": "Loading...",
+    "save": "Save",
+    "saving": "Saving...",
+    "saved": "Saved.",
+    "saveFailed": "Could not save.",
+    "assetSelect": "Select from my FBX assets",
+    "manualUrl": "Or enter an FBX URL",
+    "enabled": "Enabled",
+    "disabled": "Off",
+    "noAssets": "No usable FBX assets.",
+    "slotIdle": "Idle",
+    "slotWalk": "Walk",
+    "slotRun": "Run",
+    "slotJump": "Jump",
+    "slotCrouch": "Crouch",
+    "slotProne": "Prone"
+  },
   "CreatorNav": {
     "navAssets": "Assets",
     "navCharacter": "Character",

@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl";
 export default function OperatorIndexPage() {
   const router = useRouter();
   const t = useTranslations("Operator");
+  const tAnim = useTranslations("OperatorCharacterAnimations");
   const [forbidden, setForbidden] = useState(false);
   const [checking, setChecking] = useState(true);
 
@@ -25,6 +26,7 @@ export default function OperatorIndexPage() {
       items: [
         { href: "/operator/games/pending", emoji: "🎮", label: t("menuPendingGames"), desc: t("menuPendingGamesDesc") },
         { href: "/operator/games/manage", emoji: "🗂️", label: t("menuManageGames"), desc: t("menuManageGamesDesc") },
+        { href: "/operator/character-animations", emoji: "🦴", label: tAnim("title"), desc: tAnim("subtitle") },
         { href: "/operator/categories", emoji: "🏷️", label: "게임 유형 관리", desc: "게임 유형을 추가·수정·삭제합니다." },
         { href: "/operator/genres", emoji: "🗂️", label: "게임 카테고리 관리", desc: "게임 카테고리(장르)를 추가·수정·삭제합니다." },
         { href: "/operator/asset-kinds", emoji: "📦", label: "에셋 타입 관리", desc: "에셋 카테고리(3D/이미지/오디오 등)를 추가·수정·삭제합니다." },

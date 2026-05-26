@@ -1543,6 +1543,27 @@
     "shadowFilterPCFSoft": "非常にソフト",
     "shadowSoftness": "影の柔らかさ"
   },
+  "OperatorCharacterAnimations": {
+    "title": "共通キャラクターアニメーション",
+    "subtitle": "運営者が登録したFBXアニメーションを全てのヒューマノイドキャラクターに適用します。",
+    "back": "運営メニューへ戻る",
+    "loading": "読み込み中...",
+    "save": "保存",
+    "saving": "保存中...",
+    "saved": "保存しました。",
+    "saveFailed": "保存できませんでした。",
+    "assetSelect": "自分のFBXアセットから選択",
+    "manualUrl": "またはFBX URLを直接入力",
+    "enabled": "使用",
+    "disabled": "オフ",
+    "noAssets": "使用できるFBXアセットがありません。",
+    "slotIdle": "Idle",
+    "slotWalk": "Walk",
+    "slotRun": "Run",
+    "slotJump": "Jump",
+    "slotCrouch": "Crouch",
+    "slotProne": "Prone"
+  },
   "CreatorNav": {
     "navAssets": "アセット",
     "navCharacter": "キャラクター",
