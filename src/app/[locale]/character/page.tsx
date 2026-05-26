@@ -971,6 +971,7 @@ export default function CharacterPage() {
                       (availableAnims.some(a => a.name === `ALP_${previewSlot}`) ? `ALP_${previewSlot}` : undefined)
                     }
                     previewTrim={animMap[previewSlot] ? animTrims[previewSlot] : undefined}
+                    onNoSkeleton={() => setShowMixamoGuide(true)}
                     onAnimationsLoaded={setAvailableAnims}
                     onPlayingClip={setPlayingClip}
                   />
