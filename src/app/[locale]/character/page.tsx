@@ -221,6 +221,11 @@ function CustomPreview({
 
     const onLoaded = async (loaded: THREE.Object3D, anims: THREE.AnimationClip[] = []) => {
       if (cancelled) return;
+      // 스켈레톤 없는 메시 감지
+      if (!hasSkeleton(loaded)) {
+        onNoSkeleton?.();
+        return;
+      }
       autoNormalize(loaded, rotX, 1.8);
       const platformClips = await loadPlatformAnimationStateClips(loaded);
       if (cancelled) return;
