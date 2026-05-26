@@ -365,6 +365,7 @@ export default function WorldPage() {
         onMove={sendMove}
         customObjects={worldIdParam ? (customObjects ?? undefined) : undefined}
         graphics={graphics}
+        chatInputActive={chatOpen}
       />
 
       <GraphicsPanel settings={graphics} updateSettings={updateGraphics} applyPreset={applyGraphicsPreset} />
