@@ -1290,7 +1290,7 @@ export default function CharacterPage() {
                 border: '1px solid rgba(16,185,129,0.2)',
               }}>
                 <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginBottom: 8 }}>
-                  {t('animMapping', { count: availableAnims.length })}
+                  {t('animMapping', { count: availableAnims.filter(a => !a.name.startsWith('ALP_')).length })}
                 </div>
 
                 {/* 유휴 선택 */}
