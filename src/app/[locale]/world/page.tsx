@@ -334,11 +334,15 @@ export default function WorldPage() {
     [myChars, previewCharId, activeCharId],
   );
 
-  const submitChat = () => {
+  const submitChat = (closeAfter = false) => {
     const msg = chatInput.trim();
     if (!msg) return;
     sendChat(msg);
     setChatInput('');
+    if (closeAfter) {
+      setChatOpen(false);
+      chatInputRef.current?.blur();
+    }
   };
 
   if (!ready) {
@@ -726,7 +730,7 @@ export default function WorldPage() {
               ref={chatInputRef}
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitChat(); } }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitChat(true); } }}
               placeholder={t('chatPlaceholder')}
               style={{ flex: 1, background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, color: '#fff', fontSize: 12, padding: '6px 10px', outline: 'none' }}
             />
