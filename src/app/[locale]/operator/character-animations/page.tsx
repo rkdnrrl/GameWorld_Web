@@ -201,19 +201,10 @@ export default function OperatorCharacterAnimationsPage() {
         <Link href="/operator" className="text-sm text-blue-600 hover:underline dark:text-blue-400">{t("back")}</Link>
       </div>
 
-      {/* 코어 슬롯 */}
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">{t("coreSlotSection")}</p>
-      <div className="grid gap-4 md:grid-cols-2 mb-10">
-        {coreSlots.map(slot => <SlotCard key={slot} slot={slot} />)}
+      {/* 전체 슬롯 */}
+      <div className="grid gap-4 md:grid-cols-2 mb-6">
+        {slotOrder.map(slot => <SlotCard key={slot} slot={slot} />)}
       </div>
-
-      {/* 커스텀 슬롯 */}
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">{t("customSlotSection")}</p>
-      {customSlots.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2 mb-6">
-          {customSlots.map(slot => <SlotCard key={slot} slot={slot} />)}
-        </div>
-      )}
 
       {/* 새 슬롯 추가 */}
       <div className="flex gap-2 mb-8">
