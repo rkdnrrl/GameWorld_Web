@@ -129,6 +129,16 @@ async function cloneFBX(source: THREE.Object3D): Promise<THREE.Object3D> {
   return mod.clone(source);
 }
 
+/** position 트랙 제거 → 루트 모션 없음 (점프/낙하 애니메이션이 메쉬를 직접 올리지 않게) */
+function stripRootMotion(clip: THREE.AnimationClip): THREE.AnimationClip {
+  const tracks = clip.tracks.filter(t => !t.name.endsWith('.position'));
+  if (tracks.length === clip.tracks.length) return clip; // position 트랙 없으면 원본 반환
+  return new THREE.AnimationClip(clip.name, clip.duration, tracks);
+}
+
+// 루트 모션을 제거해야 하는 슬롯 (물리가 위치를 담당하므로 메쉬가 스스로 올라가면 안 됨)
+const ROOT_MOTION_SLOTS = new Set(['jump', 'fall']);
+
 /** start~end 초 구간만 잘라낸 새 AnimationClip 반환 (트림 없으면 원본) */
 function trimClip(source: THREE.AnimationClip, trim?: AnimTrim): THREE.AnimationClip {
   if (!trim) return source;
@@ -191,7 +201,8 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
 
       // 1. 플랫폼 공통 애니메이션을 폴백으로 먼저 세팅
       platformClips.forEach((clip, state) => {
-        clipByState.current.set(state, trimClip(clip, animTrims?.[state]));
+        const processed = ROOT_MOTION_SLOTS.has(state) ? stripRootMotion(clip) : clip;
+        clipByState.current.set(state, trimClip(processed, animTrims?.[state]));
       });
 
       // 2. 캐릭터 개별 슬롯 (코어 + 커스텀 모두) — 공통보다 우선, blocked 슬롯은 건너뜀
@@ -206,7 +217,10 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       Object.entries(animNames ?? {}).forEach(([state, clipName]) => {
         if (blockedAnimStates?.[state]) return;
         const src = findByExact(clipName) ?? findByKeyword(KEYWORD_FALLBACK[state] ?? []);
-        if (src) clipByState.current.set(state, trimClip(src, animTrims?.[state]));
+        if (src) {
+          const processed = ROOT_MOTION_SLOTS.has(state) ? stripRootMotion(src) : src;
+          clipByState.current.set(state, trimClip(processed, animTrims?.[state]));
+        }
       });
 
       // 3. 아무 클립도 없으면 첫 번째를 idle 폴백으로 사용
