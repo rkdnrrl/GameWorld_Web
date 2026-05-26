@@ -111,6 +111,9 @@ export default function Header() {
     router.replace(pathname, { locale: e.target.value });
   }
 
+  // 홈 화면에서만 상단 헤더 노출
+  if (pathname !== "/") return null;
+
   return (
     <>
       {/* 만료 임박 경고 배너 */}
