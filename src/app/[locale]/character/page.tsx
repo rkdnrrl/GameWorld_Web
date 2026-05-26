@@ -54,6 +54,8 @@ const ANIM_SLOT_KEYWORDS: Record<string, string[]> = {
   prone:  ['prone', 'lying', 'lie', 'lay', 'crawl'],
 };
 
+const ANIM_SLOTS = ['idle', 'walk', 'run', 'jump', 'crouch', 'prone'] as const;
+
 function autoMatchAnims(
   anims: { name: string; duration: number }[],
 ): Record<string, string> {
@@ -573,6 +575,7 @@ export default function CharacterPage() {
   const [animMap, setAnimMap] = useState<Record<string, string>>({
     idle: '', walk: '', run: '', jump: '', crouch: '', prone: '',
   });
+  const [autoMapBlocked, setAutoMapBlocked] = useState<Record<string, boolean>>({});
   // 각 슬롯의 트림 구간 (초)
   const [animTrims, setAnimTrims] = useState<Record<string, { start: number; end: number }>>({});
   const [previewSlot, setPreviewSlot] = useState<'idle' | 'walk' | 'run' | 'jump' | 'crouch' | 'prone'>('idle');
@@ -606,14 +609,21 @@ export default function CharacterPage() {
     setModelScale(clamp(Number(ap.modelScale ?? 1.0) || 1.0, 0.1, 3));
     setModelRotX(sanitizeRotX(ap.fbxRotX));
     setModelOffsetY(sanitizeOffsetY(ap.fbxOffsetY));
-    setAnimMap({
+    const nextAnimMap = {
       idle: String(ap.idleAnim || ''),
       walk: String(ap.walkAnim || ''),
       run: String(ap.runAnim || ''),
       jump: String(ap.jumpAnim || ''),
       crouch: String(ap.crouchAnim || ''),
       prone: String(ap.proneAnim || ''),
-    });
+    };
+    setAnimMap(nextAnimMap);
+    const savedBlocked = Array.isArray(ap.animAutoMapBlocked) ? ap.animAutoMapBlocked.map(String) : [];
+    const blocked: Record<string, boolean> = {};
+    for (const slot of ANIM_SLOTS) {
+      blocked[slot] = savedBlocked.includes(slot) || !nextAnimMap[slot];
+    }
+    setAutoMapBlocked(blocked);
     setAnimTrims((ap.animTrims as Record<string, { start: number; end: number }>) || {});
     setCreatingNew(false);
   };
@@ -633,6 +643,7 @@ export default function CharacterPage() {
     setModelOffsetY(0);
     setAvailableAnims([]);
     setAnimMap({ idle: '', walk: '', run: '', jump: '', crouch: '', prone: '' });
+    setAutoMapBlocked({});
     setAnimTrims({});
     setCreatingNew(true);
   };
@@ -684,6 +695,7 @@ export default function CharacterPage() {
     setModelOffsetY(0);
     setAvailableAnims([]);
     setAnimMap({ idle: '', walk: '', run: '', jump: '', crouch: '', prone: '' });
+    setAutoMapBlocked({});
     setAnimTrims({});
   };
 
@@ -697,7 +709,7 @@ export default function CharacterPage() {
       let changed = false;
       for (const slot of Object.keys(matched)) {
         // 비어있을 때만 자동 채움 (사용자 선택 보존)
-        if (!prev[slot] && matched[slot]) {
+        if (!prev[slot] && matched[slot] && !autoMapBlocked[slot]) {
           next[slot] = matched[slot];
           changed = true;
         }
@@ -711,7 +723,7 @@ export default function CharacterPage() {
       let changed = false;
       for (const slot of Object.keys(matched)) {
         const name = matched[slot];
-        if (name && !prev[slot]) {
+        if (name && !prev[slot] && !autoMapBlocked[slot]) {
           const dur = availableAnims.find(a => a.name === name)?.duration ?? 0;
           next[slot] = { start: 0, end: dur };
           changed = true;
@@ -719,7 +731,7 @@ export default function CharacterPage() {
       }
       return changed ? next : prev;
     });
-  }, [availableAnims]);
+  }, [availableAnims, autoMapBlocked]);
 
   const handleSave = async () => {
     if (!name.trim()) { setError(t('nameRequired')); return; }
@@ -735,6 +747,7 @@ export default function CharacterPage() {
           jumpAnim:   animMap.jump,
           crouchAnim: animMap.crouch,
           proneAnim:  animMap.prone,
+          animAutoMapBlocked: ANIM_SLOTS.filter(slot => autoMapBlocked[slot]),
           animTrims,
         }
       : appearance;
@@ -1240,6 +1253,7 @@ export default function CharacterPage() {
                             onChange={e => {
                               const name = e.target.value;
                               setAnimMap(prev => ({ ...prev, [slot]: name }));
+                              setAutoMapBlocked(prev => ({ ...prev, [slot]: name === '' }));
                               // 새 애니메이션 선택 시 트림 리셋
                               const dur = availableAnims.find(a => a.name === name)?.duration ?? 0;
                               setAnimTrims(prev => ({ ...prev, [slot]: { start: 0, end: dur } }));
