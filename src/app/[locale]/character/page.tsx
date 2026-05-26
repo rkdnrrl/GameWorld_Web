@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { session } from '@/lib/api';
 import CreatorNav from '@/components/creator/CreatorNav';
 import * as THREE from 'three';
+import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
@@ -187,11 +188,12 @@ function CustomPreview({
     const onLoaded = (loaded: THREE.Object3D, anims: THREE.AnimationClip[] = []) => {
       if (cancelled) return;
       autoNormalize(loaded, rotX, 1.8);
-      animClips.current = anims;
-      if (anims.length) {
+      const compatibleAnims = retargetClipsToModel(anims, loaded);
+      animClips.current = compatibleAnims;
+      if (compatibleAnims.length) {
         mixer.current = new THREE.AnimationMixer(loaded);
       }
-      onAnimationsLoaded?.(anims.map(a => ({ name: a.name, duration: a.duration })));
+      onAnimationsLoaded?.(compatibleAnims.map(a => ({ name: a.name, duration: a.duration })));
       setObj(loaded);
     };
 
@@ -722,6 +724,7 @@ export default function CharacterPage() {
     const fullAppearance = modelUrl
       ? {
           ...appearance, modelUrl, modelScale, fbxRotX: modelRotX, fbxOffsetY: modelOffsetY,
+          rig: 'mixamo-compatible',
           idleAnim:   animMap.idle,
           walkAnim:   animMap.walk,
           runAnim:    animMap.run,

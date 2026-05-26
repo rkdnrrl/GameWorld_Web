@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import type { ChatBubble, RemotePlayer, PlayerPose } from '@/lib/world/useGameSocket';
 import type { GraphicsSettings } from '@/lib/world/graphicsSettings';
 import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
+import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 
 const PLAYER_CAPSULE_HALF_HEIGHT = 0.35;
 const PLAYER_CAPSULE_RADIUS = 0.28;
@@ -198,7 +199,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       if (cancelled) return;
       cloned.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = castShadow; });
       autoNormalize(cloned, rotX, 1.8);
-      setupMixer(cloned, anims);
+      setupMixer(cloned, retargetClipsToModel(anims, cloned));
       setObj(cloned);
     })();
     return () => {
