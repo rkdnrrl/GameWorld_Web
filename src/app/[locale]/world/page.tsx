@@ -77,6 +77,17 @@ export default function WorldPage() {
   const [myWorlds, setMyWorlds] = useState<HubWorld[]>([]);
   const [publicWorlds, setPublicWorlds] = useState<HubWorld[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // 이모트 (커스텀 애니메이션 슬롯 트리거)
+  const [emoteSlot, setEmoteSlot] = useState<string | null>(null);
+  const CORE_ANIM_SLOTS = useMemo(() => new Set(['idle', 'walk', 'run', 'jump', 'crouch', 'prone']), []);
+  const emoteSlots = useMemo(() => {
+    if (!character) return [];
+    const ap = (character.appearance || {}) as Record<string, unknown>;
+    const slots = (ap.animSlots as Record<string, string>) || {};
+    // 코어 슬롯 제외, 애니메이션 또는 외부 URL이 설정된 슬롯만
+    const slotUrls = (ap.animSlotUrls as Record<string, string>) || {};
+    return Object.keys(slots).filter(s => !CORE_ANIM_SLOTS.has(s) && (slots[s] || slotUrls[s]));
+  }, [character, CORE_ANIM_SLOTS]);
 
   useEffect(() => {
     async function load() {
@@ -379,6 +390,7 @@ export default function WorldPage() {
         customObjects={worldIdParam ? (customObjects ?? undefined) : undefined}
         graphics={graphics}
         chatInputActive={chatOpen}
+        emoteSlot={emoteSlot}
       />
 
       <GraphicsPanel settings={graphics} updateSettings={updateGraphics} applyPreset={applyGraphicsPreset} />
@@ -711,6 +723,37 @@ export default function WorldPage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 이모트 바 — 커스텀 애니메이션 슬롯 */}
+      {emoteSlots.length > 0 && (
+        <div style={{
+          position: 'absolute', bottom: 56, left: '50%', transform: 'translateX(-50%)',
+          display: 'flex', gap: 8, alignItems: 'center',
+          background: 'rgba(0,0,0,0.45)', borderRadius: 16,
+          padding: '8px 12px', backdropFilter: 'blur(8px)',
+        }}>
+          {emoteSlots.map(slot => {
+            const active = emoteSlot === slot;
+            return (
+              <button
+                key={slot}
+                type="button"
+                onClick={() => setEmoteSlot(active ? null : slot)}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                  background: active ? 'rgba(99,102,241,0.7)' : 'rgba(255,255,255,0.1)',
+                  border: active ? '2px solid #818cf8' : '2px solid transparent',
+                  borderRadius: 10, padding: '6px 10px', cursor: 'pointer', color: '#fff',
+                  minWidth: 52, transition: 'background 0.15s, border-color 0.15s',
+                }}
+              >
+                <span style={{ fontSize: 20 }}>🎭</span>
+                <span style={{ fontSize: 10, fontWeight: 600, opacity: active ? 1 : 0.75, whiteSpace: 'nowrap', maxWidth: 60, overflow: 'hidden', textOverflow: 'ellipsis' }}>{slot}</span>
+              </button>
+            );
+          })}
         </div>
       )}
 

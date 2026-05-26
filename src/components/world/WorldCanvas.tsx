@@ -468,11 +468,13 @@ function Player({
   bubble,
   onMove,
   inputLocked = false,
+  emoteSlot,
 }: {
   character: Record<string, unknown>;
   bubble?: ChatBubble;
   onMove: (p: { x: number; y: number; z: number; rotY: number; animState?: AnimState }) => void;
   inputLocked?: boolean;
+  emoteSlot?: string | null;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body      = useRef<any>(null);
@@ -497,6 +499,9 @@ function Player({
   const jumpTouchQueued = useRef(false);
   // 현재 애니메이션 상태 (CustomModel이 참조)
   const animStateRef = useRef<AnimState>('idle');
+  // 이모트(커스텀 애니메이션) 오버라이드 — idle 상태일 때만 적용
+  const emoteSlotRef = useRef<string | null>(null);
+  useEffect(() => { emoteSlotRef.current = emoteSlot ?? null; }, [emoteSlot]);
   // 토글 키: C(앉기), Z(엎드리기)
   const crouchRef = useRef(false);
   const proneRef  = useRef(false);
@@ -673,6 +678,12 @@ function Player({
       else if (isProne)            state = 'prone';
       else if (isCrouch)           state = 'crouch';
       else if (moving)             state = sprint ? 'run' : 'walk';
+      // 이모트 오버라이드: 움직이면 해제, idle이면 이모트 유지
+      if (state !== 'idle') {
+        emoteSlotRef.current = null;
+      } else if (emoteSlotRef.current) {
+        state = emoteSlotRef.current;
+      }
       animStateRef.current = state;
 
       const now = Date.now();
@@ -1274,9 +1285,10 @@ interface WorldCanvasProps {
   customObjects?: UserMapObject[];
   graphics?: GraphicsSettings;
   chatInputActive?: boolean;
+  emoteSlot?: string | null;
 }
 
-export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, graphics = DEFAULT_SETTINGS, chatInputActive = false }: WorldCanvasProps) {
+export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot }: WorldCanvasProps) {
   const shadowsEnabled = graphics.shadowSize > 0;
   const shadowMapSize: [number, number] = [graphics.shadowSize || 1024, graphics.shadowSize || 1024];
   return (
@@ -1323,7 +1335,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}
