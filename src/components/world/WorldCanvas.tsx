@@ -179,12 +179,12 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       mixer.current = new THREE.AnimationMixer(loaded);
       clipByState.current.clear();
 
+      // 1. 플랫폼 공통 애니메이션을 폴백으로 먼저 세팅 (blockedAnimStates 무시 — 공통 애님은 항상 적용)
       platformClips.forEach((clip, state) => {
-        if (blockedAnimStates?.[state]) return;
         clipByState.current.set(state, trimClip(clip, animTrims?.[state]));
       });
 
-      // 각 state별로 명시 이름 우선, 없으면 키워드 휴리스틱으로 매칭
+      // 2. 캐릭터 개별 애니메이션이 공통보다 우선 적용 (blocked 슬롯은 건너뜀)
       const findByExact = (name?: string) => name ? anims.find(a => a.name === name) : undefined;
       const findByKeyword = (needles: string[]) =>
         anims.find(a => {
@@ -194,12 +194,11 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
 
       (['idle', 'walk', 'run', 'jump', 'crouch', 'prone'] as AnimState[]).forEach(state => {
         if (blockedAnimStates?.[state]) return;
-        if (clipByState.current.has(state)) return;
         const src = findByExact(animNames?.[state]) ?? findByKeyword(KEYWORD_FALLBACK[state]);
         if (src) clipByState.current.set(state, trimClip(src, animTrims?.[state]));
       });
 
-      // 클립이 하나도 매칭 안 됐고 애니메이션은 있으면 첫 번째를 idle로 사용
+      // 3. 아무 클립도 없고 FBX에 애니메이션이 있으면 첫 번째를 idle 폴백으로 사용
       if (clipByState.current.size === 0 && anims.length > 0 && !blockedAnimStates?.idle) {
         clipByState.current.set('idle', trimClip(anims[0], animTrims?.idle));
       }
