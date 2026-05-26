@@ -283,10 +283,22 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true }: {
   const userScale  = Number(appearance.modelScale) || 1.0;
   const rotX       = Number(appearance.fbxRotX ?? -Math.PI / 2);
   const offsetY    = Number(appearance.fbxOffsetY ?? 0);
-  const trims      = (appearance.animTrims ?? {}) as Partial<Record<AnimState, AnimTrim>>;
+  const trims      = (appearance.animTrims ?? {}) as Record<string, AnimTrim>;
   const blockedAnimStates = Array.isArray(appearance.animAutoMapBlocked)
-    ? Object.fromEntries((appearance.animAutoMapBlocked as unknown[]).map((slot) => [String(slot), true])) as Partial<Record<AnimState, boolean>>
+    ? Object.fromEntries((appearance.animAutoMapBlocked as unknown[]).map((slot) => [String(slot), true])) as Record<string, boolean>
     : undefined;
+
+  // 새 포맷(animSlots) 우선, 없으면 이전 개별 필드에서 읽기 (하위 호환)
+  const animNames: Record<string, string> = appearance.animSlots
+    ? { ...(appearance.animSlots as Record<string, string>) }
+    : {
+        idle:   String(appearance.idleAnim   ?? ''),
+        walk:   String(appearance.walkAnim   ?? ''),
+        run:    String(appearance.runAnim    ?? ''),
+        jump:   String(appearance.jumpAnim   ?? ''),
+        crouch: String(appearance.crouchAnim ?? ''),
+        prone:  String(appearance.proneAnim  ?? ''),
+      };
 
   if (modelUrl) {
     return (
@@ -296,16 +308,8 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true }: {
         rotX={rotX}
         offsetY={offsetY}
         castShadow={castShadow}
-        // 인라인 주석: rotX/offsetY/scale 후 발 정렬은 CustomModel 내부에서 처리
         animStateRef={animStateRef}
-        animNames={{
-          idle:   appearance.idleAnim   as string | undefined,
-          walk:   appearance.walkAnim   as string | undefined,
-          run:    appearance.runAnim    as string | undefined,
-          jump:   appearance.jumpAnim   as string | undefined,
-          crouch: appearance.crouchAnim as string | undefined,
-          prone:  appearance.proneAnim  as string | undefined,
-        }}
+        animNames={animNames}
         animTrims={trims}
         blockedAnimStates={blockedAnimStates}
       />
