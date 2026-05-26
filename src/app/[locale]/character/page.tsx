@@ -786,7 +786,7 @@ export default function CharacterPage() {
   useEffect(() => {
     if (availableAnims.length === 0) return;
     setAnimMap(prev => {
-      const matched = autoMatchAnims(availableAnims);
+      const matched = autoMatchAnims(availableAnims, operatorSlots);
       const next: Record<string, string> = { ...prev };
       let changed = false;
       for (const slot of Object.keys(matched)) {
@@ -800,7 +800,7 @@ export default function CharacterPage() {
     });
     // 새로 채워진 슬롯에 대해 트림도 default 로 (start=0, end=duration)
     setAnimTrims(prev => {
-      const matched = autoMatchAnims(availableAnims);
+      const matched = autoMatchAnims(availableAnims, operatorSlots);
       const next = { ...prev };
       let changed = false;
       for (const slot of Object.keys(matched)) {
@@ -813,7 +813,7 @@ export default function CharacterPage() {
       }
       return changed ? next : prev;
     });
-  }, [availableAnims, autoMapBlocked]);
+  }, [availableAnims, autoMapBlocked, operatorSlots]);
 
   const handleSave = async () => {
     if (!name.trim()) { setError(t('nameRequired')); return; }
