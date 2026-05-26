@@ -209,6 +209,7 @@ function restoreObjectPose(poses: ObjectPose[]) {
 
 function CustomPreview({
   url, userScale, rotX, offsetY = 0, previewAnim, previewTrim, onAnimationsLoaded, onPlayingClip, onNoSkeleton,
+  extraSlotUrls,
 }: {
   url: string;
   userScale: number;
@@ -221,6 +222,8 @@ function CustomPreview({
   onPlayingClip?: (name: string | null) => void;
   /** 스켈레톤 없는 메시 감지 시 호출 */
   onNoSkeleton?: () => void;
+  /** 슬롯별 외부 FBX URL (유저가 각 슬롯에 직접 지정) */
+  extraSlotUrls?: Record<string, string>;
 }) {
   const [obj, setObj] = useState<THREE.Object3D | null>(null);
   const g     = useRef<THREE.Group>(null);
@@ -303,6 +306,47 @@ function CustomPreview({
     action.play();
     onPlayingClip?.(clip.name);
   }, [previewAnim, previewTrim, obj, onPlayingClip]);
+
+  // 슬롯별 외부 FBX 로드 — 유저가 각 슬롯에 직접 지정한 에셋
+  const extraSlotUrlsKey = JSON.stringify(extraSlotUrls || {});
+  useEffect(() => {
+    if (!obj) return;
+    const urls = JSON.parse(extraSlotUrlsKey) as Record<string, string>;
+    const entries = Object.entries(urls).filter(([, u]) => !!u);
+    const base = animClips.current.filter(c => !c.name.startsWith('EXT_'));
+    if (!entries.length) {
+      animClips.current = base;
+      onAnimationsLoaded?.(base.map(a => ({ name: a.name, duration: a.duration })));
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { FBXLoader } = await import('three/examples/jsm/loaders/FBXLoader.js');
+      const extClips: THREE.AnimationClip[] = [];
+      for (const [slot, u] of entries) {
+        if (cancelled || !u) continue;
+        try {
+          const fbx = await new Promise<THREE.Object3D>((resolve, reject) =>
+            new FBXLoader().load(u, resolve, undefined, reject)
+          );
+          const anims = (fbx as unknown as { animations?: THREE.AnimationClip[] }).animations || [];
+          if (!anims.length) continue;
+          const retargeted = retargetClipsToModel([anims[0]], obj);
+          if (!retargeted.length) continue;
+          const clip = retargeted[0].clone();
+          clip.name = `EXT_${slot}`;
+          extClips.push(clip);
+        } catch (e) {
+          console.warn(`[ext-anim] ${slot}:`, e);
+        }
+      }
+      if (cancelled) return;
+      animClips.current = [...base, ...extClips];
+      onAnimationsLoaded?.(animClips.current.map(a => ({ name: a.name, duration: a.duration })));
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [extraSlotUrlsKey, obj]);
 
   // 자동 회전 제거 — OrbitControls 로 사용자가 직접 회전 (충돌 방지)
   useFrame((_, dt) => {
@@ -630,6 +674,10 @@ export default function CharacterPage() {
   const [autoMapBlocked, setAutoMapBlocked] = useState<Record<string, boolean>>({});
   // 운영자가 서버에 등록한 슬롯 목록 (서버에서 로드)
   const [operatorSlots, setOperatorSlots] = useState<string[]>([]);
+  // 슬롯별 외부 FBX URL (유저가 직접 지정한 에셋)
+  const [animSlotUrls, setAnimSlotUrls] = useState<Record<string, string>>({});
+  // 에셋 피커를 열 슬롯 (null = 3D 모델 피커)
+  const [slotPickerFor, setSlotPickerFor] = useState<string | null>(null);
   // 커스텀 슬롯 목록 (유저 정의: sleep, swim, skydive 등)
   const [customSlots, setCustomSlots] = useState<string[]>([]);
   const [newSlotName, setNewSlotName] = useState('');
@@ -698,6 +746,7 @@ export default function CharacterPage() {
     setAutoMapBlocked(blocked);
     setAnimTrims((ap.animTrims as Record<string, { start: number; end: number }>) || {});
     setAnimOneShot(Array.isArray(ap.animOneShot) ? (ap.animOneShot as unknown[]).map(String) : []);
+    setAnimSlotUrls((ap.animSlotUrls as Record<string, string>) || {});
     setCreatingNew(false);
   };
 
@@ -721,6 +770,7 @@ export default function CharacterPage() {
     setCustomSlots([]);
     setNewSlotName('');
     setAnimOneShot([]);
+    setAnimSlotUrls({});
     setCreatingNew(true);
   };
 
@@ -786,6 +836,7 @@ export default function CharacterPage() {
     setAnimMap(Object.fromEntries(operatorSlots.map(s => [s, ''])));
     setAutoMapBlocked({});
     setAnimTrims({});
+    setAnimSlotUrls({});
   };
 
   // availableAnims 가 새로 로드되면 이름 기반 자동 매칭
@@ -835,6 +886,7 @@ export default function CharacterPage() {
           animAutoMapBlocked: Object.keys(animMap).filter(slot => autoMapBlocked[slot]),
           animTrims,
           animOneShot,
+          animSlotUrls: Object.keys(animSlotUrls).length ? animSlotUrls : undefined,
         }
       : appearance;
     try {
@@ -963,6 +1015,16 @@ export default function CharacterPage() {
       {showPicker && (
         <AssetPickerModal onSelect={handleSelectAsset} onClose={() => setShowPicker(false)} />
       )}
+      {slotPickerFor !== null && (
+        <AssetPickerModal
+          onSelect={(asset) => {
+            setAnimSlotUrls(prev => ({ ...prev, [slotPickerFor]: asset.modelUrl }));
+            setAnimMap(prev => ({ ...prev, [slotPickerFor]: `EXT_${slotPickerFor}` }));
+            setSlotPickerFor(null);
+          }}
+          onClose={() => setSlotPickerFor(null)}
+        />
+      )}
 
       <div style={{
         width: '100vw', minHeight: '100vh',
@@ -1013,10 +1075,11 @@ export default function CharacterPage() {
                       animMap[previewSlot] ||
                       (availableAnims.some(a => a.name === `ALP_${previewSlot}`) ? `ALP_${previewSlot}` : undefined)
                     }
-                    previewTrim={animMap[previewSlot] ? animTrims[previewSlot] : undefined}
+                    previewTrim={animMap[previewSlot] && !animMap[previewSlot].startsWith('EXT_') ? animTrims[previewSlot] : undefined}
                     onNoSkeleton={() => setShowMixamoGuide(true)}
                     onAnimationsLoaded={setAvailableAnims}
                     onPlayingClip={setPlayingClip}
+                    extraSlotUrls={animSlotUrls}
                   />
                 : <BlockPreview appearance={appearance} />
               }
@@ -1392,6 +1455,27 @@ export default function CharacterPage() {
                               cursor: 'pointer', fontSize: 9,
                             }}
                           >{animOneShot.includes(slot) ? '1×' : '∞'}</button>
+                          {/* 에셋 피커 버튼 */}
+                          <button
+                            title="내 에셋에서 FBX 선택"
+                            onClick={() => setSlotPickerFor(slot)}
+                            style={{
+                              width: 26, height: 26, borderRadius: 4, border: 'none', flexShrink: 0,
+                              background: animSlotUrls[slot] ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.07)',
+                              color: animSlotUrls[slot] ? '#a5b4fc' : 'rgba(255,255,255,0.35)',
+                              cursor: 'pointer', fontSize: 11,
+                            }}
+                          >📂</button>
+                          {animSlotUrls[slot] && (
+                            <button
+                              title="외부 에셋 해제"
+                              onClick={() => {
+                                setAnimSlotUrls(prev => { const n = { ...prev }; delete n[slot]; return n; });
+                                if (animMap[slot] === `EXT_${slot}`) setAnimMap(prev => ({ ...prev, [slot]: '' }));
+                              }}
+                              style={{ width: 18, height: 26, borderRadius: 4, border: 'none', flexShrink: 0, background: 'rgba(239,68,68,0.15)', color: '#fca5a5', cursor: 'pointer', fontSize: 9 }}
+                            >✕</button>
+                          )}
                         </div>
                         {/* 트림 — 활성 슬롯 + 애니메이션 선택 시만 표시 */}
                         {active && animName && duration > 0 && (
@@ -1473,6 +1557,26 @@ export default function CharacterPage() {
                               cursor: 'pointer', fontSize: 9,
                             }}
                           >{animOneShot.includes(slot) ? '1×' : '∞'}</button>
+                          <button
+                            title="내 에셋에서 FBX 선택"
+                            onClick={() => setSlotPickerFor(slot)}
+                            style={{
+                              width: 26, height: 26, borderRadius: 4, border: 'none', flexShrink: 0,
+                              background: animSlotUrls[slot] ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.07)',
+                              color: animSlotUrls[slot] ? '#a5b4fc' : 'rgba(255,255,255,0.35)',
+                              cursor: 'pointer', fontSize: 11,
+                            }}
+                          >📂</button>
+                          {animSlotUrls[slot] && (
+                            <button
+                              title="외부 에셋 해제"
+                              onClick={() => {
+                                setAnimSlotUrls(prev => { const n = { ...prev }; delete n[slot]; return n; });
+                                if (animMap[slot] === `EXT_${slot}`) setAnimMap(prev => ({ ...prev, [slot]: '' }));
+                              }}
+                              style={{ width: 18, height: 26, borderRadius: 4, border: 'none', flexShrink: 0, background: 'rgba(239,68,68,0.15)', color: '#fca5a5', cursor: 'pointer', fontSize: 9 }}
+                            >✕</button>
+                          )}
                           <button
                             onClick={() => {
                               setCustomSlots(prev => prev.filter(s => s !== slot));
