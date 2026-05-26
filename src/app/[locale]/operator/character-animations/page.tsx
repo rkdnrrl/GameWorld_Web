@@ -40,16 +40,12 @@ export default function OperatorCharacterAnimationsPage() {
     ])
       .then(([slotRes, assetRes]) => {
         const slots: Record<string, { name?: string; assetId?: string; modelUrl?: string; enabled?: boolean }> = slotRes.slots || {};
-        // 코어 슬롯 먼저, 나머지 서버에서 받은 순서로
+        // 서버가 반환한 순서만 사용 — CORE_SLOTS 강제 삽입 제거
         const serverOrder: string[] = slotRes.order || [];
-        const allSlots = [
-          ...CORE_SLOTS,
-          ...serverOrder.filter(s => !CORE_SLOTS.includes(s)),
-        ];
-        setSlotOrder(allSlots);
+        setSlotOrder(serverOrder);
 
         const next: SlotForm = {};
-        for (const slot of allSlots) {
+        for (const slot of serverOrder) {
           const v = slots[slot];
           next[slot] = {
             name: v?.name || "",
