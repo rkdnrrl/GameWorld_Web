@@ -1133,6 +1133,7 @@ function SimScene({ objects, transforms, myAssets }: {
 
       luaScripts.current.set(obj.id, vm);
       vm.init(obj.script!, objectAPI, worldAPI, netAPI);
+      vm.callStart(); // 스튜디오는 단일 클라 — 즉시 시작
     }
 
     return () => {

@@ -840,6 +840,7 @@ export interface JsNetAPI {
 export class JsScript {
   private interp: Interpreter | null = null;
   private ready = false;
+  private started = false;
   readonly logs: string[] = [];
   readonly errors: string[] = [];
 
@@ -946,19 +947,31 @@ export class JsScript {
         print,
       });
 
-      // 파싱 + 실행
+      // 파싱 + 모듈 코드 실행 (변수 init, 함수 선언 등)
+      // ⚠️ onStart 는 여기서 호출 X — callStart() 로 분리됨.
+      // 멀티에서 hostId 알기 전에 onStart 가 돌면 world.isHost() 가 false 로 잘못 반환됨.
       const tokens = tokenize(source);
       const parser = new Parser(tokens);
       const program = parser.parseProgram();
       this.interp.run(program);
       this.ready = true;
-
-      // onStart 호출
-      this.interp.callFunction('onStart', []);
     } catch (e) {
       const msg = String((e as Error).message ?? e);
       this.errors.push(msg);
       console.error('[JsScript] init error:', msg);
+    }
+  }
+
+  /** onStart 명시적 호출. idempotent — 여러 번 불러도 한 번만 실행. */
+  callStart(): void {
+    if (!this.ready || !this.interp || this.started) return;
+    this.started = true;
+    try {
+      this.interp.callFunction('onStart', []);
+    } catch (e) {
+      const msg = String((e as Error).message ?? e);
+      this.errors.push(msg);
+      console.error('[JsScript] onStart error:', msg);
     }
   }
 

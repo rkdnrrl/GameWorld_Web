@@ -1820,6 +1820,15 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // 스크립트 closure 에서 항상 최신 isHost 값 읽으려고 ref 로 유지
   const isHostRef = useRef(isHost);
   useEffect(() => { isHostRef.current = isHost; }, [isHost]);
+
+  // 호스트 정보 도착 후 onStart 호출 (도착 전엔 world.isHost() 가 잘못된 값 반환)
+  // pendingStartRef: VM 만들어졌지만 아직 onStart 안 부른 것들
+  const pendingStartRef = useRef<Set<import('@/lib/world/jsRuntime').JsScript>>(new Set());
+  useEffect(() => {
+    if (hostId === null) return; // 아직 호스트 정보 없음
+    for (const vm of pendingStartRef.current) vm.callStart();
+    pendingStartRef.current.clear();
+  }, [hostId]);
   const lastBroadcastPos = useRef<Map<string, [number, number, number]>>(new Map());
   const lastVelocityNonZeroRef = useRef<Map<string, boolean>>(new Map());
   useEffect(() => {
@@ -2042,11 +2051,15 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
 
       luaScripts.current.set(obj.id, vm);
       vm.init(obj.script!, objectAPI, worldAPI, netAPI);
+      // 호스트 정보 알면 즉시 onStart, 아니면 hostId 도착 시까지 대기
+      if (hostId !== null) vm.callStart();
+      else pendingStartRef.current.add(vm);
     }
 
     return () => {
       for (const vm of luaScripts.current.values()) vm.destroy();
       luaScripts.current.clear();
+      pendingStartRef.current.clear();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customObjects?.map(o => o.id + (o.script ?? '')).join(',')]);
