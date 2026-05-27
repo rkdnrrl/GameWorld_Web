@@ -1121,6 +1121,8 @@ function SimScene({ objects, transforms, myAssets }: {
           };
           return makeObjectAPI(id, fallback);
         },
+        // 스튜디오 시뮬은 단일 클라 — 본인 = 항상 호스트
+        isHost: () => true,
       };
 
       // 스튜디오엔 네트워크 없음 — no-op

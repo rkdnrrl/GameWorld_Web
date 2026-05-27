@@ -1817,6 +1817,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
 
   // ── 송신: 호스트 + 본인이 소유한 오브젝트만 broadcast ──
   const isHost = !!hostId && hostId === playerId;
+  // 스크립트 closure 에서 항상 최신 isHost 값 읽으려고 ref 로 유지
+  const isHostRef = useRef(isHost);
+  useEffect(() => { isHostRef.current = isHost; }, [isHost]);
   const lastBroadcastPos = useRef<Map<string, [number, number, number]>>(new Map());
   const lastVelocityNonZeroRef = useRef<Map<string, boolean>>(new Map());
   useEffect(() => {
@@ -2028,6 +2031,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           };
           return makeObjectAPI(id, fallback);
         },
+        // hostId 와 playerId 비교 — 본인이 호스트면 true (호스트 이전 시 자동 반영)
+        isHost: () => isHostRef.current,
       };
 
       const netAPI: import('@/lib/world/jsRuntime').JsNetAPI = {

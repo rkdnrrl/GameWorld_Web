@@ -19,7 +19,8 @@
  *   world.time      — 월드 경과 시간 (초)
  *   world.getPlayers() → [{id, username, x, y, z}]
  *   world.find(idOrLabel) → 다른 오브젝트 핸들 (self와 같은 인터페이스), 못 찾으면 null
- *   world.spawn({kind, position, color, physics, ...}) → 새 오브젝트 핸들 (로컬 전용)
+ *   world.spawn({kind, position, color, physics, ...}) → 새 오브젝트 핸들
+ *   world.isHost() → 본인이 호스트인지 (중복 spawn 방지에 사용)
  *   net.sendAll(event, data) / net.sendTo(playerId, event, data)
  *   print(...) / console.log(...)
  *   Math.sin / cos / abs / floor / ceil / round / random / PI / min / max / sqrt / pow / atan2
@@ -827,6 +828,8 @@ export interface JsWorldAPI {
   findObject?(nameOrId: string): JsObjectAPI | null;
   /** 런타임에 새 오브젝트 생성. 생성된 오브젝트 핸들 반환. */
   spawn?(opts: JsSpawnOpts): JsObjectAPI;
+  /** 본인이 호스트(가장 일찍 입장한 활성 플레이어)인지. 스튜디오 시뮬에선 항상 true. */
+  isHost?(): boolean;
 }
 
 export interface JsNetAPI {
@@ -909,6 +912,9 @@ export class JsScript {
           const spawned = worldApi.spawn?.(opts ?? {});
           return spawned ? wrapObjectAPI(spawned) : null;
         },
+        // 본인이 호스트인지 — 멀티에서 중복 spawn/sound 등 방지용
+        // if (world.isHost()) { world.spawn(...); }
+        isHost: () => worldApi.isHost ? worldApi.isHost() : true,
       };
       // world.time을 항상 최신 값으로 → getter처럼 동작
       Object.defineProperty(world, 'time', {
