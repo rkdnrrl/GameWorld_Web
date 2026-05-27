@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, TransformControls, Grid, Sky, Environment } from '@react-three/drei';
 import * as THREE from 'three';
-import { buildFolderTree, listFolders, normalizeFolder } from '@/lib/assets/folders';
+import { buildFolderTree, normalizeFolder } from '@/lib/assets/folders';
 import type { FolderNode } from '@/lib/assets/folders';
 
 /* ── 머티리얼 프리셋 (WorldCanvas와 동일) ── */
@@ -878,7 +878,12 @@ export default function StudioCanvas() {
   }
 
   const fbxAssets = useMemo(() => myAssets.filter(a => /\.fbx$/i.test(a.modelUrl)), [myAssets]);
-  const fbxFolderTree = useMemo(() => buildFolderTree(listFolders(fbxAssets)), [fbxAssets]);
+  const fbxFolderTree = useMemo(() => {
+    const folders = [...new Set(
+      fbxAssets.map(a => normalizeFolder(a.folder)).filter((f): f is string => f !== null)
+    )].sort();
+    return buildFolderTree(folders);
+  }, [fbxAssets]);
   const fbxRootAssets = useMemo(() => fbxAssets.filter(a => !normalizeFolder(a.folder)), [fbxAssets]);
 
   function updateObjectTransform(id: string, t: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }) {
