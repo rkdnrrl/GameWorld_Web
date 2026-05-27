@@ -577,6 +577,9 @@ export default function StudioCanvas() {
   const objCounterRef = useRef<Record<string, number>>({});
   // 공개/비공개
   const [isPublic, setIsPublic] = useState(false);
+  // 오브젝트 이름 인라인 편집
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
+  const [editingLabelValue, setEditingLabelValue] = useState('');
   // 썸네일 캡처 함수 (Canvas 내부에서 등록)
   const captureFnRef = useRef<(() => string | null) | null>(null);
 
@@ -1021,7 +1024,7 @@ export default function StudioCanvas() {
                 const isSelected = obj.id === selectedId;
                 return (
                   <div key={obj.id}
-                    onClick={() => setSelectedId(isSelected ? null : obj.id)}
+                    onClick={() => { if (editingLabelId !== obj.id) setSelectedId(isSelected ? null : obj.id); }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 6,
                       background: isSelected ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.04)',
@@ -1030,9 +1033,39 @@ export default function StudioCanvas() {
                       transition: 'background 0.1s',
                     }}>
                     <span style={{ fontSize: 13, flexShrink: 0 }}>{KIND_ICONS[obj.kind] ?? '❓'}</span>
-                    <span style={{ flex: 1, fontSize: 11, fontWeight: isSelected ? 700 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isSelected ? '#a5b4fc' : '#fff' }}>
-                      {obj.label || `${KIND_LABELS[obj.kind] ?? obj.kind} ${i + 1}`}
-                    </span>
+                    {editingLabelId === obj.id ? (
+                      <input
+                        autoFocus
+                        value={editingLabelValue}
+                        onChange={e => setEditingLabelValue(e.target.value)}
+                        onBlur={() => {
+                          const val = editingLabelValue.trim();
+                          if (val) setObjects(prev => prev.map(o => o.id === obj.id ? { ...o, label: val } : o));
+                          setEditingLabelId(null);
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                          if (e.key === 'Escape') { setEditingLabelId(null); }
+                        }}
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                          flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.4)',
+                          border: '1px solid #6366f1', borderRadius: 4, color: '#fff',
+                          fontSize: 11, padding: '1px 5px', outline: 'none',
+                        }}
+                      />
+                    ) : (
+                      <span
+                        onDoubleClick={e => {
+                          e.stopPropagation();
+                          setEditingLabelId(obj.id);
+                          setEditingLabelValue(obj.label || `${KIND_LABELS[obj.kind] ?? obj.kind} ${i + 1}`);
+                        }}
+                        title="더블클릭하여 이름 변경"
+                        style={{ flex: 1, fontSize: 11, fontWeight: isSelected ? 700 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isSelected ? '#a5b4fc' : '#fff' }}>
+                        {obj.label || `${KIND_LABELS[obj.kind] ?? obj.kind} ${i + 1}`}
+                      </span>
+                    )}
                     <button
                       onClick={e => { e.stopPropagation(); setObjects(prev => { const next = prev.filter(o => o.id !== obj.id); pushHistory(next); return next; }); if (selectedId === obj.id) setSelectedId(null); }}
                       style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: 13, cursor: 'pointer', flexShrink: 0, padding: 0, lineHeight: 1 }}
