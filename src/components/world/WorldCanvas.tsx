@@ -1670,6 +1670,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     if (!objectStatesRef) return;
     objectStatesRef.current = (states) => {
       const now = performance.now();
+      if (Math.random() < 0.05) console.log('[ALP-SYNC] recv states', states.length, states.map(s => s.id));
       for (const s of states) {
         // 본인이 owner인 오브젝트의 stale broadcast는 무시 (옛 host의 마지막 broadcast 등)
         if (ownersRef.current.get(s.id) === playerId) continue;
@@ -1691,11 +1692,12 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   useEffect(() => {
     if (!objectOwnerRef) return;
     objectOwnerRef.current = (objectId, ownerId) => {
+      console.log('[ALP-SYNC] owner changed', objectId, '→', ownerId, '(me:', playerId, ')');
       if (ownerId) ownersRef.current.set(objectId, ownerId);
       else ownersRef.current.delete(objectId);
     };
     return () => { if (objectOwnerRef.current) objectOwnerRef.current = null; };
-  }, [objectOwnerRef]);
+  }, [objectOwnerRef, playerId]);
 
   // 다른 클라가 spawn 한 오브젝트 수신 → 본인 runtimeObjects 에 추가 (중복 방지)
   useEffect(() => {
@@ -1780,6 +1782,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     if (type === 'enter') {
       touchingRef.current.add(objectId);
       releaseTimerRef.current.delete(objectId);
+      console.log('[ALP-SYNC] collide enter', objectId, 'prev owner:', ownersRef.current.get(objectId), 'me:', playerId);
       if (ownersRef.current.get(objectId) !== playerId) {
         // 1) 로컬에서 즉시 본인을 owner로 간주
         ownersRef.current.set(objectId, playerId);
@@ -1788,6 +1791,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         syncTargets.current.delete(objectId);
         // 3) 서버에 claim 전송
         sendObjClaim?.(objectId);
+        console.log('[ALP-SYNC] claimed', objectId);
       }
     } else {
       touchingRef.current.delete(objectId);
@@ -1879,7 +1883,10 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         lastBroadcastPos.current.set(obj.id, pos);
         states.push({ id: obj.id, pos, rot, scl, vis, vel });
       }
-      if (states.length > 0) sendObjectStates(states);
+      if (states.length > 0) {
+        sendObjectStates(states);
+        if (Math.random() < 0.05) console.log('[ALP-SYNC] sent states', states.length, states.map(s => s.id));
+      }
     }, 25); // 40Hz — 권한 이전 시 빠른 수렴
     return () => clearInterval(interval);
   }, [isHost, sendObjectStates, customObjects, playerId]);
