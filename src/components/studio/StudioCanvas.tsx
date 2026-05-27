@@ -169,8 +169,52 @@ function AxisInputRow({ label, values, step, min, onChange, onCommit }: {
   );
 }
 
+/* ── 에셋 카드 (우측 그리드) ─────────────── */
+function StudioAssetCard({ asset, onAdd, onDelete }: {
+  asset: Asset;
+  onAdd: (a: Asset) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      style={{ position: 'relative', borderRadius: 8, overflow: 'hidden' }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <div
+        role="button" tabIndex={0}
+        onClick={() => onAdd(asset)}
+        onKeyDown={e => e.key === 'Enter' && onAdd(asset)}
+        draggable
+        onDragStart={e => { e.dataTransfer.setData('text/plain', asset.id); e.dataTransfer.effectAllowed = 'move'; }}
+        style={{
+          background: hovered ? 'rgba(129,140,248,0.2)' : 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.09)',
+          borderRadius: 8, color: '#e2e8f0', fontSize: 11, padding: '8px 6px',
+          cursor: 'grab', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+          userSelect: 'none', transition: 'background 0.12s',
+        }}>
+        <span style={{ fontSize: 22 }}>📦</span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: 'center', fontWeight: 500 }}>{asset.name}</span>
+      </div>
+      {/* 삭제 버튼 */}
+      {hovered && (
+        <button
+          onClick={e => { e.stopPropagation(); onDelete(asset.id); }}
+          title="에셋 삭제"
+          style={{
+            position: 'absolute', top: 3, right: 3,
+            background: 'rgba(239,68,68,0.85)', border: 'none', borderRadius: 4,
+            color: '#fff', fontSize: 10, cursor: 'pointer', padding: '2px 5px', lineHeight: 1,
+          }}>🗑</button>
+      )}
+    </div>
+  );
+}
+
 /* ── FBX 폴더 트리 노드 ──────────────────── */
-function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onToggle, onDrop, dragOverPath, setDragOverPath }: {
+function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onToggle, onDrop, dragOverPath, setDragOverPath, onDeleteFolder }: {
   node: FolderNode;
   depth: number;
   openFolders: Set<string>;
@@ -180,7 +224,9 @@ function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onT
   onDrop: (assetId: string, path: string | null) => void;
   dragOverPath: string | undefined;
   setDragOverPath: (p: string | undefined) => void;
+  onDeleteFolder: (path: string) => void;
 }) {
+  const [hovered, setHovered] = useState(false);
   const isOpen = openFolders.has(node.path);
   const isSelected = selectedFolder === node.path;
   const hasChildren = node.children.length > 0;
@@ -189,28 +235,40 @@ function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onT
   return (
     <div>
       <div
-        onClick={() => { onSelect(node.path); if (hasChildren) onToggle(node.path); }}
-        onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOverPath(node.path); }}
-        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) { e.stopPropagation(); setDragOverPath(undefined); } }}
-        onDrop={e => { e.preventDefault(); e.stopPropagation(); const id = e.dataTransfer.getData('text/plain'); if (id) onDrop(id, node.path); setDragOverPath(undefined); }}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 4,
-          paddingLeft: depth * 14 + 6, paddingTop: 5, paddingBottom: 5, paddingRight: 8,
-          cursor: 'pointer', borderRadius: 5, userSelect: 'none' as const,
-          background: isDragOver ? 'rgba(52,211,153,0.18)' : isSelected ? 'rgba(129,140,248,0.22)' : 'transparent',
-          color: isDragOver ? '#6ee7b7' : isSelected ? '#c7d2fe' : '#cbd5e1',
-          outline: isDragOver ? '1px dashed #34d399' : 'none',
-        }}
-        onMouseEnter={e => { if (!isSelected && !isDragOver) (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.06)'; }}
-        onMouseLeave={e => { if (!isSelected && !isDragOver) (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{ display: 'flex', alignItems: 'center' }}
       >
-        <span style={{ width: 12, textAlign: 'center', fontSize: 9, flexShrink: 0, color: 'rgba(255,255,255,0.35)' }}>
-          {hasChildren ? (isOpen ? '▾' : '▸') : ''}
-        </span>
-        <span style={{ fontSize: 13, flexShrink: 0 }}>📁</span>
-        <span style={{ fontSize: 12, fontWeight: isSelected ? 700 : 400, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {node.name}
-        </span>
+        <div
+          onClick={() => { onSelect(node.path); if (hasChildren) onToggle(node.path); }}
+          onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOverPath(node.path); }}
+          onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) { e.stopPropagation(); setDragOverPath(undefined); } }}
+          onDrop={e => { e.preventDefault(); e.stopPropagation(); const id = e.dataTransfer.getData('text/plain'); if (id) onDrop(id, node.path); setDragOverPath(undefined); }}
+          style={{
+            flex: 1, display: 'flex', alignItems: 'center', gap: 4,
+            paddingLeft: depth * 14 + 6, paddingTop: 5, paddingBottom: 5, paddingRight: 4,
+            cursor: 'pointer', borderRadius: 5, userSelect: 'none' as const,
+            background: isDragOver ? 'rgba(52,211,153,0.18)' : isSelected ? 'rgba(129,140,248,0.22)' : hovered ? 'rgba(255,255,255,0.06)' : 'transparent',
+            color: isDragOver ? '#6ee7b7' : isSelected ? '#c7d2fe' : '#cbd5e1',
+            outline: isDragOver ? '1px dashed #34d399' : 'none',
+          }}
+        >
+          <span style={{ width: 12, textAlign: 'center', fontSize: 9, flexShrink: 0, color: 'rgba(255,255,255,0.35)' }}>
+            {hasChildren ? (isOpen ? '▾' : '▸') : ''}
+          </span>
+          <span style={{ fontSize: 13, flexShrink: 0 }}>📁</span>
+          <span style={{ fontSize: 12, fontWeight: isSelected ? 700 : 400, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {node.name}
+          </span>
+        </div>
+        <button
+          onClick={e => { e.stopPropagation(); onDeleteFolder(node.path); }}
+          title="폴더 삭제"
+          style={{
+            opacity: hovered ? 1 : 0, transition: 'opacity 0.15s',
+            background: 'none', border: 'none', color: 'rgba(239,68,68,0.75)',
+            fontSize: 12, cursor: 'pointer', padding: '2px 6px', flexShrink: 0, lineHeight: 1,
+          }}>🗑</button>
       </div>
       {isOpen && hasChildren && (
         <div>
@@ -218,7 +276,8 @@ function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onT
             <FbxFolderNode key={child.path} node={child} depth={depth + 1}
               openFolders={openFolders} selectedFolder={selectedFolder}
               onSelect={onSelect} onToggle={onToggle}
-              onDrop={onDrop} dragOverPath={dragOverPath} setDragOverPath={setDragOverPath} />
+              onDrop={onDrop} dragOverPath={dragOverPath} setDragOverPath={setDragOverPath}
+              onDeleteFolder={onDeleteFolder} />
           ))}
         </div>
       )}
@@ -968,6 +1027,44 @@ export default function StudioCanvas() {
       } catch (e) { console.error('업로드 실패', e); }
     }
     setUploading(false);
+  }
+
+  async function deleteAsset(assetId: string) {
+    const asset = myAssets.find(a => a.id === assetId);
+    if (!window.confirm(`"${asset?.name ?? assetId}" 에셋을 영구 삭제하시겠습니까?`)) return;
+    setMyAssets(prev => prev.filter(a => a.id !== assetId));
+    try {
+      await fetch(`${API}/api/assets/${assetId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+    } catch (e) { console.error('삭제 실패', e); }
+  }
+
+  async function deleteFolderInStudio(folderPath: string) {
+    const folderName = folderPath.split('/').filter(Boolean).pop() ?? folderPath;
+    const toDelete = myAssets.filter(a => {
+      const f = normalizeFolder(a.folder);
+      return f === folderPath || (f !== null && f.startsWith(folderPath + '/'));
+    });
+    const msg = toDelete.length > 0
+      ? `"${folderName}" 폴더를 삭제하면 안에 있는 에셋 ${toDelete.length}개도 모두 영구 삭제됩니다.\n\n계속하시겠습니까?`
+      : `"${folderName}" 폴더를 삭제하시겠습니까?`;
+    if (!window.confirm(msg)) return;
+    const ids = toDelete.map(a => a.id);
+    setMyAssets(prev => prev.filter(a => !ids.includes(a.id)));
+    setLocalFolders(prev => prev.filter(f => f !== folderPath && !f.startsWith(folderPath + '/')));
+    if (selectedFolder === folderPath || (selectedFolder !== null && selectedFolder.startsWith(folderPath + '/'))) {
+      setSelectedFolder(null);
+    }
+    for (const id of ids) {
+      try {
+        await fetch(`${API}/api/assets/${id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token()}` },
+        });
+      } catch (e) { console.error('삭제 실패', e); }
+    }
   }
 
   async function moveAssetToFolder(assetId: string, folder: string | null) {
@@ -1780,7 +1877,8 @@ export default function StudioCanvas() {
                 <FbxFolderNode key={node.path} node={node} depth={0}
                   openFolders={openFolders} selectedFolder={selectedFolder}
                   onSelect={setSelectedFolder} onToggle={toggleFolder}
-                  onDrop={moveAssetToFolder} dragOverPath={dragOverPath} setDragOverPath={setDragOverPath} />
+                  onDrop={moveAssetToFolder} dragOverPath={dragOverPath} setDragOverPath={setDragOverPath}
+                  onDeleteFolder={deleteFolderInStudio} />
               ))}
             </div>
 
@@ -1818,23 +1916,7 @@ export default function StudioCanvas() {
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 7 }}>
                   {selectedFolderAssets.map(a => (
-                    <div key={a.id}
-                      role="button" tabIndex={0}
-                      onClick={() => addAsset(a)}
-                      onKeyDown={e => e.key === 'Enter' && addAsset(a)}
-                      draggable
-                      onDragStart={e => { e.dataTransfer.setData('text/plain', a.id); e.dataTransfer.effectAllowed = 'move'; }}
-                      style={{
-                        background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)',
-                        borderRadius: 8, color: '#e2e8f0', fontSize: 11, padding: '8px 6px',
-                        cursor: 'grab', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                        userSelect: 'none',
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.2)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}>
-                      <span style={{ fontSize: 22 }}>📦</span>
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: 'center', fontWeight: 500 }}>{a.name}</span>
-                    </div>
+                    <StudioAssetCard key={a.id} asset={a} onAdd={addAsset} onDelete={deleteAsset} />
                   ))}
                 </div>
               )}
