@@ -111,6 +111,8 @@ interface MapObject {
   lightAngle?:     number;   // 스폿 각도 (degrees)
   lightPenumbra?:  number;   // 스폿 경계 부드러움 0-1
   castShadow?:     boolean;
+  // 물리
+  physics?: 'none' | 'fixed' | 'dynamic';
 }
 
 interface Asset {
@@ -2216,6 +2218,26 @@ export default function StudioCanvas() {
                 }}
                 onCommit={() => pushHistory(objects)}
               />
+
+              {/* 물리 — 조명 외 오브젝트에만 표시 */}
+              {selected.kind !== 'pointlight' && selected.kind !== 'spotlight' && selected.kind !== 'dirlight' && (
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4 }}>물리 / 콜라이더</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3 }}>
+                    {(['none', 'fixed', 'dynamic'] as const).map(mode => {
+                      const active = (selected.physics ?? 'fixed') === mode;
+                      const labels = { none: '🚫 없음', fixed: '🧱 고정', dynamic: '🎲 동적' };
+                      return (
+                        <button key={mode}
+                          onClick={() => { setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, physics: mode } : o)); pushHistory(objects); }}
+                          style={{ background: active ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.06)', border: `1px solid ${active ? '#818cf8' : 'rgba(255,255,255,0.1)'}`, borderRadius: 5, color: active ? '#c7d2fe' : 'rgba(255,255,255,0.65)', fontSize: 10, padding: '5px 3px', cursor: 'pointer', fontWeight: active ? 700 : 400 }}>
+                          {labels[mode]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* 조명 속성 (pointlight / spotlight 전용) */}
               {(selected.kind === 'pointlight' || selected.kind === 'spotlight' || selected.kind === 'dirlight') && (

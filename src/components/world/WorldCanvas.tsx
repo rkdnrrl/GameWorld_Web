@@ -1183,6 +1183,8 @@ interface UserMapObject {
   lightAngle?:     number;
   lightPenumbra?:  number;
   castShadow?:     boolean;
+  // 물리
+  physics?: 'none' | 'fixed' | 'dynamic';
 }
 
 /* 머티리얼 프리셋 정의 (PBR 파라미터) */
@@ -1261,20 +1263,40 @@ function disposeMaterial(mat: THREE.MeshStandardMaterial) {
 }
 
 function UserMapObjectMesh({ obj }: { obj: UserMapObject }) {
-  if (obj.kind === 'asset' && obj.assetUrl) {
-    return (
-      <RigidBody type="fixed" colliders="trimesh" position={obj.position} rotation={obj.rotation} scale={obj.scale}>
-        <UserAsset url={obj.assetUrl} matObj={obj} />
-      </RigidBody>
-    );
-  }
+  const physics = obj.physics ?? 'fixed';
   const shape =
     obj.kind === 'sphere'   ? <sphereGeometry args={[0.5, 24, 16]} /> :
     obj.kind === 'cylinder' ? <cylinderGeometry args={[0.5, 0.5, 1, 16]} /> :
     obj.kind === 'plane'    ? <planeGeometry args={[1, 1]} /> :
                               <boxGeometry args={[1, 1, 1]} />;
+
+  if (obj.kind === 'asset' && obj.assetUrl) {
+    if (physics === 'none') {
+      return (
+        <group position={obj.position} rotation={obj.rotation} scale={obj.scale}>
+          <UserAsset url={obj.assetUrl} matObj={obj} />
+        </group>
+      );
+    }
+    // fixed: trimesh (정밀 콜라이더), dynamic: hull (볼록 근사 — trimesh는 동적 미지원)
+    return (
+      <RigidBody type={physics} colliders={physics === 'dynamic' ? 'hull' : 'trimesh'} position={obj.position} rotation={obj.rotation} scale={obj.scale}>
+        <UserAsset url={obj.assetUrl} matObj={obj} />
+      </RigidBody>
+    );
+  }
+
+  if (physics === 'none') {
+    return (
+      <group position={obj.position} rotation={obj.rotation} scale={obj.scale}>
+        <PrimitiveMesh obj={obj} shape={shape} />
+      </group>
+    );
+  }
+  // sphere → ball 콜라이더, 나머지 → cuboid
+  const colliders = obj.kind === 'sphere' ? 'ball' : 'cuboid';
   return (
-    <RigidBody type="fixed" colliders="cuboid" position={obj.position} rotation={obj.rotation} scale={obj.scale}>
+    <RigidBody type={physics} colliders={colliders} position={obj.position} rotation={obj.rotation} scale={obj.scale}>
       <PrimitiveMesh obj={obj} shape={shape} />
     </RigidBody>
   );
