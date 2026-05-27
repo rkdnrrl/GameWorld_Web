@@ -1567,7 +1567,7 @@ export default function StudioCanvas() {
         <button
           onClick={() => setActiveAssetPicker(v => !v)}
           style={{
-            position: 'absolute', bottom: 14, left: 14, zIndex: 15,
+            position: 'absolute', bottom: 14, left: 14, zIndex: 13,
             background: activeAssetPicker ? 'rgba(129,140,248,0.25)' : 'rgba(2,6,23,0.6)',
             border: `1px solid ${activeAssetPicker ? '#818cf8' : 'rgba(255,255,255,0.2)'}`,
             color: activeAssetPicker ? '#a5b4fc' : '#fff',
