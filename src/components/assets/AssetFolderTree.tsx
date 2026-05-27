@@ -14,9 +14,10 @@ interface Props {
   onDrop: (folder: string | null, files?: File[]) => void;
   dragActive: boolean;
   onDeleteFolder?: (path: string) => void;
+  onFolderMove?: (fromPath: string, toParentPath: string | null) => void;
 }
 
-export default function AssetFolderTree({ nodes, selectedFolder, rootCount, onSelect, onDrop, dragActive, onDeleteFolder }: Props) {
+export default function AssetFolderTree({ nodes, selectedFolder, rootCount, onSelect, onDrop, dragActive, onDeleteFolder, onFolderMove }: Props) {
   return (
     <div>
       {(rootCount > 0 || dragActive) && (
@@ -30,6 +31,7 @@ export default function AssetFolderTree({ nodes, selectedFolder, rootCount, onSe
           dragActive={dragActive}
           onClick={() => onSelect(selectedFolder === '' ? null : '')}
           onDrop={(files) => onDrop(null, files)}
+          onFolderMove={onFolderMove ? (from) => onFolderMove(from, null) : undefined}
         />
       )}
       {nodes.map(n => (
@@ -41,13 +43,14 @@ export default function AssetFolderTree({ nodes, selectedFolder, rootCount, onSe
           onDrop={onDrop}
           dragActive={dragActive}
           onDeleteFolder={onDeleteFolder}
+          onFolderMove={onFolderMove}
         />
       ))}
     </div>
   );
 }
 
-function FolderBranch({ node, depth, selectedFolder, onSelect, onDrop, dragActive, onDeleteFolder }: {
+function FolderBranch({ node, depth, selectedFolder, onSelect, onDrop, dragActive, onDeleteFolder, onFolderMove }: {
   node: FolderNode;
   depth: number;
   selectedFolder: string | null;
@@ -55,6 +58,7 @@ function FolderBranch({ node, depth, selectedFolder, onSelect, onDrop, dragActiv
   onDrop: (folder: string | null, files?: File[]) => void;
   dragActive: boolean;
   onDeleteFolder?: (path: string) => void;
+  onFolderMove?: (fromPath: string, toParentPath: string | null) => void;
 }) {
   const [open, setOpen] = useState(depth < 2);
   const active = selectedFolder === node.path;
@@ -75,6 +79,7 @@ function FolderBranch({ node, depth, selectedFolder, onSelect, onDrop, dragActiv
         onClick={() => onSelect(active ? null : node.path)}
         onDrop={(files) => onDrop(node.path, files)}
         onDelete={onDeleteFolder ? () => onDeleteFolder(node.path) : undefined}
+        onFolderMove={onFolderMove ? (from) => onFolderMove(from, node.path) : undefined}
       />
       {open && node.children.map(c => (
         <FolderBranch key={c.path}
@@ -85,13 +90,14 @@ function FolderBranch({ node, depth, selectedFolder, onSelect, onDrop, dragActiv
           onDrop={onDrop}
           dragActive={dragActive}
           onDeleteFolder={onDeleteFolder}
+          onFolderMove={onFolderMove}
         />
       ))}
     </>
   );
 }
 
-function FolderRow({ name, icon, path, depth, active, hasChildren, open, dragActive, onToggle, onClick, onDrop, onDelete }: {
+function FolderRow({ name, icon, path, depth, active, hasChildren, open, dragActive, onToggle, onClick, onDrop, onDelete, onFolderMove }: {
   name: string;
   icon: string;
   path: string;
@@ -104,6 +110,7 @@ function FolderRow({ name, icon, path, depth, active, hasChildren, open, dragAct
   onClick: () => void;
   onDrop: (files?: File[]) => void;
   onDelete?: () => void;
+  onFolderMove?: (fromPath: string) => void;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -126,10 +133,13 @@ function FolderRow({ name, icon, path, depth, active, hasChildren, open, dragAct
         {hasChildren ? (open ? '▾' : '▸') : ''}
       </button>
       <button
+        draggable={!!onFolderMove && path !== ''}
+        onDragStart={e => { if (path !== '') { e.dataTransfer.setData('folderPath', path); e.dataTransfer.effectAllowed = 'move'; } }}
         onClick={onClick}
         onDragOver={e => {
           const hasFiles = Array.from(e.dataTransfer.types || []).includes('Files');
-          if (!dragActive && !hasFiles) return;
+          const hasFolder = Array.from(e.dataTransfer.types || []).some(t => t === 'text/plain' || t === 'folderpath');
+          if (!dragActive && !hasFiles && !hasFolder) return;
           e.preventDefault();
           e.dataTransfer.dropEffect = hasFiles ? 'copy' : 'move';
           if (!dragOver) setDragOver(true);
@@ -138,9 +148,15 @@ function FolderRow({ name, icon, path, depth, active, hasChildren, open, dragAct
         onDrop={e => {
           e.preventDefault();
           setDragOver(false);
+          const fromFolder = e.dataTransfer.getData('folderPath');
           const files = Array.from(e.dataTransfer.files || []);
-          if (files.length > 0) onDrop(files);
-          else onDrop();
+          if (fromFolder && fromFolder !== path && !path.startsWith(fromFolder + '/') && onFolderMove) {
+            onFolderMove(fromFolder);
+          } else if (files.length > 0) {
+            onDrop(files);
+          } else {
+            onDrop();
+          }
         }}
         style={{
           flex: 1, display: 'flex', alignItems: 'center', gap: 6,

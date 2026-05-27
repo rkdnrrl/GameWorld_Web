@@ -8,6 +8,8 @@ import { api, session } from '@/lib/api';
 import type { Asset, AssetKind } from '@/lib/assets/types';
 import type { SortMode, VisibilityFilter } from '@/lib/assets/filters';
 import { filterAssets, sortAssets } from '@/lib/assets/filters';
+import { buildFolderTree, normalizeFolder } from '@/lib/assets/folders';
+import type { FolderNode } from '@/lib/assets/folders';
 import { getKind } from '@/lib/assets/registry';
 // 사이드이펙트 import — 모든 kind 핸들러 등록
 import '@/lib/assets/kinds';
@@ -88,6 +90,43 @@ export default function AssetsPage() {
         fetch(`${API}/api/assets/my`, { headers: { Authorization: `Bearer ${token()}` } })
           .then(r => r.json()).then(d => setAssets(d.assets || [])).catch(() => {});
       }
+    }
+  }
+
+  async function moveFolder(fromPath: string, toParentPath: string | null) {
+    if (toParentPath !== null && (toParentPath === fromPath || toParentPath.startsWith(fromPath + '/'))) return;
+    const lastSegment = fromPath.split('/').filter(Boolean).pop() ?? fromPath;
+    const newPath = toParentPath ? `${toParentPath}/${lastSegment}` : `/${lastSegment}`;
+    if (newPath === fromPath) return;
+
+    const updated = assets.map(a => {
+      const f = a.folder ?? null;
+      if (f === fromPath) return { ...a, folder: newPath };
+      if (f && f.startsWith(fromPath + '/')) return { ...a, folder: newPath + f.slice(fromPath.length) };
+      return a;
+    });
+    setAssets(updated);
+    setManualFolders(prev => prev.map(f => {
+      if (f === fromPath) return newPath;
+      if (f.startsWith(fromPath + '/')) return newPath + f.slice(fromPath.length);
+      return f;
+    }));
+    if (selectedFolder === fromPath || (selectedFolder !== null && selectedFolder.startsWith(fromPath + '/'))) {
+      setQuery({ folder: toParentPath });
+    }
+    const toUpdate = updated.filter(a => {
+      const orig = assets.find(x => x.id === a.id);
+      return orig && orig.folder !== a.folder;
+    });
+    const tk = session.getToken() || '';
+    for (const a of toUpdate) {
+      try {
+        await fetch(`${API}/api/assets/${a.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tk}` },
+          body: JSON.stringify({ folder: a.folder }),
+        });
+      } catch (e) { console.error('폴더 이동 실패', e); }
     }
   }
 
@@ -312,6 +351,27 @@ export default function AssetsPage() {
     return sortAssets(filtered, sort, kinds);
   }, [assets, q, selectedKinds, selectedTags, selectedFolder, visibility, sort, kinds]);
 
+  /* ── 폴더 트리 + 현재 폴더의 직계 서브폴더 ── */
+  function findFolderNode(nodes: FolderNode[], path: string): FolderNode | null {
+    for (const n of nodes) {
+      if (n.path === path) return n;
+      const found = findFolderNode(n.children, path);
+      if (found) return found;
+    }
+    return null;
+  }
+  const folderTree = useMemo(() => {
+    const fromAssets = assets.map(a => normalizeFolder(a.folder)).filter((f): f is string => f !== null);
+    const all = Array.from(new Set([...fromAssets, ...manualFolders])).sort();
+    return buildFolderTree(all);
+  }, [assets, manualFolders]);
+  const selectedSubfolders = useMemo(() => {
+    if (selectedFolder === null) return [];
+    const node = findFolderNode(folderTree, selectedFolder);
+    return node ? node.children : [];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folderTree, selectedFolder]);
+
   /* ── 선택 토글 + Shift 범위 선택 ── */
   const toggleSelect = useCallback((id: string, e: React.MouseEvent) => {
     setSelectedIds(prev => {
@@ -526,6 +586,7 @@ export default function AssetsPage() {
             onDropToFolder={onDropToFolder}
             onCreateFolder={createFolder}
             onDeleteFolder={deleteFolder}
+            onFolderMove={moveFolder}
           />
 
           <div style={{ flex: 1, padding: '20px 32px' }}>
@@ -619,6 +680,36 @@ export default function AssetsPage() {
               onRemoveFolder={() => setQuery({ folder: null })}
               onClearAll={() => setQuery({ kind: null, tag: null, folder: null })}
             />
+
+            {/* 서브폴더 카드 */}
+            {selectedSubfolders.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                {selectedSubfolders.map(n => (
+                  <button
+                    key={n.path}
+                    draggable
+                    onDragStart={e => { e.dataTransfer.setData('folderPath', n.path); e.dataTransfer.effectAllowed = 'move'; }}
+                    onDragOver={e => { e.preventDefault(); }}
+                    onDrop={e => {
+                      e.preventDefault();
+                      const from = e.dataTransfer.getData('folderPath');
+                      if (from && from !== n.path && !n.path.startsWith(from + '/')) moveFolder(from, n.path);
+                    }}
+                    onClick={() => setQuery({ folder: n.path })}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '6px 12px', borderRadius: 8,
+                      background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+                      color: '#e2e8f0', fontSize: 13, cursor: 'pointer', fontWeight: 600,
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.18)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                  >
+                    📁 {n.name}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* 그리드 */}
             <AssetGrid

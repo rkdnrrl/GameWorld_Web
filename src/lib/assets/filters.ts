@@ -60,10 +60,10 @@ export function filterAssets(
       const t = a.tags || [];
       if (!tagWhitelist.every(tag => t.includes(tag))) return false;
     }
-    // 5) 폴더 — 정확히 같거나 하위 폴더만 매칭 ("/캐릭터" 가 "/캐릭터X" 잘못 매칭 방지)
+    // 5) 폴더 — 정확히 같은 폴더만 (하위 폴더는 직접 들어가야 보임)
     if (folderPrefix != null) {
       const f = a.folder || '';
-      if (f !== folderPrefix && !f.startsWith(folderPrefix + '/')) return false;
+      if (f !== folderPrefix) return false;
     }
     return true;
   });

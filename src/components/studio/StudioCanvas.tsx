@@ -1175,6 +1175,30 @@ export default function StudioCanvas() {
       .finally(() => setLoading(false));
   }, [editingId]);
 
+  /** 선택 오브젝트가 화면에 넉넉히 보이도록 카메라 이동 (Unity F 동작) */
+  const focusObject = useCallback((id: string) => {
+    if (!orbitRef.current || !cameraRef.current) return;
+    const worldMat = computeWorldMatrix(id, objects);
+    const pos = new THREE.Vector3();
+    const quat = new THREE.Quaternion();
+    const scaleVec = new THREE.Vector3();
+    worldMat.decompose(pos, quat, scaleVec);
+
+    const size = Math.max(Math.abs(scaleVec.x), Math.abs(scaleVec.y), Math.abs(scaleVec.z), 1);
+    const distance = size * 4;
+
+    const orbit = orbitRef.current;
+    const camera = cameraRef.current;
+    const dir = new THREE.Vector3().subVectors(camera.position, orbit.target);
+    if (dir.lengthSq() < 0.0001) dir.set(0.6, 0.8, 1);
+    dir.normalize().multiplyScalar(distance);
+
+    orbit.target.copy(pos);
+    camera.position.copy(pos).add(dir);
+    orbit.update?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [objects]);
+
   /* 단축키 */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1583,32 +1607,6 @@ export default function StudioCanvas() {
     }
     return local;
   }
-
-  /** 선택 오브젝트가 화면에 넉넉히 보이도록 카메라 이동 (Unity F 동작) */
-  const focusObject = useCallback((id: string) => {
-    if (!orbitRef.current || !cameraRef.current) return;
-    const worldMat = computeWorldMatrix(id, objects);
-    const pos = new THREE.Vector3();
-    const quat = new THREE.Quaternion();
-    const scaleVec = new THREE.Vector3();
-    worldMat.decompose(pos, quat, scaleVec);
-
-    // 오브젝트 world scale 기반 거리 계산
-    const size = Math.max(Math.abs(scaleVec.x), Math.abs(scaleVec.y), Math.abs(scaleVec.z), 1);
-    const distance = size * 4;
-
-    const orbit = orbitRef.current;
-    const camera = cameraRef.current;
-    // 현재 카메라 방향을 유지하면서 target → 오브젝트 위치로 이동
-    const dir = new THREE.Vector3().subVectors(camera.position, orbit.target);
-    if (dir.lengthSq() < 0.0001) dir.set(0.6, 0.8, 1);
-    dir.normalize().multiplyScalar(distance);
-
-    orbit.target.copy(pos);
-    camera.position.copy(pos).add(dir);
-    orbit.update?.();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [objects]);
 
   function reparentObject(childId: string, newParentId: string | null) {
     // 순환 방지

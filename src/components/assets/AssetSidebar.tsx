@@ -26,6 +26,7 @@ interface Props {
   onDropToFolder: (folder: string | null, files?: File[]) => void;
   onCreateFolder: (path: string) => void;
   onDeleteFolder?: (path: string) => void;
+  onFolderMove?: (fromPath: string, toParentPath: string | null) => void;
 }
 
 const INITIAL_TAG_LIMIT = 12;
@@ -33,7 +34,7 @@ const INITIAL_TAG_LIMIT = 12;
 export default function AssetSidebar({
   assets, kinds, selectedKinds, selectedTags, selectedFolder,
   manualFolders = [], dragActive = false,
-  onSelectKinds, onToggleTag, onSelectFolder, onDropToFolder, onCreateFolder, onDeleteFolder,
+  onSelectKinds, onToggleTag, onSelectFolder, onDropToFolder, onCreateFolder, onDeleteFolder, onFolderMove,
 }: Props) {
   const t = useTranslations('Assets');
   const counts     = countByKind(assets, kinds);
@@ -196,6 +197,7 @@ export default function AssetSidebar({
           onSelect={onSelectFolder}
           onDrop={onDropToFolder}
           onDeleteFolder={onDeleteFolder}
+          onFolderMove={onFolderMove}
         />
       )}
     </aside>
