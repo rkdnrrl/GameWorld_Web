@@ -1662,7 +1662,7 @@ export default function StudioCanvas() {
               const isSel = obj.id === selectedId || multiSelectedIds.has(obj.id);
               return (
                 <div key={obj.id}
-                  onClick={() => { if (editingLabelId !== obj.id) { setMultiSelectedIds(new Set()); setSelectedId(isSel && multiSelectedIds.size === 0 ? null : obj.id); } }}
+                  onClick={() => { if (editingLabelId !== obj.id) { setMultiSelectedIds(new Set()); setSelectedId(isSel && multiSelectedIds.size === 0 ? null : obj.id); setRightPanelOpen(true); } }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 5,
                     padding: '4px 6px', borderRadius: 6, cursor: 'pointer',
@@ -1873,7 +1873,7 @@ export default function StudioCanvas() {
           {objects.filter(o => !o.hidden).map(obj => (
             <Mesh3D key={obj.id} obj={obj}
               selected={obj.id === selectedId}
-              onClick={() => setSelectedId(obj.id)}
+              onClick={() => { setSelectedId(obj.id); setMultiSelectedIds(new Set()); setRightPanelOpen(true); }}
               assetConfig={obj.kind === 'asset' && obj.assetUrl
                 ? getAssetMaterialConfig(myAssets.find(a => a.modelUrl === obj.assetUrl))
                 : undefined} />
@@ -1925,7 +1925,7 @@ export default function StudioCanvas() {
           onClick={() => setRightPanelOpen(v => !v)}
           title={rightPanelOpen ? '씬 패널 숨기기' : '씬 패널 열기'}
           style={{
-            position: 'absolute', top: 14, right: 14, zIndex: 10,
+            position: 'absolute', top: 14, left: 14, zIndex: 10,
             background: rightPanelOpen ? 'rgba(99,102,241,0.3)' : 'rgba(2,6,23,0.6)',
             border: `1px solid ${rightPanelOpen ? '#6366f1' : 'rgba(255,255,255,0.2)'}`,
             color: rightPanelOpen ? '#a5b4fc' : '#fff',
