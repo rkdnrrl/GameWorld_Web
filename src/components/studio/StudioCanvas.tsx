@@ -979,8 +979,8 @@ export default function StudioCanvas() {
   const [lightDir, setLightDir] = useState(1.5);
   const [skyEnabled, setSkyEnabled] = useState(true);
   const [lightPanelOpen, setLightPanelOpen] = useState(false);
-  const [shapePanelOpen, setShapePanelOpen] = useState(true);
-  const [matPanelOpen, setMatPanelOpen] = useState(true);
+  const [shapePanelOpen, setShapePanelOpen] = useState(false);
+  const [matPanelOpen, setMatPanelOpen] = useState(false);
   const [studioMode, setStudioMode] = useState<'settings' | 'scene'>('settings');
   const [multiSelectedIds, setMultiSelectedIds] = useState<Set<string>>(new Set());
   const [marqueeStart, setMarqueeStart] = useState<{x:number,y:number}|null>(null);
