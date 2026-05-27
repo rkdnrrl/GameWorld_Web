@@ -342,10 +342,11 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
 }
 
 /* ── 캐릭터 메쉬 (커스텀 or 블록형) ───── */
-function CharacterMesh({ appearance, animStateRef, castShadow = true }: {
+function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneShotOverride }: {
   appearance: Record<string, unknown>;
   animStateRef?: React.RefObject<AnimState>;
   castShadow?: boolean;
+  emoteOneShotOverride?: string[];
 }) {
   const modelUrl   = appearance.modelUrl as string | undefined;
   const userScale  = Number(appearance.modelScale) || 1.0;
@@ -382,11 +383,17 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true }: {
     [appearanceKey],
   );
   const animOneShot = useMemo(
-    () => Array.isArray(appearance.animOneShot)
-      ? (appearance.animOneShot as unknown[]).map(String)
-      : undefined,
+    () => {
+      const fromAppearance = Array.isArray(appearance.animOneShot)
+        ? (appearance.animOneShot as unknown[]).map(String)
+        : [];
+      // 패널에서 '한번만' 설정한 슬롯을 병합 (루프 설정 슬롯은 appearance에서 제거)
+      const overrideOnce = emoteOneShotOverride ?? [];
+      const merged = new Set([...fromAppearance, ...overrideOnce]);
+      return merged.size > 0 ? [...merged] : undefined;
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [appearanceKey],
+    [appearanceKey, emoteOneShotOverride],
   );
   const animSlotUrls = useMemo(
     () => (appearance.animSlotUrls as Record<string, string> | undefined) || undefined,
@@ -542,6 +549,7 @@ function Player({
   onMove: (p: { x: number; y: number; z: number; rotY: number; animState?: AnimState }) => void;
   inputLocked?: boolean;
   emoteSlot?: string | null;
+  emoteOneShotOverride?: string[];
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body      = useRef<any>(null);
@@ -797,7 +805,7 @@ function Player({
     >
       <CapsuleCollider args={[PLAYER_CAPSULE_HALF_HEIGHT, PLAYER_CAPSULE_RADIUS]} />
       <group ref={mesh} position={[0, PLAYER_MESH_Y, 0]}>
-        <CharacterMesh appearance={appearance} animStateRef={animStateRef} />
+        <CharacterMesh appearance={appearance} animStateRef={animStateRef} emoteOneShotOverride={emoteOneShotOverride} />
       </group>
       {bubble && (
         <Html position={[0, 1.95, 0]} center>
@@ -1363,9 +1371,10 @@ interface WorldCanvasProps {
   graphics?: GraphicsSettings;
   chatInputActive?: boolean;
   emoteSlot?: string | null;
+  emoteOneShotOverride?: string[];
 }
 
-export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot }: WorldCanvasProps) {
+export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride }: WorldCanvasProps) {
   const shadowsEnabled = graphics.shadowSize > 0;
   const shadowMapSize: [number, number] = [graphics.shadowSize || 1024, graphics.shadowSize || 1024];
   return (
@@ -1412,7 +1421,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}

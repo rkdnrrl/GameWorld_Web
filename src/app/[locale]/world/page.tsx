@@ -79,6 +79,8 @@ export default function WorldPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   // 이모트 (커스텀 애니메이션 슬롯 트리거)
   const [emoteSlot, setEmoteSlot] = useState<string | null>(null);
+  const [emotePanel, setEmotePanel] = useState(false);
+  const [emoteLoopMap, setEmoteLoopMap] = useState<Record<string, boolean>>({}); // true=루프, false=한번만
   const [platformEmoteSlots, setPlatformEmoteSlots] = useState<string[]>([]);
   const CORE_ANIM_SLOTS = useMemo(() => new Set(['idle', 'walk', 'run', 'jump', 'fall', 'crouch', 'crouch_walk', 'prone', 'prone_move']), []);
 
@@ -410,6 +412,7 @@ export default function WorldPage() {
         graphics={graphics}
         chatInputActive={chatOpen}
         emoteSlot={emoteSlot}
+        emoteOneShotOverride={Object.entries(emoteLoopMap).filter(([,v])=>!v).map(([k])=>k)}
       />
 
       <GraphicsPanel settings={graphics} updateSettings={updateGraphics} applyPreset={applyGraphicsPreset} />
@@ -745,32 +748,72 @@ export default function WorldPage() {
         </div>
       )}
 
-      {/* 이모트 바 — 커스텀 애니메이션 슬롯 */}
+      {/* 이모트 패널 토글 버튼 */}
       {emoteSlots.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setEmotePanel(p => !p)}
+          style={{
+            position: 'absolute', bottom: 72, right: 16,
+            width: 48, height: 48, borderRadius: '50%', border: 'none', cursor: 'pointer',
+            background: emotePanel ? 'rgba(99,102,241,0.85)' : 'rgba(0,0,0,0.5)',
+            color: '#fff', fontSize: 22, backdropFilter: 'blur(8px)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.4)', transition: 'background 0.15s',
+          }}
+          title="애니메이션"
+        >
+          🎭
+        </button>
+      )}
+
+      {/* 이모트 패널 */}
+      {emotePanel && emoteSlots.length > 0 && (
         <div style={{
-          position: 'absolute', bottom: 56, left: '50%', transform: 'translateX(-50%)',
-          display: 'flex', gap: 8, alignItems: 'center',
-          background: 'rgba(0,0,0,0.45)', borderRadius: 16,
-          padding: '8px 12px', backdropFilter: 'blur(8px)',
+          position: 'absolute', bottom: 128, right: 16,
+          background: 'rgba(10,10,20,0.85)', borderRadius: 14,
+          padding: '10px 8px', backdropFilter: 'blur(12px)',
+          display: 'flex', flexDirection: 'column', gap: 6,
+          minWidth: 180, boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
         }}>
+          <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '0 6px 4px' }}>
+            커스텀 애니메이션
+          </div>
           {emoteSlots.map(slot => {
             const active = emoteSlot === slot;
+            const isLoop = emoteLoopMap[slot] !== false; // 기본값 루프
             return (
-              <button
-                key={slot}
-                type="button"
-                onClick={() => setEmoteSlot(active ? null : slot)}
-                style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                  background: active ? 'rgba(99,102,241,0.7)' : 'rgba(255,255,255,0.1)',
-                  border: active ? '2px solid #818cf8' : '2px solid transparent',
-                  borderRadius: 10, padding: '6px 10px', cursor: 'pointer', color: '#fff',
-                  minWidth: 52, transition: 'background 0.15s, border-color 0.15s',
-                }}
-              >
-                <span style={{ fontSize: 20 }}>🎭</span>
-                <span style={{ fontSize: 10, fontWeight: 600, opacity: active ? 1 : 0.75, whiteSpace: 'nowrap', maxWidth: 60, overflow: 'hidden', textOverflow: 'ellipsis' }}>{slot}</span>
-              </button>
+              <div key={slot} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 2px' }}>
+                {/* 재생/정지 버튼 */}
+                <button
+                  type="button"
+                  onClick={() => setEmoteSlot(active ? null : slot)}
+                  style={{
+                    flex: 1, display: 'flex', alignItems: 'center', gap: 7,
+                    background: active ? 'rgba(99,102,241,0.6)' : 'rgba(255,255,255,0.07)',
+                    border: active ? '1px solid #818cf8' : '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 8, padding: '6px 8px', cursor: 'pointer', color: '#fff',
+                    transition: 'background 0.12s', textAlign: 'left',
+                  }}
+                >
+                  <span style={{ fontSize: 13 }}>{active ? '■' : '▶'}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slot}</span>
+                </button>
+                {/* 루프/한번만 토글 */}
+                <button
+                  type="button"
+                  onClick={() => setEmoteLoopMap(prev => ({ ...prev, [slot]: !isLoop }))}
+                  title={isLoop ? '루프 (클릭하면 한번만)' : '한번만 (클릭하면 루프)'}
+                  style={{
+                    width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)',
+                    background: isLoop ? 'rgba(52,211,153,0.2)' : 'rgba(251,191,36,0.2)',
+                    color: isLoop ? '#34d399' : '#fbbf24', cursor: 'pointer', fontSize: 14,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    transition: 'background 0.12s',
+                  }}
+                >
+                  {isLoop ? '🔁' : '1️⃣'}
+                </button>
+              </div>
             );
           })}
         </div>
