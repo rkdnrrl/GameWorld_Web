@@ -510,7 +510,7 @@ function LuaUpdateLoop({
     body: React.MutableRefObject<RapierBodyApi | null>;
     group: React.MutableRefObject<THREE.Group | null>;
   }>>;
-  syncTargets: React.MutableRefObject<Map<string, { pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean }>>;
+  syncTargets: React.MutableRefObject<Map<string, { pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean; vel: [number, number, number]; recvTime: number }>>;
   isHost: boolean;
 }) {
   useFrame((_, dt) => {
