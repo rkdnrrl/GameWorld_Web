@@ -1936,7 +1936,10 @@ export default function StudioCanvas() {
         </button>
 
         {/* FBX 에셋 바텀 슬라이딩 패널 */}
-        <div style={{
+        <div
+          onDragOver={e => { if (e.dataTransfer.types.includes('text/plain')) e.preventDefault(); e.stopPropagation(); }}
+          onDrop={e => { e.stopPropagation(); }}
+          style={{
           position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 14,
           background: 'rgba(2,6,23,0.93)',
           borderTop: '1px solid rgba(129,140,248,0.25)',
@@ -1991,7 +1994,7 @@ export default function StudioCanvas() {
                 onClick={() => setSelectedFolder(null)}
                 onDragOver={e => { e.preventDefault(); setDragOverPath('__root__'); }}
                 onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverPath(undefined); }}
-                onDrop={e => { e.preventDefault(); const id = e.dataTransfer.getData('text/plain'); if (id) moveAssetToFolder(id, null); setDragOverPath(undefined); }}
+                onDrop={e => { e.preventDefault(); e.stopPropagation(); const id = e.dataTransfer.getData('text/plain'); if (id) moveAssetToFolder(id, null); setDragOverPath(undefined); }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 4,
                   padding: '5px 8px', borderRadius: 5, cursor: 'pointer',
