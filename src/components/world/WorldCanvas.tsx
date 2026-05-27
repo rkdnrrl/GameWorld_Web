@@ -1139,13 +1139,12 @@ function UserMapObjectMesh({ obj, scriptBodyRefs }: {
   const bodyRef = useRef<any>(null);
   const groupRef = useRef<THREE.Group>(null);
 
-  // dynamic 또는 스크립트 있는 오브젝트는 모두 ref 등록 (멀티 동기화 + Lua 접근용)
-  const needsRefRegistration = !!obj.script || obj.physics === 'dynamic';
+  // 모든 visible 오브젝트 ref 등록 (멀티 동기화 + 스크립트 접근용)
   useEffect(() => {
-    if (!needsRefRegistration || !scriptBodyRefs) return;
+    if (!scriptBodyRefs) return;
     scriptBodyRefs.current.set(obj.id, { body: bodyRef, group: groupRef });
     return () => { scriptBodyRefs.current.delete(obj.id); };
-  }, [obj.id, needsRefRegistration, scriptBodyRefs]);
+  }, [obj.id, scriptBodyRefs]);
 
   const shape =
     obj.kind === 'sphere'   ? <sphereGeometry args={[0.5, 24, 16]} /> :
@@ -1521,9 +1520,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       const states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean }> = [];
       for (const obj of customObjects) {
         if (obj.hidden) continue;
-        // 동기화 대상: dynamic 물리 또는 스크립트 있는 오브젝트
-        const needsSync = obj.physics === 'dynamic' || !!obj.script;
-        if (!needsSync) continue;
+        // 라이트 오브젝트는 위치 동기화 불필요 (조명은 정적)
+        if (obj.kind === 'pointlight' || obj.kind === 'spotlight' || obj.kind === 'dirlight') continue;
         const ref = scriptBodyRefs.current.get(obj.id);
         if (!ref) continue;
         const body  = ref.body.current;
