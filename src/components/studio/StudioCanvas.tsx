@@ -491,6 +491,18 @@ function WasdFlyCamera({ orbitRef }: { orbitRef: React.MutableRefObject<OrbitRef
   return null;
 }
 
+/** Three.js 캔버스 캡처 함수를 외부 ref에 등록 */
+function CanvasCapture({ captureFnRef }: { captureFnRef: React.MutableRefObject<(() => string | null) | null> }) {
+  const { gl } = useThree();
+  useEffect(() => {
+    captureFnRef.current = () => {
+      try { return gl.domElement.toDataURL('image/webp', 0.7); } catch { return null; }
+    };
+    return () => { captureFnRef.current = null; };
+  }, [gl, captureFnRef]);
+  return null;
+}
+
 function DraggingDetector({ setOrbitEnabled }: { setOrbitEnabled: (v: boolean) => void }) {
   const { scene } = useThree();
   useEffect(() => {
@@ -563,6 +575,10 @@ export default function StudioCanvas() {
   const [snapSize, setSnapSize] = useState(0.5);
   // 오브젝트 종류별 카운터 (자동 이름용)
   const objCounterRef = useRef<Record<string, number>>({});
+  // 공개/비공개
+  const [isPublic, setIsPublic] = useState(false);
+  // 썸네일 캡처 함수 (Canvas 내부에서 등록)
+  const captureFnRef = useRef<(() => string | null) | null>(null);
 
   const token = () => session.getToken() || '';
 
@@ -647,6 +663,7 @@ export default function StudioCanvas() {
         }
         console.log('[studio] loaded:', d.world.name, 'objects:', d.world.mapData?.objects?.length ?? 0);
         setName(d.world.name);
+        setIsPublic(Boolean(d.world.isPublic));
         const objs = d.world.mapData?.objects || [];
         setObjects(objs);
         setHist({ stack: [clone(objs)], idx: 0 });
@@ -794,7 +811,29 @@ export default function StudioCanvas() {
     if (saving) return;
     setSaving(true);
     try {
-      const body = JSON.stringify({ name, mapData: { objects } });
+      // 썸네일: Three.js 캔버스 캡처 → base64 → 서버 업로드
+      let thumbnailUrl: string | undefined;
+      try {
+        const dataUrl = captureFnRef.current?.();
+        if (dataUrl) {
+          const blob = await (await fetch(dataUrl)).blob();
+          const fd = new FormData();
+          fd.append('file', blob, 'thumbnail.webp');
+          const upRes = await fetch(`${API}/api/worlds/thumbnail`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token()}` },
+            body: fd,
+          });
+          if (upRes.ok) {
+            const upData = await upRes.json();
+            thumbnailUrl = upData.url;
+          }
+        }
+      } catch { /* 썸네일 실패는 무시 */ }
+
+      const payload: Record<string, unknown> = { name, mapData: { objects }, isPublic };
+      if (thumbnailUrl) payload.thumbnailUrl = thumbnailUrl;
+      const body = JSON.stringify(payload);
       const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` };
       const res = savedId
         ? await fetch(`${API}/api/worlds/${savedId}`, { method: 'PATCH', headers, body })
@@ -1144,6 +1183,18 @@ export default function StudioCanvas() {
           {t('stats', { count: objects.length, idx: hist.idx + 1, total: hist.stack.length })}
         </div>
 
+        {/* 공개/비공개 토글 */}
+        <button
+          type="button"
+          onClick={() => setIsPublic(v => !v)}
+          style={{
+            width: '100%', marginBottom: 6, padding: '8px', borderRadius: 8, border: `1px solid ${isPublic ? 'rgba(52,211,153,0.4)' : 'rgba(255,255,255,0.12)'}`,
+            background: isPublic ? 'rgba(52,211,153,0.12)' : 'rgba(255,255,255,0.05)',
+            color: isPublic ? '#34d399' : 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
+          }}>
+          {isPublic ? '🌍 공개 — 허브에서 탐색 가능' : '🔒 비공개 — 나만 접근 가능'}
+        </button>
+
         <button onClick={save} disabled={saving}
           style={{ width: '100%', padding: '11px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#10b981,#06b6d4)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1, marginBottom: 8 }}>
           {saving ? t('saving') : savedId ? t('update') : t('save')}
@@ -1257,6 +1308,7 @@ export default function StudioCanvas() {
           />
           <DraggingDetector setOrbitEnabled={setOrbitEnabled} />
           <WasdFlyCamera orbitRef={orbitRef} />
+          <CanvasCapture captureFnRef={captureFnRef} />
         </Canvas>
 
         <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.55)', borderRadius: 20, padding: '6px 16px', color: '#fff', fontSize: 12, backdropFilter: 'blur(8px)' }}>
