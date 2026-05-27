@@ -6,6 +6,9 @@ import * as THREE from 'three';
 import { buildFolderTree, normalizeFolder } from '@/lib/assets/folders';
 import type { FolderNode } from '@/lib/assets/folders';
 
+const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', asset: '에셋' };
+const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲' };
+
 /* ── 머티리얼 프리셋 (WorldCanvas와 동일) ── */
 const MAT_PRESETS: Record<string, { metalness: number; roughness: number; opacity?: number; transparent?: boolean; defaultColor: string; emissive?: string; emissiveIntensity?: number }> = {
   wood:     { defaultColor: '#8b6f47', metalness: 0,   roughness: 0.85 },
@@ -1145,8 +1148,7 @@ export default function StudioCanvas() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', asset: '에셋' };
-  const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲' };
+  // KIND_LABELS / KIND_ICONS — 모듈 상단으로 이동됨
 
   function makeLabel(kind: string): string {
     objCounterRef.current[kind] = (objCounterRef.current[kind] ?? 0) + 1;
