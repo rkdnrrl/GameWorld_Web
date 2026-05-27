@@ -543,6 +543,73 @@ function WasdFlyCamera({ orbitRef }: { orbitRef: React.MutableRefObject<OrbitRef
   return null;
 }
 
+/** 우클릭 드래그 = 카메라 제자리 시점 회전 (look-around) */
+function RightClickLook({ orbitRef }: { orbitRef: React.MutableRefObject<OrbitRef | null> }) {
+  const { camera, gl } = useThree();
+
+  useEffect(() => {
+    const canvas = gl.domElement;
+    let dragging = false;
+    let lastX = 0, lastY = 0;
+
+    const onDown = (e: MouseEvent) => {
+      if (e.button !== 2) return;
+      dragging = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+    };
+
+    const onMove = (e: MouseEvent) => {
+      if (!dragging || !orbitRef.current) return;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+
+      const sensitivity = 0.004;
+      const orbit = orbitRef.current;
+
+      // 카메라→타겟 방향벡터
+      const dir = new THREE.Vector3().subVectors(orbit.target, camera.position);
+      const dist = dir.length() || 5;
+      dir.normalize();
+
+      // 수평 회전 (world Y 기준 yaw)
+      const yawQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -dx * sensitivity);
+      dir.applyQuaternion(yawQ);
+
+      // 수직 회전 (카메라 right 벡터 기준 pitch)
+      const right = new THREE.Vector3(0, 1, 0).cross(dir).normalize();
+      if (right.lengthSq() > 0.0001) {
+        const pitchQ = new THREE.Quaternion().setFromAxisAngle(right, -dy * sensitivity);
+        const pitched = dir.clone().applyQuaternion(pitchQ);
+        // 수직 ±85° 클램프
+        if (Math.abs(pitched.y) < 0.996) dir.copy(pitched);
+      }
+
+      // 카메라 위치 고정, target만 이동 → OrbitControls가 lookAt 처리
+      orbit.target.copy(camera.position).addScaledVector(dir, dist);
+      orbit.update?.();
+    };
+
+    const onUp = (e: MouseEvent) => {
+      if (e.button !== 2) return;
+      dragging = false;
+    };
+
+    canvas.addEventListener('mousedown', onDown);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      canvas.removeEventListener('mousedown', onDown);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [camera, gl, orbitRef]);
+
+  return null;
+}
+
 /** Three.js 캔버스 캡처 함수를 외부 ref에 등록 */
 function CanvasCapture({ captureFnRef }: { captureFnRef: React.MutableRefObject<(() => string | null) | null> }) {
   const { gl } = useThree();
@@ -1502,11 +1569,12 @@ export default function StudioCanvas() {
             mouseButtons={{
               LEFT:   undefined as unknown as THREE.MOUSE,
               MIDDLE: THREE.MOUSE.PAN,
-              RIGHT:  THREE.MOUSE.ROTATE,
+              RIGHT:  undefined as unknown as THREE.MOUSE,
             }}
           />
           <DraggingDetector setOrbitEnabled={setOrbitEnabled} />
           <WasdFlyCamera orbitRef={orbitRef} />
+          <RightClickLook orbitRef={orbitRef} />
           <CanvasCapture captureFnRef={captureFnRef} />
         </Canvas>
 
