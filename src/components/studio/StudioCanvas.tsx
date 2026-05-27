@@ -170,36 +170,66 @@ function AxisInputRow({ label, values, step, min, onChange, onCommit }: {
 }
 
 /* ── 에셋 카드 (우측 그리드) ─────────────── */
-function StudioAssetCard({ asset, onAdd, onDelete }: {
+function StudioAssetCard({ asset, onAdd, onDelete, onRename }: {
   asset: Asset;
   onAdd: (a: Asset) => void;
   onDelete: (id: string) => void;
+  onRename: (id: string, newName: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editVal, setEditVal] = useState('');
+
+  function confirmRename() {
+    const v = editVal.trim();
+    if (v && v !== asset.name) onRename(asset.id, v);
+    setEditing(false);
+  }
+
   return (
     <div
-      style={{ position: 'relative', borderRadius: 8, overflow: 'hidden' }}
+      style={{ position: 'relative', borderRadius: 8 }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       <div
         role="button" tabIndex={0}
-        onClick={() => onAdd(asset)}
-        onKeyDown={e => e.key === 'Enter' && onAdd(asset)}
-        draggable
+        onClick={() => !editing && onAdd(asset)}
+        draggable={!editing}
         onDragStart={e => { e.dataTransfer.setData('text/plain', asset.id); e.dataTransfer.effectAllowed = 'move'; }}
         style={{
           background: hovered ? 'rgba(129,140,248,0.2)' : 'rgba(255,255,255,0.05)',
           border: '1px solid rgba(255,255,255,0.09)',
           borderRadius: 8, color: '#e2e8f0', fontSize: 11, padding: '8px 6px',
-          cursor: 'grab', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+          cursor: editing ? 'default' : 'grab',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
           userSelect: 'none', transition: 'background 0.12s',
         }}>
         <span style={{ fontSize: 22 }}>📦</span>
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: 'center', fontWeight: 500 }}>{asset.name}</span>
+        {editing ? (
+          <input
+            autoFocus
+            value={editVal}
+            onChange={e => setEditVal(e.target.value)}
+            onBlur={confirmRename}
+            onKeyDown={e => { if (e.key === 'Enter') confirmRename(); if (e.key === 'Escape') setEditing(false); }}
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%', background: 'rgba(0,0,0,0.5)', border: '1px solid #6366f1',
+              borderRadius: 4, color: '#fff', fontSize: 11, padding: '2px 4px',
+              outline: 'none', textAlign: 'center',
+            }}
+          />
+        ) : (
+          <span
+            onDoubleClick={e => { e.stopPropagation(); setEditVal(asset.name); setEditing(true); }}
+            title="더블클릭하여 이름 변경"
+            style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: 'center', fontWeight: 500 }}>
+            {asset.name}
+          </span>
+        )}
       </div>
-      {/* 삭제 버튼 */}
-      {hovered && (
+      {hovered && !editing && (
         <button
           onClick={e => { e.stopPropagation(); onDelete(asset.id); }}
           title="에셋 삭제"
@@ -214,7 +244,7 @@ function StudioAssetCard({ asset, onAdd, onDelete }: {
 }
 
 /* ── FBX 폴더 트리 노드 ──────────────────── */
-function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onToggle, onDrop, dragOverPath, setDragOverPath, onDeleteFolder }: {
+function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onToggle, onDrop, dragOverPath, setDragOverPath, onDeleteFolder, onRenameFolder }: {
   node: FolderNode;
   depth: number;
   openFolders: Set<string>;
@@ -225,8 +255,11 @@ function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onT
   dragOverPath: string | undefined;
   setDragOverPath: (p: string | undefined) => void;
   onDeleteFolder: (path: string) => void;
+  onRenameFolder: (oldPath: string, newSegment: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editVal, setEditVal] = useState('');
   const isOpen = openFolders.has(node.path);
   const isSelected = selectedFolder === node.path;
   const hasChildren = node.children.length > 0;
@@ -257,9 +290,24 @@ function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onT
             {hasChildren ? (isOpen ? '▾' : '▸') : ''}
           </span>
           <span style={{ fontSize: 13, flexShrink: 0 }}>📁</span>
-          <span style={{ fontSize: 12, fontWeight: isSelected ? 700 : 400, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {node.name}
-          </span>
+          {editing ? (
+            <input
+              autoFocus
+              value={editVal}
+              onChange={e => setEditVal(e.target.value)}
+              onBlur={() => { const v = editVal.trim(); if (v && v !== node.name) onRenameFolder(node.path, v); setEditing(false); }}
+              onKeyDown={e => { if (e.key === 'Enter') { const v = editVal.trim(); if (v && v !== node.name) onRenameFolder(node.path, v); setEditing(false); } if (e.key === 'Escape') setEditing(false); }}
+              onClick={e => e.stopPropagation()}
+              style={{ flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.5)', border: '1px solid #6366f1', borderRadius: 4, color: '#fff', fontSize: 11, padding: '1px 5px', outline: 'none' }}
+            />
+          ) : (
+            <span
+              onDoubleClick={e => { e.stopPropagation(); setEditVal(node.name); setEditing(true); }}
+              title="더블클릭하여 이름 변경"
+              style={{ fontSize: 12, fontWeight: isSelected ? 700 : 400, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {node.name}
+            </span>
+          )}
         </div>
         <button
           onClick={e => { e.stopPropagation(); onDeleteFolder(node.path); }}
@@ -277,7 +325,7 @@ function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onT
               openFolders={openFolders} selectedFolder={selectedFolder}
               onSelect={onSelect} onToggle={onToggle}
               onDrop={onDrop} dragOverPath={dragOverPath} setDragOverPath={setDragOverPath}
-              onDeleteFolder={onDeleteFolder} />
+              onDeleteFolder={onDeleteFolder} onRenameFolder={onRenameFolder} />
           ))}
         </div>
       )}
@@ -1027,6 +1075,54 @@ export default function StudioCanvas() {
       } catch (e) { console.error('업로드 실패', e); }
     }
     setUploading(false);
+  }
+
+  async function renameAsset(assetId: string, newName: string) {
+    setMyAssets(prev => prev.map(a => a.id === assetId ? { ...a, name: newName } : a));
+    try {
+      await fetch(`${API}/api/assets/${assetId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ name: newName }),
+      });
+    } catch (e) { console.error('이름 변경 실패', e); }
+  }
+
+  async function renameFolderInStudio(oldPath: string, newSegment: string) {
+    // 부모 경로 유지, 마지막 세그먼트만 교체
+    const parentPath = oldPath.lastIndexOf('/') > 0
+      ? oldPath.slice(0, oldPath.lastIndexOf('/'))
+      : '';
+    const newPath = parentPath ? `${parentPath}/${newSegment}` : `/${newSegment}`;
+    // 이 폴더 및 하위 폴더의 모든 에셋 경로 prefix 교체
+    const updated: Asset[] = myAssets.map(a => {
+      const f = a.folder ?? null;
+      if (f === oldPath) return { ...a, folder: newPath };
+      if (f && f.startsWith(oldPath + '/')) return { ...a, folder: newPath + f.slice(oldPath.length) };
+      return a;
+    });
+    setMyAssets(updated);
+    setLocalFolders(prev => prev.map(f => {
+      if (f === oldPath) return newPath;
+      if (f.startsWith(oldPath + '/')) return newPath + f.slice(oldPath.length);
+      return f;
+    }));
+    if (selectedFolder === oldPath) setSelectedFolder(newPath);
+    else if (selectedFolder && selectedFolder.startsWith(oldPath + '/')) setSelectedFolder(newPath + selectedFolder.slice(oldPath.length));
+    // 서버 반영: 변경된 에셋들 PATCH
+    const toUpdate = updated.filter(a => {
+      const orig = myAssets.find(x => x.id === a.id);
+      return orig && orig.folder !== a.folder;
+    });
+    for (const a of toUpdate) {
+      try {
+        await fetch(`${API}/api/assets/${a.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+          body: JSON.stringify({ folder: a.folder }),
+        });
+      } catch (e) { console.error('폴더 이름 변경 실패', e); }
+    }
   }
 
   async function deleteAsset(assetId: string) {
@@ -1878,7 +1974,7 @@ export default function StudioCanvas() {
                   openFolders={openFolders} selectedFolder={selectedFolder}
                   onSelect={setSelectedFolder} onToggle={toggleFolder}
                   onDrop={moveAssetToFolder} dragOverPath={dragOverPath} setDragOverPath={setDragOverPath}
-                  onDeleteFolder={deleteFolderInStudio} />
+                  onDeleteFolder={deleteFolderInStudio} onRenameFolder={renameFolderInStudio} />
               ))}
             </div>
 
@@ -1916,7 +2012,7 @@ export default function StudioCanvas() {
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 7 }}>
                   {selectedFolderAssets.map(a => (
-                    <StudioAssetCard key={a.id} asset={a} onAdd={addAsset} onDelete={deleteAsset} />
+                    <StudioAssetCard key={a.id} asset={a} onAdd={addAsset} onDelete={deleteAsset} onRename={renameAsset} />
                   ))}
                 </div>
               )}
