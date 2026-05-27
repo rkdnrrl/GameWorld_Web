@@ -573,6 +573,10 @@ function Player({
   const moveTouchRef = useRef({ active: false, x: 0, y: 0, pointerId: -1 });
   const lookTouchRef = useRef({ active: false, pointerId: -1, lastX: 0, lastY: 0 });
   const jumpTouchQueued = useRef(false);
+  // 모바일 전용: 조이스틱 노브 시각 위치 + 스프린트 토글
+  const [joystickKnob, setJoystickKnob] = useState({ x: 0, y: 0, active: false });
+  const mobileSprintRef = useRef(false);
+  const [mobileSprinting, setMobileSprinting] = useState(false);
   // 현재 애니메이션 상태 (CustomModel이 참조)
   const animStateRef = useRef<AnimState>('idle');
   // 이모트(커스텀 애니메이션) 오버라이드 — idle 상태일 때만 적용
@@ -682,7 +686,7 @@ function Player({
       const left     = k.has('KeyA') || k.has('ArrowLeft');
       const right    = k.has('KeyD') || k.has('ArrowRight');
       const jump     = k.has('Space');
-      const sprint   = k.has('ShiftLeft');
+      const sprint   = k.has('ShiftLeft') || mobileSprintRef.current;
       const vel  = body.current.linvel();
       const posT = body.current.translation();
 
@@ -835,68 +839,14 @@ function Player({
       )}
       {isMobile && (
         <Html fullscreen>
-          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-            <div
-              style={{
-                position: 'absolute',
-                left: 18,
-                bottom: 18,
-                width: 120,
-                height: 120,
-                borderRadius: '50%',
-                background: 'rgba(15,23,42,0.45)',
-                border: '1px solid rgba(255,255,255,0.2)',
-                pointerEvents: 'auto',
-                touchAction: 'none',
-              }}
-              onPointerDown={(e) => {
-                if (inputLocked) return;
-                moveTouchRef.current.active = true;
-                moveTouchRef.current.pointerId = e.pointerId;
-                (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-              }}
-              onPointerMove={(e) => {
-                if (inputLocked) return;
-                if (!moveTouchRef.current.active || moveTouchRef.current.pointerId !== e.pointerId) return;
-                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                const cx = rect.left + rect.width / 2;
-                const cy = rect.top + rect.height / 2;
-                const dx = e.clientX - cx;
-                const dy = e.clientY - cy;
-                const r = rect.width * 0.42;
-                const len = Math.hypot(dx, dy);
-                const clamped = len > r ? r / len : 1;
-                moveTouchRef.current.x = (dx * clamped) / r;
-                moveTouchRef.current.y = (dy * clamped) / r;
-              }}
-              onPointerUp={(e) => {
-                if (moveTouchRef.current.pointerId !== e.pointerId) return;
-                moveTouchRef.current.active = false;
-                moveTouchRef.current.x = 0;
-                moveTouchRef.current.y = 0;
-                moveTouchRef.current.pointerId = -1;
-              }}
-              onPointerCancel={(e) => {
-                if (moveTouchRef.current.pointerId !== e.pointerId) return;
-                moveTouchRef.current.active = false;
-                moveTouchRef.current.x = 0;
-                moveTouchRef.current.y = 0;
-                moveTouchRef.current.pointerId = -1;
-              }}
-            />
+          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', userSelect: 'none' }}>
 
+            {/* ── 카메라 룩: 전체화면 배경 (joystick/버튼이 stopPropagation으로 차단) ── */}
             <div
-              style={{
-                position: 'absolute',
-                right: 0,
-                top: 0,
-                width: '52%',
-                height: '100%',
-                pointerEvents: 'auto',
-                touchAction: 'none',
-              }}
+              style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', touchAction: 'none' }}
               onPointerDown={(e) => {
                 if (inputLocked) return;
+                if (lookTouchRef.current.active) return;
                 lookTouchRef.current.active = true;
                 lookTouchRef.current.pointerId = e.pointerId;
                 lookTouchRef.current.lastX = e.clientX;
@@ -925,66 +875,160 @@ function Player({
               }}
             />
 
-            <button
-              type="button"
-              onClick={() => { if (!inputLocked) jumpTouchQueued.current = true; }}
+            {/* ── 조이스틱 (왼쪽 하단) ── */}
+            <div
               style={{
-                position: 'absolute',
-                right: 24,
-                bottom: 86,
-                width: 56,
-                height: 56,
-                borderRadius: '50%',
-                border: '1px solid rgba(255,255,255,0.35)',
-                background: 'rgba(59,130,246,0.45)',
-                color: '#fff',
-                fontSize: 20,
-                fontWeight: 700,
-                pointerEvents: 'auto',
+                position: 'absolute', left: 20, bottom: 20,
+                width: 148, height: 148, borderRadius: '50%',
+                background: 'rgba(10,15,30,0.40)',
+                border: '2px solid rgba(255,255,255,0.22)',
+                pointerEvents: 'auto', touchAction: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+              }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                if (inputLocked) return;
+                moveTouchRef.current.active = true;
+                moveTouchRef.current.pointerId = e.pointerId;
+                moveTouchRef.current.x = 0;
+                moveTouchRef.current.y = 0;
+                setJoystickKnob({ x: 0, y: 0, active: true });
+                (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+              }}
+              onPointerMove={(e) => {
+                e.stopPropagation();
+                if (inputLocked) return;
+                if (!moveTouchRef.current.active || moveTouchRef.current.pointerId !== e.pointerId) return;
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                const cx = rect.left + rect.width / 2;
+                const cy = rect.top + rect.height / 2;
+                const dx = e.clientX - cx;
+                const dy = e.clientY - cy;
+                const r = rect.width * 0.42;
+                const len = Math.hypot(dx, dy);
+                const clamped = len > r ? r / len : 1;
+                const nx = (dx * clamped) / r;
+                const ny = (dy * clamped) / r;
+                moveTouchRef.current.x = nx;
+                moveTouchRef.current.y = ny;
+                setJoystickKnob({ x: nx, y: ny, active: true });
+              }}
+              onPointerUp={(e) => {
+                e.stopPropagation();
+                if (moveTouchRef.current.pointerId !== e.pointerId) return;
+                moveTouchRef.current.active = false;
+                moveTouchRef.current.x = 0;
+                moveTouchRef.current.y = 0;
+                moveTouchRef.current.pointerId = -1;
+                setJoystickKnob({ x: 0, y: 0, active: false });
+              }}
+              onPointerCancel={(e) => {
+                e.stopPropagation();
+                if (moveTouchRef.current.pointerId !== e.pointerId) return;
+                moveTouchRef.current.active = false;
+                moveTouchRef.current.x = 0;
+                moveTouchRef.current.y = 0;
+                moveTouchRef.current.pointerId = -1;
+                setJoystickKnob({ x: 0, y: 0, active: false });
               }}
             >
-              ⤴
-            </button>
+              {/* 십자선 */}
+              <div style={{ position: 'absolute', width: '70%', height: 1, background: 'rgba(255,255,255,0.12)' }} />
+              <div style={{ position: 'absolute', height: '70%', width: 1, background: 'rgba(255,255,255,0.12)' }} />
+              {/* 노브 */}
+              <div style={{
+                position: 'absolute',
+                width: 56, height: 56, borderRadius: '50%',
+                background: joystickKnob.active ? 'rgba(99,102,241,0.75)' : 'rgba(255,255,255,0.30)',
+                border: `2px solid ${joystickKnob.active ? 'rgba(165,180,252,0.9)' : 'rgba(255,255,255,0.55)'}`,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+                transform: `translate(${joystickKnob.x * 46}px, ${joystickKnob.y * 46}px)`,
+                transition: joystickKnob.active ? 'none' : 'transform 0.12s ease, background 0.1s',
+                pointerEvents: 'none',
+              }} />
+            </div>
+
+            {/* ── 스프린트 토글 (조이스틱 위) ── */}
             <button
               type="button"
-              onClick={() => { camDist.current = Math.max(1.1, camDist.current - 0.45); }}
+              onPointerDown={e => e.stopPropagation()}
+              onClick={() => {
+                mobileSprintRef.current = !mobileSprintRef.current;
+                setMobileSprinting(mobileSprintRef.current);
+              }}
               style={{
-                position: 'absolute',
-                right: 24,
-                bottom: 56,
-                width: 56,
-                height: 24,
-                borderRadius: 999,
-                border: '1px solid rgba(255,255,255,0.35)',
-                background: 'rgba(15,23,42,0.6)',
-                color: '#fff',
-                fontSize: 16,
-                lineHeight: '16px',
-                pointerEvents: 'auto',
+                position: 'absolute', left: 20, bottom: 180,
+                width: 64, height: 36,
+                borderRadius: 18,
+                border: `2px solid ${mobileSprinting ? 'rgba(251,191,36,0.9)' : 'rgba(255,255,255,0.25)'}`,
+                background: mobileSprinting ? 'rgba(251,191,36,0.35)' : 'rgba(10,15,30,0.45)',
+                color: mobileSprinting ? '#fbbf24' : 'rgba(255,255,255,0.7)',
+                fontSize: 11, fontWeight: 700,
+                pointerEvents: 'auto', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
               }}
             >
-              +
+              {mobileSprinting ? '⚡ ON' : '⚡ OFF'}
             </button>
-            <button
-              type="button"
-              onClick={() => { camDist.current = Math.min(14, camDist.current + 0.45); }}
-              style={{
-                position: 'absolute',
-                right: 24,
-                bottom: 24,
-                width: 56,
-                height: 24,
-                borderRadius: 999,
-                border: '1px solid rgba(255,255,255,0.35)',
-                background: 'rgba(15,23,42,0.6)',
-                color: '#fff',
-                fontSize: 16,
-                lineHeight: '16px',
-                pointerEvents: 'auto',
-              }}
-            >
-              −
-            </button>
+
+            {/* ── 오른쪽 버튼 열 ── */}
+            <div style={{
+              position: 'absolute', right: 20, bottom: 20,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
+              pointerEvents: 'none',
+            }}>
+              {/* 줌 아웃 */}
+              <button
+                type="button"
+                onPointerDown={e => e.stopPropagation()}
+                onClick={() => { camDist.current = Math.min(14, camDist.current + 1.5); }}
+                style={{
+                  width: 48, height: 48, borderRadius: '50%',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  background: 'rgba(10,15,30,0.50)',
+                  color: 'rgba(255,255,255,0.85)', fontSize: 22, fontWeight: 700,
+                  pointerEvents: 'auto', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                }}
+              >−</button>
+
+              {/* 점프 */}
+              <button
+                type="button"
+                onPointerDown={e => {
+                  e.stopPropagation();
+                  if (!inputLocked) jumpTouchQueued.current = true;
+                }}
+                style={{
+                  width: 76, height: 76, borderRadius: '50%',
+                  border: '2px solid rgba(99,102,241,0.85)',
+                  background: 'rgba(79,70,229,0.50)',
+                  color: '#fff', fontSize: 30, fontWeight: 700,
+                  pointerEvents: 'auto', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 4px 16px rgba(79,70,229,0.4)',
+                }}
+              >↑</button>
+
+              {/* 줌 인 */}
+              <button
+                type="button"
+                onPointerDown={e => e.stopPropagation()}
+                onClick={() => { camDist.current = Math.max(1.1, camDist.current - 1.5); }}
+                style={{
+                  width: 48, height: 48, borderRadius: '50%',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  background: 'rgba(10,15,30,0.50)',
+                  color: 'rgba(255,255,255,0.85)', fontSize: 22, fontWeight: 700,
+                  pointerEvents: 'auto', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                }}
+              >+</button>
+            </div>
+
           </div>
         </Html>
       )}
