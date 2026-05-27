@@ -1477,17 +1477,10 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     return () => { if (scriptEventRef.current) scriptEventRef.current = null; };
   }, [scriptEventRef]);
 
-  // ── Authority 패턴: 가장 작은 playerId를 가진 클라이언트가 dynamic/scripted 오브젝트 상태 broadcast ──
-  const isAuthority = useMemo(() => {
-    const allIds = [playerId, ...Object.keys(players)].filter(Boolean).sort();
-    return allIds.length > 0 && allIds[0] === playerId;
-  }, [playerId, players]);
-
-  // 비-Authority 수신: 상태 적용
+  // ── 수신: 다른 클라이언트가 보낸 오브젝트 상태 적용 ──
   useEffect(() => {
     if (!objectStatesRef) return;
     objectStatesRef.current = (states) => {
-      if (isAuthority) return; // 본인이 authority면 무시
       for (const s of states) {
         const ref = scriptBodyRefs.current.get(s.id);
         if (!ref) continue;
@@ -1508,16 +1501,19 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       }
     };
     return () => { if (objectStatesRef.current) objectStatesRef.current = null; };
-  }, [objectStatesRef, isAuthority]);
+  }, [objectStatesRef]);
 
-  // Authority broadcast: 100ms마다 동기화 대상 오브젝트 상태 전송
+  // ── 송신: 움직인 오브젝트만 broadcast (10Hz) ──
+  // Authority 패턴 폐기 — "누구든 움직이면 broadcast" 방식
+  // 이렇게 해야 어느 클라이언트가 박스 밀어도 다른 쪽에 전달됨
+  const lastBroadcastPos = useRef<Map<string, [number, number, number]>>(new Map());
   useEffect(() => {
-    if (!isAuthority || !sendObjectStates || !customObjects) return;
+    if (!sendObjectStates || !customObjects) return;
+    const MOVE_THRESHOLD = 0.005; // 5mm 이상 움직였을 때만 broadcast
     const interval = setInterval(() => {
       const states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean }> = [];
       for (const obj of customObjects) {
         if (obj.hidden) continue;
-        // 라이트 오브젝트는 위치 동기화 불필요 (조명은 정적)
         if (obj.kind === 'pointlight' || obj.kind === 'spotlight' || obj.kind === 'dirlight') continue;
         const ref = scriptBodyRefs.current.get(obj.id);
         if (!ref) continue;
@@ -1528,27 +1524,32 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         let scl: [number, number, number] = obj.scale;
         let vis = true;
         if (body) {
-          // 물리 오브젝트: rapier에서 직접 읽음
           const t = body.translation();
           const r = body.rotation();
           const e = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(r.x, r.y, r.z, r.w));
-          pos = [t.x, t.y, t.z];
-          rot = [e.x, e.y, e.z];
+          pos = [t.x, t.y, t.z]; rot = [e.x, e.y, e.z];
         } else if (group) {
-          // 물리 없는 오브젝트: group에서 읽음
           pos = [group.position.x, group.position.y, group.position.z];
           rot = [group.rotation.x, group.rotation.y, group.rotation.z];
           scl = [group.scale.x, group.scale.y, group.scale.z];
           vis = group.visible;
-        } else {
-          continue; // 둘 다 없으면 스킵
+        } else continue;
+
+        // 이전 broadcast 위치와 비교 — 차이 없으면 skip (대역폭 절약)
+        const last = lastBroadcastPos.current.get(obj.id);
+        if (last) {
+          const moved = Math.abs(pos[0] - last[0]) > MOVE_THRESHOLD
+                     || Math.abs(pos[1] - last[1]) > MOVE_THRESHOLD
+                     || Math.abs(pos[2] - last[2]) > MOVE_THRESHOLD;
+          if (!moved) continue;
         }
+        lastBroadcastPos.current.set(obj.id, pos);
         states.push({ id: obj.id, pos, rot, scl, vis });
       }
       if (states.length > 0) sendObjectStates(states);
     }, 100); // 10Hz
     return () => clearInterval(interval);
-  }, [isAuthority, sendObjectStates, customObjects]);
+  }, [sendObjectStates, customObjects]);
 
   // customObjects 변경 시 VM 재생성
   useEffect(() => {
