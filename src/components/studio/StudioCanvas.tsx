@@ -701,6 +701,8 @@ export default function StudioCanvas() {
   const [newFolderName, setNewFolderName] = useState('');
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [dragOverPath, setDragOverPath] = useState<string | undefined>(undefined);
+  const [dropZoneActive, setDropZoneActive] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [texPicker, setTexPicker] = useState<null | 'albedo' | 'normal' | 'roughness'>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
@@ -945,6 +947,28 @@ export default function StudioCanvas() {
     const allFolders = [...new Set([...fromAssets, ...localFolders])].sort();
     return buildFolderTree(allFolders);
   }, [fbxAssets, localFolders]);
+
+  async function uploadFilesToFolder(files: FileList | File[]) {
+    const arr = Array.from(files);
+    if (arr.length === 0) return;
+    setUploading(true);
+    for (const file of arr) {
+      const fd = new FormData();
+      fd.append('model', file);
+      fd.append('name', file.name.replace(/\.fbx$/i, ''));
+      if (selectedFolder) fd.append('folder', selectedFolder);
+      try {
+        const res = await fetch(`${API}/api/assets/upload`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token()}` },
+          body: fd,
+        });
+        const data = await res.json();
+        if (data.asset) setMyAssets(prev => [...prev, data.asset]);
+      } catch (e) { console.error('업로드 실패', e); }
+    }
+    setUploading(false);
+  }
 
   async function moveAssetToFolder(assetId: string, folder: string | null) {
     try {
@@ -1761,7 +1785,27 @@ export default function StudioCanvas() {
             </div>
 
             {/* 오른쪽: 선택된 폴더의 에셋 그리드 */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
+            <div
+              style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', position: 'relative',
+                outline: dropZoneActive ? '2px dashed #34d399' : 'none',
+                background: dropZoneActive ? 'rgba(52,211,153,0.06)' : 'transparent',
+                transition: 'outline 0.1s, background 0.1s',
+              }}
+              onDragOver={e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDropZoneActive(true); } }}
+              onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropZoneActive(false); }}
+              onDrop={e => { e.preventDefault(); setDropZoneActive(false); if (e.dataTransfer.files.length > 0) uploadFilesToFolder(e.dataTransfer.files); }}
+            >
+              {/* 드롭 오버레이 */}
+              {dropZoneActive && (
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 1 }}>
+                  <div style={{ fontSize: 13, color: '#6ee7b7', fontWeight: 700 }}>📂 여기에 놓으면 업로드됩니다</div>
+                </div>
+              )}
+              {uploading && (
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(2,6,23,0.6)', zIndex: 2, fontSize: 13, color: '#a5b4fc', fontWeight: 700 }}>
+                  ⏳ 업로드 중...
+                </div>
+              )}
               {fbxAssets.length === 0 ? (
                 <div style={{ fontSize: 12, opacity: 0.4, textAlign: 'center', paddingTop: 24 }}>
                   {t('noAssets')}&nbsp;
@@ -1769,7 +1813,7 @@ export default function StudioCanvas() {
                 </div>
               ) : selectedFolderAssets.length === 0 ? (
                 <div style={{ fontSize: 12, opacity: 0.35, textAlign: 'center', paddingTop: 24 }}>
-                  이 폴더에 FBX 에셋이 없습니다
+                  FBX 파일을 여기에 드래그하여 업로드
                 </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 7 }}>
