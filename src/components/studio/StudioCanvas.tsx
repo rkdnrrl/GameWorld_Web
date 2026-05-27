@@ -82,6 +82,7 @@ type MaterialPreset = 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 'plasti
 interface MapObject {
   id: string;
   label?: string;
+  locked?: boolean;
   kind: ObjectKind;
   assetUrl?: string;
   position: [number, number, number];
@@ -214,12 +215,10 @@ function Mesh3D({ obj, selected, onClick, assetConfig }: {
   assetConfig?: any;
 }) {
   const ref = useRef<THREE.Mesh>(null);
-  // onPointerDown 으로 선택 — 누른 순간의 대상이 확정 (드래그 후 다른 오브젝트 위에서 떼도 원래 것 유지)
-  // 좌클릭(button=0)만 처리, 우클릭(카메라 회전)/중클릭은 무시
-  // TransformControls 화살표/링 위에 마우스가 있을 땐 무시 (뒤쪽 메시 잘못 선택 방지)
   const handle = (e: { stopPropagation: () => void; button?: number }) => {
     if (e.button !== undefined && e.button !== 0) return;
     if (isGizmoActive()) return;
+    if (obj.locked) return; // 잠긴 오브젝트는 뷰포트 선택 불가
     e.stopPropagation();
     onClick();
   };
@@ -580,6 +579,11 @@ export default function StudioCanvas() {
   // 오브젝트 이름 인라인 편집
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
   const [editingLabelValue, setEditingLabelValue] = useState('');
+  // 조명 설정
+  const [lightAmbient, setLightAmbient] = useState(0.5);
+  const [lightDir, setLightDir] = useState(1.5);
+  const [skyEnabled, setSkyEnabled] = useState(true);
+  const [lightPanelOpen, setLightPanelOpen] = useState(false);
   // 썸네일 캡처 함수 (Canvas 내부에서 등록)
   const captureFnRef = useRef<(() => string | null) | null>(null);
 
@@ -1067,6 +1071,12 @@ export default function StudioCanvas() {
                       </span>
                     )}
                     <button
+                      onClick={e => { e.stopPropagation(); setObjects(prev => prev.map(o => o.id === obj.id ? { ...o, locked: !o.locked } : o)); }}
+                      style={{ background: 'none', border: 'none', color: obj.locked ? '#fbbf24' : 'rgba(255,255,255,0.2)', fontSize: 11, cursor: 'pointer', flexShrink: 0, padding: 0, lineHeight: 1 }}
+                      title={obj.locked ? '잠금 해제' : '잠금'}>
+                      {obj.locked ? '🔒' : '🔓'}
+                    </button>
+                    <button
                       onClick={e => { e.stopPropagation(); setObjects(prev => { const next = prev.filter(o => o.id !== obj.id); pushHistory(next); return next; }); if (selectedId === obj.id) setSelectedId(null); }}
                       style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: 13, cursor: 'pointer', flexShrink: 0, padding: 0, lineHeight: 1 }}
                       title="삭제">×</button>
@@ -1216,6 +1226,34 @@ export default function StudioCanvas() {
           {t('stats', { count: objects.length, idx: hist.idx + 1, total: hist.stack.length })}
         </div>
 
+        {/* 조명 설정 */}
+        <div style={{ marginBottom: 10 }}>
+          <button type="button" onClick={() => setLightPanelOpen(v => !v)}
+            style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '6px 10px', cursor: 'pointer', fontWeight: 600 }}>
+            🌤 조명 설정 {lightPanelOpen ? '▲' : '▼'}
+          </button>
+          {lightPanelOpen && (
+            <div style={{ padding: '10px 6px 4px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                환경광 {lightAmbient.toFixed(1)}
+                <input type="range" min={0} max={2} step={0.1} value={lightAmbient}
+                  onChange={e => setLightAmbient(Number(e.target.value))}
+                  style={{ accentColor: '#6366f1' }} />
+              </label>
+              <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                직사광 {lightDir.toFixed(1)}
+                <input type="range" min={0} max={4} step={0.1} value={lightDir}
+                  onChange={e => setLightDir(Number(e.target.value))}
+                  style={{ accentColor: '#6366f1' }} />
+              </label>
+              <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                <input type="checkbox" checked={skyEnabled} onChange={e => setSkyEnabled(e.target.checked)} />
+                하늘(Sky) 표시
+              </label>
+            </div>
+          )}
+        </div>
+
         {/* 공개/비공개 토글 */}
         <button
           type="button"
@@ -1301,9 +1339,9 @@ export default function StudioCanvas() {
           gl={{ antialias: true }}
           onPointerMissed={() => { if (!isGizmoActive()) setSelectedId(null); }}
         >
-          <ambientLight intensity={0.5} />
-          <directionalLight position={[20, 30, 10]} intensity={1.5} castShadow shadow-mapSize={[2048, 2048]} />
-          <Sky sunPosition={[20, 10, 10]} />
+          <ambientLight intensity={lightAmbient} />
+          <directionalLight position={[20, 30, 10]} intensity={lightDir} castShadow shadow-mapSize={[2048, 2048]} />
+          {skyEnabled && <Sky sunPosition={[20, 10, 10]} />}
           {/* 금속·유리 머티리얼이 새까맣게 보이지 않도록 환경맵 제공 */}
           <Environment preset="city" />
 
@@ -1319,7 +1357,7 @@ export default function StudioCanvas() {
           ))}
 
           <SelectedTransform
-            targetId={selectedId}
+            targetId={objects.find(o => o.id === selectedId)?.locked ? null : selectedId}
             mode={mode}
             onChange={updateObjectTransform}
             onDragEnd={() => pushHistory(objects)}
@@ -1344,8 +1382,18 @@ export default function StudioCanvas() {
           <CanvasCapture captureFnRef={captureFnRef} />
         </Canvas>
 
-        <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.55)', borderRadius: 20, padding: '6px 16px', color: '#fff', fontSize: 12, backdropFilter: 'blur(8px)' }}>
-          {t('hudHint')}
+        {/* 단축키 힌트 */}
+        <div style={{ position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', pointerEvents: 'none' }}>
+          {[
+            ['G', '이동'], ['R', '회전'], ['S', '스케일'],
+            ['WASD', '카메라'], ['QE', '상승/하강'], ['Shift', '가속'],
+            ['Ctrl+D', '복제'], ['Ctrl+Z', '실행취소'], ['Del', '삭제'],
+          ].map(([key, desc]) => (
+            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(0,0,0,0.5)', borderRadius: 6, padding: '3px 7px', backdropFilter: 'blur(6px)' }}>
+              <kbd style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 3, padding: '1px 5px', fontSize: 10, fontFamily: 'monospace', color: '#e2e8f0', fontWeight: 700 }}>{key}</kbd>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>{desc}</span>
+            </div>
+          ))}
         </div>
         {isMobile && (
           <button
