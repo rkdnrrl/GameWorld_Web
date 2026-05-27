@@ -329,6 +329,8 @@ function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onT
         style={{ display: 'flex', alignItems: 'center' }}
       >
         <div
+          draggable
+          onDragStart={e => { e.dataTransfer.setData('folderPath', node.path); e.dataTransfer.effectAllowed = 'move'; e.stopPropagation(); }}
           onClick={() => { onSelect(node.path); if (hasChildren) onToggle(node.path); }}
           onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOverPath(node.path); }}
           onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) { e.stopPropagation(); setDragOverPath(undefined); } }}

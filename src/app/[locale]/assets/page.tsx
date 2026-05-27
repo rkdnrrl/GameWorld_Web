@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -26,6 +26,48 @@ import AssetVersionsModal from '@/components/assets/AssetVersionsModal';
 import MyPacksModal       from '@/components/assets/MyPacksModal';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
+
+/** 서브폴더 카드 — AssetCard와 동일한 크기 */
+function SubFolderCard({ name, path, onClick, onFolderDrop }: {
+  name: string;
+  path: string;
+  onClick: () => void;
+  onFolderDrop: (fromPath: string) => void;
+}) {
+  const [hovered, setHovered] = React.useState(false);
+  const [dragOver, setDragOver] = React.useState(false);
+  return (
+    <div
+      draggable
+      onDragStart={e => { e.dataTransfer.setData('folderPath', path); e.dataTransfer.effectAllowed = 'move'; }}
+      onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
+      onDrop={e => {
+        e.preventDefault(); setDragOver(false);
+        const from = e.dataTransfer.getData('folderPath');
+        if (from && from !== path && !path.startsWith(from + '/')) onFolderDrop(from);
+      }}
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: dragOver ? 'rgba(52,211,153,0.12)' : hovered ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.04)',
+        border: `1px solid ${dragOver ? 'rgba(52,211,153,0.5)' : hovered ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.1)'}`,
+        borderRadius: 12, cursor: 'pointer',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        padding: '32px 16px', gap: 10,
+        transition: 'background 0.12s, border-color 0.12s',
+        userSelect: 'none',
+        outline: dragOver ? '2px dashed rgba(52,211,153,0.6)' : 'none',
+      }}
+    >
+      <span style={{ fontSize: 48 }}>📁</span>
+      <span style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0', textAlign: 'center', wordBreak: 'break-all' }}>
+        {name}
+      </span>
+    </div>
+  );
+}
 
 export default function AssetsPage() {
   const t = useTranslations('Assets');
@@ -484,7 +526,7 @@ export default function AssetsPage() {
   }
 
   /* ── 에디터/프리뷰 (kind 핸들러에서 가져옴) ── */
-  const editorHandler  = editingAsset ? getKind(editingAsset.kind) : null;
+  const editorHandler  = editingAsset ? getKind(editingAsset?.kind) : null;
   const EditorComp     = editorHandler?.Editor;
   const previewHandler = previewAsset ? getKind(previewAsset.kind) : null;
   const PreviewComp    = previewHandler?.Preview;
@@ -681,32 +723,17 @@ export default function AssetsPage() {
               onClearAll={() => setQuery({ kind: null, tag: null, folder: null })}
             />
 
-            {/* 서브폴더 카드 */}
+            {/* 서브폴더 카드 — AssetGrid와 동일한 그리드 */}
             {selectedSubfolders.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14, marginBottom: 14 }}>
                 {selectedSubfolders.map(n => (
-                  <button
+                  <SubFolderCard
                     key={n.path}
-                    draggable
-                    onDragStart={e => { e.dataTransfer.setData('folderPath', n.path); e.dataTransfer.effectAllowed = 'move'; }}
-                    onDragOver={e => { e.preventDefault(); }}
-                    onDrop={e => {
-                      e.preventDefault();
-                      const from = e.dataTransfer.getData('folderPath');
-                      if (from && from !== n.path && !n.path.startsWith(from + '/')) moveFolder(from, n.path);
-                    }}
+                    name={n.name}
+                    path={n.path}
                     onClick={() => setQuery({ folder: n.path })}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      padding: '6px 12px', borderRadius: 8,
-                      background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
-                      color: '#e2e8f0', fontSize: 13, cursor: 'pointer', fontWeight: 600,
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.18)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
-                  >
-                    📁 {n.name}
-                  </button>
+                    onFolderDrop={from => moveFolder(from, n.path)}
+                  />
                 ))}
               </div>
             )}
