@@ -1161,7 +1161,7 @@ export type MaterialPreset = 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 
 
 interface UserMapObject {
   id: string;
-  kind: 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset';
+  kind: 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight';
   assetUrl?: string;
   position: [number, number, number];
   rotation: [number, number, number];
@@ -1176,6 +1176,13 @@ interface UserMapObject {
   textureRoughness?: string;
   textureTilingX?:   number;
   textureTilingY?:   number;
+  // 조명 전용
+  lightColor?:     string;
+  lightIntensity?: number;
+  lightDistance?:  number;
+  lightAngle?:     number;
+  lightPenumbra?:  number;
+  castShadow?:     boolean;
 }
 
 /* 머티리얼 프리셋 정의 (PBR 파라미터) */
@@ -1370,15 +1377,25 @@ interface WorldCanvasProps {
   chatBubbles: Record<string, ChatBubble>;
   onMove: (pos: { x: number; y: number; z: number; rotY: number; animState?: AnimState }) => void;
   customObjects?: UserMapObject[];
+  sceneSettings?: Record<string, unknown>;
   graphics?: GraphicsSettings;
   chatInputActive?: boolean;
   emoteSlot?: string | null;
   emoteOneShotOverride?: string[];
 }
 
-export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride }: WorldCanvasProps) {
+export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride }: WorldCanvasProps) {
   const shadowsEnabled = graphics.shadowSize > 0;
   const shadowMapSize: [number, number] = [graphics.shadowSize || 1024, graphics.shadowSize || 1024];
+  // sceneSettings 기반 조명값 — 없으면 기본값(매우 어두움)
+  const ss = sceneSettings ?? {};
+  const ambientIntensity = typeof ss.lightAmbient === 'number' ? ss.lightAmbient : 0.04;
+  const dirIntensity     = typeof ss.lightDir     === 'number' ? ss.lightDir     : 0.0;
+  const showSky          = typeof ss.skyEnabled   === 'boolean' ? ss.skyEnabled  : false;
+  // 사용자 추가 조명 오브젝트 (pointlight / spotlight / dirlight)
+  const lightObjects = (customObjects ?? []).filter(
+    (o: UserMapObject) => o.kind === 'pointlight' || o.kind === 'spotlight' || o.kind === 'dirlight'
+  );
   return (
       <Canvas
         shadows={{ enabled: true, type: THREE.PCFShadowMap, autoUpdate: true }}
@@ -1389,22 +1406,44 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           powerPreference: 'high-performance',
           stencil: false,
         }}
-        style={{ width: '100vw', height: '100vh', display: 'block', background: '#87ceeb', transform: 'translateZ(0)', willChange: 'transform' }}
+        style={{ width: '100vw', height: '100vh', display: 'block', background: showSky ? '#87ceeb' : '#0a0a0f', transform: 'translateZ(0)', willChange: 'transform' }}
       >
-        {/* 조명 — Bruno Simon 스타일 */}
-        <ambientLight intensity={0.45} color="#c4e4ff" />
-        <directionalLight
-          position={[25, 40, 15]}
-          intensity={1.8}
-          castShadow={shadowsEnabled}
-          shadow-mapSize={shadowMapSize}
-          shadow-camera-left={-60}
-          shadow-camera-right={60}
-          shadow-camera-top={60}
-          shadow-camera-bottom={-60}
-          color="#fff4d0"
-        />
-        <hemisphereLight args={['#87ceeb', '#4ade80', 0.3]} />
+        {/* 조명 — sceneSettings 기반 */}
+        <ambientLight intensity={ambientIntensity} />
+        {dirIntensity > 0 && (
+          <directionalLight
+            position={[25, 40, 15]}
+            intensity={dirIntensity}
+            castShadow={shadowsEnabled}
+            shadow-mapSize={shadowMapSize}
+            shadow-camera-left={-60}
+            shadow-camera-right={60}
+            shadow-camera-top={60}
+            shadow-camera-bottom={-60}
+          />
+        )}
+        {/* 사용자 추가 조명 */}
+        {lightObjects.map(o => (
+          o.kind === 'pointlight' ? (
+            <pointLight key={o.id}
+              position={o.position} color={o.lightColor || '#ffffff'}
+              intensity={o.lightIntensity ?? 1} distance={o.lightDistance ?? 0}
+              decay={2} castShadow={o.castShadow ?? false} />
+          ) : o.kind === 'dirlight' ? (
+            <directionalLight key={o.id}
+              position={o.position} color={o.lightColor || '#ffffff'}
+              intensity={o.lightIntensity ?? 1}
+              castShadow={o.castShadow ?? false}
+              shadow-mapSize={shadowMapSize} />
+          ) : (
+            <spotLight key={o.id}
+              position={o.position} color={o.lightColor || '#ffffff'}
+              intensity={o.lightIntensity ?? 1} distance={o.lightDistance ?? 0}
+              angle={(o.lightAngle ?? 45) * Math.PI / 180}
+              penumbra={o.lightPenumbra ?? 0.2}
+              decay={2} castShadow={o.castShadow ?? false} />
+          )
+        ))}
 
         <GraphicsApplier
           shadowSize={graphics.shadowSize}
@@ -1412,7 +1451,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           shadowRadius={graphics.shadowRadius}
         />
 
-        <Sky sunPosition={[25, 10, 15]} turbidity={0.4} rayleigh={0.25} />
+        {showSky && <Sky sunPosition={[25, 10, 15]} turbidity={0.4} rayleigh={0.25} />}
 
         <Suspense fallback={null}>
           <Physics gravity={[0, -22, 0]} interpolate={false}>

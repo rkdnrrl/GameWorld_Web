@@ -60,6 +60,7 @@ export default function WorldPage() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [customObjects, setCustomObjects] = useState<MapObject[] | null>(null);
+  const [sceneSettings, setSceneSettings] = useState<Record<string, unknown> | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
 
@@ -168,6 +169,7 @@ export default function WorldPage() {
           return;
         }
         setCustomObjects(Array.isArray(d.world.mapData?.objects) ? d.world.mapData.objects : []);
+        setSceneSettings(d.world.mapData?.sceneSettings ?? null);
       })
       .catch(() => {
         // stale map object carry-over 방지
@@ -409,6 +411,7 @@ export default function WorldPage() {
         chatBubbles={chatBubbles}
         onMove={sendMove}
         customObjects={worldIdParam ? (customObjects ?? undefined) : undefined}
+        sceneSettings={sceneSettings ?? undefined}
         graphics={graphics}
         chatInputActive={chatOpen}
         emoteSlot={emoteSlot}
