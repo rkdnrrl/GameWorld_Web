@@ -3,6 +3,17 @@ import React, { Suspense, useRef, useEffect, useState, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Html, Sky, Text } from '@react-three/drei';
 import { Physics, RigidBody, CapsuleCollider, useRapier } from '@react-three/rapier';
+
+/** Rapier 강체 — 우리가 호출하는 메서드만 추린 미니 인터페이스 (버전 무관) */
+interface RapierBodyApi {
+  translation(): { x: number; y: number; z: number };
+  rotation(): { x: number; y: number; z: number; w: number };
+  setTranslation(v: { x: number; y: number; z: number }, wakeUp: boolean): void;
+  setRotation(q: { x: number; y: number; z: number; w: number }, wakeUp: boolean): void;
+  applyImpulse(v: { x: number; y: number; z: number }, wakeUp: boolean): void;
+  linvel(): { x: number; y: number; z: number };
+  setLinvel(v: { x: number; y: number; z: number }, wakeUp: boolean): void;
+}
 import * as THREE from 'three';
 import type { ChatBubble, RemotePlayer, PlayerPose } from '@/lib/world/useGameSocket';
 import type { GraphicsSettings } from '@/lib/world/graphicsSettings';
@@ -1118,7 +1129,7 @@ function disposeMaterial(mat: THREE.MeshStandardMaterial) {
 function UserMapObjectMesh({ obj, scriptBodyRefs }: {
   obj: UserMapObject;
   scriptBodyRefs?: React.MutableRefObject<Map<string, {
-    body: React.MutableRefObject<import('@react-three/rapier').RigidBodyApi | null>;
+    body: React.MutableRefObject<RapierBodyApi | null>;
     group: React.MutableRefObject<THREE.Group | null>;
   }>>;
 }) {
@@ -1453,7 +1464,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const luaScripts = useRef<Map<string, import('@/lib/world/jsRuntime').JsScript>>(new Map());
   // objectId → { body: Rapier rigid body ref, group: Three.js group ref }
   const scriptBodyRefs = useRef<Map<string, {
-    body: React.MutableRefObject<import('@react-three/rapier').RigidBodyApi | null>;
+    body: React.MutableRefObject<RapierBodyApi | null>;
     group: React.MutableRefObject<THREE.Group | null>;
   }>>(new Map());
   const worldElapsed = useRef(0); // 월드 시작 후 경과 시간 (초)
