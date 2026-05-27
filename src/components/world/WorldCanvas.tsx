@@ -129,8 +129,6 @@ async function cloneFBX(source: THREE.Object3D): Promise<THREE.Object3D> {
   return mod.clone(source);
 }
 
-// 루트 모션(obj.position.y)을 물리 기준으로 고정해야 하는 슬롯
-const ROOT_MOTION_SLOTS = new Set(['jump', 'fall']);
 
 /** start~end 초 구간만 잘라낸 새 AnimationClip 반환 (트림 없으면 원본) */
 function trimClip(source: THREE.AnimationClip, trim?: AnimTrim): THREE.AnimationClip {
@@ -174,8 +172,6 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   castShadow?: boolean;
 }) {
   const [obj, setObj]   = useState<THREE.Object3D | null>(null);
-  const objRef          = useRef<THREE.Object3D | null>(null); // useFrame 클로저용
-  const normalizeBaseY  = useRef(0); // autoNormalize 후 obj.position.y 기준값
   const mixer           = useRef<THREE.AnimationMixer | null>(null);
   const clipByState     = useRef<Map<string, THREE.AnimationClip>>(new Map());
   const currentAction   = useRef<THREE.AnimationAction | null>(null);
@@ -227,8 +223,6 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       if (cancelled) return;
       cloned.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = castShadow; });
       autoNormalize(cloned, rotX, 1.8);
-      normalizeBaseY.current = cloned.position.y; // 루트 모션 상쇄용 기준 Y 저장
-      objRef.current = cloned;
       const platformClips = await loadPlatformAnimationStateClips(cloned) as Map<AnimState, THREE.AnimationClip>;
       if (cancelled) return;
       setupMixer(cloned, retargetClipsToModel(anims, cloned), platformClips);
@@ -299,11 +293,6 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
 
     const desired = animStateRef?.current || 'idle';
 
-    // 루트 모션 상쇄: jump/fall 중 obj.position.y를 autoNormalize 기준으로 고정
-    // → 물리(RigidBody)가 캐릭터를 올리고, 애니메이션 root motion이 추가로 올리는 이중 이동 방지
-    if (objRef.current && ROOT_MOTION_SLOTS.has(desired)) {
-      objRef.current.position.y = normalizeBaseY.current;
-    }
     if (desired === '__done__') return; // Player가 처리할 sentinel — skip
     if (desired === currentState.current) return;
 
