@@ -1292,6 +1292,8 @@ interface WorldCanvasProps {
   // 오브젝트 상태 동기화
   sendObjectStates?: (states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean }>) => void;
   objectStatesRef?: React.RefObject<((states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean }>, fromId: string) => void) | null>;
+  // 방장 (가장 일찍 들어온 사람) — 본인이 호스트일 때만 broadcast
+  hostId?: string | null;
 }
 
 /* ── 모바일 컨트롤 컴포넌트 (Canvas 완전 바깥 — drei Html 스케일 영향 없음) ── */
@@ -1445,7 +1447,7 @@ function MobileControls({ inputLocked }: { inputLocked: boolean }) {
   );
 }
 
-export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef }: WorldCanvasProps) {
+export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId }: WorldCanvasProps) {
   const shadowsEnabled = graphics.shadowSize > 0;
   const shadowMapSize: [number, number] = [graphics.shadowSize || 1024, graphics.shadowSize || 1024];
   const ss = sceneSettings ?? {};
@@ -1503,12 +1505,12 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     return () => { if (objectStatesRef.current) objectStatesRef.current = null; };
   }, [objectStatesRef]);
 
-  // ── 송신: 움직인 오브젝트만 broadcast (10Hz) ──
-  // Authority 패턴 폐기 — "누구든 움직이면 broadcast" 방식
-  // 이렇게 해야 어느 클라이언트가 박스 밀어도 다른 쪽에 전달됨
+  // ── 송신: 본인이 호스트(방장)일 때만, 움직인 오브젝트 broadcast (10Hz) ──
+  // 방장 = 가장 일찍 들어온 사람 (서버가 결정). 방장 나가면 자동 인계.
+  const isHost = !!hostId && hostId === playerId;
   const lastBroadcastPos = useRef<Map<string, [number, number, number]>>(new Map());
   useEffect(() => {
-    if (!sendObjectStates || !customObjects) return;
+    if (!isHost || !sendObjectStates || !customObjects) return;
     const MOVE_THRESHOLD = 0.005; // 5mm 이상 움직였을 때만 broadcast
     const interval = setInterval(() => {
       const states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean }> = [];
@@ -1549,7 +1551,12 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       if (states.length > 0) sendObjectStates(states);
     }, 100); // 10Hz
     return () => clearInterval(interval);
-  }, [sendObjectStates, customObjects]);
+  }, [isHost, sendObjectStates, customObjects]);
+
+  // 호스트 바뀌면 lastBroadcastPos 초기화 (새 호스트는 처음부터 다시 전송)
+  useEffect(() => {
+    lastBroadcastPos.current.clear();
+  }, [isHost]);
 
   // customObjects 변경 시 VM 재생성
   useEffect(() => {

@@ -218,7 +218,7 @@ export default function WorldPage() {
   type ObjState = { id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean };
   const objectStatesRef = useRef<((states: ObjState[], fromId: string) => void) | null>(null);
 
-  const { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates } = useGameSocket({
+  const { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, hostId } = useGameSocket({
     worldId: worldSocketKey,
     playerId: userId,
     username,
@@ -431,6 +431,7 @@ export default function WorldPage() {
         scriptEventRef={scriptEventRef}
         sendObjectStates={sendObjectStates}
         objectStatesRef={objectStatesRef}
+        hostId={hostId}
       />
 
       <GraphicsPanel settings={graphics} updateSettings={updateGraphics} applyPreset={applyGraphicsPreset} />

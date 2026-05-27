@@ -60,6 +60,7 @@ interface Options {
 export function useGameSocket({ worldId, playerId, username, character, enabled, onScriptEvent, onObjectStates }: Options) {
   const onScriptEventRef  = useRef(onScriptEvent);
   const onObjectStatesRef = useRef(onObjectStates);
+  const [hostId, setHostId] = useState<string | null>(null);
   const [players, setPlayers]     = useState<Record<string, RemotePlayer>>({});
   const [chatLog, setChatLog]     = useState<ChatMessage[]>([]);
   const [chatBubbles, setChatBubbles] = useState<Record<string, ChatBubble>>({});
@@ -149,6 +150,10 @@ export function useGameSocket({ worldId, playerId, username, character, enabled,
         const o = msg as unknown as { states: ObjectStateUpdate[]; fromId: string };
         if (Array.isArray(o.states)) onObjectStatesRef.current?.(o.states, o.fromId);
       }
+      else if (msg.type === 'host') {
+        const h = msg as unknown as { hostId: string | null };
+        setHostId(h.hostId ?? null);
+      }
       else if (msg.type === 'chat') {
         const { id, username: un, message } = msg as { id: string; username: string; message: string };
         const now = Date.now();
@@ -185,6 +190,7 @@ export function useGameSocket({ worldId, playerId, username, character, enabled,
     setPlayers({});
     setChatBubbles({});
     setConnected(false);
+    setHostId(null);
     Object.values(bubbleTimers.current).forEach(clearTimeout);
     bubbleTimers.current = {};
     clearTimeout(timer.current);
@@ -230,5 +236,5 @@ export function useGameSocket({ worldId, playerId, username, character, enabled,
   useEffect(() => { onScriptEventRef.current  = onScriptEvent;  }, [onScriptEvent]);
   useEffect(() => { onObjectStatesRef.current = onObjectStates; }, [onObjectStates]);
 
-  return { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates };
+  return { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, hostId };
 }
