@@ -627,7 +627,7 @@ function Player({
 }: {
   character: Record<string, unknown>;
   bubble?: ChatBubble;
-  onMove: (p: { x: number; y: number; z: number; rotY: number; animState?: AnimState }) => void;
+  onMove: (p: { x: number; y: number; z: number; rotY: number; animState?: AnimState; vx?: number; vy?: number; vz?: number }) => void;
   inputLocked?: boolean;
   emoteSlot?: string | null;
   emoteOneShotOverride?: string[];
@@ -830,7 +830,12 @@ function Player({
       const now = Date.now();
       if (now - lastSend.current > 50) {
         lastSend.current = now;
-        onMove({ x: posT.x, y: posT.y, z: posT.z, rotY: mesh.current?.rotation.y ?? 0, animState: state });
+        onMove({
+          x: posT.x, y: posT.y, z: posT.z,
+          rotY: mesh.current?.rotation.y ?? 0,
+          animState: state,
+          vx: vel.x, vy: vel.y, vz: vel.z,  // 속도 — 원격 클라이언트 kinematic body가 사용
+        });
       }
       } catch { /* Rapier 초기화 중 에러 무시 */ }
     }
@@ -903,11 +908,10 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow }: {
   const bodyRef = useRef<any>(null);
   const meshRef = useRef<THREE.Group>(null);
   const animStateRef = useRef<AnimState>('idle');
-  // 위치 예측을 위한 직전 pose 추적 (속도 추정)
-  const lastPose = useRef<{ x: number; y: number; z: number; t: number } | null>(null);
 
-  // 매 프레임: 네트워크 pose로 kinematic body를 빠르게 따라가게
-  // 속도 예측 + 빠른 lerp → 박스 미는 힘이 호스트 수준으로 충분
+  // 매 프레임: 원격 플레이어의 실제 속도(vx/vy/vz)로 kinematic body를 움직임
+  // → 호스트 화면에서 원격 캐릭터가 진짜 속도로 박스를 밂 → push 힘 = 로컬 푸시와 동일
+  // 추가로 네트워크 위치와의 drift는 작은 보정으로 자연스럽게 수렴
   useFrame((_, dt) => {
     const pose = posesRef.current?.get(player.id);
     if (!pose) return;
@@ -915,32 +919,30 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow }: {
     const body = bodyRef.current;
     if (!body) return;
 
-    // 직전 pose와 비교해 속도 추정 → 다음 프레임 위치 예측
-    const now = performance.now();
-    let targetX = pose.x, targetY = pose.y, targetZ = pose.z;
-    if (lastPose.current) {
-      const elapsed = (now - lastPose.current.t) / 1000;
-      if (elapsed > 0 && elapsed < 0.3) {
-        const vx = (pose.x - lastPose.current.x) / elapsed;
-        const vy = (pose.y - lastPose.current.y) / elapsed;
-        const vz = (pose.z - lastPose.current.z) / elapsed;
-        // 50ms 정도 앞을 예측 (네트워크 지연 보상)
-        targetX += vx * 0.05;
-        targetY += vy * 0.05;
-        targetZ += vz * 0.05;
-      }
-    }
-    if (!lastPose.current || lastPose.current.x !== pose.x || lastPose.current.y !== pose.y || lastPose.current.z !== pose.z) {
-      lastPose.current = { x: pose.x, y: pose.y, z: pose.z, t: now };
+    const cur = body.translation();
+    const vx = pose.vx ?? 0;
+    const vy = pose.vy ?? 0;
+    const vz = pose.vz ?? 0;
+
+    // 1) 속도로 이동 (이게 핵심 — 박스 push 힘 보장)
+    let nextX = cur.x + vx * dt;
+    let nextY = cur.y + vy * dt;
+    let nextZ = cur.z + vz * dt;
+
+    // 2) 네트워크 위치와의 차이를 작은 비율로 보정 (drift 방지)
+    //    너무 강하면 jitter, 너무 약하면 desync — 0.15가 절충점
+    const driftCorrection = 0.15;
+    nextX += (pose.x - cur.x) * driftCorrection;
+    nextY += (pose.y - cur.y) * driftCorrection;
+    nextZ += (pose.z - cur.z) * driftCorrection;
+
+    // 3) 차이가 너무 크면(텔레포트, 동기화 끊김 등) 즉시 snap
+    const dx = pose.x - cur.x, dy = pose.y - cur.y, dz = pose.z - cur.z;
+    if (dx*dx + dy*dy + dz*dz > 25) { // 5m 이상 차이
+      nextX = pose.x; nextY = pose.y; nextZ = pose.z;
     }
 
-    const cur = body.translation();
-    const lerpF = Math.min(1, 25 * dt); // 25 = 매우 빠른 추종 → 박스 push 힘 ↑
-    body.setNextKinematicTranslation({
-      x: cur.x + (targetX - cur.x) * lerpF,
-      y: cur.y + (targetY - cur.y) * lerpF,
-      z: cur.z + (targetZ - cur.z) * lerpF,
-    });
+    body.setNextKinematicTranslation({ x: nextX, y: nextY, z: nextZ });
     if (meshRef.current) {
       meshRef.current.rotation.y = lerpAngle(meshRef.current.rotation.y, pose.rotY, Math.min(1, 15 * dt));
     }
@@ -1354,7 +1356,7 @@ interface WorldCanvasProps {
   players: Record<string, RemotePlayer>;
   posesRef: React.RefObject<Map<string, PlayerPose>>;
   chatBubbles: Record<string, ChatBubble>;
-  onMove: (pos: { x: number; y: number; z: number; rotY: number; animState?: AnimState }) => void;
+  onMove: (pos: { x: number; y: number; z: number; rotY: number; animState?: AnimState; vx?: number; vy?: number; vz?: number }) => void;
   customObjects?: UserMapObject[];
   sceneSettings?: Record<string, unknown>;
   graphics?: GraphicsSettings;
@@ -1566,21 +1568,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     return () => { if (objectStatesRef.current) objectStatesRef.current = null; };
   }, [objectStatesRef]);
 
-  // ── 송신: 근접 기반 소유권 — 박스에 가장 가까운 플레이어가 broadcast ──
-  // 본인이 밀고 있으면 본인 = 가장 가까움 → 본인의 부드러운 로컬 시뮬을 다른 클라이언트에 전달
-  // 아무도 가깝지 않으면 호스트가 대신 (정적/물리만의 오브젝트용)
+  // ── 송신: 호스트만 broadcast (오브젝트 위치 권한자) ──
   const isHost = !!hostId && hostId === playerId;
   const lastBroadcastPos = useRef<Map<string, [number, number, number]>>(new Map());
-  // 본인 플레이어 위치 추적 (소유권 판단용)
-  const myPosForOwnership = useRef<[number, number, number]>([0, 1, 0]);
   useEffect(() => {
-    if (!sendObjectStates || !customObjects) return;
+    if (!isHost || !sendObjectStates || !customObjects) return;
     const MOVE_THRESHOLD = 0.005;
-    const NEAR_RADIUS    = 4;     // 4m 이내면 "내가 미는 중"으로 간주
-    const NEAR_RADIUS_SQ = NEAR_RADIUS * NEAR_RADIUS;
     const interval = setInterval(() => {
       const states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean }> = [];
-      const myPos = myPosForOwnership.current;
       for (const obj of customObjects) {
         if (obj.hidden) continue;
         if (obj.kind === 'pointlight' || obj.kind === 'spotlight' || obj.kind === 'dirlight') continue;
@@ -1604,27 +1599,6 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           vis = group.visible;
         } else continue;
 
-        // ── 소유권 판단 ──
-        // 내 거리^2
-        const dx0 = pos[0] - myPos[0], dy0 = pos[1] - myPos[1], dz0 = pos[2] - myPos[2];
-        const myDistSq = dx0*dx0 + dy0*dy0 + dz0*dz0;
-        // 가장 가까운 원격 플레이어 거리^2
-        let closestRemoteSq = Infinity;
-        if (posesRef.current) {
-          for (const pose of posesRef.current.values()) {
-            const dx = pos[0] - pose.x, dy = pos[1] - pose.y, dz = pos[2] - pose.z;
-            const d2 = dx*dx + dy*dy + dz*dz;
-            if (d2 < closestRemoteSq) closestRemoteSq = d2;
-          }
-        }
-        // 내가 박스에 가장 가깝고 + 4m 이내 → 내가 소유
-        const iAmClosest = myDistSq < closestRemoteSq && myDistSq < NEAR_RADIUS_SQ;
-        // 아무도 가깝지 않음 + 내가 호스트 → 내가 (정적/물리만 오브젝트 fallback)
-        const noOneClose = myDistSq >= NEAR_RADIUS_SQ && closestRemoteSq >= NEAR_RADIUS_SQ;
-        const iOwn = iAmClosest || (noOneClose && isHost);
-        if (!iOwn) continue; // 소유자가 아니면 broadcast 안 함
-
-        // 이전 broadcast 위치와 비교 — 차이 없으면 skip
         const last = lastBroadcastPos.current.get(obj.id);
         if (last) {
           const moved = Math.abs(pos[0] - last[0]) > MOVE_THRESHOLD
@@ -1638,13 +1612,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       if (states.length > 0) sendObjectStates(states);
     }, 50); // 20Hz
     return () => clearInterval(interval);
-  }, [isHost, sendObjectStates, customObjects, posesRef]);
-
-  // 본인 위치 동기화 — Player가 onMove 호출할 때마다 갱신
-  // (실시간 위치는 Player의 lastPos에 있지만 외부 접근이 까다로워 onMove에서 함께 갱신)
-  const trackMyPos = useCallback((p: { x: number; y: number; z: number }) => {
-    myPosForOwnership.current = [p.x, p.y, p.z];
-  }, []);
+  }, [isHost, sendObjectStates, customObjects]);
 
   // 호스트 바뀌면 lastBroadcastPos 초기화
   useEffect(() => {
@@ -1826,7 +1794,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={(p) => { trackMyPos(p); onMove(p); }} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}

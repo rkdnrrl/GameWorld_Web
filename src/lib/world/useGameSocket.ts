@@ -17,6 +17,10 @@ export interface PlayerPose {
   z: number;
   rotY: number;
   animState?: AnimState;
+  // 속도 (m/s) — 원격 플레이어 kinematic body가 실제 속도로 움직이게 해서 박스 push 힘 제공
+  vx?: number;
+  vy?: number;
+  vz?: number;
   lastUpdate: number;
 }
 
@@ -124,14 +128,16 @@ export function useGameSocket({ worldId, playerId, username, character, enabled,
       }
       else if (msg.type === 'moved') {
         // 핵심: ref만 mutate, setState 호출 안 함 → React 재렌더 없음
-        const { id, x, y, z, rotY, animState } =
-          msg as { id: string; x: number; y: number; z: number; rotY: number; animState?: AnimState };
+        const { id, x, y, z, rotY, animState, vx, vy, vz } =
+          msg as { id: string; x: number; y: number; z: number; rotY: number; animState?: AnimState; vx?: number; vy?: number; vz?: number };
         const prev = posesRef.current.get(id);
         if (prev) {
           prev.x = x; prev.y = y; prev.z = z; prev.rotY = rotY;
-          prev.animState = animState; prev.lastUpdate = Date.now();
+          prev.animState = animState;
+          prev.vx = vx ?? 0; prev.vy = vy ?? 0; prev.vz = vz ?? 0;
+          prev.lastUpdate = Date.now();
         } else {
-          posesRef.current.set(id, { x, y, z, rotY, animState, lastUpdate: Date.now() });
+          posesRef.current.set(id, { x, y, z, rotY, animState, vx: vx ?? 0, vy: vy ?? 0, vz: vz ?? 0, lastUpdate: Date.now() });
         }
       }
       else if (msg.type === 'left') {
@@ -204,7 +210,7 @@ export function useGameSocket({ worldId, playerId, username, character, enabled,
     };
   }, [connect]);
 
-  const sendMove = useCallback((pos: { x: number; y: number; z: number; rotY: number; animState?: AnimState }) => {
+  const sendMove = useCallback((pos: { x: number; y: number; z: number; rotY: number; animState?: AnimState; vx?: number; vy?: number; vz?: number }) => {
     if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type: 'move', ...pos }));
     }
