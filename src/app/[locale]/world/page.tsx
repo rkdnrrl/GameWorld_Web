@@ -218,8 +218,12 @@ export default function WorldPage() {
   type ObjState = { id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean };
   const objectStatesRef = useRef<((states: ObjState[], fromId: string) => void) | null>(null);
   const objectOwnerRef = useRef<((objectId: string, ownerId: string | null) => void) | null>(null);
+  // 런타임 spawn/destroy 동기화
+  type RuntimeSpec = import('@/lib/world/useGameSocket').RuntimeObjectSpec;
+  const objSpawnRef   = useRef<((spec: RuntimeSpec) => void) | null>(null);
+  const objDestroyRef = useRef<((objectId: string) => void) | null>(null);
 
-  const { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, sendObjClaim, sendObjRelease, hostId } = useGameSocket({
+  const { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, sendObjClaim, sendObjRelease, sendObjSpawn, sendObjDestroy, hostId } = useGameSocket({
     worldId: worldSocketKey,
     playerId: userId,
     username,
@@ -233,6 +237,12 @@ export default function WorldPage() {
     },
     onObjectOwnership: (objectId, ownerId) => {
       objectOwnerRef.current?.(objectId, ownerId);
+    },
+    onObjSpawn: (spec) => {
+      objSpawnRef.current?.(spec);
+    },
+    onObjDestroy: (objectId) => {
+      objDestroyRef.current?.(objectId);
     },
   });
 
@@ -439,6 +449,10 @@ export default function WorldPage() {
         sendObjClaim={sendObjClaim}
         sendObjRelease={sendObjRelease}
         objectOwnerRef={objectOwnerRef}
+        sendObjSpawn={sendObjSpawn}
+        sendObjDestroy={sendObjDestroy}
+        objSpawnRef={objSpawnRef}
+        objDestroyRef={objDestroyRef}
       />
 
       <GraphicsPanel settings={graphics} updateSettings={updateGraphics} applyPreset={applyGraphicsPreset} />

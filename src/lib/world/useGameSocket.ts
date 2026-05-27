@@ -53,6 +53,20 @@ export interface ObjectStateUpdate {
   vel?: [number, number, number];
 }
 
+/** world.spawn() 으로 만들어진 런타임 오브젝트 — 멀티 동기화용 */
+export interface RuntimeObjectSpec {
+  id: string;
+  kind: string;
+  assetUrl?: string;
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale: [number, number, number];
+  color: string;
+  physics?: 'none' | 'fixed' | 'dynamic';
+  material?: string;
+  materialColor?: string;
+}
+
 interface Options {
   worldId: string;
   playerId: string;
@@ -62,12 +76,18 @@ interface Options {
   onScriptEvent?: (msg: ScriptEventMessage) => void;
   onObjectStates?: (states: ObjectStateUpdate[], fromId: string) => void;
   onObjectOwnership?: (objectId: string, ownerId: string | null) => void;
+  /** 다른 클라가 world.spawn 한 오브젝트 또는 신규 입장 시 일괄 수신 */
+  onObjSpawn?: (spec: RuntimeObjectSpec) => void;
+  /** 다른 클라가 obj.destroy() 한 결과 */
+  onObjDestroy?: (objectId: string) => void;
 }
 
-export function useGameSocket({ worldId, playerId, username, character, enabled, onScriptEvent, onObjectStates, onObjectOwnership }: Options) {
+export function useGameSocket({ worldId, playerId, username, character, enabled, onScriptEvent, onObjectStates, onObjectOwnership, onObjSpawn, onObjDestroy }: Options) {
   const onScriptEventRef     = useRef(onScriptEvent);
   const onObjectStatesRef    = useRef(onObjectStates);
   const onObjectOwnershipRef = useRef(onObjectOwnership);
+  const onObjSpawnRef        = useRef(onObjSpawn);
+  const onObjDestroyRef      = useRef(onObjDestroy);
   const [hostId, setHostId] = useState<string | null>(null);
   const [players, setPlayers]     = useState<Record<string, RemotePlayer>>({});
   const [chatLog, setChatLog]     = useState<ChatMessage[]>([]);
@@ -168,6 +188,23 @@ export function useGameSocket({ worldId, playerId, username, character, enabled,
         const o = msg as unknown as { objectId: string; ownerId: string | null };
         onObjectOwnershipRef.current?.(o.objectId, o.ownerId ?? null);
       }
+      else if (msg.type === 'obj_spawn') {
+        const o = msg as unknown as { spec: RuntimeObjectSpec };
+        if (o.spec && o.spec.id) onObjSpawnRef.current?.(o.spec);
+      }
+      else if (msg.type === 'obj_destroy') {
+        const o = msg as unknown as { objectId: string };
+        if (o.objectId) onObjDestroyRef.current?.(o.objectId);
+      }
+      else if (msg.type === 'runtime_objects') {
+        // 신규 입장 시 일괄 — 각 spec을 onObjSpawn으로 전달
+        const o = msg as unknown as { objects: RuntimeObjectSpec[] };
+        if (Array.isArray(o.objects)) {
+          for (const spec of o.objects) {
+            if (spec && spec.id) onObjSpawnRef.current?.(spec);
+          }
+        }
+      }
       else if (msg.type === 'chat') {
         const { id, username: un, message } = msg as { id: string; username: string; message: string };
         const now = Date.now();
@@ -259,9 +296,23 @@ export function useGameSocket({ worldId, playerId, username, character, enabled,
     }
   }, []);
 
+  const sendObjSpawn = useCallback((spec: RuntimeObjectSpec) => {
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({ type: 'obj_spawn', spec }));
+    }
+  }, []);
+
+  const sendObjDestroy = useCallback((objectId: string) => {
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({ type: 'obj_destroy', objectId }));
+    }
+  }, []);
+
   useEffect(() => { onScriptEventRef.current     = onScriptEvent;     }, [onScriptEvent]);
   useEffect(() => { onObjectStatesRef.current    = onObjectStates;    }, [onObjectStates]);
   useEffect(() => { onObjectOwnershipRef.current = onObjectOwnership; }, [onObjectOwnership]);
+  useEffect(() => { onObjSpawnRef.current        = onObjSpawn;        }, [onObjSpawn]);
+  useEffect(() => { onObjDestroyRef.current      = onObjDestroy;      }, [onObjDestroy]);
 
-  return { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, sendObjClaim, sendObjRelease, hostId };
+  return { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, sendObjClaim, sendObjRelease, sendObjSpawn, sendObjDestroy, hostId };
 }

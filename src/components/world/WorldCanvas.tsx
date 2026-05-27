@@ -1467,6 +1467,11 @@ interface WorldCanvasProps {
   sendObjClaim?: (objectId: string) => void;
   sendObjRelease?: (objectId: string) => void;
   objectOwnerRef?: React.RefObject<((objectId: string, ownerId: string | null) => void) | null>;
+  // 런타임 spawn/destroy 동기화
+  sendObjSpawn?: (spec: import('@/lib/world/useGameSocket').RuntimeObjectSpec) => void;
+  sendObjDestroy?: (objectId: string) => void;
+  objSpawnRef?: React.RefObject<((spec: import('@/lib/world/useGameSocket').RuntimeObjectSpec) => void) | null>;
+  objDestroyRef?: React.RefObject<((objectId: string) => void) | null>;
 }
 
 /* ── 모바일 컨트롤 컴포넌트 (Canvas 완전 바깥 — drei Html 스케일 영향 없음) ── */
@@ -1620,7 +1625,7 @@ function MobileControls({ inputLocked }: { inputLocked: boolean }) {
   );
 }
 
-export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId, sendObjClaim, sendObjRelease, objectOwnerRef }: WorldCanvasProps) {
+export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId, sendObjClaim, sendObjRelease, objectOwnerRef, sendObjSpawn, sendObjDestroy, objSpawnRef, objDestroyRef }: WorldCanvasProps) {
   const shadowsEnabled = graphics.shadowSize > 0;
   const shadowMapSize: [number, number] = [graphics.shadowSize || 1024, graphics.shadowSize || 1024];
   const ss = sceneSettings ?? {};
@@ -1692,8 +1697,47 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     return () => { if (objectOwnerRef.current) objectOwnerRef.current = null; };
   }, [objectOwnerRef]);
 
-  // ── world.spawn / obj.destroy 헬퍼 (로컬 전용 — 멀티 sync 없음) ──
-  /** 스크립트에서 world.spawn(opts) 호출 시 새 오브젝트 추가. id 반환. */
+  // 다른 클라가 spawn 한 오브젝트 수신 → 본인 runtimeObjects 에 추가 (중복 방지)
+  useEffect(() => {
+    if (!objSpawnRef) return;
+    objSpawnRef.current = (spec) => {
+      setRuntimeObjects(prev => {
+        if (prev.find(o => o.id === spec.id)) return prev; // 이미 있음
+        // RuntimeObjectSpec → UserMapObject (kind 좁히기)
+        const obj: UserMapObject = {
+          id: spec.id,
+          kind: (spec.kind as UserMapObject['kind']) || 'cube',
+          assetUrl: spec.assetUrl,
+          position: spec.position,
+          rotation: spec.rotation,
+          scale: spec.scale,
+          color: spec.color,
+          physics: spec.physics,
+          material: spec.material as UserMapObject['material'],
+          materialColor: spec.materialColor,
+        };
+        return [...prev, obj];
+      });
+    };
+    return () => { if (objSpawnRef.current) objSpawnRef.current = null; };
+  }, [objSpawnRef]);
+
+  // 다른 클라가 destroy 한 오브젝트 수신 → 본인 화면에서도 제거
+  useEffect(() => {
+    if (!objDestroyRef) return;
+    objDestroyRef.current = (objectId) => {
+      setRuntimeObjects(prev => prev.filter(o => o.id !== objectId));
+      scriptBodyRefs.current.delete(objectId);
+      syncTargets.current.delete(objectId);
+      ownersRef.current.delete(objectId);
+    };
+    return () => { if (objDestroyRef.current) objDestroyRef.current = null; };
+  }, [objDestroyRef]);
+
+  // ── world.spawn / obj.destroy 헬퍼 (멀티 동기화) ──
+  /** 스크립트에서 world.spawn(opts) 호출 시 새 오브젝트 추가. id 반환.
+   *  본인 클라에 즉시 추가하고 서버에 broadcast → 다른 클라가 수신해서 자기 화면에도 생성.
+   *  본인이 spawner = 자동 owner (물리 권한). */
   const spawnObject = useCallback((opts: Partial<UserMapObject>): string => {
     const id = `rt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
     const obj: UserMapObject = {
@@ -1709,8 +1753,18 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       materialColor: opts.materialColor,
     };
     setRuntimeObjects(prev => [...prev, obj]);
+    // optimistic ownership — spawner 가 본인이라고 미리 마킹 (서버 응답 안 기다리고 broadcast loop 가 즉시 권한자로 동작)
+    ownersRef.current.set(id, playerId);
+    // 서버에 알림 (다른 클라 수신해서 본인 화면에도 생성)
+    sendObjSpawn?.({
+      id, kind: obj.kind,
+      assetUrl: obj.assetUrl,
+      position: obj.position, rotation: obj.rotation, scale: obj.scale,
+      color: obj.color, physics: obj.physics,
+      material: obj.material, materialColor: obj.materialColor,
+    });
     return id;
-  }, []);
+  }, [playerId, sendObjSpawn]);
 
   /** id로 런타임 오브젝트 제거. customObjects(저장된 것)는 안전 상 보호. */
   const destroyObject = useCallback((id: string): void => {
@@ -1718,7 +1772,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     scriptBodyRefs.current.delete(id);
     syncTargets.current.delete(id);
     ownersRef.current.delete(id);
-  }, []);
+    sendObjDestroy?.(id);
+  }, [sendObjDestroy]);
 
   // Player 충돌 콜백 — Optimistic Ownership: 서버 확인 안 기다리고 즉시 본인 owner
   const onObjCollide = useCallback((objectId: string, type: 'enter' | 'exit') => {
@@ -1765,7 +1820,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     const MOVE_THRESHOLD = 0.005;
     const interval = setInterval(() => {
       const states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean; vel?: [number, number, number] }> = [];
-      for (const obj of customObjects) {
+      // 원본 customObjects + 런타임 spawn된 것 모두 broadcast 대상 (runtimeObjects는 ref로 읽어 stale 회피)
+      for (const obj of [...customObjects, ...runtimeObjectsRef.current]) {
         if (obj.hidden) continue;
         if (obj.kind === 'pointlight' || obj.kind === 'spotlight' || obj.kind === 'dirlight') continue;
 
