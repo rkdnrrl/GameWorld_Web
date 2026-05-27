@@ -1286,10 +1286,11 @@ export default function StudioCanvas() {
 
   const fbxAssets = useMemo(() => myAssets.filter(a => /\.fbx$/i.test(a.modelUrl)), [myAssets]);
   const fbxFolderTree = useMemo(() => {
-    const fromAssets = fbxAssets.map(a => normalizeFolder(a.folder)).filter((f): f is string => f !== null);
+    // 폴더 트리는 모든 에셋 기준 (이미지 등 포함) — 에셋 페이지와 동일한 폴더 구조
+    const fromAssets = myAssets.map(a => normalizeFolder(a.folder)).filter((f): f is string => f !== null);
     const allFolders = [...new Set([...fromAssets, ...localFolders])].sort();
     return buildFolderTree(allFolders);
-  }, [fbxAssets, localFolders]);
+  }, [myAssets, localFolders]);
 
   async function uploadFilesToFolder(files: FileList | File[]) {
     const arr = Array.from(files);
