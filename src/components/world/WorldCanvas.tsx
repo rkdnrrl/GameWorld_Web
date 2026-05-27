@@ -573,6 +573,8 @@ function Player({
   const moveTouchRef = useRef({ active: false, x: 0, y: 0, pointerId: -1 });
   const lookTouchRef = useRef({ active: false, pointerId: -1, lastX: 0, lastY: 0 });
   const jumpTouchQueued = useRef(false);
+  // 핀치 줌 (두 손가락)
+  const pinchRef = useRef({ active: false, id2: -1, lastDist: 0, x1: 0, y1: 0, x2: 0, y2: 0 });
   // 모바일 전용: 조이스틱 노브 시각 위치 + 스프린트 토글
   const [joystickKnob, setJoystickKnob] = useState({ x: 0, y: 0, active: false });
   const mobileSprintRef = useRef(false);
@@ -668,6 +670,8 @@ function Player({
     lookTouchRef.current.active = false;
     lookTouchRef.current.pointerId = -1;
     jumpTouchQueued.current = false;
+    pinchRef.current.active = false;
+    pinchRef.current.id2 = -1;
   }, [inputLocked]);
 
   useFrame((_, dt) => {
@@ -841,20 +845,55 @@ function Player({
         <Html fullscreen>
           <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', userSelect: 'none' }}>
 
-            {/* ── 카메라 룩: 전체화면 배경 (joystick/버튼이 stopPropagation으로 차단) ── */}
+            {/* ── 카메라 룩 + 핀치 줌: 전체화면 배경 ── */}
             <div
               style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', touchAction: 'none' }}
               onPointerDown={(e) => {
                 if (inputLocked) return;
-                if (lookTouchRef.current.active) return;
-                lookTouchRef.current.active = true;
-                lookTouchRef.current.pointerId = e.pointerId;
-                lookTouchRef.current.lastX = e.clientX;
-                lookTouchRef.current.lastY = e.clientY;
                 (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                // 두 번째 손가락 → 핀치 줌 시작
+                if (lookTouchRef.current.active && !pinchRef.current.active) {
+                  pinchRef.current.active = true;
+                  pinchRef.current.id2 = e.pointerId;
+                  pinchRef.current.x1 = lookTouchRef.current.lastX;
+                  pinchRef.current.y1 = lookTouchRef.current.lastY;
+                  pinchRef.current.x2 = e.clientX;
+                  pinchRef.current.y2 = e.clientY;
+                  pinchRef.current.lastDist = Math.hypot(
+                    e.clientX - lookTouchRef.current.lastX,
+                    e.clientY - lookTouchRef.current.lastY,
+                  );
+                  return;
+                }
+                // 첫 번째 손가락 → 카메라 룩
+                if (!lookTouchRef.current.active) {
+                  lookTouchRef.current.active = true;
+                  lookTouchRef.current.pointerId = e.pointerId;
+                  lookTouchRef.current.lastX = e.clientX;
+                  lookTouchRef.current.lastY = e.clientY;
+                }
               }}
               onPointerMove={(e) => {
                 if (inputLocked) return;
+                if (pinchRef.current.active) {
+                  // 핀치 중: 두 포인터 위치 갱신 → 거리 변화 → 줌
+                  if (e.pointerId === lookTouchRef.current.pointerId) {
+                    pinchRef.current.x1 = e.clientX;
+                    pinchRef.current.y1 = e.clientY;
+                  } else if (e.pointerId === pinchRef.current.id2) {
+                    pinchRef.current.x2 = e.clientX;
+                    pinchRef.current.y2 = e.clientY;
+                  }
+                  const dist = Math.hypot(
+                    pinchRef.current.x2 - pinchRef.current.x1,
+                    pinchRef.current.y2 - pinchRef.current.y1,
+                  );
+                  const delta = dist - pinchRef.current.lastDist;
+                  // 벌리면(delta>0) 가까워짐(camDist↓), 모으면(delta<0) 멀어짐(camDist↑)
+                  camDist.current = Math.max(1.1, Math.min(14, camDist.current - delta * 0.018));
+                  pinchRef.current.lastDist = dist;
+                  return;
+                }
                 if (!lookTouchRef.current.active || lookTouchRef.current.pointerId !== e.pointerId) return;
                 const dx = e.clientX - lookTouchRef.current.lastX;
                 const dy = e.clientY - lookTouchRef.current.lastY;
@@ -864,14 +903,36 @@ function Player({
                 camV.current = Math.max(-1.1, Math.min(1.3, camV.current + dy * 0.005));
               }}
               onPointerUp={(e) => {
+                if (pinchRef.current.active) {
+                  if (e.pointerId === pinchRef.current.id2) {
+                    // 두 번째 손가락 뗌 → 첫 번째 손가락으로 룩 재개
+                    pinchRef.current.active = false;
+                    pinchRef.current.id2 = -1;
+                    lookTouchRef.current.lastX = pinchRef.current.x1;
+                    lookTouchRef.current.lastY = pinchRef.current.y1;
+                  } else if (e.pointerId === lookTouchRef.current.pointerId) {
+                    // 첫 번째 손가락 뗌 → 두 번째가 룩 이어받음
+                    lookTouchRef.current.pointerId = pinchRef.current.id2;
+                    lookTouchRef.current.lastX = pinchRef.current.x2;
+                    lookTouchRef.current.lastY = pinchRef.current.y2;
+                    pinchRef.current.active = false;
+                    pinchRef.current.id2 = -1;
+                  }
+                  return;
+                }
                 if (lookTouchRef.current.pointerId !== e.pointerId) return;
                 lookTouchRef.current.active = false;
                 lookTouchRef.current.pointerId = -1;
               }}
               onPointerCancel={(e) => {
-                if (lookTouchRef.current.pointerId !== e.pointerId) return;
-                lookTouchRef.current.active = false;
-                lookTouchRef.current.pointerId = -1;
+                if (pinchRef.current.active) {
+                  pinchRef.current.active = false;
+                  pinchRef.current.id2 = -1;
+                }
+                if (lookTouchRef.current.pointerId === e.pointerId) {
+                  lookTouchRef.current.active = false;
+                  lookTouchRef.current.pointerId = -1;
+                }
               }}
             />
 
