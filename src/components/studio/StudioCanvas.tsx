@@ -86,6 +86,7 @@ interface MapObject {
   label?: string;
   locked?: boolean;
   hidden?: boolean;
+  parentId?: string | null;
   kind: ObjectKind;
   assetUrl?: string;
   position: [number, number, number];
@@ -373,32 +374,38 @@ function TexturePickerModal({ assets, onSelect, onClose, title }: {
 }
 
 /* ── 단일 오브젝트 렌더링 ────────────────── */
-function Mesh3D({ obj, selected, onClick, assetConfig }: {
+function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
   obj: MapObject;
   selected: boolean;
   onClick: () => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   assetConfig?: any;
+  noTransform?: boolean;
 }) {
   const ref = useRef<THREE.Mesh>(null);
   const handle = (e: { stopPropagation: () => void; button?: number }) => {
     if (e.button !== undefined && e.button !== 0) return;
     if (isGizmoActive()) return;
-    if (obj.locked) return; // 잠긴 오브젝트는 뷰포트 선택 불가
+    if (obj.locked) return;
     e.stopPropagation();
     onClick();
   };
 
-  if (obj.kind === 'asset') return <AssetMesh obj={obj} selected={selected} onClick={handle} assetConfig={assetConfig} />;
+  if (obj.kind === 'asset') return <AssetMesh obj={obj} selected={selected} onClick={handle} assetConfig={assetConfig} noTransform={noTransform} />;
 
   const geometry =
     obj.kind === 'sphere'   ? <sphereGeometry args={[0.5, 24, 16]} /> :
     obj.kind === 'cylinder' ? <cylinderGeometry args={[0.5, 0.5, 1, 16]} /> :
     obj.kind === 'plane'    ? <planeGeometry args={[1, 1]} /> :
                               <boxGeometry args={[1, 1, 1]} />;
+  // noTransform=true: 위치/userData는 외부 SceneNode group이 담당
   return (
-    <mesh ref={ref} position={obj.position} rotation={obj.rotation} scale={obj.scale}
-      onPointerDown={handle} castShadow receiveShadow userData={{ id: obj.id }}>
+    <mesh ref={ref}
+      position={noTransform ? undefined : obj.position}
+      rotation={noTransform ? undefined : obj.rotation}
+      scale={noTransform ? undefined : obj.scale}
+      onPointerDown={handle} castShadow receiveShadow
+      userData={noTransform ? {} : { id: obj.id }}>
       {geometry}
       <PrimitiveMaterial obj={obj} selected={selected} />
     </mesh>
@@ -440,12 +447,13 @@ function PrimitiveMaterial({ obj, selected }: { obj: MapObject; selected?: boole
     emissiveIntensity={selected ? 0.4 : 0} />;
 }
 
-function AssetMesh({ obj, selected, onClick, assetConfig }: {
+function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }: {
   obj: MapObject;
   selected: boolean;
   onClick: (e: { stopPropagation: () => void }) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   assetConfig?: any;
+  noTransform?: boolean;
 }) {
   const [model, setModel] = useState<THREE.Object3D | null>(null);
   const originalMatsRef = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
@@ -512,9 +520,14 @@ function AssetMesh({ obj, selected, onClick, assetConfig }: {
   }, []);
 
   if (!model) return null;
+  // noTransform=true: 위치/userData는 외부 SceneNode group이 담당
   return (
-    <group position={obj.position} rotation={obj.rotation} scale={obj.scale}
-      onPointerDown={onClick} userData={{ id: obj.id }}>
+    <group
+      position={noTransform ? undefined : obj.position}
+      rotation={noTransform ? undefined : obj.rotation}
+      scale={noTransform ? undefined : obj.scale}
+      onPointerDown={onClick}
+      userData={noTransform ? {} : { id: obj.id }}>
       <primitive object={model} />
     </group>
   );
@@ -535,6 +548,133 @@ function SelectedBoxOutline({ target }: { target: THREE.Object3D }) {
       <boxGeometry args={size} />
       <meshBasicMaterial color="#22d3ee" wireframe />
     </mesh>
+  );
+}
+
+/* ── 씬 노드 (부모→자식 재귀 렌더링) ─────── */
+function SceneNode({ obj, allObjects, selectedId, multiSelectedIds, onObjectClick, myAssets }: {
+  obj: MapObject;
+  allObjects: MapObject[];
+  selectedId: string | null;
+  multiSelectedIds: Set<string>;
+  onObjectClick: (id: string) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  myAssets: any[];
+}) {
+  const isSelected = obj.id === selectedId || multiSelectedIds.has(obj.id);
+  const children = allObjects.filter(c => c.parentId === obj.id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const assetConfig: any = obj.kind === 'asset' && obj.assetUrl
+    ? (myAssets.find((a: any) => a.modelUrl === obj.assetUrl)?.metadata?.materialConfig ??
+       myAssets.find((a: any) => a.modelUrl === obj.assetUrl)?.materialConfig ?? null)
+    : undefined;
+
+  return (
+    /* userData.id는 이 group에 → TransformControls이 이 group을 조작 → 자식도 함께 이동 */
+    <group position={obj.position} rotation={obj.rotation} scale={obj.scale} userData={{ id: obj.id }}>
+      <Mesh3D obj={obj} selected={isSelected} onClick={() => onObjectClick(obj.id)} assetConfig={assetConfig} noTransform />
+      {children.map(child => (
+        <SceneNode key={child.id} obj={child} allObjects={allObjects}
+          selectedId={selectedId} multiSelectedIds={multiSelectedIds}
+          onObjectClick={onObjectClick} myAssets={myAssets} />
+      ))}
+    </group>
+  );
+}
+
+/* ── 씬 목록 노드 (UI 계층 트리) ──────────── */
+function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, editingLabelId, editingLabelValue, setEditingLabelId, setEditingLabelValue, setObjects, selectedCallback, pushHistory, onReparent }: {
+  obj: MapObject;
+  allObjects: MapObject[];
+  depth: number;
+  selectedId: string | null;
+  multiSelectedIds: Set<string>;
+  editingLabelId: string | null;
+  editingLabelValue: string;
+  setEditingLabelId: (id: string | null) => void;
+  setEditingLabelValue: (v: string) => void;
+  setObjects: React.Dispatch<React.SetStateAction<MapObject[]>>;
+  selectedCallback: (id: string) => void;
+  pushHistory: (objs: MapObject[]) => void;
+  onReparent: (childId: string, newParentId: string | null) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const [dragOver, setDragOver] = useState(false);
+  const children = allObjects.filter(c => c.parentId === obj.id);
+  const hasChildren = children.length > 0;
+  const isSel = obj.id === selectedId || multiSelectedIds.has(obj.id);
+  const i = allObjects.findIndex(o => o.id === obj.id);
+
+  return (
+    <div>
+      <div
+        draggable
+        onDragStart={e => { e.dataTransfer.setData('sceneObjId', obj.id); e.dataTransfer.effectAllowed = 'move'; }}
+        onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }}
+        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
+        onDrop={e => {
+          e.preventDefault(); e.stopPropagation(); setDragOver(false);
+          const childId = e.dataTransfer.getData('sceneObjId');
+          if (childId && childId !== obj.id) onReparent(childId, obj.id);
+        }}
+        onClick={() => { if (editingLabelId !== obj.id) selectedCallback(obj.id); }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          paddingLeft: depth * 14 + 4, paddingTop: 4, paddingBottom: 4, paddingRight: 6,
+          borderRadius: 6, cursor: 'pointer',
+          background: dragOver ? 'rgba(52,211,153,0.18)' : isSel ? 'rgba(99,102,241,0.25)' : 'transparent',
+          border: dragOver ? '1px dashed #34d399' : `1px solid ${isSel ? 'rgba(99,102,241,0.5)' : 'transparent'}`,
+          opacity: obj.hidden ? 0.4 : 1,
+          outline: dragOver ? '1px dashed #34d399' : 'none',
+        }}
+        onMouseEnter={e => { if (!isSel && !dragOver) (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.05)'; }}
+        onMouseLeave={e => { if (!isSel && !dragOver) (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
+      >
+        {/* 펼치기/접기 */}
+        <button
+          onClick={e => { e.stopPropagation(); if (hasChildren) setOpen(!open); }}
+          style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)', fontSize: 9, cursor: hasChildren ? 'pointer' : 'default', padding: 0, width: 12, flexShrink: 0, lineHeight: 1 }}>
+          {hasChildren ? (open ? '▾' : '▸') : ''}
+        </button>
+        <span style={{ fontSize: 12, flexShrink: 0 }}>{KIND_ICONS[obj.kind] ?? '❓'}</span>
+        {/* 이름 (더블클릭 편집) */}
+        {editingLabelId === obj.id ? (
+          <input autoFocus value={editingLabelValue}
+            onChange={e => setEditingLabelValue(e.target.value)}
+            onBlur={() => { const v = editingLabelValue.trim(); if (v) setObjects(prev => prev.map(o => o.id === obj.id ? { ...o, label: v } : o)); setEditingLabelId(null); }}
+            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingLabelId(null); }}
+            onClick={e => e.stopPropagation()}
+            style={{ flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.4)', border: '1px solid #6366f1', borderRadius: 4, color: '#fff', fontSize: 11, padding: '1px 5px', outline: 'none' }} />
+        ) : (
+          <span
+            onDoubleClick={e => { e.stopPropagation(); setEditingLabelId(obj.id); setEditingLabelValue(obj.label || `${KIND_LABELS[obj.kind] ?? obj.kind} ${i + 1}`); }}
+            title="더블클릭 이름 변경 / 드래그하여 부모 설정"
+            style={{ flex: 1, fontSize: 11, fontWeight: isSel ? 700 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isSel ? '#a5b4fc' : '#e2e8f0' }}>
+            {obj.label || `${KIND_LABELS[obj.kind] ?? obj.kind} ${i + 1}`}
+          </span>
+        )}
+        {/* 아이콘 버튼들 */}
+        <button onClick={e => { e.stopPropagation(); setObjects(prev => prev.map(o => o.id === obj.id ? { ...o, hidden: !o.hidden } : o)); }}
+          style={{ background: 'none', border: 'none', color: obj.hidden ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.45)', fontSize: 11, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}>
+          {obj.hidden ? '🙈' : '👁'}
+        </button>
+        <button onClick={e => { e.stopPropagation(); setObjects(prev => prev.map(o => o.id === obj.id ? { ...o, locked: !o.locked } : o)); }}
+          style={{ background: 'none', border: 'none', color: obj.locked ? '#fbbf24' : 'rgba(255,255,255,0.2)', fontSize: 11, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}>
+          {obj.locked ? '🔒' : '🔓'}
+        </button>
+        <button onClick={e => { e.stopPropagation(); setObjects(prev => { const next = prev.filter(o => o.id !== obj.id); pushHistory(next); return next; }); }}
+          style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.25)', fontSize: 14, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}>×</button>
+      </div>
+      {/* 자식 노드들 */}
+      {open && hasChildren && children.map(child => (
+        <SceneListNode key={child.id} obj={child} allObjects={allObjects} depth={depth + 1}
+          selectedId={selectedId} multiSelectedIds={multiSelectedIds}
+          editingLabelId={editingLabelId} editingLabelValue={editingLabelValue}
+          setEditingLabelId={setEditingLabelId} setEditingLabelValue={setEditingLabelValue}
+          setObjects={setObjects} selectedCallback={selectedCallback}
+          pushHistory={pushHistory} onReparent={onReparent} />
+      ))}
+    </div>
   );
 }
 
@@ -1293,6 +1433,22 @@ export default function StudioCanvas() {
     dragStartRef.current = map;
   }
 
+  function reparentObject(childId: string, newParentId: string | null) {
+    // 순환 방지: newParentId가 childId의 자손이면 거절
+    const isDescendant = (targetId: string, ancestorId: string): boolean => {
+      const obj = objects.find(o => o.id === targetId);
+      if (!obj || !obj.parentId) return false;
+      if (obj.parentId === ancestorId) return true;
+      return isDescendant(obj.parentId, ancestorId);
+    };
+    if (newParentId && isDescendant(newParentId, childId)) return;
+    setObjects(prev => {
+      const next = prev.map(o => o.id === childId ? { ...o, parentId: newParentId ?? undefined } : o);
+      pushHistory(next);
+      return next;
+    });
+  }
+
   function updateObjectTransform(id: string, t: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }) {
     const start = dragStartRef.current;
     const primaryStart = start.get(id);
@@ -1707,68 +1863,38 @@ export default function StudioCanvas() {
             <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, letterSpacing: 0.5 }}>씬 오브젝트</span>
             <span style={{ fontSize: 10, opacity: 0.35, background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '1px 7px' }}>{objects.length}</span>
           </div>
-          <div style={{ overflowY: 'auto', flex: 1, padding: '0 8px 8px', display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {/* 루트 드롭 영역 (자식 → 루트로 올리기) */}
+          <div
+            onDragOver={e => { e.preventDefault(); }}
+            onDrop={e => { e.preventDefault(); const id = e.dataTransfer.getData('sceneObjId'); if (id) reparentObject(id, null); }}
+            style={{ overflowY: 'auto', flex: 1, padding: '0 8px 8px', display: 'flex', flexDirection: 'column', gap: 1 }}
+          >
             {objects.length === 0 ? (
               <div style={{ fontSize: 11, opacity: 0.3, textAlign: 'center', paddingTop: 20 }}>오브젝트 없음</div>
-            ) : objects.map((obj, i) => {
-              const isSel = obj.id === selectedId || multiSelectedIds.has(obj.id);
-              return (
-                <div key={obj.id}
-                  onClick={() => {
-                    if (editingLabelId === obj.id) return;
-                    setRightPanelOpen(true);
-                    if (shiftHeldRef.current) {
-                      setMultiSelectedIds(prev => {
-                        const next = new Set(prev);
-                        if (selectedId && !next.has(selectedId)) next.add(selectedId);
-                        if (next.has(obj.id)) next.delete(obj.id); else next.add(obj.id);
-                        return next;
-                      });
-                      setSelectedId(obj.id);
-                    } else {
-                      setMultiSelectedIds(new Set());
-                      setSelectedId(isSel && multiSelectedIds.size === 0 ? null : obj.id);
-                    }
-                  }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 5,
-                    padding: '4px 6px', borderRadius: 6, cursor: 'pointer',
-                    background: isSel ? 'rgba(99,102,241,0.25)' : 'transparent',
-                    border: `1px solid ${isSel ? 'rgba(99,102,241,0.5)' : 'transparent'}`,
-                    opacity: obj.hidden ? 0.4 : 1,
-                    transition: 'background 0.1s',
-                  }}
-                  onMouseEnter={e => { if (!isSel) (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.05)'; }}
-                  onMouseLeave={e => { if (!isSel) (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
-                >
-                  <span style={{ fontSize: 12, flexShrink: 0 }}>{KIND_ICONS[obj.kind] ?? '❓'}</span>
-                  {editingLabelId === obj.id ? (
-                    <input autoFocus value={editingLabelValue}
-                      onChange={e => setEditingLabelValue(e.target.value)}
-                      onBlur={() => { const v = editingLabelValue.trim(); if (v) setObjects(prev => prev.map(o => o.id === obj.id ? { ...o, label: v } : o)); setEditingLabelId(null); }}
-                      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingLabelId(null); }}
-                      onClick={e => e.stopPropagation()}
-                      style={{ flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.4)', border: '1px solid #6366f1', borderRadius: 4, color: '#fff', fontSize: 11, padding: '1px 5px', outline: 'none' }}
-                    />
-                  ) : (
-                    <span onDoubleClick={e => { e.stopPropagation(); setEditingLabelId(obj.id); setEditingLabelValue(obj.label || `${KIND_LABELS[obj.kind] ?? obj.kind} ${i + 1}`); }}
-                      title="더블클릭하여 이름 변경"
-                      style={{ flex: 1, fontSize: 11, fontWeight: isSel ? 700 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isSel ? '#a5b4fc' : '#e2e8f0' }}>
-                      {obj.label || `${KIND_LABELS[obj.kind] ?? obj.kind} ${i + 1}`}
-                    </span>
-                  )}
-                  <button onClick={e => { e.stopPropagation(); setObjects(prev => prev.map(o => o.id === obj.id ? { ...o, hidden: !o.hidden } : o)); }}
-                    style={{ background: 'none', border: 'none', color: obj.hidden ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.45)', fontSize: 11, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}
-                    title={obj.hidden ? '표시' : '숨기기'}>{obj.hidden ? '🙈' : '👁'}</button>
-                  <button onClick={e => { e.stopPropagation(); setObjects(prev => prev.map(o => o.id === obj.id ? { ...o, locked: !o.locked } : o)); }}
-                    style={{ background: 'none', border: 'none', color: obj.locked ? '#fbbf24' : 'rgba(255,255,255,0.2)', fontSize: 11, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}
-                    title={obj.locked ? '잠금 해제' : '잠금'}>{obj.locked ? '🔒' : '🔓'}</button>
-                  <button onClick={e => { e.stopPropagation(); setObjects(prev => { const next = prev.filter(o => o.id !== obj.id); pushHistory(next); return next; }); if (selectedId === obj.id) setSelectedId(null); }}
-                    style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.25)', fontSize: 14, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}
-                    title="삭제">×</button>
-                </div>
-              );
-            })}
+            ) : objects.filter(o => !o.parentId).map(obj => (
+              <SceneListNode key={obj.id} obj={obj} allObjects={objects} depth={0}
+                selectedId={selectedId} multiSelectedIds={multiSelectedIds}
+                editingLabelId={editingLabelId} editingLabelValue={editingLabelValue}
+                setEditingLabelId={setEditingLabelId} setEditingLabelValue={setEditingLabelValue}
+                setObjects={setObjects} pushHistory={pushHistory}
+                onReparent={reparentObject}
+                selectedCallback={id => {
+                  setRightPanelOpen(true);
+                  if (shiftHeldRef.current) {
+                    setMultiSelectedIds(prev => {
+                      const next = new Set(prev);
+                      if (selectedId && !next.has(selectedId)) next.add(selectedId);
+                      if (next.has(id)) next.delete(id); else next.add(id);
+                      return next;
+                    });
+                    setSelectedId(id);
+                  } else {
+                    setMultiSelectedIds(new Set());
+                    setSelectedId(id);
+                  }
+                }}
+              />
+            ))}
           </div>
         </div>
 
@@ -1937,28 +2063,29 @@ export default function StudioCanvas() {
 
           <Grid args={[100, 100]} cellSize={1} cellThickness={0.5} sectionSize={5} sectionThickness={1} fadeDistance={50} infiniteGrid />
 
-          {objects.filter(o => !o.hidden).map(obj => (
-            <Mesh3D key={obj.id} obj={obj}
-              selected={obj.id === selectedId}
-              onClick={() => {
+          {/* 루트 오브젝트만 렌더링 — SceneNode가 자식을 재귀로 렌더링 */}
+          {objects.filter(o => !o.hidden && !o.parentId).map(obj => (
+            <SceneNode key={obj.id} obj={obj}
+              allObjects={objects.filter(o => !o.hidden)}
+              selectedId={selectedId}
+              multiSelectedIds={multiSelectedIds}
+              myAssets={myAssets}
+              onObjectClick={id => {
                 setRightPanelOpen(true);
                 if (shiftHeldRef.current) {
                   setMultiSelectedIds(prev => {
                     const next = new Set(prev);
-                    // 이미 단일 selectedId가 있으면 같이 포함
                     if (selectedId && !next.has(selectedId)) next.add(selectedId);
-                    if (next.has(obj.id)) next.delete(obj.id); else next.add(obj.id);
+                    if (next.has(id)) next.delete(id); else next.add(id);
                     return next;
                   });
-                  setSelectedId(obj.id);
+                  setSelectedId(id);
                 } else {
                   setMultiSelectedIds(new Set());
-                  setSelectedId(obj.id);
+                  setSelectedId(id);
                 }
               }}
-              assetConfig={obj.kind === 'asset' && obj.assetUrl
-                ? getAssetMaterialConfig(myAssets.find(a => a.modelUrl === obj.assetUrl))
-                : undefined} />
+            />
           ))}
 
           <SelectedTransform
