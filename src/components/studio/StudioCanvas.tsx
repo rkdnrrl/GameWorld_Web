@@ -191,8 +191,8 @@ function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onT
       <div
         onClick={() => { onSelect(node.path); if (hasChildren) onToggle(node.path); }}
         onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOverPath(node.path); }}
-        onDragLeave={e => { e.stopPropagation(); setDragOverPath(undefined); }}
-        onDrop={e => { e.preventDefault(); e.stopPropagation(); const id = e.dataTransfer.getData('assetId'); if (id) onDrop(id, node.path); setDragOverPath(undefined); }}
+        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) { e.stopPropagation(); setDragOverPath(undefined); } }}
+        onDrop={e => { e.preventDefault(); e.stopPropagation(); const id = e.dataTransfer.getData('text/plain'); if (id) onDrop(id, node.path); setDragOverPath(undefined); }}
         style={{
           display: 'flex', alignItems: 'center', gap: 4,
           paddingLeft: depth * 14 + 6, paddingTop: 5, paddingBottom: 5, paddingRight: 8,
@@ -1734,8 +1734,8 @@ export default function StudioCanvas() {
               <div
                 onClick={() => setSelectedFolder(null)}
                 onDragOver={e => { e.preventDefault(); setDragOverPath('__root__'); }}
-                onDragLeave={() => setDragOverPath(undefined)}
-                onDrop={e => { e.preventDefault(); const id = e.dataTransfer.getData('assetId'); if (id) moveAssetToFolder(id, null); setDragOverPath(undefined); }}
+                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverPath(undefined); }}
+                onDrop={e => { e.preventDefault(); const id = e.dataTransfer.getData('text/plain'); if (id) moveAssetToFolder(id, null); setDragOverPath(undefined); }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 4,
                   padding: '5px 8px', borderRadius: 5, cursor: 'pointer',
@@ -1774,19 +1774,23 @@ export default function StudioCanvas() {
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 7 }}>
                   {selectedFolderAssets.map(a => (
-                    <button key={a.id} onClick={() => addAsset(a)}
+                    <div key={a.id}
+                      role="button" tabIndex={0}
+                      onClick={() => addAsset(a)}
+                      onKeyDown={e => e.key === 'Enter' && addAsset(a)}
                       draggable
-                      onDragStart={e => { e.dataTransfer.setData('assetId', a.id); e.dataTransfer.effectAllowed = 'move'; }}
+                      onDragStart={e => { e.dataTransfer.setData('text/plain', a.id); e.dataTransfer.effectAllowed = 'move'; }}
                       style={{
                         background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)',
                         borderRadius: 8, color: '#e2e8f0', fontSize: 11, padding: '8px 6px',
                         cursor: 'grab', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                        userSelect: 'none',
                       }}
                       onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.2)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}>
                       <span style={{ fontSize: 22 }}>📦</span>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: 'center', fontWeight: 500 }}>{a.name}</span>
-                    </button>
+                    </div>
                   ))}
                 </div>
               )}
