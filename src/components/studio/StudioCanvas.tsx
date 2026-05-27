@@ -169,66 +169,47 @@ function AxisInputRow({ label, values, step, min, onChange, onCommit }: {
   );
 }
 
-/* ── FBX 폴더 트리 노드 ─────────────────── */
-function FbxFolderNode({ node, depth, assets, openFolders, onToggle, onAdd }: {
+/* ── FBX 폴더 트리 노드 (선택만 담당) ──── */
+function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onToggle }: {
   node: FolderNode;
   depth: number;
-  assets: Asset[];
   openFolders: Set<string>;
+  selectedFolder: string | null;
+  onSelect: (path: string | null) => void;
   onToggle: (path: string) => void;
-  onAdd: (a: Asset) => void;
 }) {
   const isOpen = openFolders.has(node.path);
-  const directAssets = assets.filter(a => normalizeFolder(a.folder) === node.path);
-  const hasContent = node.children.length > 0 || directAssets.length > 0;
+  const isSelected = selectedFolder === node.path;
+  const hasChildren = node.children.length > 0;
 
   return (
     <div>
-      {/* 폴더 행 */}
       <div
-        onClick={() => hasContent && onToggle(node.path)}
+        onClick={() => { onSelect(node.path); if (hasChildren) onToggle(node.path); }}
         style={{
-          display: 'flex', alignItems: 'center', gap: 5,
-          paddingLeft: depth * 16 + 8, paddingTop: 5, paddingBottom: 5, paddingRight: 8,
-          cursor: hasContent ? 'pointer' : 'default',
-          borderRadius: 6,
-          userSelect: 'none' as const,
+          display: 'flex', alignItems: 'center', gap: 4,
+          paddingLeft: depth * 14 + 6, paddingTop: 5, paddingBottom: 5, paddingRight: 8,
+          cursor: 'pointer', borderRadius: 5, userSelect: 'none' as const,
+          background: isSelected ? 'rgba(129,140,248,0.22)' : 'transparent',
+          color: isSelected ? '#c7d2fe' : '#cbd5e1',
         }}
-        onMouseEnter={e => { if (hasContent) (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.06)'; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
+        onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.06)'; }}
+        onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
       >
-        <span style={{ fontSize: 10, width: 10, flexShrink: 0, color: 'rgba(255,255,255,0.4)' }}>
-          {hasContent ? (isOpen ? '▾' : '▸') : ' '}
+        <span style={{ width: 12, textAlign: 'center', fontSize: 9, flexShrink: 0, color: 'rgba(255,255,255,0.35)' }}>
+          {hasChildren ? (isOpen ? '▾' : '▸') : ''}
         </span>
-        <span style={{ fontSize: 13 }}>📁</span>
-        <span style={{ fontSize: 12, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ fontSize: 13, flexShrink: 0 }}>📁</span>
+        <span style={{ fontSize: 12, fontWeight: isSelected ? 700 : 400, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {node.name}
         </span>
-        {directAssets.length > 0 && (
-          <span style={{ fontSize: 10, opacity: 0.4, flexShrink: 0 }}>{directAssets.length}</span>
-        )}
       </div>
-
-      {/* 하위 내용 */}
-      {isOpen && (
+      {isOpen && hasChildren && (
         <div>
           {node.children.map(child => (
             <FbxFolderNode key={child.path} node={child} depth={depth + 1}
-              assets={assets} openFolders={openFolders} onToggle={onToggle} onAdd={onAdd} />
-          ))}
-          {directAssets.map(a => (
-            <button key={a.id} onClick={() => onAdd(a)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                paddingLeft: (depth + 1) * 16 + 8, paddingTop: 5, paddingBottom: 5, paddingRight: 8,
-                width: '100%', background: 'none', border: 'none', color: '#e2e8f0',
-                fontSize: 12, cursor: 'pointer', borderRadius: 6, textAlign: 'left',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.18)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-              <span style={{ fontSize: 13, flexShrink: 0 }}>📦</span>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
-            </button>
+              openFolders={openFolders} selectedFolder={selectedFolder}
+              onSelect={onSelect} onToggle={onToggle} />
           ))}
         </div>
       )}
@@ -639,6 +620,7 @@ export default function StudioCanvas() {
   const [orbitEnabled, setOrbitEnabled] = useState(true);
   const [activeAssetPicker, setActiveAssetPicker] = useState(false);
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [texPicker, setTexPicker] = useState<null | 'albedo' | 'normal' | 'roughness'>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
@@ -884,7 +866,11 @@ export default function StudioCanvas() {
     )].sort();
     return buildFolderTree(folders);
   }, [fbxAssets]);
-  const fbxRootAssets = useMemo(() => fbxAssets.filter(a => !normalizeFolder(a.folder)), [fbxAssets]);
+  const selectedFolderAssets = useMemo(
+    () => fbxAssets.filter(a => normalizeFolder(a.folder) === selectedFolder),
+    [fbxAssets, selectedFolder]
+  );
+  // fbxRootAssets 제거됨 — selectedFolder=null 일 때 selectedFolderAssets로 대체
 
   function updateObjectTransform(id: string, t: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }) {
     setObjects(prev => prev.map(o => o.id === id ? { ...o, position: t.p, rotation: t.r, scale: t.s } : o));
@@ -1611,38 +1597,71 @@ export default function StudioCanvas() {
               style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.45)', fontSize: 20, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
           </div>
 
-          {/* 트리 본문 */}
-          <div style={{ overflowY: 'auto', flex: 1, padding: '4px 4px' }}>
-            {fbxAssets.length === 0 ? (
-              <div style={{ fontSize: 12, opacity: 0.4, textAlign: 'center', padding: '20px 0' }}>
-                {t('noAssets')}&nbsp;
-                <a href="/assets" style={{ color: '#818cf8' }}>/assets</a> {t('uploadAt')}
+          {/* 2분할 본문 */}
+          <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+
+            {/* 왼쪽: 폴더 트리 */}
+            <div style={{
+              width: 200, flexShrink: 0, overflowY: 'auto',
+              borderRight: '1px solid rgba(255,255,255,0.08)',
+              padding: '4px 4px',
+            }}>
+              {/* 루트(폴더 없음) 항목 */}
+              <div
+                onClick={() => setSelectedFolder(null)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  padding: '5px 8px', borderRadius: 5, cursor: 'pointer',
+                  userSelect: 'none' as const,
+                  background: selectedFolder === null ? 'rgba(129,140,248,0.22)' : 'transparent',
+                  color: selectedFolder === null ? '#c7d2fe' : '#94a3b8',
+                  fontSize: 12, fontWeight: selectedFolder === null ? 700 : 400,
+                }}
+                onMouseEnter={e => { if (selectedFolder !== null) (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.06)'; }}
+                onMouseLeave={e => { if (selectedFolder !== null) (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
+              >
+                <span style={{ width: 12 }} />
+                <span style={{ fontSize: 13 }}>🗂️</span>
+                <span>전체 (루트)</span>
               </div>
-            ) : (
-              <>
-                {/* 폴더별 트리 */}
-                {fbxFolderTree.map(node => (
-                  <FbxFolderNode key={node.path} node={node} depth={0}
-                    assets={fbxAssets} openFolders={openFolders}
-                    onToggle={toggleFolder} onAdd={addAsset} />
-                ))}
-                {/* 폴더 없는 루트 에셋 */}
-                {fbxRootAssets.map(a => (
-                  <button key={a.id} onClick={() => addAsset(a)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      paddingLeft: 8, paddingTop: 5, paddingBottom: 5, paddingRight: 8,
-                      width: '100%', background: 'none', border: 'none', color: '#e2e8f0',
-                      fontSize: 12, cursor: 'pointer', borderRadius: 6, textAlign: 'left',
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.18)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                    <span style={{ fontSize: 13 }}>📦</span>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
-                  </button>
-                ))}
-              </>
-            )}
+
+              {/* 폴더 트리 */}
+              {fbxFolderTree.map(node => (
+                <FbxFolderNode key={node.path} node={node} depth={0}
+                  openFolders={openFolders} selectedFolder={selectedFolder}
+                  onSelect={setSelectedFolder} onToggle={toggleFolder} />
+              ))}
+            </div>
+
+            {/* 오른쪽: 선택된 폴더의 에셋 그리드 */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
+              {fbxAssets.length === 0 ? (
+                <div style={{ fontSize: 12, opacity: 0.4, textAlign: 'center', paddingTop: 24 }}>
+                  {t('noAssets')}&nbsp;
+                  <a href="/assets" style={{ color: '#818cf8' }}>/assets</a> {t('uploadAt')}
+                </div>
+              ) : selectedFolderAssets.length === 0 ? (
+                <div style={{ fontSize: 12, opacity: 0.35, textAlign: 'center', paddingTop: 24 }}>
+                  이 폴더에 FBX 에셋이 없습니다
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 7 }}>
+                  {selectedFolderAssets.map(a => (
+                    <button key={a.id} onClick={() => addAsset(a)}
+                      style={{
+                        background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)',
+                        borderRadius: 8, color: '#e2e8f0', fontSize: 11, padding: '8px 6px',
+                        cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.2)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}>
+                      <span style={{ fontSize: 22 }}>📦</span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: 'center', fontWeight: 500 }}>{a.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
