@@ -1469,19 +1469,6 @@ export default function CharacterPage() {
                             background: active ? '#10b981' : 'rgba(255,255,255,0.07)',
                             color: '#fff', cursor: 'pointer', fontSize: 9,
                           }}>▶</button>
-                          {/* 루프/1회 토글 */}
-                          <button
-                            title={animOneShot.includes(slot) ? t('oneShotLabel') : t('loopLabel')}
-                            onClick={() => setAnimOneShot(prev =>
-                              prev.includes(slot) ? prev.filter(s => s !== slot) : [...prev, slot]
-                            )}
-                            style={{
-                              width: 26, height: 26, borderRadius: 4, border: 'none', flexShrink: 0,
-                              background: animOneShot.includes(slot) ? 'rgba(251,146,60,0.25)' : 'rgba(255,255,255,0.07)',
-                              color: animOneShot.includes(slot) ? '#fb923c' : 'rgba(255,255,255,0.35)',
-                              cursor: 'pointer', fontSize: 9,
-                            }}
-                          >{animOneShot.includes(slot) ? '1×' : '∞'}</button>
                           {/* 에셋 피커 버튼 */}
                           <button
                             title="내 에셋에서 FBX 선택"
@@ -1571,19 +1558,6 @@ export default function CharacterPage() {
                             background: active ? '#7c3aed' : 'rgba(255,255,255,0.07)',
                             color: '#fff', cursor: 'pointer', fontSize: 9,
                           }}>▶</button>
-                          {/* 루프/1회 토글 */}
-                          <button
-                            title={animOneShot.includes(slot) ? t('oneShotLabel') : t('loopLabel')}
-                            onClick={() => setAnimOneShot(prev =>
-                              prev.includes(slot) ? prev.filter(s => s !== slot) : [...prev, slot]
-                            )}
-                            style={{
-                              width: 26, height: 26, borderRadius: 4, border: 'none', flexShrink: 0,
-                              background: animOneShot.includes(slot) ? 'rgba(251,146,60,0.25)' : 'rgba(255,255,255,0.07)',
-                              color: animOneShot.includes(slot) ? '#fb923c' : 'rgba(255,255,255,0.35)',
-                              cursor: 'pointer', fontSize: 9,
-                            }}
-                          >{animOneShot.includes(slot) ? '1×' : '∞'}</button>
                           <button
                             title="내 에셋에서 FBX 선택"
                             onClick={() => setSlotPickerFor(slot)}
