@@ -979,6 +979,8 @@ export default function StudioCanvas() {
   const [lightDir, setLightDir] = useState(1.5);
   const [skyEnabled, setSkyEnabled] = useState(true);
   const [lightPanelOpen, setLightPanelOpen] = useState(false);
+  const [shapePanelOpen, setShapePanelOpen] = useState(true);
+  const [matPanelOpen, setMatPanelOpen] = useState(true);
   const [studioMode, setStudioMode] = useState<'settings' | 'scene'>('settings');
   const [multiSelectedIds, setMultiSelectedIds] = useState<Set<string>>(new Set());
   const [marqueeStart, setMarqueeStart] = useState<{x:number,y:number}|null>(null);
@@ -1819,15 +1821,20 @@ export default function StudioCanvas() {
               ← 스튜디오
             </button>
             {/* 도형 추가 */}
-            <div style={{ fontSize: 10, opacity: 0.4, marginBottom: 5 }}>{t('addShape')}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 8 }}>
-              {([['cube','📦','shapeCube'],['sphere','⚪','shapeSphere'],['cylinder','🥫','shapeCylinder'],['plane','▭','shapePlane']] as const).map(([kind, icon, labelKey]) => (
-                <button key={kind} onClick={() => addPrimitive(kind)}
-                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#fff', fontSize: 11, padding: '6px 4px', cursor: 'pointer' }}>
-                  {icon} {t(labelKey)}
-                </button>
-              ))}
-            </div>
+            <button type="button" onClick={() => setShapePanelOpen(v => !v)}
+              style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 600, marginBottom: 5 }}>
+              📦 {t('addShape')} {shapePanelOpen ? '▲' : '▼'}
+            </button>
+            {shapePanelOpen && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 8 }}>
+                {([['cube','📦','shapeCube'],['sphere','⚪','shapeSphere'],['cylinder','🥫','shapeCylinder'],['plane','▭','shapePlane']] as const).map(([kind, icon, labelKey]) => (
+                  <button key={kind} onClick={() => addPrimitive(kind)}
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#fff', fontSize: 11, padding: '6px 4px', cursor: 'pointer' }}>
+                    {icon} {t(labelKey)}
+                  </button>
+                ))}
+              </div>
+            )}
             {/* 조명 설정 */}
             <button type="button" onClick={() => setLightPanelOpen(v => !v)}
               style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 600 }}>
@@ -1974,73 +1981,82 @@ export default function StudioCanvas() {
                 onCommit={() => pushHistory(objects)}
               />
 
-              {selected.kind !== 'asset' && (
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 3 }}>{t('color')}</div>
-                  <input type="color" value={selected.color}
-                    onChange={e => updateColor(selected.id, e.target.value)}
-                    onBlur={() => pushHistory(objects)}
-                    style={{ width: '100%', height: 28, border: 'none', borderRadius: 6, padding: 0, cursor: 'pointer' }} />
-                </div>
-              )}
+              {/* 색상 / 재질 / 텍스처 — 통합 토글 */}
+              <button type="button" onClick={() => setMatPanelOpen(v => !v)}
+                style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 600, marginBottom: matPanelOpen ? 8 : 10 }}>
+                🎨 색상 / 재질 / 텍스처 {matPanelOpen ? '▲' : '▼'}
+              </button>
+              {matPanelOpen && (
+                <>
+                  {selected.kind !== 'asset' && (
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 3 }}>{t('color')}</div>
+                      <input type="color" value={selected.color}
+                        onChange={e => updateColor(selected.id, e.target.value)}
+                        onBlur={() => pushHistory(objects)}
+                        style={{ width: '100%', height: 28, border: 'none', borderRadius: 6, padding: 0, cursor: 'pointer' }} />
+                    </div>
+                  )}
 
-              {/* 머티리얼 */}
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4 }}>{t('material')}</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
-                  {(['default','wood','metal','stone','glass','plastic','emissive'] as const).map(key => {
-                    const labels: Record<string,string> = { default: t('matDefault'), wood: t('matWood'), metal: t('matMetal'), stone: t('matStone'), glass: t('matGlass'), plastic: t('matPlastic'), emissive: t('matEmissive') };
-                    const active = (selected.material ?? 'default') === key;
-                    return (
-                      <button key={key} onClick={() => { updateMaterialField('material', key); pushHistory(objects); }}
-                        style={{ background: active ? '#4f46e5' : 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 4px', cursor: 'pointer', textAlign: 'left' }}>
-                        {labels[key]}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+                  {/* 머티리얼 */}
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4 }}>{t('material')}</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
+                      {(['default','wood','metal','stone','glass','plastic','emissive'] as const).map(key => {
+                        const labels: Record<string,string> = { default: t('matDefault'), wood: t('matWood'), metal: t('matMetal'), stone: t('matStone'), glass: t('matGlass'), plastic: t('matPlastic'), emissive: t('matEmissive') };
+                        const active = (selected.material ?? 'default') === key;
+                        return (
+                          <button key={key} onClick={() => { updateMaterialField('material', key); pushHistory(objects); }}
+                            style={{ background: active ? '#4f46e5' : 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 4px', cursor: 'pointer', textAlign: 'left' }}>
+                            {labels[key]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-              {selected.material && selected.material !== 'default' && (
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 3 }}>{t('materialColor')}</div>
-                  <input type="color" value={selected.materialColor || '#ffffff'}
-                    onChange={e => updateMaterialField('materialColor', e.target.value)}
-                    onBlur={() => pushHistory(objects)}
-                    style={{ width: '100%', height: 24, border: 'none', borderRadius: 5, padding: 0, cursor: 'pointer' }} />
-                </div>
-              )}
+                  {selected.material && selected.material !== 'default' && (
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 3 }}>{t('materialColor')}</div>
+                      <input type="color" value={selected.materialColor || '#ffffff'}
+                        onChange={e => updateMaterialField('materialColor', e.target.value)}
+                        onBlur={() => pushHistory(objects)}
+                        style={{ width: '100%', height: 24, border: 'none', borderRadius: 5, padding: 0, cursor: 'pointer' }} />
+                    </div>
+                  )}
 
-              {/* 텍스처 */}
-              <div style={{ marginBottom: 10, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4 }}>{t('texture')}</div>
-                {([['albedo', t('texAlbedo'), selected.textureAlbedo, 'textureAlbedo'], ['normal', t('texNormal'), selected.textureNormal, 'textureNormal'], ['roughness', t('texRoughness'), selected.textureRoughness, 'textureRoughness']] as const).map(([slot, label, value, field]) => (
-                  <div key={slot} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
-                    <span style={{ fontSize: 9, opacity: 0.55, width: 56 }}>{label}</span>
-                    {value ? (
-                      <><div style={{ width: 22, height: 22, background: `url(${value}) center/cover`, borderRadius: 3 }} />
-                      <button onClick={() => { updateMaterialField(field, undefined); pushHistory(objects); }}
-                        style={{ flex: 1, fontSize: 9, padding: '3px', background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: 'none', borderRadius: 3, cursor: 'pointer' }}>{t('texRemove')}</button></>
-                    ) : (
-                      <button onClick={() => setTexPicker(slot)}
-                        style={{ flex: 1, fontSize: 10, padding: '3px', background: 'rgba(255,255,255,0.06)', color: '#a5b4fc', border: '1px dashed rgba(255,255,255,0.15)', borderRadius: 3, cursor: 'pointer' }}>{t('texChoose')}</button>
+                  {/* 텍스처 */}
+                  <div style={{ marginBottom: 10, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4 }}>{t('texture')}</div>
+                    {([['albedo', t('texAlbedo'), selected.textureAlbedo, 'textureAlbedo'], ['normal', t('texNormal'), selected.textureNormal, 'textureNormal'], ['roughness', t('texRoughness'), selected.textureRoughness, 'textureRoughness']] as const).map(([slot, label, value, field]) => (
+                      <div key={slot} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
+                        <span style={{ fontSize: 9, opacity: 0.55, width: 56 }}>{label}</span>
+                        {value ? (
+                          <><div style={{ width: 22, height: 22, background: `url(${value}) center/cover`, borderRadius: 3 }} />
+                          <button onClick={() => { updateMaterialField(field, undefined); pushHistory(objects); }}
+                            style={{ flex: 1, fontSize: 9, padding: '3px', background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: 'none', borderRadius: 3, cursor: 'pointer' }}>{t('texRemove')}</button></>
+                        ) : (
+                          <button onClick={() => setTexPicker(slot)}
+                            style={{ flex: 1, fontSize: 10, padding: '3px', background: 'rgba(255,255,255,0.06)', color: '#a5b4fc', border: '1px dashed rgba(255,255,255,0.15)', borderRadius: 3, cursor: 'pointer' }}>{t('texChoose')}</button>
+                        )}
+                      </div>
+                    ))}
+                    {(selected.textureAlbedo || selected.textureNormal || selected.textureRoughness) && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginTop: 4 }}>
+                        {(['textureTilingX','textureTilingY'] as const).map(field => (
+                          <label key={field} style={{ fontSize: 10, opacity: 0.55, display: 'flex', alignItems: 'center', gap: 3 }}>
+                            {field === 'textureTilingX' ? t('texTilingX') : t('texTilingY')}
+                            <input type="number" step={0.5} min={0.1} value={(selected[field] ?? 1) as number}
+                              onChange={e => updateMaterialField(field, Number(e.target.value))}
+                              onBlur={() => pushHistory(objects)}
+                              style={{ flex: 1, background: 'rgba(0,0,0,0.4)', border: 'none', color: '#fff', fontSize: 10, padding: '2px 4px', borderRadius: 3, outline: 'none' }} />
+                          </label>
+                        ))}
+                      </div>
                     )}
                   </div>
-                ))}
-                {(selected.textureAlbedo || selected.textureNormal || selected.textureRoughness) && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginTop: 4 }}>
-                    {(['textureTilingX','textureTilingY'] as const).map(field => (
-                      <label key={field} style={{ fontSize: 10, opacity: 0.55, display: 'flex', alignItems: 'center', gap: 3 }}>
-                        {field === 'textureTilingX' ? t('texTilingX') : t('texTilingY')}
-                        <input type="number" step={0.5} min={0.1} value={(selected[field] ?? 1) as number}
-                          onChange={e => updateMaterialField(field, Number(e.target.value))}
-                          onBlur={() => pushHistory(objects)}
-                          style={{ flex: 1, background: 'rgba(0,0,0,0.4)', border: 'none', color: '#fff', fontSize: 10, padding: '2px 4px', borderRadius: 3, outline: 'none' }} />
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
+                </>
+              )}
 
               {/* 복제 / 삭제 */}
               <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
