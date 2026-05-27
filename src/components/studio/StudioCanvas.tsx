@@ -842,6 +842,15 @@ export default function StudioCanvas() {
   const [marqueeEnd,   setMarqueeEnd]   = useState<{x:number,y:number}|null>(null);
   const isMarqueeRef = useRef(false);
   const dragStartRef = useRef<Map<string, {p:[number,number,number];r:[number,number,number];s:[number,number,number]}>>(new Map());
+  const shiftHeldRef = useRef(false);
+
+  useEffect(() => {
+    const dn = (e: KeyboardEvent) => { if (e.key === 'Shift') shiftHeldRef.current = true; };
+    const up = (e: KeyboardEvent) => { if (e.key === 'Shift') shiftHeldRef.current = false; };
+    window.addEventListener('keydown', dn);
+    window.addEventListener('keyup', up);
+    return () => { window.removeEventListener('keydown', dn); window.removeEventListener('keyup', up); };
+  }, []);
   // HDRI 환경
   type HdriPreset = 'none' | 'apartment' | 'city' | 'dawn' | 'forest' | 'lobby' | 'night' | 'park' | 'studio' | 'sunset' | 'warehouse';
   const [hdriPreset, setHdriPreset] = useState<HdriPreset>('city');
@@ -1705,7 +1714,22 @@ export default function StudioCanvas() {
               const isSel = obj.id === selectedId || multiSelectedIds.has(obj.id);
               return (
                 <div key={obj.id}
-                  onClick={() => { if (editingLabelId !== obj.id) { setMultiSelectedIds(new Set()); setSelectedId(isSel && multiSelectedIds.size === 0 ? null : obj.id); setRightPanelOpen(true); } }}
+                  onClick={() => {
+                    if (editingLabelId === obj.id) return;
+                    setRightPanelOpen(true);
+                    if (shiftHeldRef.current) {
+                      setMultiSelectedIds(prev => {
+                        const next = new Set(prev);
+                        if (selectedId && !next.has(selectedId)) next.add(selectedId);
+                        if (next.has(obj.id)) next.delete(obj.id); else next.add(obj.id);
+                        return next;
+                      });
+                      setSelectedId(obj.id);
+                    } else {
+                      setMultiSelectedIds(new Set());
+                      setSelectedId(isSel && multiSelectedIds.size === 0 ? null : obj.id);
+                    }
+                  }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 5,
                     padding: '4px 6px', borderRadius: 6, cursor: 'pointer',
@@ -1916,7 +1940,22 @@ export default function StudioCanvas() {
           {objects.filter(o => !o.hidden).map(obj => (
             <Mesh3D key={obj.id} obj={obj}
               selected={obj.id === selectedId}
-              onClick={() => { setSelectedId(obj.id); setMultiSelectedIds(new Set()); setRightPanelOpen(true); }}
+              onClick={() => {
+                setRightPanelOpen(true);
+                if (shiftHeldRef.current) {
+                  setMultiSelectedIds(prev => {
+                    const next = new Set(prev);
+                    // 이미 단일 selectedId가 있으면 같이 포함
+                    if (selectedId && !next.has(selectedId)) next.add(selectedId);
+                    if (next.has(obj.id)) next.delete(obj.id); else next.add(obj.id);
+                    return next;
+                  });
+                  setSelectedId(obj.id);
+                } else {
+                  setMultiSelectedIds(new Set());
+                  setSelectedId(obj.id);
+                }
+              }}
               assetConfig={obj.kind === 'asset' && obj.assetUrl
                 ? getAssetMaterialConfig(myAssets.find(a => a.modelUrl === obj.assetUrl))
                 : undefined} />
