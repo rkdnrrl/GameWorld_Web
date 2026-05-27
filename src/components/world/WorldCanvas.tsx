@@ -518,16 +518,21 @@ function LuaUpdateLoop({
     for (const vm of luaScripts.current.values()) vm.callUpdate(dt);
 
     // ── Client-side Prediction with Reconciliation ──
-    // 움직이는 중: 큰 tolerance + 부드러운 보정 (smooth feel)
-    // 정지 상태: 작은 tolerance + 빠른 수렴 (정확한 위치 일치)
-    if (!isHost) {
+    // 본인이 소유한 오브젝트 = 본인 로컬 물리가 권위자 → 수신 적용 안 함
+    // 다른 사람이 소유 OR 소유자 없는데 호스트가 broadcast 중 → 수신 적용
+    {
       const now = performance.now();
-      const SNAP_THRESHOLD_SQ        = 9;       // 3m 이상 → 강제 snap
-      const SOFT_CORRECTION          = Math.min(1, 4 * dt);  // 움직일 때 부드러운 보정
-      const REST_CORRECTION          = Math.min(1, 10 * dt); // 정지 시 빠른 수렴
-      const VEL_CORRECTION           = Math.min(1, 6 * dt);
+      const SNAP_THRESHOLD_SQ        = 25;      // 5m 이상에서만 hard snap (권한 이전 시 teleport 방지)
+      const SOFT_CORRECTION          = Math.min(1, 6 * dt);  // 약간 빠르게 (4 → 6)
+      const REST_CORRECTION          = Math.min(1, 10 * dt);
+      const VEL_CORRECTION           = Math.min(1, 8 * dt);
 
       for (const [id, target] of syncTargets.current) {
+        // 본인이 소유 → 적용 안 함 (본인이 권위자)
+        if (ownersRef.current.get(id) === playerId) continue;
+        // 소유자 없음 + 본인이 호스트 → 적용 안 함 (본인이 fallback authority)
+        if (!ownersRef.current.get(id) && isHost) continue;
+
         const ref = scriptBodyRefs.current.get(id);
         if (!ref) continue;
         // 네트워크 지연 보상 — 받은 위치를 velocity로 현재 시각까지 예측
@@ -1762,7 +1767,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         states.push({ id: obj.id, pos, rot, scl, vis, vel });
       }
       if (states.length > 0) sendObjectStates(states);
-    }, 33); // ~30Hz
+    }, 25); // 40Hz — 권한 이전 시 빠른 수렴
     return () => clearInterval(interval);
   }, [isHost, sendObjectStates, customObjects, playerId]);
 
