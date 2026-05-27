@@ -1722,6 +1722,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // ── 송신: 호스트 + 본인이 소유한 오브젝트만 broadcast ──
   const isHost = !!hostId && hostId === playerId;
   const lastBroadcastPos = useRef<Map<string, [number, number, number]>>(new Map());
+  const lastVelocityNonZeroRef = useRef<Map<string, boolean>>(new Map());
   useEffect(() => {
     if (!sendObjectStates || !customObjects) return;
     const MOVE_THRESHOLD = 0.005;
@@ -1754,9 +1755,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           const r = body.rotation();
           const e = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(r.x, r.y, r.z, r.w));
           pos = [t.x, t.y, t.z]; rot = [e.x, e.y, e.z];
-          // 속도 포함 — 수신측이 extrapolation해서 지연 보상
           const v = body.linvel();
-          vel = [v.x, v.y, v.z];
+          // 속도가 매우 작으면 0으로 clamp → 수신측 extrapolation drift 방지
+          const SMALL = 0.1;
+          vel = [
+            Math.abs(v.x) < SMALL ? 0 : v.x,
+            Math.abs(v.y) < SMALL ? 0 : v.y,
+            Math.abs(v.z) < SMALL ? 0 : v.z,
+          ];
         } else if (group) {
           pos = [group.position.x, group.position.y, group.position.z];
           rot = [group.rotation.x, group.rotation.y, group.rotation.z];
@@ -1765,9 +1771,13 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         } else continue;
 
         const last = lastBroadcastPos.current.get(obj.id);
-        // 움직이는 중이면 항상 broadcast (속도 동기화 위해), 정지 상태면 위치 변화만 체크
-        const isMoving = vel && (Math.abs(vel[0]) > 0.05 || Math.abs(vel[1]) > 0.05 || Math.abs(vel[2]) > 0.05);
-        if (!isMoving && last) {
+        const wasMoving = lastVelocityNonZeroRef.current.get(obj.id) ?? false;
+        const isMoving = vel && (vel[0] !== 0 || vel[1] !== 0 || vel[2] !== 0);
+        // "방금 멈춤" 감지 — vel 0 으로 떨어진 직후 한 번은 강제 broadcast (stop 신호)
+        const justStopped = wasMoving && !isMoving;
+        lastVelocityNonZeroRef.current.set(obj.id, !!isMoving);
+
+        if (!isMoving && !justStopped && last) {
           const moved = Math.abs(pos[0] - last[0]) > MOVE_THRESHOLD
                      || Math.abs(pos[1] - last[1]) > MOVE_THRESHOLD
                      || Math.abs(pos[2] - last[2]) > MOVE_THRESHOLD;
