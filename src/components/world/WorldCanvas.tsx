@@ -1,5 +1,5 @@
 'use client';
-import React, { Suspense, useRef, useEffect, useState } from 'react';
+import React, { Suspense, useRef, useEffect, useState, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Html, Sky, Text } from '@react-three/drei';
 import { Physics, RigidBody, CapsuleCollider, useRapier } from '@react-three/rapier';
@@ -351,28 +351,48 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true }: {
   const userScale  = Number(appearance.modelScale) || 1.0;
   const rotX       = Number(appearance.fbxRotX ?? -Math.PI / 2);
   const offsetY    = Number(appearance.fbxOffsetY ?? 0);
-  const trims      = (appearance.animTrims ?? {}) as Record<string, AnimTrim>;
-  const blockedAnimStates = Array.isArray(appearance.animAutoMapBlocked)
-    ? Object.fromEntries((appearance.animAutoMapBlocked as unknown[]).map((slot) => [String(slot), true])) as Record<string, boolean>
-    : undefined;
 
-  // 새 포맷(animSlots) 우선, 없으면 이전 개별 필드에서 읽기 (하위 호환)
-  const animNames: Record<string, string> = appearance.animSlots
-    ? { ...(appearance.animSlots as Record<string, string>) }
-    : {
-        idle:   String(appearance.idleAnim   ?? ''),
-        walk:   String(appearance.walkAnim   ?? ''),
-        run:    String(appearance.runAnim    ?? ''),
-        jump:   String(appearance.jumpAnim   ?? ''),
-        crouch: String(appearance.crouchAnim ?? ''),
-        prone:  String(appearance.proneAnim  ?? ''),
-      };
-
-  const animOneShot = Array.isArray(appearance.animOneShot)
-    ? (appearance.animOneShot as unknown[]).map(String)
-    : undefined;
-
-  const animSlotUrls = (appearance.animSlotUrls as Record<string, string> | undefined) || undefined;
+  // appearance 내용 기반 안정화 — 버튼 클릭 등 리렌더 시 새 객체 생성 방지
+  // (새 객체가 생기면 CustomModel useEffect가 재실행 → 모델 리로드 → 순간 T-포즈)
+  const appearanceKey = JSON.stringify(appearance);
+  const trims = useMemo(
+    () => (appearance.animTrims ?? {}) as Record<string, AnimTrim>,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [appearanceKey],
+  );
+  const blockedAnimStates = useMemo(
+    () => Array.isArray(appearance.animAutoMapBlocked)
+      ? Object.fromEntries((appearance.animAutoMapBlocked as unknown[]).map((slot) => [String(slot), true])) as Record<string, boolean>
+      : undefined,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [appearanceKey],
+  );
+  const animNames = useMemo<Record<string, string>>(
+    () => appearance.animSlots
+      ? { ...(appearance.animSlots as Record<string, string>) }
+      : {
+          idle:   String(appearance.idleAnim   ?? ''),
+          walk:   String(appearance.walkAnim   ?? ''),
+          run:    String(appearance.runAnim    ?? ''),
+          jump:   String(appearance.jumpAnim   ?? ''),
+          crouch: String(appearance.crouchAnim ?? ''),
+          prone:  String(appearance.proneAnim  ?? ''),
+        },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [appearanceKey],
+  );
+  const animOneShot = useMemo(
+    () => Array.isArray(appearance.animOneShot)
+      ? (appearance.animOneShot as unknown[]).map(String)
+      : undefined,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [appearanceKey],
+  );
+  const animSlotUrls = useMemo(
+    () => (appearance.animSlotUrls as Record<string, string> | undefined) || undefined,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [appearanceKey],
+  );
 
   if (modelUrl) {
     return (
