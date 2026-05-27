@@ -1737,34 +1737,6 @@ export default function StudioCanvas() {
           </div>
         </div>
 
-        {/* 변환 모드 + 스냅 */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 8 }}>{t('transformMode')}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, marginBottom: 6 }}>
-            {(['translate','rotate','scale'] as const).map(m => (
-              <button key={m} onClick={() => setMode(m)}
-                style={{ background: mode === m ? '#4f46e5' : 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 6, color: '#fff', fontSize: 10, padding: '6px 0', cursor: 'pointer', fontWeight: 600 }}>
-                {m === 'translate' ? t('modeTranslate') : m === 'rotate' ? t('modeRotate') : t('modeScale')}
-              </button>
-            ))}
-          </div>
-          {/* 그리드 스냅 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button
-              onClick={() => setSnapEnabled(v => !v)}
-              style={{ flex: 1, background: snapEnabled ? 'rgba(52,211,153,0.18)' : 'rgba(255,255,255,0.05)', border: `1px solid ${snapEnabled ? '#34d399' : 'rgba(255,255,255,0.1)'}`, borderRadius: 6, color: snapEnabled ? '#34d399' : 'rgba(255,255,255,0.45)', fontSize: 10, padding: '5px 0', cursor: 'pointer', fontWeight: 600 }}>
-              {snapEnabled ? '⊞ 스냅 ON' : '⊟ 스냅 OFF'}
-            </button>
-            {snapEnabled && (
-              <select value={snapSize} onChange={e => setSnapSize(Number(e.target.value))}
-                style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, color: '#fff', fontSize: 10, padding: '4px 6px', cursor: 'pointer' }}>
-                {[0.1, 0.25, 0.5, 1, 2].map(v => <option key={v} value={v}>{v}m</option>)}
-              </select>
-            )}
-          </div>
-        </div>
-
-
         {/* 조명 설정 */}
         <div style={{ marginBottom: 10 }}>
           <button type="button" onClick={() => setLightPanelOpen(v => !v)}
@@ -1970,13 +1942,28 @@ export default function StudioCanvas() {
               </div>
 
               {/* 위치/회전/스케일 탭 */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3, marginBottom: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3, marginBottom: 6 }}>
                 {(['translate','rotate','scale'] as const).map(m => (
                   <button key={m} onClick={() => setMode(m)}
                     style={{ background: mode === m ? '#4f46e5' : 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 0', cursor: 'pointer', fontWeight: 600 }}>
                     {m === 'translate' ? '이동' : m === 'rotate' ? '회전' : '스케일'}
                   </button>
                 ))}
+              </div>
+
+              {/* 스냅 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10 }}>
+                <button
+                  onClick={() => setSnapEnabled(v => !v)}
+                  style={{ flex: 1, background: snapEnabled ? 'rgba(52,211,153,0.15)' : 'rgba(255,255,255,0.04)', border: `1px solid ${snapEnabled ? '#34d399' : 'rgba(255,255,255,0.1)'}`, borderRadius: 5, color: snapEnabled ? '#34d399' : 'rgba(255,255,255,0.4)', fontSize: 10, padding: '4px 0', cursor: 'pointer', fontWeight: 600 }}>
+                  {snapEnabled ? '⊞ 스냅 ON' : '⊟ 스냅 OFF'}
+                </button>
+                {snapEnabled && (
+                  <select value={snapSize} onChange={e => setSnapSize(Number(e.target.value))}
+                    style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '3px 5px', cursor: 'pointer' }}>
+                    {[0.1, 0.25, 0.5, 1, 2].map(v => <option key={v} value={v}>{v}m</option>)}
+                  </select>
+                )}
               </div>
 
               <AxisInputRow
