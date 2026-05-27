@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, TransformControls, Grid, Sky, Outlines, Environment } from '@react-three/drei';
+import { OrbitControls, TransformControls, Grid, Sky, Environment } from '@react-three/drei';
 import * as THREE from 'three';
 
 /* ── 머티리얼 프리셋 (WorldCanvas와 동일) ── */
@@ -235,13 +235,12 @@ function Mesh3D({ obj, selected, onClick, assetConfig }: {
     <mesh ref={ref} position={obj.position} rotation={obj.rotation} scale={obj.scale}
       onPointerDown={handle} castShadow receiveShadow userData={{ id: obj.id }}>
       {geometry}
-      <PrimitiveMaterial obj={obj} />
-      {selected && <Outlines thickness={3} color="#22d3ee" screenspace />}
+      <PrimitiveMaterial obj={obj} selected={selected} />
     </mesh>
   );
 }
 
-function PrimitiveMaterial({ obj }: { obj: MapObject }) {
+function PrimitiveMaterial({ obj, selected }: { obj: MapObject; selected?: boolean }) {
   const matRef = useRef<THREE.MeshStandardMaterial | null>(null);
   const [, forceUpdate] = useState(0);
   const cfg = {
@@ -267,9 +266,13 @@ function PrimitiveMaterial({ obj }: { obj: MapObject }) {
   const side = obj.kind === 'plane' ? THREE.DoubleSide : THREE.FrontSide;
   if (matRef.current) {
     matRef.current.side = side;
+    matRef.current.emissive.set(selected ? '#334155' : '#000000');
+    matRef.current.emissiveIntensity = selected ? 0.4 : 0;
     return <primitive object={matRef.current} attach="material" />;
   }
-  return <meshStandardMaterial color={obj.color} side={side} />;
+  return <meshStandardMaterial color={obj.color} side={side}
+    emissive={selected ? '#334155' : '#000000'}
+    emissiveIntensity={selected ? 0.4 : 0} />;
 }
 
 function AssetMesh({ obj, selected, onClick, assetConfig }: {
@@ -348,8 +351,6 @@ function AssetMesh({ obj, selected, onClick, assetConfig }: {
     <group position={obj.position} rotation={obj.rotation} scale={obj.scale}
       onPointerDown={onClick} userData={{ id: obj.id }}>
       <primitive object={model} />
-      {/* 선택 시 바운딩 박스 윤곽 */}
-      {selected && <SelectedBoxOutline target={model} />}
     </group>
   );
 }
