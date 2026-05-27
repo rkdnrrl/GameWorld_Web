@@ -1424,6 +1424,31 @@ export default function StudioCanvas() {
   );
   // fbxRootAssets 제거됨 — selectedFolder=null 일 때 selectedFolderAssets로 대체
 
+  /** Shift+클릭으로 멀티셀렉션 토글 */
+  function shiftClickObject(id: string) {
+    setRightPanelOpen(true);
+    setMultiSelectedIds(prev => {
+      // 현재 selectedId도 set에 포함
+      const next = new Set(prev);
+      if (selectedId && !next.has(selectedId)) next.add(selectedId);
+
+      if (next.has(id)) {
+        // 이미 선택된 오브젝트 → 제거
+        next.delete(id);
+        if (selectedId === id) {
+          // primary가 제거됐으면 남은 것 중 첫 번째로
+          setSelectedId([...next][0] ?? null);
+        }
+        // else: primary는 그대로 유지
+      } else {
+        // 새로 추가
+        next.add(id);
+        setSelectedId(id);
+      }
+      return next;
+    });
+  }
+
   function onTransformDragStart() {
     // 드래그 시작 시 모든 선택 오브젝트의 transform 스냅샷
     const map = new Map<string, {p:[number,number,number];r:[number,number,number];s:[number,number,number]}>();
@@ -1435,8 +1460,23 @@ export default function StudioCanvas() {
     dragStartRef.current = map;
   }
 
+  /** 오브젝트의 world matrix 계산 (조상을 재귀적으로 곱함) */
+  function computeWorldMatrix(objId: string, allObjs: MapObject[]): THREE.Matrix4 {
+    const obj = allObjs.find(o => o.id === objId);
+    if (!obj) return new THREE.Matrix4();
+    const local = new THREE.Matrix4().compose(
+      new THREE.Vector3(...obj.position),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(...obj.rotation, 'XYZ')),
+      new THREE.Vector3(...obj.scale),
+    );
+    if (obj.parentId) {
+      return computeWorldMatrix(obj.parentId, allObjs).multiply(local);
+    }
+    return local;
+  }
+
   function reparentObject(childId: string, newParentId: string | null) {
-    // 순환 방지: newParentId가 childId의 자손이면 거절
+    // 순환 방지
     const isDescendant = (targetId: string, ancestorId: string): boolean => {
       const obj = objects.find(o => o.id === targetId);
       if (!obj || !obj.parentId) return false;
@@ -1444,8 +1484,31 @@ export default function StudioCanvas() {
       return isDescendant(obj.parentId, ancestorId);
     };
     if (newParentId && isDescendant(newParentId, childId)) return;
+
+    // child의 현재 world transform
+    const childWorld = computeWorldMatrix(childId, objects);
+
+    // 새 부모 공간으로 변환 (없으면 world 그대로)
+    let localMat = childWorld.clone();
+    if (newParentId) {
+      const parentWorld = computeWorldMatrix(newParentId, objects);
+      localMat = parentWorld.clone().invert().multiply(childWorld);
+    }
+
+    const lp = new THREE.Vector3();
+    const lq = new THREE.Quaternion();
+    const ls = new THREE.Vector3();
+    localMat.decompose(lp, lq, ls);
+    const le = new THREE.Euler().setFromQuaternion(lq, 'XYZ');
+
     setObjects(prev => {
-      const next = prev.map(o => o.id === childId ? { ...o, parentId: newParentId ?? undefined } : o);
+      const next = prev.map(o => o.id === childId ? {
+        ...o,
+        parentId: newParentId ?? undefined,
+        position: [lp.x, lp.y, lp.z] as [number,number,number],
+        rotation: [le.x, le.y, le.z] as [number,number,number],
+        scale:    [ls.x, ls.y, ls.z] as [number,number,number],
+      } : o);
       pushHistory(next);
       return next;
     });
@@ -1881,16 +1944,10 @@ export default function StudioCanvas() {
                 setObjects={setObjects} pushHistory={pushHistory}
                 onReparent={reparentObject}
                 selectedCallback={id => {
-                  setRightPanelOpen(true);
                   if (shiftHeldRef.current) {
-                    setMultiSelectedIds(prev => {
-                      const next = new Set(prev);
-                      if (selectedId && !next.has(selectedId)) next.add(selectedId);
-                      if (next.has(id)) next.delete(id); else next.add(id);
-                      return next;
-                    });
-                    setSelectedId(id);
+                    shiftClickObject(id);
                   } else {
+                    setRightPanelOpen(true);
                     setMultiSelectedIds(new Set());
                     setSelectedId(id);
                   }
@@ -2073,16 +2130,10 @@ export default function StudioCanvas() {
               multiSelectedIds={multiSelectedIds}
               myAssets={myAssets}
               onObjectClick={id => {
-                setRightPanelOpen(true);
                 if (shiftHeldRef.current) {
-                  setMultiSelectedIds(prev => {
-                    const next = new Set(prev);
-                    if (selectedId && !next.has(selectedId)) next.add(selectedId);
-                    if (next.has(id)) next.delete(id); else next.add(id);
-                    return next;
-                  });
-                  setSelectedId(id);
+                  shiftClickObject(id);
                 } else {
+                  setRightPanelOpen(true);
                   setMultiSelectedIds(new Set());
                   setSelectedId(id);
                 }
