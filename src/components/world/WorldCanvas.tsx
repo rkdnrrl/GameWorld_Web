@@ -969,9 +969,9 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow }: {
   const meshRef = useRef<THREE.Group>(null);
   const animStateRef = useRef<AnimState>('idle');
 
-  // 매 프레임: dynamic body에 명시적 velocity 설정 + 위치 보정
-  // dynamic body는 collision 시 진짜 momentum 전달 → 호스트가 직접 미는 것과 동일한 push 힘
-  // (kinematic은 implicit velocity 라 충분치 않을 수 있음)
+  // 매 프레임: kinematic body를 네트워크 위치 + 속도 기반으로 이동
+  // - kinematic은 다른 body에 의해 밀려나지 않음 → "공중에 뜨는" 현상 없음
+  // - 위치 예측 (extrapolation) → 네트워크 지연 100ms 시각적으로 사라짐 → 박스 push 즉각적
   useFrame((_, dt) => {
     const pose = posesRef.current?.get(player.id);
     if (!pose) return;
@@ -979,35 +979,36 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow }: {
     const body = bodyRef.current;
     if (!body) return;
 
-    const cur = body.translation();
     const vx = pose.vx ?? 0;
     const vy = pose.vy ?? 0;
     const vz = pose.vz ?? 0;
 
-    // 네트워크 위치 차이
-    const dx = pose.x - cur.x;
-    const dy = pose.y - cur.y;
-    const dz = pose.z - cur.z;
+    // ── Extrapolation: pose 받은 시각 이후 경과 시간만큼 vel로 위치 예측 ──
+    // → 원격 캐릭터가 네트워크 지연 없이 "지금 있어야 할" 위치에 표시 → 박스 push 즉각
+    const elapsed = Math.min(0.15, (Date.now() - pose.lastUpdate) / 1000);
+    const targetX = pose.x + vx * elapsed;
+    const targetY = pose.y + vy * elapsed;
+    const targetZ = pose.z + vz * elapsed;
+
+    const cur = body.translation();
+    const dx = targetX - cur.x;
+    const dy = targetY - cur.y;
+    const dz = targetZ - cur.z;
     const distSq = dx*dx + dy*dy + dz*dz;
 
-    // 차이 너무 크면(텔레포트, 끊김) 위치 즉시 동기화
-    if (distSq > 9) { // 3m 이상
-      body.setTranslation({ x: pose.x, y: pose.y, z: pose.z }, true);
-      body.setLinvel({ x: vx, y: vy, z: vz }, true);
-    } else if (distSq > 0.5) {
-      // 중간 drift (0.7m ~ 3m) → setTranslation으로 직접 보정 (박스 추가 push 없음)
-      // setTranslation은 momentum 전달 없이 위치만 이동
-      const moveF = Math.min(1, 3 * dt);
-      body.setTranslation({
-        x: cur.x + dx * moveF,
-        y: cur.y + dy * moveF,
-        z: cur.z + dz * moveF,
-      }, true);
-      body.setLinvel({ x: vx, y: vy, z: vz }, true); // 속도는 정확히 매칭
+    if (distSq > 9) {
+      // 끊김/텔레포트 → 즉시 snap
+      body.setTranslation({ x: targetX, y: targetY, z: targetZ }, true);
     } else {
-      // 작은 drift (< 0.7m) → 속도만 정확히 매칭 (보정 속도 없음)
-      // 이게 핵심: Kp 보정 제거 → 박스에 추가 push 없음 → 멈출 때 깔끔히 멈춤
-      body.setLinvel({ x: vx, y: vy, z: vz }, true);
+      // 속도로 이동 + 위치 보정 (한 프레임에 빠르게 수렴)
+      // 보정 강도 0.25 → 한 프레임에 위치 차이의 25% 따라잡음
+      // 정지 시 (vx=0)에도 위치만 보정 → 박스 push 없이 따라가기
+      const correctF = 0.25;
+      body.setNextKinematicTranslation({
+        x: cur.x + vx * dt + dx * correctF,
+        y: cur.y + vy * dt + dy * correctF,
+        z: cur.z + vz * dt + dz * correctF,
+      });
     }
 
     if (meshRef.current) {
@@ -1024,12 +1025,8 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow }: {
   return (
     <RigidBody
       ref={bodyRef}
-      type="dynamic"
+      type="kinematicPosition"
       colliders={false}
-      mass={1}
-      lockRotations
-      gravityScale={0}              /* 중력 무시 — y velocity는 네트워크로 받음 */
-      linearDamping={0}             /* 댐핑 0 — setLinvel이 그대로 작용 */
       position={initPos}
     >
       <CapsuleCollider args={[PLAYER_CAPSULE_HALF_HEIGHT, PLAYER_CAPSULE_RADIUS]} />
