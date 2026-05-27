@@ -1686,15 +1686,17 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   }, [objectOwnerRef]);
 
   // Player 충돌 콜백 — Optimistic Ownership: 서버 확인 안 기다리고 즉시 본인 owner
-  // → 충돌 직후 100ms 동안 옛 위치로 rubber-banding 되는 문제 해결
   const onObjCollide = useCallback((objectId: string, type: 'enter' | 'exit') => {
     if (type === 'enter') {
       touchingRef.current.add(objectId);
       releaseTimerRef.current.delete(objectId);
       if (ownersRef.current.get(objectId) !== playerId) {
-        // 1) 로컬에서 즉시 본인을 owner로 간주 (서버 확인 안 기다림)
+        // 1) 로컬에서 즉시 본인을 owner로 간주
         ownersRef.current.set(objectId, playerId);
-        // 2) 동시에 서버에 claim 전송 (서버가 다른 클라에게 broadcast)
+        // 2) syncTargets에서 이 오브젝트 제거 — useFrame이 옛 broadcast 데이터를 적용하는 것 방지
+        //    (rubber-banding의 진짜 원인: 충돌 발생 시 syncTargets에 이미 옛 데이터 있음)
+        syncTargets.current.delete(objectId);
+        // 3) 서버에 claim 전송
         sendObjClaim?.(objectId);
       }
     } else {
