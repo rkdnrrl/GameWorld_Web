@@ -647,7 +647,7 @@ function SceneNode({ obj, allObjects, selectedId, multiSelectedIds, onObjectClic
 }
 
 /* ── 씬 목록 노드 (UI 계층 트리) ──────────── */
-function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, editingLabelId, editingLabelValue, setEditingLabelId, setEditingLabelValue, setObjects, selectedCallback, pushHistory, onReparent }: {
+function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, editingLabelId, editingLabelValue, setEditingLabelId, setEditingLabelValue, setObjects, selectedCallback, pushHistory, onReparent, onFocusObject }: {
   obj: MapObject;
   allObjects: MapObject[];
   depth: number;
@@ -661,6 +661,7 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
   selectedCallback: (id: string) => void;
   pushHistory: (objs: MapObject[]) => void;
   onReparent: (childId: string, newParentId: string | null) => void;
+  onFocusObject: (id: string) => void;
 }) {
   const [open, setOpen] = useState(true);
   const [dragOver, setDragOver] = useState(false);
@@ -682,6 +683,7 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
           if (childId && childId !== obj.id) onReparent(childId, obj.id);
         }}
         onClick={() => { if (editingLabelId !== obj.id) selectedCallback(obj.id); }}
+        onDoubleClick={() => { if (editingLabelId !== obj.id) onFocusObject(obj.id); }}
         style={{
           display: 'flex', alignItems: 'center', gap: 4,
           paddingLeft: depth * 14 + 4, paddingTop: 4, paddingBottom: 4, paddingRight: 6,
@@ -736,7 +738,7 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
           editingLabelId={editingLabelId} editingLabelValue={editingLabelValue}
           setEditingLabelId={setEditingLabelId} setEditingLabelValue={setEditingLabelValue}
           setObjects={setObjects} selectedCallback={selectedCallback}
-          pushHistory={pushHistory} onReparent={onReparent} />
+          pushHistory={pushHistory} onReparent={onReparent} onFocusObject={onFocusObject} />
       ))}
     </div>
   );
@@ -1195,10 +1197,11 @@ export default function StudioCanvas() {
       } else if (e.key === 'g') setMode('translate');
       else if (e.key === 'r') setMode('rotate');
       else if (e.key === 's') setMode('scale');
+      else if ((e.key === 'f' || e.key === 'F') && selectedId) focusObject(selectedId);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedId, undo, redo, pushHistory]);
+  }, [selectedId, undo, redo, pushHistory, focusObject]);
 
   useEffect(() => {
     const check = () => {
@@ -1580,6 +1583,32 @@ export default function StudioCanvas() {
     }
     return local;
   }
+
+  /** 선택 오브젝트가 화면에 넉넉히 보이도록 카메라 이동 (Unity F 동작) */
+  const focusObject = useCallback((id: string) => {
+    if (!orbitRef.current || !cameraRef.current) return;
+    const worldMat = computeWorldMatrix(id, objects);
+    const pos = new THREE.Vector3();
+    const quat = new THREE.Quaternion();
+    const scaleVec = new THREE.Vector3();
+    worldMat.decompose(pos, quat, scaleVec);
+
+    // 오브젝트 world scale 기반 거리 계산
+    const size = Math.max(Math.abs(scaleVec.x), Math.abs(scaleVec.y), Math.abs(scaleVec.z), 1);
+    const distance = size * 4;
+
+    const orbit = orbitRef.current;
+    const camera = cameraRef.current;
+    // 현재 카메라 방향을 유지하면서 target → 오브젝트 위치로 이동
+    const dir = new THREE.Vector3().subVectors(camera.position, orbit.target);
+    if (dir.lengthSq() < 0.0001) dir.set(0.6, 0.8, 1);
+    dir.normalize().multiplyScalar(distance);
+
+    orbit.target.copy(pos);
+    camera.position.copy(pos).add(dir);
+    orbit.update?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [objects]);
 
   function reparentObject(childId: string, newParentId: string | null) {
     // 순환 방지
@@ -2017,6 +2046,7 @@ export default function StudioCanvas() {
                 setEditingLabelId={setEditingLabelId} setEditingLabelValue={setEditingLabelValue}
                 setObjects={setObjects} pushHistory={pushHistory}
                 onReparent={reparentObject}
+                onFocusObject={focusObject}
                 selectedCallback={id => {
                   if (shiftHeldRef.current) {
                     shiftClickObject(id);
@@ -2286,7 +2316,7 @@ export default function StudioCanvas() {
           {[
             ['G', '이동'], ['R', '회전'], ['S', '스케일'],
             ['WASD', '카메라'], ['QE', '상승/하강'], ['Shift', '가속'],
-            ['Ctrl+D', '복제'], ['Ctrl+Z', '실행취소'], ['Del', '삭제'],
+            ['F', '포커스'], ['Ctrl+D', '복제'], ['Ctrl+Z', '실행취소'], ['Del', '삭제'],
           ].map(([key, desc]) => (
             <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(0,0,0,0.5)', borderRadius: 6, padding: '3px 7px', backdropFilter: 'blur(6px)' }}>
               <kbd style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 3, padding: '1px 5px', fontSize: 10, fontFamily: 'monospace', color: '#e2e8f0', fontWeight: 700 }}>{key}</kbd>
