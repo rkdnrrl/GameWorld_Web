@@ -81,6 +81,7 @@ type MaterialPreset = 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 'plasti
 
 interface MapObject {
   id: string;
+  label?: string;
   kind: ObjectKind;
   assetUrl?: string;
   position: [number, number, number];
@@ -372,11 +373,14 @@ function SelectedBoxOutline({ target }: { target: THREE.Object3D }) {
 }
 
 /* ── 변환 컨트롤 ──────────────────────────── */
-function SelectedTransform({ targetId, mode, onChange, onDragEnd }: {
+function SelectedTransform({ targetId, mode, onChange, onDragEnd, snapTranslate, snapRotate, snapScale }: {
   targetId: string | null;
   mode: 'translate' | 'rotate' | 'scale';
   onChange: (id: string, t: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }) => void;
   onDragEnd: () => void;
+  snapTranslate?: number | null;
+  snapRotate?: number | null;
+  snapScale?: number | null;
 }) {
   const { scene } = useThree();
   const [target, setTarget] = useState<THREE.Object3D | null>(null);
@@ -406,6 +410,9 @@ function SelectedTransform({ targetId, mode, onChange, onDragEnd }: {
       ref={(tc: any) => { tcRef.current = tc || null; }}
       object={target}
       mode={mode}
+      translationSnap={snapTranslate ?? null}
+      rotationSnap={snapRotate ?? null}
+      scaleSnap={snapScale ?? null}
       onObjectChange={() => {
         const o = target;
         onChange(targetId!, {
@@ -551,6 +558,11 @@ export default function StudioCanvas() {
   const [isMobile, setIsMobile] = useState(false);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const orbitRef = useRef<OrbitRef | null>(null);
+  // 그리드 스냅
+  const [snapEnabled, setSnapEnabled] = useState(false);
+  const [snapSize, setSnapSize] = useState(0.5);
+  // 오브젝트 종류별 카운터 (자동 이름용)
+  const objCounterRef = useRef<Record<string, number>>({});
 
   const token = () => session.getToken() || '';
 
@@ -655,6 +667,7 @@ export default function StudioCanvas() {
       if (e.ctrlKey || e.metaKey) {
         if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
         if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) { e.preventDefault(); redo(); return; }
+        if (e.key === 'd') { e.preventDefault(); duplicate(); return; }
       }
       // 입력창에 포커스되어 있으면 단축키 무시
       const tag = (e.target as HTMLElement)?.tagName;
@@ -685,11 +698,20 @@ export default function StudioCanvas() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
+  const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', asset: '에셋' };
+  const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲' };
+
+  function makeLabel(kind: string): string {
+    objCounterRef.current[kind] = (objCounterRef.current[kind] ?? 0) + 1;
+    return `${KIND_LABELS[kind] ?? kind} ${objCounterRef.current[kind]}`;
+  }
+
   function addPrimitive(kind: 'cube' | 'sphere' | 'cylinder' | 'plane') {
     const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const label = makeLabel(kind);
     setObjects(prev => {
       const next = [...prev, {
-        id, kind,
+        id, kind, label,
         position: [0, kind === 'plane' ? 0.01 : 0.5, 0] as [number,number,number],
         rotation: (kind === 'plane' ? [-Math.PI / 2, 0, 0] : [0, 0, 0]) as [number,number,number],
         scale:    (kind === 'plane' ? [5, 5, 1] : [1, 1, 1]) as [number,number,number],
@@ -701,11 +723,25 @@ export default function StudioCanvas() {
     setSelectedId(id);
   }
 
+  function duplicate() {
+    if (!selected) return;
+    const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const label = makeLabel(selected.kind);
+    const offset: [number,number,number] = [selected.position[0] + 1, selected.position[1], selected.position[2]];
+    setObjects(prev => {
+      const next = [...prev, { ...clone(selected), id, label, position: offset }];
+      pushHistory(next);
+      return next;
+    });
+    setSelectedId(id);
+  }
+
   function addAsset(asset: Asset) {
     const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const label = asset.name || makeLabel('asset');
     setObjects(prev => {
       const next: MapObject[] = [...prev, {
-        id, kind: 'asset',
+        id, kind: 'asset', label,
         assetUrl: asset.modelUrl,
         position: [0, 0, 0],
         rotation: [0, 0, 0],
@@ -910,10 +946,10 @@ export default function StudioCanvas() {
           )}
         </div>
 
-        {/* 변환 모드 */}
+        {/* 변환 모드 + 스냅 */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 8 }}>{t('transformMode')}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, marginBottom: 6 }}>
             {(['translate','rotate','scale'] as const).map(m => (
               <button key={m} onClick={() => setMode(m)}
                 style={{ background: mode === m ? '#4f46e5' : 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 6, color: '#fff', fontSize: 10, padding: '6px 0', cursor: 'pointer', fontWeight: 600 }}>
@@ -921,7 +957,53 @@ export default function StudioCanvas() {
               </button>
             ))}
           </div>
+          {/* 그리드 스냅 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button
+              onClick={() => setSnapEnabled(v => !v)}
+              style={{ flex: 1, background: snapEnabled ? 'rgba(52,211,153,0.18)' : 'rgba(255,255,255,0.05)', border: `1px solid ${snapEnabled ? '#34d399' : 'rgba(255,255,255,0.1)'}`, borderRadius: 6, color: snapEnabled ? '#34d399' : 'rgba(255,255,255,0.45)', fontSize: 10, padding: '5px 0', cursor: 'pointer', fontWeight: 600 }}>
+              {snapEnabled ? '⊞ 스냅 ON' : '⊟ 스냅 OFF'}
+            </button>
+            {snapEnabled && (
+              <select value={snapSize} onChange={e => setSnapSize(Number(e.target.value))}
+                style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, color: '#fff', fontSize: 10, padding: '4px 6px', cursor: 'pointer' }}>
+                {[0.1, 0.25, 0.5, 1, 2].map(v => <option key={v} value={v}>{v}m</option>)}
+              </select>
+            )}
+          </div>
         </div>
+
+        {/* 씬 오브젝트 목록 */}
+        {objects.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 6 }}>씬 오브젝트 ({objects.length})</div>
+            <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {objects.map((obj, i) => {
+                const isSelected = obj.id === selectedId;
+                return (
+                  <div key={obj.id}
+                    onClick={() => setSelectedId(isSelected ? null : obj.id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      background: isSelected ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.04)',
+                      border: `1px solid ${isSelected ? 'rgba(99,102,241,0.6)' : 'rgba(255,255,255,0.07)'}`,
+                      borderRadius: 6, padding: '5px 7px', cursor: 'pointer',
+                      transition: 'background 0.1s',
+                    }}>
+                    <span style={{ fontSize: 13, flexShrink: 0 }}>{KIND_ICONS[obj.kind] ?? '❓'}</span>
+                    <span style={{ flex: 1, fontSize: 11, fontWeight: isSelected ? 700 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isSelected ? '#a5b4fc' : '#fff' }}>
+                      {obj.label || `${KIND_LABELS[obj.kind] ?? obj.kind} ${i + 1}`}
+                    </span>
+                    <button
+                      onClick={e => { e.stopPropagation(); setObjects(prev => { const next = prev.filter(o => o.id !== obj.id); pushHistory(next); return next; }); if (selectedId === obj.id) setSelectedId(null); }}
+                      style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: 13, cursor: 'pointer', flexShrink: 0, padding: 0, lineHeight: 1 }}
+                      title="삭제">×</button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* 선택된 오브젝트 — 변환 값 표시 */}
         {selected && (
@@ -1045,10 +1127,16 @@ export default function StudioCanvas() {
               )}
             </div>
 
-            <button onClick={deleteSelected}
-              style={{ width: '100%', background: 'rgba(239,68,68,0.2)', border: 'none', color: '#fca5a5', fontSize: 11, padding: '6px', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
-              {t('delete')}
-            </button>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button onClick={duplicate}
+                style={{ flex: 1, background: 'rgba(99,102,241,0.2)', border: 'none', color: '#a5b4fc', fontSize: 11, padding: '6px', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
+                복제 (Ctrl+D)
+              </button>
+              <button onClick={deleteSelected}
+                style={{ flex: 1, background: 'rgba(239,68,68,0.2)', border: 'none', color: '#fca5a5', fontSize: 11, padding: '6px', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
+                {t('delete')}
+              </button>
+            </div>
           </div>
         )}
 
@@ -1151,6 +1239,9 @@ export default function StudioCanvas() {
             mode={mode}
             onChange={updateObjectTransform}
             onDragEnd={() => pushHistory(objects)}
+            snapTranslate={snapEnabled ? snapSize : null}
+            snapRotate={snapEnabled ? (Math.PI / 12) : null}
+            snapScale={snapEnabled ? 0.1 : null}
           />
 
           <OrbitControls
