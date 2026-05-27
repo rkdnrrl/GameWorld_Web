@@ -245,8 +245,56 @@ function StudioAssetCard({ asset, onDelete, onRename }: {
   );
 }
 
+/* ── 폴더 노드 검색 헬퍼 ─────────────────── */
+function findFolderNode(nodes: FolderNode[], path: string): FolderNode | null {
+  for (const n of nodes) {
+    if (n.path === path) return n;
+    const found = findFolderNode(n.children, path);
+    if (found) return found;
+  }
+  return null;
+}
+
+/* ── 그리드용 폴더 카드 ──────────────────── */
+function StudioFolderCard({ name, path, onNavigate, onFolderDrop }: {
+  name: string;
+  path: string;
+  onNavigate: (path: string) => void;
+  onFolderDrop: (fromPath: string, toPath: string) => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  return (
+    <div
+      draggable
+      onDragStart={e => { e.dataTransfer.setData('folderPath', path); e.dataTransfer.effectAllowed = 'move'; }}
+      onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }}
+      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
+      onDrop={e => {
+        e.preventDefault(); e.stopPropagation(); setDragOver(false);
+        const fromPath = e.dataTransfer.getData('folderPath');
+        if (fromPath && fromPath !== path && !path.startsWith(fromPath + '/')) onFolderDrop(fromPath, path);
+      }}
+      onClick={() => onNavigate(path)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: dragOver ? 'rgba(52,211,153,0.2)' : hovered ? 'rgba(129,140,248,0.2)' : 'rgba(255,255,255,0.05)',
+        border: dragOver ? '1px dashed #34d399' : '1px solid rgba(255,255,255,0.09)',
+        borderRadius: 8, color: '#e2e8f0', fontSize: 11, padding: '8px 6px',
+        cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+        userSelect: 'none', transition: 'background 0.12s',
+      }}>
+      <span style={{ fontSize: 22 }}>📁</span>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: 'center', fontWeight: 500 }}>
+        {name}
+      </span>
+    </div>
+  );
+}
+
 /* ── FBX 폴더 트리 노드 ──────────────────── */
-function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onToggle, onDrop, dragOverPath, setDragOverPath, onDeleteFolder, onRenameFolder }: {
+function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onToggle, onDrop, onFolderDrop, dragOverPath, setDragOverPath, onDeleteFolder, onRenameFolder }: {
   node: FolderNode;
   depth: number;
   openFolders: Set<string>;
@@ -254,6 +302,7 @@ function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onT
   onSelect: (path: string | null) => void;
   onToggle: (path: string) => void;
   onDrop: (assetId: string, path: string | null) => void;
+  onFolderDrop: (fromPath: string, toPath: string) => void;
   dragOverPath: string | undefined;
   setDragOverPath: (p: string | undefined) => void;
   onDeleteFolder: (path: string) => void;
@@ -278,7 +327,14 @@ function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onT
           onClick={() => { onSelect(node.path); if (hasChildren) onToggle(node.path); }}
           onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOverPath(node.path); }}
           onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) { e.stopPropagation(); setDragOverPath(undefined); } }}
-          onDrop={e => { e.preventDefault(); e.stopPropagation(); const id = e.dataTransfer.getData('text/plain'); if (id) onDrop(id, node.path); setDragOverPath(undefined); }}
+          onDrop={e => {
+            e.preventDefault(); e.stopPropagation();
+            const assetId = e.dataTransfer.getData('text/plain');
+            const fromFolder = e.dataTransfer.getData('folderPath');
+            if (assetId) onDrop(assetId, node.path);
+            else if (fromFolder && fromFolder !== node.path && !node.path.startsWith(fromFolder + '/')) onFolderDrop(fromFolder, node.path);
+            setDragOverPath(undefined);
+          }}
           style={{
             flex: 1, display: 'flex', alignItems: 'center', gap: 4,
             paddingLeft: depth * 14 + 6, paddingTop: 5, paddingBottom: 5, paddingRight: 4,
@@ -326,7 +382,7 @@ function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onT
             <FbxFolderNode key={child.path} node={child} depth={depth + 1}
               openFolders={openFolders} selectedFolder={selectedFolder}
               onSelect={onSelect} onToggle={onToggle}
-              onDrop={onDrop} dragOverPath={dragOverPath} setDragOverPath={setDragOverPath}
+              onDrop={onDrop} onFolderDrop={onFolderDrop} dragOverPath={dragOverPath} setDragOverPath={setDragOverPath}
               onDeleteFolder={onDeleteFolder} onRenameFolder={onRenameFolder} />
           ))}
         </div>
@@ -1411,6 +1467,43 @@ export default function StudioCanvas() {
     } catch (e) { console.error('폴더 이동 실패', e); }
   }
 
+  async function moveFolderTo(fromPath: string, toParentPath: string | null) {
+    // 순환 방지: 자기 자신이나 자손으로 이동 불가
+    if (toParentPath !== null && (toParentPath === fromPath || toParentPath.startsWith(fromPath + '/'))) return;
+    const lastSegment = fromPath.split('/').filter(Boolean).pop() ?? fromPath;
+    const newPath = toParentPath ? `${toParentPath}/${lastSegment}` : `/${lastSegment}`;
+    if (newPath === fromPath) return;
+
+    const updated = myAssets.map(a => {
+      const f = a.folder ?? null;
+      if (f === fromPath) return { ...a, folder: newPath };
+      if (f && f.startsWith(fromPath + '/')) return { ...a, folder: newPath + f.slice(fromPath.length) };
+      return a;
+    });
+    setMyAssets(updated);
+    setLocalFolders(prev => prev.map(f => {
+      if (f === fromPath) return newPath;
+      if (f.startsWith(fromPath + '/')) return newPath + f.slice(fromPath.length);
+      return f;
+    }));
+    if (selectedFolder === fromPath || (selectedFolder !== null && selectedFolder.startsWith(fromPath + '/'))) {
+      setSelectedFolder(toParentPath);
+    }
+    const toUpdate = updated.filter(a => {
+      const orig = myAssets.find(x => x.id === a.id);
+      return orig && orig.folder !== a.folder;
+    });
+    for (const a of toUpdate) {
+      try {
+        await fetch(`${API}/api/assets/${a.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+          body: JSON.stringify({ folder: a.folder }),
+        });
+      } catch (e) { console.error('폴더 이동 실패', e); }
+    }
+  }
+
   function confirmNewFolder() {
     const name = newFolderName.trim();
     if (!name) return;
@@ -1425,7 +1518,12 @@ export default function StudioCanvas() {
     () => fbxAssets.filter(a => normalizeFolder(a.folder) === selectedFolder),
     [fbxAssets, selectedFolder]
   );
-  // fbxRootAssets 제거됨 — selectedFolder=null 일 때 selectedFolderAssets로 대체
+  // 현재 선택된 폴더의 직계 서브폴더
+  const selectedSubfolders = useMemo(() => {
+    if (selectedFolder === null) return fbxFolderTree;
+    const node = findFolderNode(fbxFolderTree, selectedFolder);
+    return node ? node.children : [];
+  }, [fbxFolderTree, selectedFolder]);
 
   /** Shift+클릭으로 멀티셀렉션 토글 */
   function shiftClickObject(id: string) {
@@ -2304,7 +2402,14 @@ export default function StudioCanvas() {
                 onClick={() => setSelectedFolder(null)}
                 onDragOver={e => { e.preventDefault(); setDragOverPath('__root__'); }}
                 onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverPath(undefined); }}
-                onDrop={e => { e.preventDefault(); e.stopPropagation(); const id = e.dataTransfer.getData('text/plain'); if (id) moveAssetToFolder(id, null); setDragOverPath(undefined); }}
+                onDrop={e => {
+                  e.preventDefault(); e.stopPropagation();
+                  const id = e.dataTransfer.getData('text/plain');
+                  const fromFolder = e.dataTransfer.getData('folderPath');
+                  if (id) moveAssetToFolder(id, null);
+                  else if (fromFolder) moveFolderTo(fromFolder, null);
+                  setDragOverPath(undefined);
+                }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 4,
                   padding: '5px 8px', borderRadius: 5, cursor: 'pointer',
@@ -2325,7 +2430,7 @@ export default function StudioCanvas() {
                 <FbxFolderNode key={node.path} node={node} depth={0}
                   openFolders={openFolders} selectedFolder={selectedFolder}
                   onSelect={setSelectedFolder} onToggle={toggleFolder}
-                  onDrop={moveAssetToFolder} dragOverPath={dragOverPath} setDragOverPath={setDragOverPath}
+                  onDrop={moveAssetToFolder} onFolderDrop={moveFolderTo} dragOverPath={dragOverPath} setDragOverPath={setDragOverPath}
                   onDeleteFolder={deleteFolderInStudio} onRenameFolder={renameFolderInStudio} />
               ))}
             </div>
@@ -2352,20 +2457,33 @@ export default function StudioCanvas() {
                   ⏳ 업로드 중...
                 </div>
               )}
-              {fbxAssets.length === 0 ? (
+              {fbxAssets.length === 0 && selectedSubfolders.length === 0 ? (
                 <div style={{ fontSize: 12, opacity: 0.4, textAlign: 'center', paddingTop: 24 }}>
                   {t('noAssets')}&nbsp;
                   <a href="/assets" style={{ color: '#818cf8' }}>/assets</a> {t('uploadAt')}
                 </div>
-              ) : selectedFolderAssets.length === 0 ? (
-                <div style={{ fontSize: 12, opacity: 0.35, textAlign: 'center', paddingTop: 24 }}>
-                  FBX 파일을 여기에 드래그하여 업로드
-                </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 7 }}>
+                  {/* 서브폴더 카드 — 파일보다 앞에 */}
+                  {selectedSubfolders.map(n => (
+                    <StudioFolderCard
+                      key={n.path}
+                      name={n.name}
+                      path={n.path}
+                      onNavigate={setSelectedFolder}
+                      onFolderDrop={moveFolderTo}
+                    />
+                  ))}
+                  {/* FBX 파일 카드 */}
                   {selectedFolderAssets.map(a => (
                     <StudioAssetCard key={a.id} asset={a} onDelete={deleteAsset} onRename={renameAsset} />
                   ))}
+                  {/* 폴더/파일 모두 없을 때 안내 */}
+                  {selectedSubfolders.length === 0 && selectedFolderAssets.length === 0 && (
+                    <div style={{ gridColumn: '1 / -1', fontSize: 12, opacity: 0.35, textAlign: 'center', paddingTop: 16 }}>
+                      FBX 파일을 여기에 드래그하여 업로드
+                    </div>
+                  )}
                 </div>
               )}
             </div>
