@@ -1659,6 +1659,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     objectStatesRef.current = (states) => {
       const now = performance.now();
       for (const s of states) {
+        // 본인이 owner인 오브젝트의 stale broadcast는 무시 (옛 host의 마지막 broadcast 등)
+        if (ownersRef.current.get(s.id) === playerId) continue;
         syncTargets.current.set(s.id, {
           pos: s.pos, rot: s.rot, scl: s.scl, vis: s.vis,
           vel: s.vel ?? [0, 0, 0],
@@ -1667,7 +1669,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       }
     };
     return () => { if (objectStatesRef.current) objectStatesRef.current = null; };
-  }, [objectStatesRef]);
+  }, [objectStatesRef, playerId]);
 
   // ── 오브젝트 소유권 (Unity NetworkObject 스타일) ──────────────
   const ownersRef = useRef<Map<string, string>>(new Map()); // objectId → ownerPlayerId
@@ -1683,12 +1685,16 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     return () => { if (objectOwnerRef.current) objectOwnerRef.current = null; };
   }, [objectOwnerRef]);
 
-  // Player 충돌 콜백 — 닿으면 즉시 소유권 주장, 떨어지면 1.5초 후 해제
+  // Player 충돌 콜백 — Optimistic Ownership: 서버 확인 안 기다리고 즉시 본인 owner
+  // → 충돌 직후 100ms 동안 옛 위치로 rubber-banding 되는 문제 해결
   const onObjCollide = useCallback((objectId: string, type: 'enter' | 'exit') => {
     if (type === 'enter') {
       touchingRef.current.add(objectId);
       releaseTimerRef.current.delete(objectId);
       if (ownersRef.current.get(objectId) !== playerId) {
+        // 1) 로컬에서 즉시 본인을 owner로 간주 (서버 확인 안 기다림)
+        ownersRef.current.set(objectId, playerId);
+        // 2) 동시에 서버에 claim 전송 (서버가 다른 클라에게 broadcast)
         sendObjClaim?.(objectId);
       }
     } else {
