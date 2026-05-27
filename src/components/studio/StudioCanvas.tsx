@@ -581,7 +581,7 @@ function RightClickLook({ orbitRef }: { orbitRef: React.MutableRefObject<OrbitRe
       // 수직 회전 (카메라 right 벡터 기준 pitch)
       const right = new THREE.Vector3(0, 1, 0).cross(dir).normalize();
       if (right.lengthSq() > 0.0001) {
-        const pitchQ = new THREE.Quaternion().setFromAxisAngle(right, -dy * sensitivity);
+        const pitchQ = new THREE.Quaternion().setFromAxisAngle(right, dy * sensitivity);
         const pitched = dir.clone().applyQuaternion(pitchQ);
         // 수직 ±85° 클램프
         if (Math.abs(pitched.y) < 0.996) dir.copy(pitched);
