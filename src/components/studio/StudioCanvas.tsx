@@ -872,50 +872,281 @@ function SceneRefCapture({ target }: { target: { current: THREE.Scene | null } }
 
 /* ── 시뮬레이션: 물리 씬 렌더러 (평면화 — 세계좌표 기준) ── */
 type SimTransforms = Record<string, { pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number] }>;
+
+/** Rapier 강체 — 우리가 호출하는 메서드만 추린 미니 인터페이스 (WorldCanvas와 동일) */
+interface SimRapierBodyApi {
+  translation(): { x: number; y: number; z: number };
+  rotation(): { x: number; y: number; z: number; w: number };
+  setTranslation(v: { x: number; y: number; z: number }, wakeUp: boolean): void;
+  setRotation(q: { x: number; y: number; z: number; w: number }, wakeUp: boolean): void;
+  applyImpulse(v: { x: number; y: number; z: number }, wakeUp: boolean): void;
+}
+type SimBodyRefs = {
+  body: React.MutableRefObject<SimRapierBodyApi | null>;
+  group: React.MutableRefObject<THREE.Group | null>;
+};
+
+/** 오브젝트 1개 렌더 + body/light ref 등록 (스크립트에서 제어 가능하도록) */
+function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs }: {
+  obj: MapObject;
+  transforms: SimTransforms;
+  myAssets: Asset[];
+  scriptBodyRefs: React.MutableRefObject<Map<string, SimBodyRefs>>;
+  lightRefs: React.MutableRefObject<Map<string, THREE.Light>>;
+}) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const bodyRef = useRef<any>(null);
+  const groupRef = useRef<THREE.Group>(null);
+
+  useEffect(() => {
+    scriptBodyRefs.current.set(obj.id, { body: bodyRef, group: groupRef });
+    return () => { scriptBodyRefs.current.delete(obj.id); };
+  }, [obj.id, scriptBodyRefs]);
+
+  const t = transforms[obj.id] ?? { pos: obj.position, rot: obj.rotation, scl: obj.scale };
+
+  const lightRefCb = (light: THREE.Light | null) => {
+    if (light) lightRefs.current.set(obj.id, light);
+    else lightRefs.current.delete(obj.id);
+  };
+
+  // 조명은 Three.js 라이트로 렌더링 (물리 없음)
+  if (obj.kind === 'pointlight') return (
+    <pointLight ref={lightRefCb} position={t.pos} color={obj.lightColor || '#ffffff'}
+      intensity={obj.lightIntensity ?? 1} distance={obj.lightDistance ?? 0} decay={2} castShadow={obj.castShadow ?? false} />
+  );
+  if (obj.kind === 'dirlight') return (
+    <directionalLight ref={lightRefCb} position={t.pos} color={obj.lightColor || '#ffffff'}
+      intensity={obj.lightIntensity ?? 1} castShadow={obj.castShadow ?? false} />
+  );
+  if (obj.kind === 'spotlight') return (
+    <spotLight ref={lightRefCb} position={t.pos} color={obj.lightColor || '#ffffff'}
+      intensity={obj.lightIntensity ?? 1} distance={obj.lightDistance ?? 0}
+      angle={(obj.lightAngle ?? 45) * Math.PI / 180} penumbra={obj.lightPenumbra ?? 0.2}
+      decay={2} castShadow={obj.castShadow ?? false} />
+  );
+
+  const assetConfig = getAssetMaterialConfig(myAssets.find(a => a.modelUrl === obj.assetUrl));
+  const mesh = <Mesh3D obj={obj} selected={false} onClick={() => {}} assetConfig={assetConfig} noTransform />;
+  const phys = obj.physics ?? 'fixed';
+
+  if (phys === 'none') {
+    return <group ref={groupRef} position={t.pos} rotation={t.rot} scale={t.scl}>{mesh}</group>;
+  }
+  const colliders =
+    obj.kind === 'sphere'  ? 'ball'    :
+    obj.kind === 'asset'   ? (phys === 'dynamic' ? 'hull' : 'trimesh') :
+                             'cuboid';
+  return (
+    <RigidBody ref={bodyRef} type={phys} colliders={colliders}
+      position={t.pos} rotation={t.rot} scale={t.scl}>
+      {mesh}
+    </RigidBody>
+  );
+}
+
+/** 스크립트 onUpdate(dt) 호출 + worldElapsed 누적 — Canvas 내부에서만 useFrame 동작 */
+function SimScriptLoop({
+  luaScripts, worldElapsed,
+}: {
+  luaScripts: React.MutableRefObject<Map<string, import('@/lib/world/jsRuntime').JsScript>>;
+  worldElapsed: React.MutableRefObject<number>;
+}) {
+  useFrame((_, dt) => {
+    worldElapsed.current += dt;
+    for (const vm of luaScripts.current.values()) vm.callUpdate(dt);
+  });
+  return null;
+}
+
 function SimScene({ objects, transforms, myAssets }: {
   objects: MapObject[];
   transforms: SimTransforms;
   myAssets: Asset[];
 }) {
+  // 런타임 spawn된 오브젝트 (로컬, 시뮬레이션 종료 시 사라짐)
+  const [runtimeObjects, setRuntimeObjects] = useState<MapObject[]>([]);
+  const runtimeObjectsRef = useRef<MapObject[]>([]);
+  useEffect(() => { runtimeObjectsRef.current = runtimeObjects; }, [runtimeObjects]);
+
+  // 스크립트가 오브젝트를 제어하려고 참조하는 ref 레지스트리
+  const scriptBodyRefs = useRef<Map<string, SimBodyRefs>>(new Map());
+  const lightRefs = useRef<Map<string, THREE.Light>>(new Map());
+  const luaScripts = useRef<Map<string, import('@/lib/world/jsRuntime').JsScript>>(new Map());
+  const worldElapsed = useRef(0);
+
+  const spawnObject = useCallback((opts: import('@/lib/world/jsRuntime').JsSpawnOpts): string => {
+    const id = `rt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const obj: MapObject = {
+      id,
+      kind:     opts.kind     ?? 'cube',
+      assetUrl: opts.assetUrl,
+      position: opts.position ?? [0, 5, 0],
+      rotation: opts.rotation ?? [0, 0, 0],
+      scale:    opts.scale    ?? [1, 1, 1],
+      color:    opts.color    ?? '#ffffff',
+      physics:  opts.physics  ?? 'dynamic',
+      material: opts.material,
+      materialColor: opts.materialColor,
+    };
+    setRuntimeObjects(prev => [...prev, obj]);
+    return id;
+  }, []);
+
+  const destroyObject = useCallback((id: string) => {
+    setRuntimeObjects(prev => prev.filter(o => o.id !== id));
+    scriptBodyRefs.current.delete(id);
+    lightRefs.current.delete(id);
+  }, []);
+
+  // 렌더 대상: 원본 + 런타임 spawn된 것
+  const allObjects = useMemo(() => [...objects, ...runtimeObjects], [objects, runtimeObjects]);
+  // VM 재생성 키 — 원본 objects 만 추적 (runtimeObjects는 script 없으므로 무시 → spawn 호출이 VM 재초기화 안 함)
+  const scriptsKey = objects.map(o => o.id + '|' + (o.script ?? '')).join(',');
+
+  useEffect(() => {
+    const scripted = objects.filter(o => o.script);
+
+    // 제거된 오브젝트 정리
+    for (const [id, vm] of luaScripts.current) {
+      if (!scripted.find(o => o.id === id)) {
+        vm.destroy();
+        luaScripts.current.delete(id);
+      }
+    }
+
+    // 새 스크립트 오브젝트 VM 생성
+    for (const obj of scripted) {
+      if (luaScripts.current.has(obj.id)) continue;
+
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { JsScript } = require('@/lib/world/jsRuntime') as typeof import('@/lib/world/jsRuntime');
+      const vm = new JsScript();
+
+      const makeObjectAPI = (targetId: string, fallbackObj?: MapObject): import('@/lib/world/jsRuntime').JsObjectAPI => ({
+        id: targetId,
+        getPosition: () => {
+          const light = lightRefs.current.get(targetId);
+          if (light) return [light.position.x, light.position.y, light.position.z];
+          const ref = scriptBodyRefs.current.get(targetId);
+          if (ref?.body.current) {
+            const t = ref.body.current.translation();
+            return [t.x, t.y, t.z];
+          }
+          if (ref?.group.current) {
+            const p = ref.group.current.position;
+            return [p.x, p.y, p.z];
+          }
+          return fallbackObj?.position ?? [0, 0, 0];
+        },
+        setPosition: (x, y, z) => {
+          const light = lightRefs.current.get(targetId);
+          if (light) { light.position.set(x, y, z); return; }
+          const ref = scriptBodyRefs.current.get(targetId);
+          if (ref?.body.current) ref.body.current.setTranslation({ x, y, z }, true);
+          else if (ref?.group.current) ref.group.current.position.set(x, y, z);
+        },
+        getRotation: () => {
+          const light = lightRefs.current.get(targetId);
+          if (light) return [light.rotation.x, light.rotation.y, light.rotation.z];
+          const ref = scriptBodyRefs.current.get(targetId);
+          if (ref?.group.current) {
+            const r = ref.group.current.rotation;
+            return [r.x, r.y, r.z];
+          }
+          return fallbackObj?.rotation ?? [0, 0, 0];
+        },
+        setRotation: (rx, ry, rz) => {
+          const light = lightRefs.current.get(targetId);
+          if (light) { light.rotation.set(rx, ry, rz); return; }
+          const ref = scriptBodyRefs.current.get(targetId);
+          if (ref?.group.current) ref.group.current.rotation.set(rx, ry, rz);
+        },
+        applyImpulse: (x, y, z) => {
+          const ref = scriptBodyRefs.current.get(targetId);
+          ref?.body.current?.applyImpulse({ x, y, z }, true);
+        },
+        setVisible: (b) => {
+          const light = lightRefs.current.get(targetId);
+          if (light) { light.visible = b; return; }
+          const ref = scriptBodyRefs.current.get(targetId);
+          if (ref?.group.current) ref.group.current.visible = b;
+        },
+        setColor: (hex) => {
+          const light = lightRefs.current.get(targetId);
+          if (light) {
+            try { light.color.set(hex); } catch {}
+            return;
+          }
+          const ref = scriptBodyRefs.current.get(targetId);
+          if (ref?.group.current) {
+            ref.group.current.traverse((child) => {
+              const m = child as THREE.Mesh;
+              if (m.isMesh && m.material) {
+                const mat = m.material as THREE.MeshStandardMaterial;
+                if (mat.color) { try { mat.color.set(hex); } catch {} }
+              }
+            });
+          }
+        },
+        setIntensity: (v) => {
+          const light = lightRefs.current.get(targetId);
+          if (light) light.intensity = Number(v);
+        },
+        destroy: () => {
+          if (targetId.startsWith('rt_')) destroyObject(targetId);
+        },
+      });
+
+      const objectAPI = makeObjectAPI(obj.id, obj);
+
+      const worldAPI: import('@/lib/world/jsRuntime').JsWorldAPI = {
+        getTime: () => worldElapsed.current,
+        getPlayers: () => [], // 스튜디오엔 플레이어 없음
+        findObject: (nameOrId) => {
+          const target = [...objects, ...runtimeObjectsRef.current].find(o => o.id === nameOrId || o.label === nameOrId);
+          if (!target) return null;
+          return makeObjectAPI(target.id, target);
+        },
+        spawn: (opts) => {
+          const id = spawnObject(opts);
+          const fallback: MapObject = {
+            id,
+            kind:     opts.kind     ?? 'cube',
+            position: opts.position ?? [0, 5, 0],
+            rotation: opts.rotation ?? [0, 0, 0],
+            scale:    opts.scale    ?? [1, 1, 1],
+            color:    opts.color    ?? '#ffffff',
+            physics:  opts.physics  ?? 'dynamic',
+          };
+          return makeObjectAPI(id, fallback);
+        },
+      };
+
+      // 스튜디오엔 네트워크 없음 — no-op
+      const netAPI: import('@/lib/world/jsRuntime').JsNetAPI = {
+        sendAll: () => {},
+        sendTo: () => {},
+      };
+
+      luaScripts.current.set(obj.id, vm);
+      vm.init(obj.script!, objectAPI, worldAPI, netAPI);
+    }
+
+    return () => {
+      for (const vm of luaScripts.current.values()) vm.destroy();
+      luaScripts.current.clear();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scriptsKey]);
+
   return (
     <>
-      {objects.map(obj => {
-        const t = transforms[obj.id] ?? { pos: obj.position, rot: obj.rotation, scl: obj.scale };
-        // 조명은 Three.js 라이트로 렌더링 (물리 없음)
-        if (obj.kind === 'pointlight') return (
-          <pointLight key={obj.id} position={t.pos} color={obj.lightColor || '#ffffff'}
-            intensity={obj.lightIntensity ?? 1} distance={obj.lightDistance ?? 0} decay={2} castShadow={obj.castShadow ?? false} />
-        );
-        if (obj.kind === 'dirlight') return (
-          <directionalLight key={obj.id} position={t.pos} color={obj.lightColor || '#ffffff'}
-            intensity={obj.lightIntensity ?? 1} castShadow={obj.castShadow ?? false} />
-        );
-        if (obj.kind === 'spotlight') return (
-          <spotLight key={obj.id} position={t.pos} color={obj.lightColor || '#ffffff'}
-            intensity={obj.lightIntensity ?? 1} distance={obj.lightDistance ?? 0}
-            angle={(obj.lightAngle ?? 45) * Math.PI / 180} penumbra={obj.lightPenumbra ?? 0.2}
-            decay={2} castShadow={obj.castShadow ?? false} />
-        );
-
-        const assetConfig = getAssetMaterialConfig(myAssets.find(a => a.modelUrl === obj.assetUrl));
-        // noTransform=true → 위치/스케일은 부모(RigidBody or group)가 담당
-        const mesh = <Mesh3D obj={obj} selected={false} onClick={() => {}} assetConfig={assetConfig} noTransform />;
-        const phys = obj.physics ?? 'fixed';
-
-        if (phys === 'none') {
-          return <group key={obj.id} position={t.pos} rotation={t.rot} scale={t.scl}>{mesh}</group>;
-        }
-        const colliders =
-          obj.kind === 'sphere'  ? 'ball'    :
-          obj.kind === 'asset'   ? (phys === 'dynamic' ? 'hull' : 'trimesh') :
-                                   'cuboid';
-        return (
-          <RigidBody key={obj.id} type={phys} colliders={colliders}
-            position={t.pos} rotation={t.rot} scale={t.scl}>
-            {mesh}
-          </RigidBody>
-        );
-      })}
+      <SimScriptLoop luaScripts={luaScripts} worldElapsed={worldElapsed} />
+      {allObjects.map(obj => (
+        <SimObject key={obj.id} obj={obj} transforms={transforms}
+          myAssets={myAssets} scriptBodyRefs={scriptBodyRefs} lightRefs={lightRefs} />
+      ))}
     </>
   );
 }
