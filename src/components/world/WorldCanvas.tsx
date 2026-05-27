@@ -536,6 +536,20 @@ function GraphicsApplier({ shadowSize, shadowFilter, shadowRadius }: {
   return null;
 }
 
+/* ── 모바일 터치 상태 싱글톤 ─────────────────────────────────────
+   Player(Canvas 내부)와 MobileControls(Canvas 외부)가 ref 없이 공유.
+   Canvas 외부 DOM에서 렌더링해야 drei Html의 transform 스케일 문제를 피할 수 있음. */
+const _mob = {
+  moveTouch:  { active: false, x: 0, y: 0, pointerId: -1 },
+  lookTouch:  { active: false, pointerId: -1, lastX: 0, lastY: 0 },
+  jumpQueued: false,
+  pinch:      { active: false, id2: -1, lastDist: 0, x1: 0, y1: 0, x2: 0, y2: 0 },
+  camH:       0,
+  camV:       0.45,
+  camDist:    7,
+  sprint:     false,
+};
+
 /* ── 로컬 플레이어 컨트롤러 ─────────────── */
 function Player({
   character,
@@ -561,24 +575,10 @@ function Player({
   /* 직접 DOM 키 추적 — KeyboardControls 컨텍스트 문제 우회 */
   const keys = useRef(new Set<string>());
 
-  const camH     = useRef(0);
-  const camV     = useRef(0.45);
-  const camDist  = useRef(7);
   const isLocked = useRef(false);
   const lastSend = useRef(0);
   const jumpPrev = useRef(false);
   const lastPos  = useRef(new THREE.Vector3(0, 1, 0));
-  const isMobileRef = useRef(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const moveTouchRef = useRef({ active: false, x: 0, y: 0, pointerId: -1 });
-  const lookTouchRef = useRef({ active: false, pointerId: -1, lastX: 0, lastY: 0 });
-  const jumpTouchQueued = useRef(false);
-  // 핀치 줌 (두 손가락)
-  const pinchRef = useRef({ active: false, id2: -1, lastDist: 0, x1: 0, y1: 0, x2: 0, y2: 0 });
-  // 모바일 전용: 조이스틱 노브 시각 위치 + 스프린트 토글
-  const [joystickKnob, setJoystickKnob] = useState({ x: 0, y: 0, active: false });
-  const mobileSprintRef = useRef(false);
-  const [mobileSprinting, setMobileSprinting] = useState(false);
   // 현재 애니메이션 상태 (CustomModel이 참조)
   const animStateRef = useRef<AnimState>('idle');
   // 이모트(커스텀 애니메이션) 오버라이드 — idle 상태일 때만 적용
@@ -589,39 +589,7 @@ function Player({
   const proneRef  = useRef(false);
   // 점프 상태 최소 유지 시간 (애니메이션 재생 보장)
   const jumpHoldUntil = useRef(0);
-  // 모바일 컨트롤 포탈: position:fixed body 직속 div → 카메라 줌·뷰포트 변화에 무관
-  const mobilePortalRef = useRef<HTMLElement | null>(null);
-  const [mobilePortalReady, setMobilePortalReady] = useState(false);
-
   /* 키보드 + 포인터 락 */
-  useEffect(() => {
-    const detectMobile = () => {
-      const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-      const smallViewport = window.matchMedia?.('(max-width: 1024px)')?.matches ?? false;
-      const m = touch && smallViewport;
-      isMobileRef.current = m;
-      setIsMobile(m);
-    };
-    detectMobile();
-    window.addEventListener('resize', detectMobile);
-    return () => window.removeEventListener('resize', detectMobile);
-  }, []);
-
-  // 모바일일 때만 포탈 div 생성/파괴
-  useEffect(() => {
-    if (!isMobile) return;
-    const el = document.createElement('div');
-    el.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:999;';
-    document.body.appendChild(el);
-    mobilePortalRef.current = el;
-    setMobilePortalReady(true);
-    return () => {
-      if (document.body.contains(el)) document.body.removeChild(el);
-      mobilePortalRef.current = null;
-      setMobilePortalReady(false);
-    };
-  }, [isMobile]);
-
   useEffect(() => {
     const el = gl.domElement;
 
@@ -641,8 +609,8 @@ function Player({
     const onMouseMove = (e: MouseEvent) => {
       if (inputLocked) return;
       if (!isLocked.current) return;
-      camH.current -= e.movementX * 0.003;
-      camV.current  = Math.max(-1.1, Math.min(1.3, camV.current + e.movementY * 0.003));
+      _mob.camH -= e.movementX * 0.003;
+      _mob.camV  = Math.max(-1.1, Math.min(1.3, _mob.camV + e.movementY * 0.003));
     };
     const onLockChange = () => { isLocked.current = !!document.pointerLockElement; };
     const tryLockPointer = () => {
@@ -654,7 +622,7 @@ function Player({
     const onPointerDown = () => tryLockPointer();
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      camDist.current = Math.max(1.1, Math.min(14, camDist.current + e.deltaY * 0.01));
+      _mob.camDist = Math.max(1.1, Math.min(14, _mob.camDist + e.deltaY * 0.01));
     };
 
     window.addEventListener('keydown', onKeyDown);
@@ -681,15 +649,10 @@ function Player({
     if (document.pointerLockElement) {
       document.exitPointerLock();
     }
-    moveTouchRef.current.active = false;
-    moveTouchRef.current.x = 0;
-    moveTouchRef.current.y = 0;
-    moveTouchRef.current.pointerId = -1;
-    lookTouchRef.current.active = false;
-    lookTouchRef.current.pointerId = -1;
-    jumpTouchQueued.current = false;
-    pinchRef.current.active = false;
-    pinchRef.current.id2 = -1;
+    _mob.moveTouch.active = false; _mob.moveTouch.x = 0; _mob.moveTouch.y = 0; _mob.moveTouch.pointerId = -1;
+    _mob.lookTouch.active = false; _mob.lookTouch.pointerId = -1;
+    _mob.jumpQueued = false;
+    _mob.pinch.active = false; _mob.pinch.id2 = -1;
   }, [inputLocked]);
 
   useFrame((_, dt) => {
@@ -708,7 +671,7 @@ function Player({
       const left     = k.has('KeyA') || k.has('ArrowLeft');
       const right    = k.has('KeyD') || k.has('ArrowRight');
       const jump     = k.has('Space');
-      const sprint   = k.has('ShiftLeft') || mobileSprintRef.current;
+      const sprint   = k.has('ShiftLeft') || _mob.sprint;
       const vel  = body.current.linvel();
       const posT = body.current.translation();
 
@@ -737,17 +700,17 @@ function Player({
 
       lastPos.current.set(posT.x, posT.y, posT.z);
 
-      const sinH = Math.sin(camH.current);
-      const cosH = Math.cos(camH.current);
+      const sinH = Math.sin(_mob.camH);
+      const cosH = Math.cos(_mob.camH);
       let mx = 0, mz = 0;
       if (forward)  { mx -= sinH; mz -= cosH; }
       if (backward) { mx += sinH; mz += cosH; }
       if (left)     { mx -= cosH; mz += sinH; }
       if (right)    { mx += cosH; mz -= sinH; }
 
-      if (!inputLocked && moveTouchRef.current.active) {
-        const jx = moveTouchRef.current.x;
-        const jy = -moveTouchRef.current.y;
+      if (!inputLocked && _mob.moveTouch.active) {
+        const jx = _mob.moveTouch.x;
+        const jy = -_mob.moveTouch.y;
         mx += (-sinH * jy) + (cosH * jx);
         mz += (-cosH * jy) + (-sinH * jx);
       }
@@ -762,9 +725,9 @@ function Player({
       const onGround = !!(hit && hit.timeOfImpact < 0.7);
 
       // 점프: Space가 새로 눌렸을 때만 1번 (앉기/엎드리기 중엔 점프 금지)
-      const jumpJustPressed = (jump && !jumpPrev.current) || jumpTouchQueued.current;
+      const jumpJustPressed = (jump && !jumpPrev.current) || _mob.jumpQueued;
       jumpPrev.current = jump;
-      jumpTouchQueued.current = false;
+      _mob.jumpQueued = false;
       if (jumpJustPressed && onGround && !isCrouch && !isProne) {
         // 7 m/s → 약 1.1m 점프, 공중 체공 시간 ~0.64초
         body.current.setLinvel({ x: vel.x, y: 7, z: vel.z }, true);
@@ -808,11 +771,11 @@ function Player({
 
     /* ── 카메라는 항상 lastPos를 따라감 (물리 초기화 여부 무관) ── */
     const p    = lastPos.current;
-    const dist = camDist.current;
-    const tx   = p.x + dist * Math.sin(camH.current) * Math.cos(camV.current);
+    const dist = _mob.camDist;
+    const tx   = p.x + dist * Math.sin(_mob.camH) * Math.cos(_mob.camV);
     const yOffset = dist <= 2.2 ? 0.25 : 0.5;
-    const ty   = p.y + dist * Math.sin(camV.current) + yOffset;
-    const tz   = p.z + dist * Math.cos(camH.current) * Math.cos(camV.current);
+    const ty   = p.y + dist * Math.sin(_mob.camV) + yOffset;
+    const tz   = p.z + dist * Math.cos(_mob.camH) * Math.cos(_mob.camV);
     // 카메라 즉시 추적 — lerp 지연이 빠른 이동 시 blur를 유발하므로 직접 set
     camera.position.set(tx, ty, tz);
     const lookY = dist <= 2.2 ? p.y + 0.45 : p.y + 0.7;
@@ -856,220 +819,6 @@ function Player({
             }}
           >
             {bubble.message}
-          </div>
-        </Html>
-      )}
-      {isMobile && mobilePortalReady && (
-        <Html portal={mobilePortalRef as React.RefObject<HTMLElement>} fullscreen>
-          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', userSelect: 'none' }}>
-
-            {/* ── 카메라 룩 + 핀치 줌: 전체화면 배경 ── */}
-            <div
-              style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', touchAction: 'none' }}
-              onPointerDown={(e) => {
-                if (inputLocked) return;
-                (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-                // 두 번째 손가락 → 핀치 줌 시작
-                if (lookTouchRef.current.active && !pinchRef.current.active) {
-                  pinchRef.current.active = true;
-                  pinchRef.current.id2 = e.pointerId;
-                  pinchRef.current.x1 = lookTouchRef.current.lastX;
-                  pinchRef.current.y1 = lookTouchRef.current.lastY;
-                  pinchRef.current.x2 = e.clientX;
-                  pinchRef.current.y2 = e.clientY;
-                  pinchRef.current.lastDist = Math.hypot(
-                    e.clientX - lookTouchRef.current.lastX,
-                    e.clientY - lookTouchRef.current.lastY,
-                  );
-                  return;
-                }
-                // 첫 번째 손가락 → 카메라 룩
-                if (!lookTouchRef.current.active) {
-                  lookTouchRef.current.active = true;
-                  lookTouchRef.current.pointerId = e.pointerId;
-                  lookTouchRef.current.lastX = e.clientX;
-                  lookTouchRef.current.lastY = e.clientY;
-                }
-              }}
-              onPointerMove={(e) => {
-                if (inputLocked) return;
-                if (pinchRef.current.active) {
-                  // 핀치 중: 두 포인터 위치 갱신 → 거리 변화 → 줌
-                  if (e.pointerId === lookTouchRef.current.pointerId) {
-                    pinchRef.current.x1 = e.clientX;
-                    pinchRef.current.y1 = e.clientY;
-                  } else if (e.pointerId === pinchRef.current.id2) {
-                    pinchRef.current.x2 = e.clientX;
-                    pinchRef.current.y2 = e.clientY;
-                  }
-                  const dist = Math.hypot(
-                    pinchRef.current.x2 - pinchRef.current.x1,
-                    pinchRef.current.y2 - pinchRef.current.y1,
-                  );
-                  const delta = dist - pinchRef.current.lastDist;
-                  // 벌리면(delta>0) 가까워짐(camDist↓), 모으면(delta<0) 멀어짐(camDist↑)
-                  camDist.current = Math.max(1.1, Math.min(14, camDist.current - delta * 0.018));
-                  pinchRef.current.lastDist = dist;
-                  return;
-                }
-                if (!lookTouchRef.current.active || lookTouchRef.current.pointerId !== e.pointerId) return;
-                const dx = e.clientX - lookTouchRef.current.lastX;
-                const dy = e.clientY - lookTouchRef.current.lastY;
-                lookTouchRef.current.lastX = e.clientX;
-                lookTouchRef.current.lastY = e.clientY;
-                camH.current -= dx * 0.005;
-                camV.current = Math.max(-1.1, Math.min(1.3, camV.current + dy * 0.005));
-              }}
-              onPointerUp={(e) => {
-                if (pinchRef.current.active) {
-                  if (e.pointerId === pinchRef.current.id2) {
-                    // 두 번째 손가락 뗌 → 첫 번째 손가락으로 룩 재개
-                    pinchRef.current.active = false;
-                    pinchRef.current.id2 = -1;
-                    lookTouchRef.current.lastX = pinchRef.current.x1;
-                    lookTouchRef.current.lastY = pinchRef.current.y1;
-                  } else if (e.pointerId === lookTouchRef.current.pointerId) {
-                    // 첫 번째 손가락 뗌 → 두 번째가 룩 이어받음
-                    lookTouchRef.current.pointerId = pinchRef.current.id2;
-                    lookTouchRef.current.lastX = pinchRef.current.x2;
-                    lookTouchRef.current.lastY = pinchRef.current.y2;
-                    pinchRef.current.active = false;
-                    pinchRef.current.id2 = -1;
-                  }
-                  return;
-                }
-                if (lookTouchRef.current.pointerId !== e.pointerId) return;
-                lookTouchRef.current.active = false;
-                lookTouchRef.current.pointerId = -1;
-              }}
-              onPointerCancel={(e) => {
-                if (pinchRef.current.active) {
-                  pinchRef.current.active = false;
-                  pinchRef.current.id2 = -1;
-                }
-                if (lookTouchRef.current.pointerId === e.pointerId) {
-                  lookTouchRef.current.active = false;
-                  lookTouchRef.current.pointerId = -1;
-                }
-              }}
-            />
-
-            {/* ── 조이스틱 (왼쪽 하단) ── */}
-            <div
-              style={{
-                position: 'absolute', left: 20, bottom: 20,
-                width: 148, height: 148, borderRadius: '50%',
-                background: 'rgba(10,15,30,0.40)',
-                border: '2px solid rgba(255,255,255,0.22)',
-                pointerEvents: 'auto', touchAction: 'none',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-              }}
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                if (inputLocked) return;
-                moveTouchRef.current.active = true;
-                moveTouchRef.current.pointerId = e.pointerId;
-                moveTouchRef.current.x = 0;
-                moveTouchRef.current.y = 0;
-                setJoystickKnob({ x: 0, y: 0, active: true });
-                (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-              }}
-              onPointerMove={(e) => {
-                e.stopPropagation();
-                if (inputLocked) return;
-                if (!moveTouchRef.current.active || moveTouchRef.current.pointerId !== e.pointerId) return;
-                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                const cx = rect.left + rect.width / 2;
-                const cy = rect.top + rect.height / 2;
-                const dx = e.clientX - cx;
-                const dy = e.clientY - cy;
-                const r = rect.width * 0.42;
-                const len = Math.hypot(dx, dy);
-                const clamped = len > r ? r / len : 1;
-                const nx = (dx * clamped) / r;
-                const ny = (dy * clamped) / r;
-                moveTouchRef.current.x = nx;
-                moveTouchRef.current.y = ny;
-                setJoystickKnob({ x: nx, y: ny, active: true });
-              }}
-              onPointerUp={(e) => {
-                e.stopPropagation();
-                if (moveTouchRef.current.pointerId !== e.pointerId) return;
-                moveTouchRef.current.active = false;
-                moveTouchRef.current.x = 0;
-                moveTouchRef.current.y = 0;
-                moveTouchRef.current.pointerId = -1;
-                setJoystickKnob({ x: 0, y: 0, active: false });
-              }}
-              onPointerCancel={(e) => {
-                e.stopPropagation();
-                if (moveTouchRef.current.pointerId !== e.pointerId) return;
-                moveTouchRef.current.active = false;
-                moveTouchRef.current.x = 0;
-                moveTouchRef.current.y = 0;
-                moveTouchRef.current.pointerId = -1;
-                setJoystickKnob({ x: 0, y: 0, active: false });
-              }}
-            >
-              {/* 십자선 */}
-              <div style={{ position: 'absolute', width: '70%', height: 1, background: 'rgba(255,255,255,0.12)' }} />
-              <div style={{ position: 'absolute', height: '70%', width: 1, background: 'rgba(255,255,255,0.12)' }} />
-              {/* 노브 */}
-              <div style={{
-                position: 'absolute',
-                width: 56, height: 56, borderRadius: '50%',
-                background: joystickKnob.active ? 'rgba(99,102,241,0.75)' : 'rgba(255,255,255,0.30)',
-                border: `2px solid ${joystickKnob.active ? 'rgba(165,180,252,0.9)' : 'rgba(255,255,255,0.55)'}`,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
-                transform: `translate(${joystickKnob.x * 46}px, ${joystickKnob.y * 46}px)`,
-                transition: joystickKnob.active ? 'none' : 'transform 0.12s ease, background 0.1s',
-                pointerEvents: 'none',
-              }} />
-            </div>
-
-            {/* ── 스프린트 토글 (조이스틱 위) ── */}
-            <button
-              type="button"
-              onPointerDown={e => e.stopPropagation()}
-              onClick={() => {
-                mobileSprintRef.current = !mobileSprintRef.current;
-                setMobileSprinting(mobileSprintRef.current);
-              }}
-              style={{
-                position: 'absolute', left: 20, bottom: 180,
-                width: 64, height: 36,
-                borderRadius: 18,
-                border: `2px solid ${mobileSprinting ? 'rgba(251,191,36,0.9)' : 'rgba(255,255,255,0.25)'}`,
-                background: mobileSprinting ? 'rgba(251,191,36,0.35)' : 'rgba(10,15,30,0.45)',
-                color: mobileSprinting ? '#fbbf24' : 'rgba(255,255,255,0.7)',
-                fontSize: 11, fontWeight: 700,
-                pointerEvents: 'auto', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
-              }}
-            >
-              {mobileSprinting ? '⚡ ON' : '⚡ OFF'}
-            </button>
-
-            {/* ── 점프 버튼 (오른쪽 하단) ── */}
-            <button
-              type="button"
-              onPointerDown={e => {
-                e.stopPropagation();
-                if (!inputLocked) jumpTouchQueued.current = true;
-              }}
-              style={{
-                position: 'absolute', right: 24, bottom: 24,
-                width: 80, height: 80, borderRadius: '50%',
-                border: '2px solid rgba(99,102,241,0.85)',
-                background: 'rgba(79,70,229,0.50)',
-                color: '#fff', fontSize: 32, fontWeight: 700,
-                pointerEvents: 'auto', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 16px rgba(79,70,229,0.4)',
-              }}
-            >↑</button>
-
           </div>
         </Html>
       )}
@@ -1491,19 +1240,183 @@ interface WorldCanvasProps {
   emoteOneShotOverride?: string[];
 }
 
+/* ── 모바일 컨트롤 컴포넌트 (Canvas 완전 바깥 — drei Html 스케일 영향 없음) ── */
+function MobileControls({ inputLocked }: { inputLocked: boolean }) {
+  const [joystickKnob, setJoystickKnob] = useState({ x: 0, y: 0, active: false });
+  const [mobileSprinting, setMobileSprinting] = useState(false);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', userSelect: 'none', zIndex: 999 }}>
+
+      {/* 카메라 룩 + 핀치 줌: 전체화면 배경 */}
+      <div
+        style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', touchAction: 'none' }}
+        onPointerDown={(e) => {
+          if (inputLocked) return;
+          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+          if (_mob.lookTouch.active && !_mob.pinch.active) {
+            _mob.pinch.active = true; _mob.pinch.id2 = e.pointerId;
+            _mob.pinch.x1 = _mob.lookTouch.lastX; _mob.pinch.y1 = _mob.lookTouch.lastY;
+            _mob.pinch.x2 = e.clientX; _mob.pinch.y2 = e.clientY;
+            _mob.pinch.lastDist = Math.hypot(e.clientX - _mob.lookTouch.lastX, e.clientY - _mob.lookTouch.lastY);
+            return;
+          }
+          if (!_mob.lookTouch.active) {
+            _mob.lookTouch.active = true; _mob.lookTouch.pointerId = e.pointerId;
+            _mob.lookTouch.lastX = e.clientX; _mob.lookTouch.lastY = e.clientY;
+          }
+        }}
+        onPointerMove={(e) => {
+          if (inputLocked) return;
+          if (_mob.pinch.active) {
+            if (e.pointerId === _mob.lookTouch.pointerId) { _mob.pinch.x1 = e.clientX; _mob.pinch.y1 = e.clientY; }
+            else if (e.pointerId === _mob.pinch.id2)      { _mob.pinch.x2 = e.clientX; _mob.pinch.y2 = e.clientY; }
+            const dist = Math.hypot(_mob.pinch.x2 - _mob.pinch.x1, _mob.pinch.y2 - _mob.pinch.y1);
+            _mob.camDist = Math.max(1.1, Math.min(14, _mob.camDist - (dist - _mob.pinch.lastDist) * 0.018));
+            _mob.pinch.lastDist = dist;
+            return;
+          }
+          if (!_mob.lookTouch.active || _mob.lookTouch.pointerId !== e.pointerId) return;
+          const dx = e.clientX - _mob.lookTouch.lastX;
+          const dy = e.clientY - _mob.lookTouch.lastY;
+          _mob.lookTouch.lastX = e.clientX; _mob.lookTouch.lastY = e.clientY;
+          _mob.camH -= dx * 0.005;
+          _mob.camV = Math.max(-1.1, Math.min(1.3, _mob.camV + dy * 0.005));
+        }}
+        onPointerUp={(e) => {
+          if (_mob.pinch.active) {
+            if (e.pointerId === _mob.pinch.id2) {
+              _mob.pinch.active = false; _mob.pinch.id2 = -1;
+              _mob.lookTouch.lastX = _mob.pinch.x1; _mob.lookTouch.lastY = _mob.pinch.y1;
+            } else if (e.pointerId === _mob.lookTouch.pointerId) {
+              _mob.lookTouch.pointerId = _mob.pinch.id2;
+              _mob.lookTouch.lastX = _mob.pinch.x2; _mob.lookTouch.lastY = _mob.pinch.y2;
+              _mob.pinch.active = false; _mob.pinch.id2 = -1;
+            }
+            return;
+          }
+          if (_mob.lookTouch.pointerId !== e.pointerId) return;
+          _mob.lookTouch.active = false; _mob.lookTouch.pointerId = -1;
+        }}
+        onPointerCancel={(e) => {
+          if (_mob.pinch.active) { _mob.pinch.active = false; _mob.pinch.id2 = -1; }
+          if (_mob.lookTouch.pointerId === e.pointerId) { _mob.lookTouch.active = false; _mob.lookTouch.pointerId = -1; }
+        }}
+      />
+
+      {/* 조이스틱 (왼쪽 하단) */}
+      <div
+        style={{
+          position: 'absolute', left: 20, bottom: 20,
+          width: 148, height: 148, borderRadius: '50%',
+          background: 'rgba(10,15,30,0.40)', border: '2px solid rgba(255,255,255,0.22)',
+          pointerEvents: 'auto', touchAction: 'none',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+        }}
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          if (inputLocked) return;
+          _mob.moveTouch.active = true; _mob.moveTouch.pointerId = e.pointerId;
+          _mob.moveTouch.x = 0; _mob.moveTouch.y = 0;
+          setJoystickKnob({ x: 0, y: 0, active: true });
+          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          e.stopPropagation();
+          if (inputLocked || !_mob.moveTouch.active || _mob.moveTouch.pointerId !== e.pointerId) return;
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          const dx = e.clientX - (rect.left + rect.width / 2);
+          const dy = e.clientY - (rect.top + rect.height / 2);
+          const r = rect.width * 0.42;
+          const len = Math.hypot(dx, dy);
+          const c = len > r ? r / len : 1;
+          const nx = (dx * c) / r; const ny = (dy * c) / r;
+          _mob.moveTouch.x = nx; _mob.moveTouch.y = ny;
+          setJoystickKnob({ x: nx, y: ny, active: true });
+        }}
+        onPointerUp={(e) => {
+          e.stopPropagation();
+          if (_mob.moveTouch.pointerId !== e.pointerId) return;
+          _mob.moveTouch.active = false; _mob.moveTouch.x = 0; _mob.moveTouch.y = 0; _mob.moveTouch.pointerId = -1;
+          setJoystickKnob({ x: 0, y: 0, active: false });
+        }}
+        onPointerCancel={(e) => {
+          e.stopPropagation();
+          if (_mob.moveTouch.pointerId !== e.pointerId) return;
+          _mob.moveTouch.active = false; _mob.moveTouch.x = 0; _mob.moveTouch.y = 0; _mob.moveTouch.pointerId = -1;
+          setJoystickKnob({ x: 0, y: 0, active: false });
+        }}
+      >
+        <div style={{ position: 'absolute', width: '70%', height: 1, background: 'rgba(255,255,255,0.12)' }} />
+        <div style={{ position: 'absolute', height: '70%', width: 1, background: 'rgba(255,255,255,0.12)' }} />
+        <div style={{
+          position: 'absolute', width: 56, height: 56, borderRadius: '50%',
+          background: joystickKnob.active ? 'rgba(99,102,241,0.75)' : 'rgba(255,255,255,0.30)',
+          border: `2px solid ${joystickKnob.active ? 'rgba(165,180,252,0.9)' : 'rgba(255,255,255,0.55)'}`,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+          transform: `translate(${joystickKnob.x * 46}px, ${joystickKnob.y * 46}px)`,
+          transition: joystickKnob.active ? 'none' : 'transform 0.12s ease, background 0.1s',
+          pointerEvents: 'none',
+        }} />
+      </div>
+
+      {/* 스프린트 토글 */}
+      <button type="button"
+        onPointerDown={e => e.stopPropagation()}
+        onClick={() => { _mob.sprint = !_mob.sprint; setMobileSprinting(_mob.sprint); }}
+        style={{
+          position: 'absolute', left: 20, bottom: 180, width: 64, height: 36, borderRadius: 18,
+          border: `2px solid ${mobileSprinting ? 'rgba(251,191,36,0.9)' : 'rgba(255,255,255,0.25)'}`,
+          background: mobileSprinting ? 'rgba(251,191,36,0.35)' : 'rgba(10,15,30,0.45)',
+          color: mobileSprinting ? '#fbbf24' : 'rgba(255,255,255,0.7)',
+          fontSize: 11, fontWeight: 700, pointerEvents: 'auto', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
+        }}
+      >{mobileSprinting ? '⚡ ON' : '⚡ OFF'}</button>
+
+      {/* 점프 버튼 */}
+      <button type="button"
+        onPointerDown={e => { e.stopPropagation(); if (!inputLocked) _mob.jumpQueued = true; }}
+        style={{
+          position: 'absolute', right: 24, bottom: 24, width: 80, height: 80, borderRadius: '50%',
+          border: '2px solid rgba(99,102,241,0.85)', background: 'rgba(79,70,229,0.50)',
+          color: '#fff', fontSize: 32, fontWeight: 700, pointerEvents: 'auto', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 4px 16px rgba(79,70,229,0.4)',
+        }}
+      >↑</button>
+
+    </div>
+  );
+}
+
 export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride }: WorldCanvasProps) {
   const shadowsEnabled = graphics.shadowSize > 0;
   const shadowMapSize: [number, number] = [graphics.shadowSize || 1024, graphics.shadowSize || 1024];
-  // sceneSettings 기반 조명값 — 없으면 기본값(매우 어두움)
   const ss = sceneSettings ?? {};
   const ambientIntensity = typeof ss.lightAmbient === 'number' ? ss.lightAmbient : 0.04;
   const dirIntensity     = typeof ss.lightDir     === 'number' ? ss.lightDir     : 0.0;
   const showSky          = typeof ss.skyEnabled   === 'boolean' ? ss.skyEnabled  : false;
-  // 사용자 추가 조명 오브젝트 (pointlight / spotlight / dirlight)
   const lightObjects = (customObjects ?? []).filter(
     (o: UserMapObject) => o.kind === 'pointlight' || o.kind === 'spotlight' || o.kind === 'dirlight'
   );
+  // 모바일 감지 (Canvas 외부)
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const detect = () => {
+      const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      setIsMobile(touch && (window.matchMedia?.('(max-width: 1024px)')?.matches ?? false));
+    };
+    detect();
+    window.addEventListener('resize', detect);
+    return () => window.removeEventListener('resize', detect);
+  }, []);
+
   return (
+    <>
+      {/* ── 모바일 컨트롤: Canvas 완전 바깥의 position:fixed DOM ── */}
+      {isMobile && <MobileControls inputLocked={chatInputActive} />}
       <Canvas
         shadows={{ enabled: true, type: THREE.PCFShadowMap, autoUpdate: true }}
         camera={{ fov: 60, near: 0.03, far: graphics.farClip, position: [0, 8, 12] }}
@@ -1576,5 +1489,6 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           </Physics>
         </Suspense>
       </Canvas>
+    </>
   );
 }
