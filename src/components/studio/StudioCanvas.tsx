@@ -207,7 +207,12 @@ function StudioAssetCard({ asset, onDelete, onRename }: {
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
           userSelect: 'none', transition: 'background 0.12s',
         }}>
-        <span style={{ fontSize: 22 }}>📦</span>
+        <span style={{ fontSize: 22 }}>
+          {/\.(fbx|obj|glb|gltf)$/i.test(asset.modelUrl) ? '📦' :
+           /\.(png|jpe?g|webp|gif|svg)$/i.test(asset.modelUrl) ? '🖼️' :
+           /\.(mp3|wav|ogg|aac)$/i.test(asset.modelUrl) ? '🎵' :
+           /\.(mp4|webm|mov)$/i.test(asset.modelUrl) ? '🎬' : '📄'}
+        </span>
         {editing ? (
           <input
             autoFocus
@@ -1340,7 +1345,7 @@ export default function StudioCanvas() {
     });
   }
 
-  const fbxAssets = useMemo(() => myAssets.filter(a => /\.fbx$/i.test(a.modelUrl)), [myAssets]);
+  const fbxAssets = myAssets; // 모든 에셋 표시
   const fbxFolderTree = useMemo(() => {
     // 폴더 트리는 모든 에셋 기준 (이미지 등 포함) — 에셋 페이지와 동일한 폴더 구조
     const fromAssets = myAssets.map(a => normalizeFolder(a.folder)).filter((f): f is string => f !== null);
@@ -2340,7 +2345,7 @@ export default function StudioCanvas() {
             borderRadius: 8, padding: '6px 13px', fontSize: 12, cursor: 'pointer',
             backdropFilter: 'blur(8px)', fontWeight: 700, transition: 'all 0.15s',
           }}>
-          📦 {t('myAssets', { count: fbxAssets.length })}
+          📦 내 에셋 ({fbxAssets.length})
         </button>
 
         {/* FBX 에셋 바텀 슬라이딩 패널 */}
@@ -2360,7 +2365,7 @@ export default function StudioCanvas() {
           {/* 헤더 */}
           <div style={{ padding: '9px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#a5b4fc' }}>
-              📦 내 FBX 에셋 ({fbxAssets.length})
+              📦 내 에셋 ({fbxAssets.length})
             </div>
             <button onClick={() => setActiveAssetPicker(false)}
               style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.45)', fontSize: 20, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
