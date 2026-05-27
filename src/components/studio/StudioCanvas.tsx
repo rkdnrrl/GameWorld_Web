@@ -6,8 +6,8 @@ import * as THREE from 'three';
 import { buildFolderTree, normalizeFolder } from '@/lib/assets/folders';
 import type { FolderNode } from '@/lib/assets/folders';
 
-const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', asset: '에셋' };
-const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲' };
+const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트' };
+const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲', pointlight: '💡', spotlight: '🔦' };
 
 /* ── 머티리얼 프리셋 (WorldCanvas와 동일) ── */
 const MAT_PRESETS: Record<string, { metalness: number; roughness: number; opacity?: number; transparent?: boolean; defaultColor: string; emissive?: string; emissiveIntensity?: number }> = {
@@ -80,7 +80,7 @@ type OrbitRef = any;
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
 /* ── 데이터 모델 ───────────────────────────── */
-type ObjectKind = 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset';
+type ObjectKind = 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight';
 
 type MaterialPreset = 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 'plastic' | 'emissive';
 
@@ -104,6 +104,13 @@ interface MapObject {
   textureRoughness?: string;
   textureTilingX?:   number;
   textureTilingY?:   number;
+  // 조명 전용
+  lightColor?:     string;
+  lightIntensity?: number;
+  lightDistance?:  number;
+  lightAngle?:     number;   // 스폿 각도 (degrees)
+  lightPenumbra?:  number;   // 스폿 경계 부드러움 0-1
+  castShadow?:     boolean;
 }
 
 interface Asset {
@@ -617,6 +624,66 @@ function SelectedBoxOutline({ target }: { target: THREE.Object3D }) {
   );
 }
 
+/* ── 조명 기즈모 (선택 표시 + 클릭 타겟) ─── */
+function LightGizmo({ obj, selected, onClick }: { obj: MapObject; selected: boolean; onClick: () => void }) {
+  const col = obj.lightColor || '#ffff88';
+  const handle = (e: { stopPropagation: () => void; button?: number }) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    if (isGizmoActive() || obj.locked) return;
+    e.stopPropagation();
+    onClick();
+  };
+  return (
+    <group>
+      {/* 클릭 가능한 구체 */}
+      <mesh onPointerDown={handle}>
+        <sphereGeometry args={[0.18, 14, 10]} />
+        <meshBasicMaterial color={col} />
+      </mesh>
+      {/* 스팟라이트 — 방향 표시 원뿔 */}
+      {obj.kind === 'spotlight' && (
+        <mesh rotation={[Math.PI, 0, 0]} position={[0, -0.3, 0]}>
+          <coneGeometry args={[0.22, 0.45, 8, 1, true]} />
+          <meshBasicMaterial color={col} transparent opacity={0.45} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      {/* 선택 외곽선 */}
+      {selected && (
+        <mesh>
+          <sphereGeometry args={[0.24, 14, 10]} />
+          <meshBasicMaterial color="#22d3ee" wireframe />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
+/* ── 스폿 라이트 (회전 기준 방향으로 조준) ─ */
+function SpotLightWithTarget({ color, intensity, distance, angle, penumbra, castShadow }: {
+  color: string; intensity: number; distance: number;
+  angle: number; penumbra: number; castShadow: boolean;
+}) {
+  const lightRef = useRef<THREE.SpotLight>(null);
+  const targetRef = useRef<THREE.Group>(null);
+
+  useFrame(() => {
+    if (lightRef.current && targetRef.current) {
+      lightRef.current.target = targetRef.current;
+    }
+  });
+
+  return (
+    <>
+      <spotLight ref={lightRef}
+        color={color} intensity={intensity} distance={distance}
+        angle={angle} penumbra={penumbra} decay={2} castShadow={castShadow}
+      />
+      {/* 그룹이 같은 parent group 안에 있으므로 회전이 적용된 local -Y 방향을 target으로 사용 */}
+      <group ref={targetRef} position={[0, -5, 0]} />
+    </>
+  );
+}
+
 /* ── 씬 노드 (부모→자식 재귀 렌더링) ─────── */
 function SceneNode({ obj, allObjects, selectedId, multiSelectedIds, onObjectClick, myAssets }: {
   obj: MapObject;
@@ -629,6 +696,40 @@ function SceneNode({ obj, allObjects, selectedId, multiSelectedIds, onObjectClic
 }) {
   const isSelected = obj.id === selectedId || multiSelectedIds.has(obj.id);
   const children = allObjects.filter(c => c.parentId === obj.id);
+
+  // 조명 오브젝트
+  if (obj.kind === 'pointlight' || obj.kind === 'spotlight') {
+    return (
+      <group position={obj.position} rotation={obj.rotation} scale={[1, 1, 1]} userData={{ id: obj.id }}>
+        {obj.kind === 'pointlight' && (
+          <pointLight
+            color={obj.lightColor || '#ffffff'}
+            intensity={obj.lightIntensity ?? 1}
+            distance={obj.lightDistance ?? 0}
+            decay={2}
+            castShadow={obj.castShadow ?? false}
+          />
+        )}
+        {obj.kind === 'spotlight' && (
+          <SpotLightWithTarget
+            color={obj.lightColor || '#ffffff'}
+            intensity={obj.lightIntensity ?? 1}
+            distance={obj.lightDistance ?? 0}
+            angle={(obj.lightAngle ?? 45) * Math.PI / 180}
+            penumbra={obj.lightPenumbra ?? 0.2}
+            castShadow={obj.castShadow ?? false}
+          />
+        )}
+        <LightGizmo obj={obj} selected={isSelected} onClick={() => onObjectClick(obj.id)} />
+        {children.map(child => (
+          <SceneNode key={child.id} obj={child} allObjects={allObjects}
+            selectedId={selectedId} multiSelectedIds={multiSelectedIds}
+            onObjectClick={onObjectClick} myAssets={myAssets} />
+        ))}
+      </group>
+    );
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const assetConfig: any = obj.kind === 'asset' && obj.assetUrl
     ? (myAssets.find((a: any) => a.modelUrl === obj.assetUrl)?.metadata?.materialConfig ??
@@ -1026,6 +1127,7 @@ export default function StudioCanvas() {
   const [dropZoneActive, setDropZoneActive] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [texPicker, setTexPicker] = useState<null | 'albedo' | 'normal' | 'roughness'>(null);
+  const [dragOverTex, setDragOverTex] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const orbitRef = useRef<OrbitRef | null>(null);
@@ -1045,6 +1147,7 @@ export default function StudioCanvas() {
   const [skyEnabled, setSkyEnabled] = useState(true);
   const [lightPanelOpen, setLightPanelOpen] = useState(false);
   const [shapePanelOpen, setShapePanelOpen] = useState(false);
+  const [lightAddPanelOpen, setLightAddPanelOpen] = useState(false);
   const [matPanelOpen, setMatPanelOpen] = useState(false);
   const [studioMode, setStudioMode] = useState<'settings' | 'scene'>('settings');
   const [multiSelectedIds, setMultiSelectedIds] = useState<Set<string>>(new Set());
@@ -1275,6 +1378,30 @@ export default function StudioCanvas() {
       return next;
     });
     setSelectedId(id);
+  }
+
+  function addLight(kind: 'pointlight' | 'spotlight') {
+    const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const label = makeLabel(kind);
+    setObjects(prev => {
+      const next: MapObject[] = [...prev, {
+        id, kind, label,
+        position: [0, 2, 0],
+        rotation: [0, 0, 0],
+        scale:    [1, 1, 1],
+        color:    '#ffffff',
+        lightColor:     '#ffffff',
+        lightIntensity: 1,
+        lightDistance:  0,
+        lightAngle:     45,
+        lightPenumbra:  0.2,
+        castShadow:     true,
+      }];
+      pushHistory(next);
+      return next;
+    });
+    setSelectedId(id);
+    setStudioMode('scene');
   }
 
   function addAsset(asset: Asset, position: [number, number, number] = [0, 0, 0]) {
@@ -1968,6 +2095,23 @@ export default function StudioCanvas() {
                 ))}
               </div>
             )}
+            {/* 조명 추가 */}
+            <button type="button" onClick={() => setLightAddPanelOpen(v => !v)}
+              style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 600, marginBottom: 5 }}>
+              💡 조명 추가 {lightAddPanelOpen ? '▲' : '▼'}
+            </button>
+            {lightAddPanelOpen && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 8 }}>
+                <button onClick={() => addLight('pointlight')}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#fff', fontSize: 11, padding: '6px 4px', cursor: 'pointer' }}>
+                  💡 포인트
+                </button>
+                <button onClick={() => addLight('spotlight')}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#fff', fontSize: 11, padding: '6px 4px', cursor: 'pointer' }}>
+                  🔦 스폿
+                </button>
+              </div>
+            )}
             {/* 조명 설정 */}
             <button type="button" onClick={() => setLightPanelOpen(v => !v)}
               style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 600 }}>
@@ -2115,7 +2259,62 @@ export default function StudioCanvas() {
                 onCommit={() => pushHistory(objects)}
               />
 
-              {/* 색상 / 재질 / 텍스처 — 통합 토글 */}
+              {/* 조명 속성 (pointlight / spotlight 전용) */}
+              {(selected.kind === 'pointlight' || selected.kind === 'spotlight') && (
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 6 }}>조명 설정</div>
+                  {/* 색상 */}
+                  <div style={{ marginBottom: 6 }}>
+                    <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 3 }}>색상</div>
+                    <input type="color" value={selected.lightColor || '#ffffff'}
+                      onChange={e => setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, lightColor: e.target.value } : o))}
+                      onBlur={() => pushHistory(objects)}
+                      style={{ width: '100%', height: 28, border: 'none', borderRadius: 6, padding: 0, cursor: 'pointer' }} />
+                  </div>
+                  {/* 강도 */}
+                  <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
+                    강도 {(selected.lightIntensity ?? 1).toFixed(1)}
+                    <input type="range" min={0} max={10} step={0.1} value={selected.lightIntensity ?? 1}
+                      onChange={e => setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, lightIntensity: Number(e.target.value) } : o))}
+                      onMouseUp={() => pushHistory(objects)}
+                      style={{ accentColor: '#fbbf24' }} />
+                  </label>
+                  {/* 거리 (0 = 무한) */}
+                  <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
+                    거리 (0=무한) {(selected.lightDistance ?? 0).toFixed(0)}
+                    <input type="range" min={0} max={50} step={1} value={selected.lightDistance ?? 0}
+                      onChange={e => setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, lightDistance: Number(e.target.value) } : o))}
+                      onMouseUp={() => pushHistory(objects)}
+                      style={{ accentColor: '#fbbf24' }} />
+                  </label>
+                  {/* 스폿 전용 */}
+                  {selected.kind === 'spotlight' && (<>
+                    <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
+                      각도 {(selected.lightAngle ?? 45).toFixed(0)}°
+                      <input type="range" min={1} max={89} step={1} value={selected.lightAngle ?? 45}
+                        onChange={e => setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, lightAngle: Number(e.target.value) } : o))}
+                        onMouseUp={() => pushHistory(objects)}
+                        style={{ accentColor: '#fbbf24' }} />
+                    </label>
+                    <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
+                      경계 부드러움 {(selected.lightPenumbra ?? 0.2).toFixed(2)}
+                      <input type="range" min={0} max={1} step={0.05} value={selected.lightPenumbra ?? 0.2}
+                        onChange={e => setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, lightPenumbra: Number(e.target.value) } : o))}
+                        onMouseUp={() => pushHistory(objects)}
+                        style={{ accentColor: '#fbbf24' }} />
+                    </label>
+                  </>)}
+                  {/* 그림자 */}
+                  <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={selected.castShadow ?? true}
+                      onChange={e => { setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, castShadow: e.target.checked } : o)); pushHistory(objects); }} />
+                    그림자 투영
+                  </label>
+                </div>
+              )}
+
+              {/* 색상 / 재질 / 텍스처 — 조명에서는 숨김 */}
+              {selected.kind !== 'pointlight' && selected.kind !== 'spotlight' && <>
               <button type="button" onClick={() => setMatPanelOpen(v => !v)}
                 style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 600, marginBottom: matPanelOpen ? 8 : 10 }}>
                 🎨 색상 / 재질 / 텍스처 {matPanelOpen ? '▲' : '▼'}
@@ -2163,15 +2362,45 @@ export default function StudioCanvas() {
                   <div style={{ marginBottom: 10, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                     <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4 }}>{t('texture')}</div>
                     {([['albedo', t('texAlbedo'), selected.textureAlbedo, 'textureAlbedo'], ['normal', t('texNormal'), selected.textureNormal, 'textureNormal'], ['roughness', t('texRoughness'), selected.textureRoughness, 'textureRoughness']] as const).map(([slot, label, value, field]) => (
-                      <div key={slot} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
-                        <span style={{ fontSize: 9, opacity: 0.55, width: 56 }}>{label}</span>
+                      <div key={slot}
+                        onDragOver={e => {
+                          if (!e.dataTransfer.types.includes('text/plain')) return;
+                          e.preventDefault(); e.stopPropagation();
+                          setDragOverTex(slot);
+                        }}
+                        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverTex(null); }}
+                        onDrop={e => {
+                          e.preventDefault(); e.stopPropagation();
+                          setDragOverTex(null);
+                          const assetId = e.dataTransfer.getData('text/plain');
+                          const asset = myAssets.find(a => a.id === assetId);
+                          if (asset && /\.(png|jpe?g|webp|gif|svg)$/i.test(asset.modelUrl)) {
+                            updateMaterialField(field, asset.modelUrl);
+                            pushHistory(objects);
+                          }
+                        }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3,
+                          borderRadius: 4, padding: '1px 2px',
+                          background: dragOverTex === slot ? 'rgba(99,102,241,0.2)' : 'transparent',
+                          outline: dragOverTex === slot ? '1px dashed #6366f1' : 'none',
+                          transition: 'background 0.1s',
+                        }}>
+                        <span style={{ fontSize: 9, opacity: 0.55, width: 56, flexShrink: 0 }}>{label}</span>
                         {value ? (
-                          <><div style={{ width: 22, height: 22, background: `url(${value}) center/cover`, borderRadius: 3 }} />
-                          <button onClick={() => { updateMaterialField(field, undefined); pushHistory(objects); }}
-                            style={{ flex: 1, fontSize: 9, padding: '3px', background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: 'none', borderRadius: 3, cursor: 'pointer' }}>{t('texRemove')}</button></>
+                          <>
+                            <div
+                              onClick={() => setTexPicker(slot)}
+                              title="클릭하여 텍스처 변경"
+                              style={{ width: 22, height: 22, background: `url(${value}) center/cover`, borderRadius: 3, cursor: 'pointer', flexShrink: 0 }} />
+                            <button onClick={() => { updateMaterialField(field, undefined); pushHistory(objects); }}
+                              style={{ flex: 1, fontSize: 9, padding: '3px', background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: 'none', borderRadius: 3, cursor: 'pointer' }}>{t('texRemove')}</button>
+                          </>
                         ) : (
                           <button onClick={() => setTexPicker(slot)}
-                            style={{ flex: 1, fontSize: 10, padding: '3px', background: 'rgba(255,255,255,0.06)', color: '#a5b4fc', border: '1px dashed rgba(255,255,255,0.15)', borderRadius: 3, cursor: 'pointer' }}>{t('texChoose')}</button>
+                            style={{ flex: 1, fontSize: 10, padding: '3px', background: dragOverTex === slot ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.06)', color: '#a5b4fc', border: `1px dashed ${dragOverTex === slot ? '#818cf8' : 'rgba(255,255,255,0.15)'}`, borderRadius: 3, cursor: 'pointer' }}>
+                            {dragOverTex === slot ? '📥 여기에 놓기' : t('texChoose')}
+                          </button>
                         )}
                       </div>
                     ))}
@@ -2191,6 +2420,7 @@ export default function StudioCanvas() {
                   </div>
                 </>
               )}
+              </>}
 
               {/* 복제 / 삭제 */}
               <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
