@@ -1149,9 +1149,9 @@ export default function StudioCanvas() {
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
   const [editingLabelValue, setEditingLabelValue] = useState('');
   // 조명 설정
-  const [lightAmbient, setLightAmbient] = useState(0.08);  // 기본: 매우 어둠
+  const [lightAmbient, setLightAmbient] = useState(0.04);  // 기본: 거의 꺼짐
   const [lightDir, setLightDir] = useState(0.0);            // 기본: 없음
-  const [skyEnabled, setSkyEnabled] = useState(true);
+  const [skyEnabled, setSkyEnabled] = useState(false);
   const [lightPanelOpen, setLightPanelOpen] = useState(false);
   const [shapePanelOpen, setShapePanelOpen] = useState(false);
   const [lightAddPanelOpen, setLightAddPanelOpen] = useState(false);
@@ -1173,7 +1173,7 @@ export default function StudioCanvas() {
   }, []);
   // HDRI 환경
   type HdriPreset = 'none' | 'apartment' | 'city' | 'dawn' | 'forest' | 'lobby' | 'night' | 'park' | 'studio' | 'sunset' | 'warehouse';
-  const [hdriPreset, setHdriPreset] = useState<HdriPreset>('city');
+  const [hdriPreset, setHdriPreset] = useState<HdriPreset>('none');
   const [hdriUrl, setHdriUrl] = useState('');          // 커스텀 URL (.hdr/.exr)
   const [hdriBackground, setHdriBackground] = useState(false); // HDRI를 배경으로 표시
   // 썸네일 캡처 함수 (Canvas 내부에서 등록)
