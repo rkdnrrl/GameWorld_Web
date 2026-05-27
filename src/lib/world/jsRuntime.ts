@@ -443,7 +443,10 @@ class Parser {
     if (this.consume('PUNCT', '[')) {
       const elements: Node[] = [];
       if (!this.match('PUNCT', ']')) {
-        do { elements.push(this.parseExpression()); } while (this.consume('PUNCT', ','));
+        do {
+          if (this.match('PUNCT', ']')) break; // trailing comma 허용
+          elements.push(this.parseExpression());
+        } while (this.consume('PUNCT', ','));
       }
       this.eat('PUNCT', ']');
       return { type: 'Array', elements };
@@ -452,6 +455,7 @@ class Parser {
       const props: { key: string; value: Node }[] = [];
       if (!this.match('PUNCT', '}')) {
         do {
+          if (this.match('PUNCT', '}')) break; // trailing comma 허용
           const keyTok = this.peek();
           let key: string;
           if (keyTok.type === 'IDENT' || keyTok.type === 'KW') { key = keyTok.value; this.pos++; }
