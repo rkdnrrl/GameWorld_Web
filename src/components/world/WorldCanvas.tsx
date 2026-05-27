@@ -909,9 +909,9 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow }: {
   const meshRef = useRef<THREE.Group>(null);
   const animStateRef = useRef<AnimState>('idle');
 
-  // 매 프레임: 원격 플레이어의 실제 속도(vx/vy/vz)로 kinematic body를 움직임
-  // → 호스트 화면에서 원격 캐릭터가 진짜 속도로 박스를 밂 → push 힘 = 로컬 푸시와 동일
-  // 추가로 네트워크 위치와의 drift는 작은 보정으로 자연스럽게 수렴
+  // 매 프레임: dynamic body에 명시적 velocity 설정 + 위치 보정
+  // dynamic body는 collision 시 진짜 momentum 전달 → 호스트가 직접 미는 것과 동일한 push 힘
+  // (kinematic은 implicit velocity 라 충분치 않을 수 있음)
   useFrame((_, dt) => {
     const pose = posesRef.current?.get(player.id);
     if (!pose) return;
@@ -924,25 +924,26 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow }: {
     const vy = pose.vy ?? 0;
     const vz = pose.vz ?? 0;
 
-    // 1) 속도로 이동 (이게 핵심 — 박스 push 힘 보장)
-    let nextX = cur.x + vx * dt;
-    let nextY = cur.y + vy * dt;
-    let nextZ = cur.z + vz * dt;
+    // 네트워크 위치 차이
+    const dx = pose.x - cur.x;
+    const dy = pose.y - cur.y;
+    const dz = pose.z - cur.z;
+    const distSq = dx*dx + dy*dy + dz*dz;
 
-    // 2) 네트워크 위치와의 차이를 작은 비율로 보정 (drift 방지)
-    //    너무 강하면 jitter, 너무 약하면 desync — 0.15가 절충점
-    const driftCorrection = 0.15;
-    nextX += (pose.x - cur.x) * driftCorrection;
-    nextY += (pose.y - cur.y) * driftCorrection;
-    nextZ += (pose.z - cur.z) * driftCorrection;
-
-    // 3) 차이가 너무 크면(텔레포트, 동기화 끊김 등) 즉시 snap
-    const dx = pose.x - cur.x, dy = pose.y - cur.y, dz = pose.z - cur.z;
-    if (dx*dx + dy*dy + dz*dz > 25) { // 5m 이상 차이
-      nextX = pose.x; nextY = pose.y; nextZ = pose.z;
+    // 차이 너무 크면(텔레포트, 끊김) 위치 즉시 동기화 — 그 외에는 속도로 자연스럽게 수렴
+    if (distSq > 9) { // 3m 이상
+      body.setTranslation({ x: pose.x, y: pose.y, z: pose.z }, true);
+      body.setLinvel({ x: vx, y: vy, z: vz }, true);
+    } else {
+      // 속도 = 네트워크 속도 + 위치 차이 보정 (P 게인 컨트롤러)
+      const Kp = 5; // 위치 보정 강도 — 너무 크면 oscillation, 너무 작으면 drift
+      body.setLinvel({
+        x: vx + dx * Kp,
+        y: vy + dy * Kp,
+        z: vz + dz * Kp,
+      }, true);
     }
 
-    body.setNextKinematicTranslation({ x: nextX, y: nextY, z: nextZ });
     if (meshRef.current) {
       meshRef.current.rotation.y = lerpAngle(meshRef.current.rotation.y, pose.rotY, Math.min(1, 15 * dt));
     }
@@ -955,7 +956,16 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow }: {
     : [0, 1, 0];
 
   return (
-    <RigidBody ref={bodyRef} type="kinematicPosition" colliders={false} position={initPos}>
+    <RigidBody
+      ref={bodyRef}
+      type="dynamic"
+      colliders={false}
+      mass={1}
+      lockRotations
+      gravityScale={0}              /* 중력 무시 — y velocity는 네트워크로 받음 */
+      linearDamping={0}             /* 댐핑 0 — setLinvel이 그대로 작용 */
+      position={initPos}
+    >
       <CapsuleCollider args={[PLAYER_CAPSULE_HALF_HEIGHT, PLAYER_CAPSULE_RADIUS]} />
       <group ref={meshRef} position={[0, PLAYER_MESH_Y, 0]}>
         <CharacterMesh appearance={appearance} animStateRef={animStateRef} castShadow={castShadow ?? false} />
