@@ -170,9 +170,8 @@ function AxisInputRow({ label, values, step, min, onChange, onCommit }: {
 }
 
 /* ── 에셋 카드 (우측 그리드) ─────────────── */
-function StudioAssetCard({ asset, onAdd, onDelete, onRename }: {
+function StudioAssetCard({ asset, onDelete, onRename }: {
   asset: Asset;
-  onAdd: (a: Asset) => void;
   onDelete: (id: string) => void;
   onRename: (id: string, newName: string) => void;
 }) {
@@ -193,8 +192,7 @@ function StudioAssetCard({ asset, onAdd, onDelete, onRename }: {
       onMouseLeave={() => setHovered(false)}
     >
       <div
-        role="button" tabIndex={0}
-        onClick={() => !editing && onAdd(asset)}
+        tabIndex={0}
         draggable={!editing}
         onDragStart={e => { e.dataTransfer.setData('text/plain', asset.id); e.dataTransfer.effectAllowed = 'move'; }}
         style={{
@@ -726,6 +724,13 @@ function RightClickLook({ orbitRef }: { orbitRef: React.MutableRefObject<OrbitRe
   return null;
 }
 
+/** 카메라 ref 캡처 — 뷰포트 드롭 위치 계산용 */
+function CameraRefCapture({ cameraRef }: { cameraRef: React.MutableRefObject<THREE.Camera | null> }) {
+  const { camera } = useThree();
+  useEffect(() => { cameraRef.current = camera; }, [camera, cameraRef]);
+  return null;
+}
+
 /** Three.js 캔버스 캡처 함수를 외부 ref에 등록 */
 function CanvasCapture({ captureFnRef }: { captureFnRef: React.MutableRefObject<(() => string | null) | null> }) {
   const { gl } = useThree();
@@ -836,6 +841,8 @@ export default function StudioCanvas() {
   const [hdriBackground, setHdriBackground] = useState(false); // HDRI를 배경으로 표시
   // 썸네일 캡처 함수 (Canvas 내부에서 등록)
   const captureFnRef = useRef<(() => string | null) | null>(null);
+  const cameraRef    = useRef<THREE.Camera | null>(null);
+  const viewportRef  = useRef<HTMLDivElement | null>(null);
 
   const token = () => session.getToken() || '';
 
@@ -1019,18 +1026,17 @@ export default function StudioCanvas() {
     setSelectedId(id);
   }
 
-  function addAsset(asset: Asset) {
+  function addAsset(asset: Asset, position: [number, number, number] = [0, 0, 0]) {
     const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const label = asset.name || makeLabel('asset');
     setObjects(prev => {
       const next: MapObject[] = [...prev, {
         id, kind: 'asset', label,
         assetUrl: asset.modelUrl,
-        position: [0, 0, 0],
+        position,
         rotation: [0, 0, 0],
         scale:    [1, 1, 1],
         color:    '#fff',
-        // 에셋의 저장된 머티리얼 설정 자동 적용 (metadata.materialConfig 우선)
         ...(getAssetMaterialConfig(asset) || {}),
       }];
       pushHistory(next);
@@ -1038,6 +1044,25 @@ export default function StudioCanvas() {
     });
     setSelectedId(id);
     setActiveAssetPicker(false);
+  }
+
+  function dropPositionFromEvent(e: React.DragEvent): [number, number, number] {
+    const camera = cameraRef.current;
+    const el = viewportRef.current;
+    if (!camera || !el) return [0, 0, 0];
+    const rect = el.getBoundingClientRect();
+    const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const hit = new THREE.Vector3();
+    if (!raycaster.ray.intersectPlane(plane, hit)) return [0, 0, 0];
+    return [
+      Math.round(hit.x * 10) / 10,
+      0,
+      Math.round(hit.z * 10) / 10,
+    ];
   }
 
   function toggleFolder(path: string) {
@@ -1773,7 +1798,20 @@ export default function StudioCanvas() {
       )}
 
       {/* ── 3D 뷰포트 ─────────────────────── */}
-      <div style={{ flex: 1, position: 'relative' }} onContextMenu={(e) => e.preventDefault()}>
+      <div
+        ref={viewportRef}
+        style={{ flex: 1, position: 'relative' }}
+        onContextMenu={(e) => e.preventDefault()}
+        onDragOver={e => { if (e.dataTransfer.types.includes('text/plain')) e.preventDefault(); }}
+        onDrop={e => {
+          e.preventDefault();
+          const assetId = e.dataTransfer.getData('text/plain');
+          const asset = myAssets.find(a => a.id === assetId);
+          if (!asset) return;
+          const pos = dropPositionFromEvent(e);
+          addAsset(asset, pos);
+        }}
+      >
         <Canvas
           shadows
           camera={{ position: [8, 8, 8], fov: 50 }}
@@ -1827,6 +1865,7 @@ export default function StudioCanvas() {
           <WasdFlyCamera orbitRef={orbitRef} />
           <RightClickLook orbitRef={orbitRef} />
           <CanvasCapture captureFnRef={captureFnRef} />
+          <CameraRefCapture cameraRef={cameraRef} />
         </Canvas>
 
         {/* 단축키 힌트 */}
@@ -2012,7 +2051,7 @@ export default function StudioCanvas() {
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 7 }}>
                   {selectedFolderAssets.map(a => (
-                    <StudioAssetCard key={a.id} asset={a} onAdd={addAsset} onDelete={deleteAsset} onRename={renameAsset} />
+                    <StudioAssetCard key={a.id} asset={a} onDelete={deleteAsset} onRename={renameAsset} />
                   ))}
                 </div>
               )}
