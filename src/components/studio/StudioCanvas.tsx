@@ -6,8 +6,8 @@ import * as THREE from 'three';
 import { buildFolderTree, normalizeFolder } from '@/lib/assets/folders';
 import type { FolderNode } from '@/lib/assets/folders';
 
-const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트' };
-const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲', pointlight: '💡', spotlight: '🔦' };
+const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광' };
+const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲', pointlight: '💡', spotlight: '🔦', dirlight: '☀' };
 
 /* ── 머티리얼 프리셋 (WorldCanvas와 동일) ── */
 const MAT_PRESETS: Record<string, { metalness: number; roughness: number; opacity?: number; transparent?: boolean; defaultColor: string; emissive?: string; emissiveIntensity?: number }> = {
@@ -80,7 +80,7 @@ type OrbitRef = any;
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
 /* ── 데이터 모델 ───────────────────────────── */
-type ObjectKind = 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight';
+type ObjectKind = 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight';
 
 type MaterialPreset = 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 'plastic' | 'emissive';
 
@@ -698,9 +698,16 @@ function SceneNode({ obj, allObjects, selectedId, multiSelectedIds, onObjectClic
   const children = allObjects.filter(c => c.parentId === obj.id);
 
   // 조명 오브젝트
-  if (obj.kind === 'pointlight' || obj.kind === 'spotlight') {
+  if (obj.kind === 'pointlight' || obj.kind === 'spotlight' || obj.kind === 'dirlight') {
     return (
       <group position={obj.position} rotation={obj.rotation} scale={[1, 1, 1]} userData={{ id: obj.id }}>
+        {obj.kind === 'dirlight' && (
+          <directionalLight
+            color={obj.lightColor || '#ffffff'}
+            intensity={obj.lightIntensity ?? 1}
+            castShadow={obj.castShadow ?? false}
+          />
+        )}
         {obj.kind === 'pointlight' && (
           <pointLight
             color={obj.lightColor || '#ffffff'}
@@ -1142,8 +1149,8 @@ export default function StudioCanvas() {
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
   const [editingLabelValue, setEditingLabelValue] = useState('');
   // 조명 설정
-  const [lightAmbient, setLightAmbient] = useState(0.5);
-  const [lightDir, setLightDir] = useState(1.5);
+  const [lightAmbient, setLightAmbient] = useState(0.08);  // 기본: 매우 어둠
+  const [lightDir, setLightDir] = useState(0.0);            // 기본: 없음
   const [skyEnabled, setSkyEnabled] = useState(true);
   const [lightPanelOpen, setLightPanelOpen] = useState(false);
   const [shapePanelOpen, setShapePanelOpen] = useState(false);
@@ -1380,7 +1387,7 @@ export default function StudioCanvas() {
     setSelectedId(id);
   }
 
-  function addLight(kind: 'pointlight' | 'spotlight') {
+  function addLight(kind: 'pointlight' | 'spotlight' | 'dirlight') {
     const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const label = makeLabel(kind);
     setObjects(prev => {
@@ -2072,105 +2079,16 @@ export default function StudioCanvas() {
         overflow: 'hidden',
         fontFamily: 'inherit',
       }}>
-        {/* ── 상단: 뒤로가기 + 도형 + 조명 ── */}
-        <div style={{ flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.1)', overflowY: 'auto', maxHeight: '55%' }}>
-          <div style={{ padding: '8px 12px 10px' }}>
-            <button
-              onClick={() => { setStudioMode('settings'); setSelectedId(null); setMultiSelectedIds(new Set()); }}
-              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 3, fontWeight: 700, marginBottom: 10 }}>
-              ← 스튜디오
-            </button>
-            {/* 도형 추가 */}
-            <button type="button" onClick={() => setShapePanelOpen(v => !v)}
-              style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 600, marginBottom: 5 }}>
-              📦 {t('addShape')} {shapePanelOpen ? '▲' : '▼'}
-            </button>
-            {shapePanelOpen && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 8 }}>
-                {([['cube','📦','shapeCube'],['sphere','⚪','shapeSphere'],['cylinder','🥫','shapeCylinder'],['plane','▭','shapePlane']] as const).map(([kind, icon, labelKey]) => (
-                  <button key={kind} onClick={() => addPrimitive(kind)}
-                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#fff', fontSize: 11, padding: '6px 4px', cursor: 'pointer' }}>
-                    {icon} {t(labelKey)}
-                  </button>
-                ))}
-              </div>
-            )}
-            {/* 조명 추가 */}
-            <button type="button" onClick={() => setLightAddPanelOpen(v => !v)}
-              style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 600, marginBottom: 5 }}>
-              💡 조명 추가 {lightAddPanelOpen ? '▲' : '▼'}
-            </button>
-            {lightAddPanelOpen && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 8 }}>
-                <button onClick={() => addLight('pointlight')}
-                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#fff', fontSize: 11, padding: '6px 4px', cursor: 'pointer' }}>
-                  💡 포인트
-                </button>
-                <button onClick={() => addLight('spotlight')}
-                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#fff', fontSize: 11, padding: '6px 4px', cursor: 'pointer' }}>
-                  🔦 스폿
-                </button>
-              </div>
-            )}
-            {/* 조명 설정 */}
-            <button type="button" onClick={() => setLightPanelOpen(v => !v)}
-              style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 600 }}>
-              🌤 조명 설정 {lightPanelOpen ? '▲' : '▼'}
-            </button>
-            {lightPanelOpen && (
-              <div style={{ padding: '8px 4px 2px', display: 'flex', flexDirection: 'column', gap: 7 }}>
-                <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  환경광 {lightAmbient.toFixed(1)}
-                  <input type="range" min={0} max={2} step={0.1} value={lightAmbient}
-                    onChange={e => setLightAmbient(Number(e.target.value))}
-                    style={{ accentColor: '#6366f1' }} />
-                </label>
-                <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  직사광 {lightDir.toFixed(1)}
-                  <input type="range" min={0} max={4} step={0.1} value={lightDir}
-                    onChange={e => setLightDir(Number(e.target.value))}
-                    style={{ accentColor: '#6366f1' }} />
-                </label>
-                <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={skyEnabled} onChange={e => setSkyEnabled(e.target.checked)} />
-                  하늘(Sky) 표시
-                </label>
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  <div style={{ fontSize: 10, opacity: 0.5, fontWeight: 700 }}>HDRI 환경맵</div>
-                  <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    프리셋
-                    <select value={hdriPreset} onChange={e => { setHdriPreset(e.target.value as HdriPreset); setHdriUrl(''); }}
-                      style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '3px 5px' }}>
-                      <option value="none">없음</option>
-                      <option value="apartment">Apartment</option>
-                      <option value="city">City</option>
-                      <option value="dawn">Dawn</option>
-                      <option value="forest">Forest</option>
-                      <option value="lobby">Lobby</option>
-                      <option value="night">Night</option>
-                      <option value="park">Park</option>
-                      <option value="studio">Studio</option>
-                      <option value="sunset">Sunset</option>
-                      <option value="warehouse">Warehouse</option>
-                    </select>
-                  </label>
-                  <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    커스텀 HDR URL (.hdr/.exr)
-                    <input value={hdriUrl} onChange={e => setHdriUrl(e.target.value)} placeholder="https://example.com/env.hdr"
-                      style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '3px 5px', outline: 'none' }} />
-                  </label>
-                  <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={hdriBackground}
-                      onChange={e => { setHdriBackground(e.target.checked); if (e.target.checked) setSkyEnabled(false); }} />
-                    HDRI를 배경(Sky 대체)으로 사용
-                  </label>
-                </div>
-              </div>
-            )}
-          </div>
+        {/* ── 뒤로가기 버튼 ── */}
+        <div style={{ flexShrink: 0, padding: '8px 12px 6px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+          <button
+            onClick={() => { setStudioMode('settings'); setSelectedId(null); setMultiSelectedIds(new Set()); }}
+            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 3, fontWeight: 700 }}>
+            ← 스튜디오
+          </button>
         </div>
         {/* ── 씬 계층 ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid rgba(255,255,255,0.1)', minHeight: 0, flex: '0 0 auto', maxHeight: '35%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid rgba(255,255,255,0.1)', minHeight: 0, flex: '0 0 auto', maxHeight: '40%' }}>
           <div style={{ padding: '6px 12px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
             <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, letterSpacing: 0.5 }}>씬 오브젝트</span>
             <span style={{ fontSize: 10, opacity: 0.35, background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '1px 7px' }}>{objects.length}</span>
@@ -2203,6 +2121,46 @@ export default function StudioCanvas() {
               />
             ))}
           </div>
+        </div>
+
+        {/* ── 추가 버튼: 도형 + 조명 ── */}
+        <div style={{ flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.1)', padding: '6px 10px 8px' }}>
+          {/* 도형 추가 */}
+          <button type="button" onClick={() => setShapePanelOpen(v => !v)}
+            style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '4px 8px', cursor: 'pointer', fontWeight: 600, marginBottom: 4 }}>
+            📦 {t('addShape')} {shapePanelOpen ? '▲' : '▼'}
+          </button>
+          {shapePanelOpen && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, marginBottom: 5 }}>
+              {([['cube','📦','shapeCube'],['sphere','⚪','shapeSphere'],['cylinder','🥫','shapeCylinder'],['plane','▭','shapePlane']] as const).map(([kind, icon, labelKey]) => (
+                <button key={kind} onClick={() => addPrimitive(kind)}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
+                  {icon} {t(labelKey)}
+                </button>
+              ))}
+            </div>
+          )}
+          {/* 조명 추가 */}
+          <button type="button" onClick={() => setLightAddPanelOpen(v => !v)}
+            style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '4px 8px', cursor: 'pointer', fontWeight: 600 }}>
+            💡 조명 추가 {lightAddPanelOpen ? '▲' : '▼'}
+          </button>
+          {lightAddPanelOpen && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3, marginTop: 4 }}>
+              <button onClick={() => addLight('pointlight')}
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
+                💡 포인트
+              </button>
+              <button onClick={() => addLight('spotlight')}
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
+                🔦 스폿
+              </button>
+              <button onClick={() => addLight('dirlight')}
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
+                ☀ 방향광
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ── 인스펙터 ── */}
@@ -2260,7 +2218,7 @@ export default function StudioCanvas() {
               />
 
               {/* 조명 속성 (pointlight / spotlight 전용) */}
-              {(selected.kind === 'pointlight' || selected.kind === 'spotlight') && (
+              {(selected.kind === 'pointlight' || selected.kind === 'spotlight' || selected.kind === 'dirlight') && (
                 <div style={{ marginBottom: 10 }}>
                   <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 6 }}>조명 설정</div>
                   {/* 색상 */}
@@ -2314,7 +2272,7 @@ export default function StudioCanvas() {
               )}
 
               {/* 색상 / 재질 / 텍스처 — 조명에서는 숨김 */}
-              {selected.kind !== 'pointlight' && selected.kind !== 'spotlight' && <>
+              {selected.kind !== 'pointlight' && selected.kind !== 'spotlight' && selected.kind !== 'dirlight' && <>
               <button type="button" onClick={() => setMatPanelOpen(v => !v)}
                 style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 600, marginBottom: matPanelOpen ? 8 : 10 }}>
                 🎨 색상 / 재질 / 텍스처 {matPanelOpen ? '▲' : '▼'}
