@@ -981,18 +981,24 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow }: {
     const dz = pose.z - cur.z;
     const distSq = dx*dx + dy*dy + dz*dz;
 
-    // 차이 너무 크면(텔레포트, 끊김) 위치 즉시 동기화 — 그 외에는 속도로 자연스럽게 수렴
+    // 차이 너무 크면(텔레포트, 끊김) 위치 즉시 동기화
     if (distSq > 9) { // 3m 이상
       body.setTranslation({ x: pose.x, y: pose.y, z: pose.z }, true);
       body.setLinvel({ x: vx, y: vy, z: vz }, true);
-    } else {
-      // 속도 = 네트워크 속도 + 위치 차이 보정 (P 게인 컨트롤러)
-      const Kp = 5; // 위치 보정 강도 — 너무 크면 oscillation, 너무 작으면 drift
-      body.setLinvel({
-        x: vx + dx * Kp,
-        y: vy + dy * Kp,
-        z: vz + dz * Kp,
+    } else if (distSq > 0.5) {
+      // 중간 drift (0.7m ~ 3m) → setTranslation으로 직접 보정 (박스 추가 push 없음)
+      // setTranslation은 momentum 전달 없이 위치만 이동
+      const moveF = Math.min(1, 3 * dt);
+      body.setTranslation({
+        x: cur.x + dx * moveF,
+        y: cur.y + dy * moveF,
+        z: cur.z + dz * moveF,
       }, true);
+      body.setLinvel({ x: vx, y: vy, z: vz }, true); // 속도는 정확히 매칭
+    } else {
+      // 작은 drift (< 0.7m) → 속도만 정확히 매칭 (보정 속도 없음)
+      // 이게 핵심: Kp 보정 제거 → 박스에 추가 push 없음 → 멈출 때 깔끔히 멈춤
+      body.setLinvel({ x: vx, y: vy, z: vz }, true);
     }
 
     if (meshRef.current) {
