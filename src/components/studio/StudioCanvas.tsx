@@ -1585,7 +1585,7 @@ export default function StudioCanvas() {
           backdropFilter: 'blur(14px)',
           transform: `translateY(${activeAssetPicker ? '0%' : '100%'})`,
           transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)',
-          maxHeight: 280,
+          height: 340,
           display: 'flex', flexDirection: 'column',
         }}>
           {/* 헤더 */}
@@ -1598,7 +1598,7 @@ export default function StudioCanvas() {
           </div>
 
           {/* 2분할 본문 */}
-          <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
 
             {/* 왼쪽: 폴더 트리 */}
             <div style={{
