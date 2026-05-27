@@ -1457,7 +1457,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           <Physics gravity={[0, -22, 0]} interpolate={false}>
             {customObjects !== undefined ? (
               // 유저 제작 월드 — 기본 그라운드 없음. 필요하면 평면 직접 배치
-              <>{customObjects.filter(o => !o.hidden).map(obj => <UserMapObjectMesh key={obj.id} obj={obj} />)}</>
+              <>{customObjects.filter(o => !o.hidden && o.kind !== 'pointlight' && o.kind !== 'spotlight' && o.kind !== 'dirlight').map(obj => <UserMapObjectMesh key={obj.id} obj={obj} />)}</>
             ) : (
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
