@@ -441,6 +441,8 @@ export default function WorldPage() {
         <span style={{ fontWeight: 700 }}>{t('alpWorld')}</span>
         <span style={{ opacity: 0.5 }}>|</span>
         <span style={{ opacity: 0.7 }}>{username}</span>
+        {hostId === userId && <span style={{ color: '#fbbf24', fontWeight: 700 }}>👑 호스트</span>}
+        {hostId && hostId !== userId && <span style={{ color: '#94a3b8', fontSize: 11 }}>(호스트: {players[hostId]?.username ?? '...'})</span>}
         <span style={{ opacity: 0.5 }}>|</span>
         <span style={{ opacity: 0.7 }}>{t('playersOnline', { count: Object.keys(players).length + 1 })}</span>
       </div>
