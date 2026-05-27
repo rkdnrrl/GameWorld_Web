@@ -543,6 +543,7 @@ function Player({
   onMove,
   inputLocked = false,
   emoteSlot,
+  emoteOneShotOverride,
 }: {
   character: Record<string, unknown>;
   bubble?: ChatBubble;
