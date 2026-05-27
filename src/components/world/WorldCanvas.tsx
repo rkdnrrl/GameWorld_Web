@@ -589,6 +589,9 @@ function Player({
   const proneRef  = useRef(false);
   // 점프 상태 최소 유지 시간 (애니메이션 재생 보장)
   const jumpHoldUntil = useRef(0);
+  // 모바일 컨트롤 포탈: position:fixed body 직속 div → 카메라 줌·뷰포트 변화에 무관
+  const mobilePortalRef = useRef<HTMLElement | null>(null);
+  const [mobilePortalReady, setMobilePortalReady] = useState(false);
 
   /* 키보드 + 포인터 락 */
   useEffect(() => {
@@ -603,6 +606,21 @@ function Player({
     window.addEventListener('resize', detectMobile);
     return () => window.removeEventListener('resize', detectMobile);
   }, []);
+
+  // 모바일일 때만 포탈 div 생성/파괴
+  useEffect(() => {
+    if (!isMobile) return;
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:999;';
+    document.body.appendChild(el);
+    mobilePortalRef.current = el;
+    setMobilePortalReady(true);
+    return () => {
+      if (document.body.contains(el)) document.body.removeChild(el);
+      mobilePortalRef.current = null;
+      setMobilePortalReady(false);
+    };
+  }, [isMobile]);
 
   useEffect(() => {
     const el = gl.domElement;
@@ -841,8 +859,8 @@ function Player({
           </div>
         </Html>
       )}
-      {isMobile && (
-        <Html fullscreen>
+      {isMobile && mobilePortalReady && (
+        <Html portal={mobilePortalRef as React.RefObject<HTMLElement>} fullscreen>
           <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', userSelect: 'none' }}>
 
             {/* ── 카메라 룩 + 핀치 줌: 전체화면 배경 ── */}
