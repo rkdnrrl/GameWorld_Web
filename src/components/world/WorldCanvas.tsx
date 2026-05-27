@@ -503,6 +503,8 @@ function LuaUpdateLoop({
   scriptBodyRefs,
   syncTargets,
   isHost,
+  ownersRef,
+  playerId,
 }: {
   luaScripts: React.MutableRefObject<Map<string, import('@/lib/world/jsRuntime').JsScript>>;
   worldElapsed: React.MutableRefObject<number>;
@@ -512,6 +514,8 @@ function LuaUpdateLoop({
   }>>;
   syncTargets: React.MutableRefObject<Map<string, { pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean; vel: [number, number, number]; recvTime: number }>>;
   isHost: boolean;
+  ownersRef: React.MutableRefObject<Map<string, string>>;
+  playerId: string;
 }) {
   useFrame((_, dt) => {
     worldElapsed.current += dt;
@@ -1940,6 +1944,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           scriptBodyRefs={scriptBodyRefs}
           syncTargets={syncTargets}
           isHost={isHost}
+          ownersRef={ownersRef}
+          playerId={playerId}
         />
 
         <Suspense fallback={null}>
