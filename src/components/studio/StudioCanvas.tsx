@@ -539,11 +539,12 @@ function SelectedBoxOutline({ target }: { target: THREE.Object3D }) {
 }
 
 /* ── 변환 컨트롤 ──────────────────────────── */
-function SelectedTransform({ targetId, mode, onChange, onDragEnd, snapTranslate, snapRotate, snapScale }: {
+function SelectedTransform({ targetId, mode, onChange, onDragEnd, onDragStart, snapTranslate, snapRotate, snapScale }: {
   targetId: string | null;
   mode: 'translate' | 'rotate' | 'scale';
   onChange: (id: string, t: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }) => void;
   onDragEnd: () => void;
+  onDragStart?: () => void;
   snapTranslate?: number | null;
   snapRotate?: number | null;
   snapScale?: number | null;
@@ -587,6 +588,7 @@ function SelectedTransform({ targetId, mode, onChange, onDragEnd, snapTranslate,
           s: [o.scale.x,    o.scale.y,    o.scale.z],
         });
       }}
+      onMouseDown={onDragStart}
       onMouseUp={onDragEnd}
     />
   );
@@ -839,6 +841,7 @@ export default function StudioCanvas() {
   const [marqueeStart, setMarqueeStart] = useState<{x:number,y:number}|null>(null);
   const [marqueeEnd,   setMarqueeEnd]   = useState<{x:number,y:number}|null>(null);
   const isMarqueeRef = useRef(false);
+  const dragStartRef = useRef<Map<string, {p:[number,number,number];r:[number,number,number];s:[number,number,number]}>>(new Map());
   // HDRI 환경
   type HdriPreset = 'none' | 'apartment' | 'city' | 'dawn' | 'forest' | 'lobby' | 'night' | 'park' | 'studio' | 'sunset' | 'warehouse';
   const [hdriPreset, setHdriPreset] = useState<HdriPreset>('city');
@@ -1270,8 +1273,48 @@ export default function StudioCanvas() {
   );
   // fbxRootAssets 제거됨 — selectedFolder=null 일 때 selectedFolderAssets로 대체
 
+  function onTransformDragStart() {
+    // 드래그 시작 시 모든 선택 오브젝트의 transform 스냅샷
+    const map = new Map<string, {p:[number,number,number];r:[number,number,number];s:[number,number,number]}>();
+    const ids = multiSelectedIds.size > 0 ? [...multiSelectedIds] : selectedId ? [selectedId] : [];
+    for (const oid of ids) {
+      const obj = objects.find(o => o.id === oid);
+      if (obj) map.set(oid, { p: [...obj.position] as [number,number,number], r: [...obj.rotation] as [number,number,number], s: [...obj.scale] as [number,number,number] });
+    }
+    dragStartRef.current = map;
+  }
+
   function updateObjectTransform(id: string, t: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }) {
-    setObjects(prev => prev.map(o => o.id === id ? { ...o, position: t.p, rotation: t.r, scale: t.s } : o));
+    const start = dragStartRef.current;
+    const primaryStart = start.get(id);
+
+    if (!primaryStart || multiSelectedIds.size <= 1) {
+      // 단일 선택 — 그대로
+      setObjects(prev => prev.map(o => o.id === id ? { ...o, position: t.p, rotation: t.r, scale: t.s } : o));
+      return;
+    }
+
+    // delta 계산 (start 기준)
+    const dp: [number,number,number] = [t.p[0]-primaryStart.p[0], t.p[1]-primaryStart.p[1], t.p[2]-primaryStart.p[2]];
+    const dr: [number,number,number] = [t.r[0]-primaryStart.r[0], t.r[1]-primaryStart.r[1], t.r[2]-primaryStart.r[2]];
+    const ds: [number,number,number] = [
+      primaryStart.s[0] !== 0 ? t.s[0]/primaryStart.s[0] : 1,
+      primaryStart.s[1] !== 0 ? t.s[1]/primaryStart.s[1] : 1,
+      primaryStart.s[2] !== 0 ? t.s[2]/primaryStart.s[2] : 1,
+    ];
+
+    setObjects(prev => prev.map(o => {
+      if (o.id === id) return { ...o, position: t.p, rotation: t.r, scale: t.s };
+      if (!multiSelectedIds.has(o.id)) return o;
+      const os = start.get(o.id);
+      if (!os) return o;
+      return {
+        ...o,
+        position: [os.p[0]+dp[0], os.p[1]+dp[1], os.p[2]+dp[2]] as [number,number,number],
+        rotation: [os.r[0]+dr[0], os.r[1]+dr[1], os.r[2]+dr[2]] as [number,number,number],
+        scale:    [os.s[0]*ds[0], os.s[1]*ds[1], os.s[2]*ds[2]] as [number,number,number],
+      };
+    }));
   }
 
   function updateColor(id: string, color: string) {
@@ -1883,6 +1926,7 @@ export default function StudioCanvas() {
             targetId={objects.find(o => o.id === selectedId)?.locked ? null : selectedId}
             mode={mode}
             onChange={updateObjectTransform}
+            onDragStart={onTransformDragStart}
             onDragEnd={() => pushHistory(objects)}
             snapTranslate={snapEnabled ? snapSize : null}
             snapRotate={snapEnabled ? (Math.PI / 12) : null}
