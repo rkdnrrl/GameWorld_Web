@@ -992,29 +992,6 @@ export default function StudioCanvas() {
           </div>
         </div>
 
-        {/* 에셋 추가 */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <div style={{ fontSize: 11, opacity: 0.5 }}>{t('myAssets', { count: myAssets.length })}</div>
-            <button onClick={() => setActiveAssetPicker(v => !v)} style={{ background: 'none', border: 'none', color: '#818cf8', fontSize: 11, cursor: 'pointer' }}>
-              {activeAssetPicker ? t('closeAssetPicker') : t('addAsset')}
-            </button>
-          </div>
-          {activeAssetPicker && (
-            <div style={{ maxHeight: 180, overflowY: 'auto', background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: 6 }}>
-              {myAssets.filter(a => /\.fbx$/i.test(a.modelUrl)).length === 0
-                ? <div style={{ fontSize: 11, opacity: 0.4, padding: 8, textAlign: 'center' }}>{t('noAssets')}<br /><a href="/assets" style={{ color: '#818cf8' }}>/assets</a> {t('uploadAt')}</div>
-                : myAssets.filter(a => /\.fbx$/i.test(a.modelUrl)).map(a => (
-                    <button key={a.id} onClick={() => addAsset(a)}
-                      style={{ display: 'block', width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#fff', fontSize: 11, padding: '6px 8px', borderRadius: 6, cursor: 'pointer', marginBottom: 3 }}>
-                      📦 {a.name}
-                    </button>
-                  ))
-              }
-            </div>
-          )}
-        </div>
-
         {/* 변환 모드 + 스냅 */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 8 }}>{t('transformMode')}</div>
@@ -1511,6 +1488,64 @@ export default function StudioCanvas() {
             }}
           />
         )}
+
+        {/* FBX 에셋 토글 버튼 */}
+        <button
+          onClick={() => setActiveAssetPicker(v => !v)}
+          style={{
+            position: 'absolute', bottom: 14, left: 14, zIndex: 15,
+            background: activeAssetPicker ? 'rgba(129,140,248,0.25)' : 'rgba(2,6,23,0.6)',
+            border: `1px solid ${activeAssetPicker ? '#818cf8' : 'rgba(255,255,255,0.2)'}`,
+            color: activeAssetPicker ? '#a5b4fc' : '#fff',
+            borderRadius: 8, padding: '6px 13px', fontSize: 12, cursor: 'pointer',
+            backdropFilter: 'blur(8px)', fontWeight: 700, transition: 'all 0.15s',
+          }}>
+          📦 {t('myAssets', { count: myAssets.filter(a => /\.fbx$/i.test(a.modelUrl)).length })}
+        </button>
+
+        {/* FBX 에셋 바텀 슬라이딩 패널 */}
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 14,
+          background: 'rgba(2,6,23,0.93)',
+          borderTop: '1px solid rgba(129,140,248,0.25)',
+          backdropFilter: 'blur(14px)',
+          transform: `translateY(${activeAssetPicker ? '0%' : '100%'})`,
+          transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)',
+          maxHeight: 260,
+          display: 'flex', flexDirection: 'column',
+        }}>
+          <div style={{ padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#a5b4fc' }}>
+              📦 내 FBX 에셋 ({myAssets.filter(a => /\.fbx$/i.test(a.modelUrl)).length})
+            </div>
+            <button onClick={() => setActiveAssetPicker(false)}
+              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.45)', fontSize: 20, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
+          </div>
+          <div style={{ padding: '10px 14px', overflowY: 'auto', flex: 1 }}>
+            {myAssets.filter(a => /\.fbx$/i.test(a.modelUrl)).length === 0
+              ? <div style={{ fontSize: 12, opacity: 0.4, textAlign: 'center', padding: '20px 0' }}>
+                  {t('noAssets')}&nbsp;
+                  <a href="/assets" style={{ color: '#818cf8' }}>/assets</a> {t('uploadAt')}
+                </div>
+              : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
+                  {myAssets.filter(a => /\.fbx$/i.test(a.modelUrl)).map(a => (
+                    <button key={a.id} onClick={() => { addAsset(a); setActiveAssetPicker(false); }}
+                      style={{
+                        background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: 9, color: '#fff', fontSize: 11, padding: '10px 8px',
+                        cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+                        transition: 'background 0.12s',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.18)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}>
+                      <span style={{ fontSize: 26 }}>📦</span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: 'center', fontWeight: 600 }}>{a.name}</span>
+                    </button>
+                  ))}
+                </div>
+            }
+          </div>
+        </div>
       </div>
     </div>
   );
