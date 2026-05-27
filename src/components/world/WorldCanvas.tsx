@@ -1,5 +1,5 @@
 'use client';
-import React, { Suspense, useRef, useEffect, useState, useMemo } from 'react';
+import React, { Suspense, useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Html, Sky, Text } from '@react-three/drei';
 import { Physics, RigidBody, CapsuleCollider, useRapier } from '@react-three/rapier';
@@ -1566,15 +1566,21 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     return () => { if (objectStatesRef.current) objectStatesRef.current = null; };
   }, [objectStatesRef]);
 
-  // ── 송신: 본인이 호스트(방장)일 때만, 움직인 오브젝트 broadcast (10Hz) ──
-  // 방장 = 가장 일찍 들어온 사람 (서버가 결정). 방장 나가면 자동 인계.
+  // ── 송신: 근접 기반 소유권 — 박스에 가장 가까운 플레이어가 broadcast ──
+  // 본인이 밀고 있으면 본인 = 가장 가까움 → 본인의 부드러운 로컬 시뮬을 다른 클라이언트에 전달
+  // 아무도 가깝지 않으면 호스트가 대신 (정적/물리만의 오브젝트용)
   const isHost = !!hostId && hostId === playerId;
   const lastBroadcastPos = useRef<Map<string, [number, number, number]>>(new Map());
+  // 본인 플레이어 위치 추적 (소유권 판단용)
+  const myPosForOwnership = useRef<[number, number, number]>([0, 1, 0]);
   useEffect(() => {
-    if (!isHost || !sendObjectStates || !customObjects) return;
-    const MOVE_THRESHOLD = 0.005; // 5mm 이상 움직였을 때만 broadcast
+    if (!sendObjectStates || !customObjects) return;
+    const MOVE_THRESHOLD = 0.005;
+    const NEAR_RADIUS    = 4;     // 4m 이내면 "내가 미는 중"으로 간주
+    const NEAR_RADIUS_SQ = NEAR_RADIUS * NEAR_RADIUS;
     const interval = setInterval(() => {
       const states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean }> = [];
+      const myPos = myPosForOwnership.current;
       for (const obj of customObjects) {
         if (obj.hidden) continue;
         if (obj.kind === 'pointlight' || obj.kind === 'spotlight' || obj.kind === 'dirlight') continue;
@@ -1598,7 +1604,27 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           vis = group.visible;
         } else continue;
 
-        // 이전 broadcast 위치와 비교 — 차이 없으면 skip (대역폭 절약)
+        // ── 소유권 판단 ──
+        // 내 거리^2
+        const dx0 = pos[0] - myPos[0], dy0 = pos[1] - myPos[1], dz0 = pos[2] - myPos[2];
+        const myDistSq = dx0*dx0 + dy0*dy0 + dz0*dz0;
+        // 가장 가까운 원격 플레이어 거리^2
+        let closestRemoteSq = Infinity;
+        if (posesRef.current) {
+          for (const pose of posesRef.current.values()) {
+            const dx = pos[0] - pose.x, dy = pos[1] - pose.y, dz = pos[2] - pose.z;
+            const d2 = dx*dx + dy*dy + dz*dz;
+            if (d2 < closestRemoteSq) closestRemoteSq = d2;
+          }
+        }
+        // 내가 박스에 가장 가깝고 + 4m 이내 → 내가 소유
+        const iAmClosest = myDistSq < closestRemoteSq && myDistSq < NEAR_RADIUS_SQ;
+        // 아무도 가깝지 않음 + 내가 호스트 → 내가 (정적/물리만 오브젝트 fallback)
+        const noOneClose = myDistSq >= NEAR_RADIUS_SQ && closestRemoteSq >= NEAR_RADIUS_SQ;
+        const iOwn = iAmClosest || (noOneClose && isHost);
+        if (!iOwn) continue; // 소유자가 아니면 broadcast 안 함
+
+        // 이전 broadcast 위치와 비교 — 차이 없으면 skip
         const last = lastBroadcastPos.current.get(obj.id);
         if (last) {
           const moved = Math.abs(pos[0] - last[0]) > MOVE_THRESHOLD
@@ -1612,9 +1638,15 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       if (states.length > 0) sendObjectStates(states);
     }, 50); // 20Hz
     return () => clearInterval(interval);
-  }, [isHost, sendObjectStates, customObjects]);
+  }, [isHost, sendObjectStates, customObjects, posesRef]);
 
-  // 호스트 바뀌면 lastBroadcastPos 초기화 (새 호스트는 처음부터 다시 전송)
+  // 본인 위치 동기화 — Player가 onMove 호출할 때마다 갱신
+  // (실시간 위치는 Player의 lastPos에 있지만 외부 접근이 까다로워 onMove에서 함께 갱신)
+  const trackMyPos = useCallback((p: { x: number; y: number; z: number }) => {
+    myPosForOwnership.current = [p.x, p.y, p.z];
+  }, []);
+
+  // 호스트 바뀌면 lastBroadcastPos 초기화
   useEffect(() => {
     lastBroadcastPos.current.clear();
   }, [isHost]);
@@ -1794,7 +1826,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={(p) => { trackMyPos(p); onMove(p); }} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}
