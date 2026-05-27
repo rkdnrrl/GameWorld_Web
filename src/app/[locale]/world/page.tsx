@@ -217,8 +217,9 @@ export default function WorldPage() {
   const scriptEventRef = useRef<((objectId: string, event: string, data: Record<string, unknown>, fromId: string) => void) | null>(null);
   type ObjState = { id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean };
   const objectStatesRef = useRef<((states: ObjState[], fromId: string) => void) | null>(null);
+  const objectOwnerRef = useRef<((objectId: string, ownerId: string | null) => void) | null>(null);
 
-  const { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, hostId } = useGameSocket({
+  const { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, sendObjClaim, sendObjRelease, hostId } = useGameSocket({
     worldId: worldSocketKey,
     playerId: userId,
     username,
@@ -229,6 +230,9 @@ export default function WorldPage() {
     },
     onObjectStates: (states, fromId) => {
       objectStatesRef.current?.(states, fromId);
+    },
+    onObjectOwnership: (objectId, ownerId) => {
+      objectOwnerRef.current?.(objectId, ownerId);
     },
   });
 
@@ -432,6 +436,9 @@ export default function WorldPage() {
         sendObjectStates={sendObjectStates}
         objectStatesRef={objectStatesRef}
         hostId={hostId}
+        sendObjClaim={sendObjClaim}
+        sendObjRelease={sendObjRelease}
+        objectOwnerRef={objectOwnerRef}
       />
 
       <GraphicsPanel settings={graphics} updateSettings={updateGraphics} applyPreset={applyGraphicsPreset} />

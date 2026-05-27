@@ -684,6 +684,7 @@ function Player({
   inputLocked = false,
   emoteSlot,
   emoteOneShotOverride,
+  onObjCollide,
 }: {
   character: Record<string, unknown>;
   bubble?: ChatBubble;
@@ -691,6 +692,7 @@ function Player({
   inputLocked?: boolean;
   emoteSlot?: string | null;
   emoteOneShotOverride?: string[];
+  onObjCollide?: (objectId: string, type: 'enter' | 'exit') => void;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body      = useRef<any>(null);
@@ -923,6 +925,16 @@ function Player({
       lockRotations
       position={[0, 4, 0]}
       linearDamping={0.6}
+      onCollisionEnter={(p) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const objId = (p.other.rigidBodyObject as any)?.userData?.objectId;
+        if (objId) onObjCollide?.(String(objId), 'enter');
+      }}
+      onCollisionExit={(p) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const objId = (p.other.rigidBodyObject as any)?.userData?.objectId;
+        if (objId) onObjCollide?.(String(objId), 'exit');
+      }}
     >
       <CapsuleCollider args={[PLAYER_CAPSULE_HALF_HEIGHT, PLAYER_CAPSULE_RADIUS]} />
       <group ref={mesh} position={[0, PLAYER_MESH_Y, 0]}>
@@ -1310,9 +1322,8 @@ function UserMapObjectMesh({ obj, scriptBodyRefs }: {
         </group>
       );
     }
-    // 물리 있음: RigidBody 가 직접 메시를 자식으로 가져야 자동 콜라이더 동작
     return (
-      <RigidBody ref={bodyRef} type={physics} colliders={physics === 'dynamic' ? 'hull' : 'trimesh'} position={obj.position} rotation={obj.rotation} scale={obj.scale}>
+      <RigidBody ref={bodyRef} type={physics} colliders={physics === 'dynamic' ? 'hull' : 'trimesh'} position={obj.position} rotation={obj.rotation} scale={obj.scale} userData={{ objectId: obj.id }}>
         <UserAsset url={obj.assetUrl} matObj={obj} />
       </RigidBody>
     );
@@ -1326,9 +1337,8 @@ function UserMapObjectMesh({ obj, scriptBodyRefs }: {
     );
   }
   const colliders = obj.kind === 'sphere' ? 'ball' : 'cuboid';
-  // 물리 있음: 내부 <group> 래퍼 없이 메시 직접 자식 → rapier 자동 콜라이더 정상 동작
   return (
-    <RigidBody ref={bodyRef} type={physics} colliders={colliders} position={obj.position} rotation={obj.rotation} scale={obj.scale}>
+    <RigidBody ref={bodyRef} type={physics} colliders={colliders} position={obj.position} rotation={obj.rotation} scale={obj.scale} userData={{ objectId: obj.id }}>
       <PrimitiveMesh obj={obj} shape={shape} />
     </RigidBody>
   );
@@ -1444,6 +1454,10 @@ interface WorldCanvasProps {
   objectStatesRef?: React.RefObject<((states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean; vel?: [number, number, number] }>, fromId: string) => void) | null>;
   // 방장 (가장 일찍 들어온 사람) — 본인이 호스트일 때만 broadcast
   hostId?: string | null;
+  // 오브젝트 소유권 (Unity NetworkObject 스타일)
+  sendObjClaim?: (objectId: string) => void;
+  sendObjRelease?: (objectId: string) => void;
+  objectOwnerRef?: React.RefObject<((objectId: string, ownerId: string | null) => void) | null>;
 }
 
 /* ── 모바일 컨트롤 컴포넌트 (Canvas 완전 바깥 — drei Html 스케일 영향 없음) ── */
@@ -1597,7 +1611,7 @@ function MobileControls({ inputLocked }: { inputLocked: boolean }) {
   );
 }
 
-export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId }: WorldCanvasProps) {
+export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId, sendObjClaim, sendObjRelease, objectOwnerRef }: WorldCanvasProps) {
   const shadowsEnabled = graphics.shadowSize > 0;
   const shadowMapSize: [number, number] = [graphics.shadowSize || 1024, graphics.shadowSize || 1024];
   const ss = sceneSettings ?? {};
@@ -1646,17 +1660,71 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     return () => { if (objectStatesRef.current) objectStatesRef.current = null; };
   }, [objectStatesRef]);
 
-  // ── 송신: 호스트만 broadcast (오브젝트 위치 권한자) ──
+  // ── 오브젝트 소유권 (Unity NetworkObject 스타일) ──────────────
+  const ownersRef = useRef<Map<string, string>>(new Map()); // objectId → ownerPlayerId
+  const touchingRef = useRef<Set<string>>(new Set());        // 현재 닿아있는 오브젝트
+  const releaseTimerRef = useRef<Map<string, number>>(new Map()); // 충돌 종료 후 해제 예정 시각
+
+  useEffect(() => {
+    if (!objectOwnerRef) return;
+    objectOwnerRef.current = (objectId, ownerId) => {
+      if (ownerId) ownersRef.current.set(objectId, ownerId);
+      else ownersRef.current.delete(objectId);
+    };
+    return () => { if (objectOwnerRef.current) objectOwnerRef.current = null; };
+  }, [objectOwnerRef]);
+
+  // Player 충돌 콜백 — 닿으면 즉시 소유권 주장, 떨어지면 1.5초 후 해제
+  const onObjCollide = useCallback((objectId: string, type: 'enter' | 'exit') => {
+    if (type === 'enter') {
+      touchingRef.current.add(objectId);
+      releaseTimerRef.current.delete(objectId);
+      if (ownersRef.current.get(objectId) !== playerId) {
+        sendObjClaim?.(objectId);
+      }
+    } else {
+      touchingRef.current.delete(objectId);
+      releaseTimerRef.current.set(objectId, Date.now() + 1500);
+    }
+  }, [playerId, sendObjClaim]);
+
+  // 만료된 소유권 해제 (충돌 종료 후 1.5초 grace period)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      for (const [objectId, time] of releaseTimerRef.current) {
+        if (now > time) {
+          releaseTimerRef.current.delete(objectId);
+          if (ownersRef.current.get(objectId) === playerId && !touchingRef.current.has(objectId)) {
+            sendObjRelease?.(objectId);
+          }
+        }
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [playerId, sendObjRelease]);
+
+  // ── 송신: 호스트 + 본인이 소유한 오브젝트만 broadcast ──
   const isHost = !!hostId && hostId === playerId;
   const lastBroadcastPos = useRef<Map<string, [number, number, number]>>(new Map());
   useEffect(() => {
-    if (!isHost || !sendObjectStates || !customObjects) return;
+    if (!sendObjectStates || !customObjects) return;
     const MOVE_THRESHOLD = 0.005;
     const interval = setInterval(() => {
       const states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean; vel?: [number, number, number] }> = [];
       for (const obj of customObjects) {
         if (obj.hidden) continue;
         if (obj.kind === 'pointlight' || obj.kind === 'spotlight' || obj.kind === 'dirlight') continue;
+
+        // ── 소유권 체크 ──
+        // 내가 소유자: broadcast (본인 push 시 즉각 반영)
+        // 소유자 없음 + 내가 호스트: broadcast (정적/물리만 오브젝트 fallback)
+        // 그 외: skip
+        const owner = ownersRef.current.get(obj.id);
+        const iOwn = owner === playerId;
+        const iHostFallback = !owner && isHost;
+        if (!iOwn && !iHostFallback) continue;
+
         const ref = scriptBodyRefs.current.get(obj.id);
         if (!ref) continue;
         const body  = ref.body.current;
@@ -1696,7 +1764,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       if (states.length > 0) sendObjectStates(states);
     }, 33); // ~30Hz
     return () => clearInterval(interval);
-  }, [isHost, sendObjectStates, customObjects]);
+  }, [isHost, sendObjectStates, customObjects, playerId]);
 
   // 호스트 바뀌면 lastBroadcastPos 초기화
   useEffect(() => {
@@ -1878,7 +1946,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}

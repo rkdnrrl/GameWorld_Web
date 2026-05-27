@@ -61,11 +61,13 @@ interface Options {
   enabled: boolean;
   onScriptEvent?: (msg: ScriptEventMessage) => void;
   onObjectStates?: (states: ObjectStateUpdate[], fromId: string) => void;
+  onObjectOwnership?: (objectId: string, ownerId: string | null) => void;
 }
 
-export function useGameSocket({ worldId, playerId, username, character, enabled, onScriptEvent, onObjectStates }: Options) {
-  const onScriptEventRef  = useRef(onScriptEvent);
-  const onObjectStatesRef = useRef(onObjectStates);
+export function useGameSocket({ worldId, playerId, username, character, enabled, onScriptEvent, onObjectStates, onObjectOwnership }: Options) {
+  const onScriptEventRef     = useRef(onScriptEvent);
+  const onObjectStatesRef    = useRef(onObjectStates);
+  const onObjectOwnershipRef = useRef(onObjectOwnership);
   const [hostId, setHostId] = useState<string | null>(null);
   const [players, setPlayers]     = useState<Record<string, RemotePlayer>>({});
   const [chatLog, setChatLog]     = useState<ChatMessage[]>([]);
@@ -162,6 +164,10 @@ export function useGameSocket({ worldId, playerId, username, character, enabled,
         const h = msg as unknown as { hostId: string | null };
         setHostId(h.hostId ?? null);
       }
+      else if (msg.type === 'obj_owner') {
+        const o = msg as unknown as { objectId: string; ownerId: string | null };
+        onObjectOwnershipRef.current?.(o.objectId, o.ownerId ?? null);
+      }
       else if (msg.type === 'chat') {
         const { id, username: un, message } = msg as { id: string; username: string; message: string };
         const now = Date.now();
@@ -241,8 +247,21 @@ export function useGameSocket({ worldId, playerId, username, character, enabled,
     }
   }, []);
 
-  useEffect(() => { onScriptEventRef.current  = onScriptEvent;  }, [onScriptEvent]);
-  useEffect(() => { onObjectStatesRef.current = onObjectStates; }, [onObjectStates]);
+  const sendObjClaim = useCallback((objectId: string) => {
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({ type: 'obj_claim', objectId }));
+    }
+  }, []);
 
-  return { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, hostId };
+  const sendObjRelease = useCallback((objectId: string) => {
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({ type: 'obj_release', objectId }));
+    }
+  }, []);
+
+  useEffect(() => { onScriptEventRef.current     = onScriptEvent;     }, [onScriptEvent]);
+  useEffect(() => { onObjectStatesRef.current    = onObjectStates;    }, [onObjectStates]);
+  useEffect(() => { onObjectOwnershipRef.current = onObjectOwnership; }, [onObjectOwnership]);
+
+  return { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, sendObjClaim, sendObjRelease, hostId };
 }
