@@ -550,25 +550,33 @@ function LuaUpdateLoop({
             ref.body.current.setTranslation({ x: ex, y: ey, z: ez }, true);
             ref.body.current.setLinvel({ x: target.vel[0], y: target.vel[1], z: target.vel[2] }, true);
           } else if (distSq > IGNORE_THRESHOLD_SQ) {
-            // 중간 차이 → 부드러운 보정
+            // 중간 차이 → 부드러운 위치 보정
             ref.body.current.setTranslation({
               x: cur.x + dx * SOFT_CORRECTION,
               y: cur.y + dy * SOFT_CORRECTION,
               z: cur.z + dz * SOFT_CORRECTION,
             }, true);
-            // velocity 차이 큰 경우만 보정 (로컬 prediction 우선)
+            // velocity 보정 — 로컬 박스가 "이미 멈췄으면" 서버 vel 무시 (멈춤 보존)
+            // 안 그러면 다른 클라이언트의 100ms 지연 push 때문에 박스가 멋대로 다시 움직임
             const curV = ref.body.current.linvel();
+            const curSpeedSq = curV.x*curV.x + curV.y*curV.y + curV.z*curV.z;
+            const targetSpeedSq = target.vel[0]*target.vel[0] + target.vel[1]*target.vel[1] + target.vel[2]*target.vel[2];
+            // 조건: (로컬이 움직이는 중) AND (속도 차이 큼)
+            // 또는: (로컬 정지인데 서버가 강하게 움직임 — 누가 진짜 밀고 있음)
+            const localMoving  = curSpeedSq > 0.25;     // > 0.5 m/s
+            const serverMoving = targetSpeedSq > 1.0;   // > 1 m/s
             const dvx = target.vel[0] - curV.x;
             const dvy = target.vel[1] - curV.y;
             const dvz = target.vel[2] - curV.z;
             const velDiffSq = dvx*dvx + dvy*dvy + dvz*dvz;
-            if (velDiffSq > 0.25) { // 속도 차 > 0.5 m/s
+            if (velDiffSq > 0.25 && (localMoving || serverMoving)) {
               ref.body.current.setLinvel({
                 x: curV.x + dvx * VEL_CORRECTION,
                 y: curV.y + dvy * VEL_CORRECTION,
                 z: curV.z + dvz * VEL_CORRECTION,
               }, true);
             }
+            // 위 조건 둘 다 false (로컬 정지 + 서버 거의 정지) → velocity 그대로 둠 (멈춤 유지)
           }
           // 회전: 부드러운 slerp
           const targetQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(target.rot[0], target.rot[1], target.rot[2]));
