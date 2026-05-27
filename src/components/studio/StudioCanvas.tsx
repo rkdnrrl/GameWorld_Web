@@ -834,6 +834,7 @@ export default function StudioCanvas() {
   const [lightDir, setLightDir] = useState(1.5);
   const [skyEnabled, setSkyEnabled] = useState(true);
   const [lightPanelOpen, setLightPanelOpen] = useState(false);
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
   // HDRI 환경
   type HdriPreset = 'none' | 'apartment' | 'city' | 'dawn' | 'forest' | 'lobby' | 'night' | 'park' | 'studio' | 'sunset' | 'warehouse';
   const [hdriPreset, setHdriPreset] = useState<HdriPreset>('city');
@@ -1585,7 +1586,7 @@ export default function StudioCanvas() {
       )}
 
       {/* ── 우측 패널: 씬 계층 + 인스펙터 ─── */}
-      <div style={{
+      {rightPanelOpen && <div style={{
         width: 260, flexShrink: 0,
         background: '#1e293b',
         borderLeft: '1px solid rgba(255,255,255,0.08)',
@@ -1775,7 +1776,7 @@ export default function StudioCanvas() {
             </>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* ── 3D 뷰포트 ─────────────────────── */}
       <div
@@ -1847,6 +1848,21 @@ export default function StudioCanvas() {
           <CanvasCapture captureFnRef={captureFnRef} />
           <CameraRefCapture cameraRef={cameraRef} />
         </Canvas>
+
+        {/* 씬 패널 토글 버튼 */}
+        <button
+          onClick={() => setRightPanelOpen(v => !v)}
+          title={rightPanelOpen ? '씬 패널 숨기기' : '씬 패널 열기'}
+          style={{
+            position: 'absolute', top: 14, right: 14, zIndex: 10,
+            background: rightPanelOpen ? 'rgba(99,102,241,0.3)' : 'rgba(2,6,23,0.6)',
+            border: `1px solid ${rightPanelOpen ? '#6366f1' : 'rgba(255,255,255,0.2)'}`,
+            color: rightPanelOpen ? '#a5b4fc' : '#fff',
+            borderRadius: 8, padding: '5px 11px', fontSize: 12, cursor: 'pointer',
+            backdropFilter: 'blur(8px)', fontWeight: 700, transition: 'all 0.15s',
+          }}>
+          {rightPanelOpen ? '◧ 씬' : '◨ 씬'}
+        </button>
 
         {/* 단축키 힌트 */}
         <div style={{ position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', pointerEvents: 'none' }}>
