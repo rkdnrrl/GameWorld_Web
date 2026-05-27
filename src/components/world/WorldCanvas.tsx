@@ -496,18 +496,56 @@ function BlockMesh({ appearance }: { appearance: Record<string, string> }) {
   );
 }
 
-/* ── JS onUpdate 호출 루프 (Canvas 내부 컴포넌트) ── */
+/* ── JS onUpdate 호출 루프 + 네트워크 상태 보간 (Canvas 내부 컴포넌트) ── */
 function LuaUpdateLoop({
   luaScripts,
   worldElapsed,
+  scriptBodyRefs,
+  syncTargets,
+  isHost,
 }: {
   luaScripts: React.MutableRefObject<Map<string, import('@/lib/world/jsRuntime').JsScript>>;
   worldElapsed: React.MutableRefObject<number>;
+  scriptBodyRefs: React.MutableRefObject<Map<string, {
+    body: React.MutableRefObject<RapierBodyApi | null>;
+    group: React.MutableRefObject<THREE.Group | null>;
+  }>>;
+  syncTargets: React.MutableRefObject<Map<string, { pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean }>>;
+  isHost: boolean;
 }) {
   useFrame((_, dt) => {
     worldElapsed.current += dt;
-    for (const vm of luaScripts.current.values()) {
-      vm.callUpdate(dt);
+    for (const vm of luaScripts.current.values()) vm.callUpdate(dt);
+
+    // 비호스트는 네트워크 target으로 부드럽게 lerp
+    if (!isHost) {
+      const lerpF = Math.min(1, 12 * dt); // 부드러움 (값 클수록 빠르게 따라감)
+      for (const [id, target] of syncTargets.current) {
+        const ref = scriptBodyRefs.current.get(id);
+        if (!ref) continue;
+        if (ref.body.current) {
+          const cur = ref.body.current.translation();
+          ref.body.current.setTranslation({
+            x: cur.x + (target.pos[0] - cur.x) * lerpF,
+            y: cur.y + (target.pos[1] - cur.y) * lerpF,
+            z: cur.z + (target.pos[2] - cur.z) * lerpF,
+          }, true);
+          // 회전: 쿼터니언 slerp
+          const targetQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(target.rot[0], target.rot[1], target.rot[2]));
+          const r = ref.body.current.rotation();
+          const curQ = new THREE.Quaternion(r.x, r.y, r.z, r.w);
+          curQ.slerp(targetQ, lerpF);
+          ref.body.current.setRotation({ x: curQ.x, y: curQ.y, z: curQ.z, w: curQ.w }, true);
+        } else if (ref.group.current) {
+          ref.group.current.position.lerp(new THREE.Vector3(target.pos[0], target.pos[1], target.pos[2]), lerpF);
+          const targetEu = new THREE.Euler(target.rot[0], target.rot[1], target.rot[2]);
+          ref.group.current.rotation.x += (targetEu.x - ref.group.current.rotation.x) * lerpF;
+          ref.group.current.rotation.y = lerpAngle(ref.group.current.rotation.y, targetEu.y, lerpF);
+          ref.group.current.rotation.z += (targetEu.z - ref.group.current.rotation.z) * lerpF;
+          ref.group.current.scale.lerp(new THREE.Vector3(target.scl[0], target.scl[1], target.scl[2]), lerpF);
+          ref.group.current.visible = target.vis;
+        }
+      }
     }
   });
   return null;
@@ -861,26 +899,42 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow }: {
   bubble?: ChatBubble;
   castShadow?: boolean;
 }) {
-  const g    = useRef<THREE.Group>(null);
-  const tPos = useRef(new THREE.Vector3());
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const bodyRef = useRef<any>(null);
+  const meshRef = useRef<THREE.Group>(null);
   const animStateRef = useRef<AnimState>('idle');
 
-  // 매 프레임: ref에서 직접 읽음 → React 재렌더 안 함
+  // 매 프레임: 네트워크 pose로 kinematic body를 부드럽게 이동
+  // → 모든 클라이언트의 로컬 Rapier에서 원격 플레이어가 물리적으로 다른 오브젝트와 충돌
   useFrame((_, dt) => {
-    if (!g.current) return;
     const pose = posesRef.current?.get(player.id);
     if (!pose) return;
-    tPos.current.set(pose.x, pose.y, pose.z);
-    g.current.position.lerp(tPos.current, Math.min(1, 10 * dt));
-    g.current.rotation.y = lerpAngle(g.current.rotation.y, pose.rotY, Math.min(1, 10 * dt));
     animStateRef.current = pose.animState ?? 'idle';
+    const body = bodyRef.current;
+    if (!body) return;
+    const cur = body.translation();
+    const lerpF = Math.min(1, 10 * dt);
+    body.setNextKinematicTranslation({
+      x: cur.x + (pose.x - cur.x) * lerpF,
+      y: cur.y + (pose.y - cur.y) * lerpF,
+      z: cur.z + (pose.z - cur.z) * lerpF,
+    });
+    // 회전은 mesh group만 (kinematic body 회전은 보통 락)
+    if (meshRef.current) {
+      meshRef.current.rotation.y = lerpAngle(meshRef.current.rotation.y, pose.rotY, lerpF);
+    }
   });
 
   const appearance = ((player.character as Record<string, unknown>)?.appearance ?? {}) as Record<string, unknown>;
+  const initialPose = posesRef.current?.get(player.id);
+  const initPos: [number, number, number] = initialPose
+    ? [initialPose.x, initialPose.y, initialPose.z]
+    : [0, 1, 0];
 
   return (
-    <group ref={g}>
-      <group position={[0, PLAYER_MESH_Y, 0]}>
+    <RigidBody ref={bodyRef} type="kinematicPosition" colliders={false} position={initPos}>
+      <CapsuleCollider args={[PLAYER_CAPSULE_HALF_HEIGHT, PLAYER_CAPSULE_RADIUS]} />
+      <group ref={meshRef} position={[0, PLAYER_MESH_Y, 0]}>
         <CharacterMesh appearance={appearance} animStateRef={animStateRef} castShadow={castShadow ?? false} />
       </group>
       <Text
@@ -918,7 +972,7 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow }: {
           </div>
         </Html>
       )}
-    </group>
+    </RigidBody>
   );
 }
 
@@ -1479,27 +1533,13 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     return () => { if (scriptEventRef.current) scriptEventRef.current = null; };
   }, [scriptEventRef]);
 
-  // ── 수신: 다른 클라이언트가 보낸 오브젝트 상태 적용 ──
+  // ── 수신: target만 저장 (실제 적용은 LuaUpdateLoop에서 매 프레임 lerp) ──
+  const syncTargets = useRef<Map<string, { pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean }>>(new Map());
   useEffect(() => {
     if (!objectStatesRef) return;
     objectStatesRef.current = (states) => {
       for (const s of states) {
-        const ref = scriptBodyRefs.current.get(s.id);
-        if (!ref) continue;
-        // 물리 RigidBody가 있으면 그쪽으로 (rapier 우선)
-        if (ref.body.current) {
-          ref.body.current.setTranslation({ x: s.pos[0], y: s.pos[1], z: s.pos[2] }, true);
-          ref.body.current.setRotation(
-            new THREE.Quaternion().setFromEuler(new THREE.Euler(s.rot[0], s.rot[1], s.rot[2])),
-            true,
-          );
-        } else if (ref.group.current) {
-          // 물리 없는 오브젝트는 group 직접
-          ref.group.current.position.set(s.pos[0], s.pos[1], s.pos[2]);
-          ref.group.current.rotation.set(s.rot[0], s.rot[1], s.rot[2]);
-          ref.group.current.scale.set(s.scl[0], s.scl[1], s.scl[2]);
-          ref.group.current.visible = s.vis;
-        }
+        syncTargets.current.set(s.id, { pos: s.pos, rot: s.rot, scl: s.scl, vis: s.vis });
       }
     };
     return () => { if (objectStatesRef.current) objectStatesRef.current = null; };
@@ -1715,8 +1755,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
 
         {showSky && <Sky sunPosition={[25, 10, 15]} turbidity={0.4} rayleigh={0.25} />}
 
-        {/* ── Lua onUpdate 루프 ── */}
-        <LuaUpdateLoop luaScripts={luaScripts} worldElapsed={worldElapsed} />
+        {/* ── JS onUpdate + 네트워크 보간 루프 ── */}
+        <LuaUpdateLoop
+          luaScripts={luaScripts}
+          worldElapsed={worldElapsed}
+          scriptBodyRefs={scriptBodyRefs}
+          syncTargets={syncTargets}
+          isHost={isHost}
+        />
 
         <Suspense fallback={null}>
           <Physics gravity={[0, -22, 0]} interpolate={false}>
