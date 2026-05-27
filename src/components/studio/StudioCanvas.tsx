@@ -1,7 +1,8 @@
 'use client';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, TransformControls, Grid, Sky, Environment } from '@react-three/drei';
+import { Physics, RigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { buildFolderTree, normalizeFolder } from '@/lib/assets/folders';
 import type { FolderNode } from '@/lib/assets/folders';
@@ -856,6 +857,63 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
   );
 }
 
+/* ── 시뮬레이션: 씬 레퍼런스 캡처 ── */
+function SceneRefCapture({ target }: { target: { current: THREE.Scene | null } }) {
+  const { scene } = useThree();
+  target.current = scene as THREE.Scene;
+  return null;
+}
+
+/* ── 시뮬레이션: 물리 씬 렌더러 (평면화 — 세계좌표 기준) ── */
+type SimTransforms = Record<string, { pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number] }>;
+function SimScene({ objects, transforms, myAssets }: {
+  objects: MapObject[];
+  transforms: SimTransforms;
+  myAssets: Asset[];
+}) {
+  return (
+    <>
+      {objects.map(obj => {
+        const t = transforms[obj.id] ?? { pos: obj.position, rot: obj.rotation, scl: obj.scale };
+        // 조명은 Three.js 라이트로 렌더링 (물리 없음)
+        if (obj.kind === 'pointlight') return (
+          <pointLight key={obj.id} position={t.pos} color={obj.lightColor || '#ffffff'}
+            intensity={obj.lightIntensity ?? 1} distance={obj.lightDistance ?? 0} decay={2} castShadow={obj.castShadow ?? false} />
+        );
+        if (obj.kind === 'dirlight') return (
+          <directionalLight key={obj.id} position={t.pos} color={obj.lightColor || '#ffffff'}
+            intensity={obj.lightIntensity ?? 1} castShadow={obj.castShadow ?? false} />
+        );
+        if (obj.kind === 'spotlight') return (
+          <spotLight key={obj.id} position={t.pos} color={obj.lightColor || '#ffffff'}
+            intensity={obj.lightIntensity ?? 1} distance={obj.lightDistance ?? 0}
+            angle={(obj.lightAngle ?? 45) * Math.PI / 180} penumbra={obj.lightPenumbra ?? 0.2}
+            decay={2} castShadow={obj.castShadow ?? false} />
+        );
+
+        const assetConfig = getAssetMaterialConfig(myAssets.find(a => a.modelUrl === obj.assetUrl));
+        // noTransform=true → 위치/스케일은 부모(RigidBody or group)가 담당
+        const mesh = <Mesh3D obj={obj} selected={false} onClick={() => {}} assetConfig={assetConfig} noTransform />;
+        const phys = obj.physics ?? 'fixed';
+
+        if (phys === 'none') {
+          return <group key={obj.id} position={t.pos} rotation={t.rot} scale={t.scl}>{mesh}</group>;
+        }
+        const colliders =
+          obj.kind === 'sphere'  ? 'ball'    :
+          obj.kind === 'asset'   ? (phys === 'dynamic' ? 'hull' : 'trimesh') :
+                                   'cuboid';
+        return (
+          <RigidBody key={obj.id} type={phys} colliders={colliders}
+            position={t.pos} rotation={t.rot} scale={t.scl}>
+            {mesh}
+          </RigidBody>
+        );
+      })}
+    </>
+  );
+}
+
 /* ── 변환 컨트롤 ──────────────────────────── */
 function SelectedTransform({ targetId, mode, onChange, onDragEnd, onDragStart, snapTranslate, snapRotate, snapScale }: {
   targetId: string | null;
@@ -1117,6 +1175,10 @@ export default function StudioCanvas() {
   const [objects, setObjects]       = useState<MapObject[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode]             = useState<'translate' | 'rotate' | 'scale'>('translate');
+  // 시뮬레이션
+  const [simulating, setSimulating] = useState(false);
+  const [simTransforms, setSimTransforms] = useState<SimTransforms>({});
+  const threeSceneRef = useRef<THREE.Scene | null>(null);
   const [name, setName]             = useState(t('newWorldDefault'));
   const [description, setDescription] = useState('');
   const [savedId, setSavedId]       = useState<string | null>(editingId);
@@ -1316,6 +1378,11 @@ export default function StudioCanvas() {
   /* 단축키 */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // 시뮬레이션 중: Escape로 중지, 나머지 단축키 무시
+      if (simulating) {
+        if (e.key === 'Escape') stopSim();
+        return;
+      }
       // Undo/Redo
       if (e.ctrlKey || e.metaKey) {
         if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
@@ -1339,7 +1406,8 @@ export default function StudioCanvas() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedId, undo, redo, pushHistory, focusObject]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, simulating, undo, redo, pushHistory, focusObject]);
 
   useEffect(() => {
     const check = () => {
@@ -1387,6 +1455,45 @@ export default function StudioCanvas() {
       return next;
     });
     setSelectedId(id);
+  }
+
+  /* ── 물리 시뮬레이션 ─────────────────────── */
+  function startSim() {
+    // 현재 씬의 세계 좌표를 Three.js scene 에서 캡처
+    const scene = threeSceneRef.current;
+    const transforms: SimTransforms = {};
+    objects.filter(o => !o.hidden).forEach(obj => {
+      let found: THREE.Object3D | null = null;
+      if (scene) {
+        scene.traverse((node: THREE.Object3D) => {
+          if (node.userData?.id === obj.id) found = node;
+        });
+      }
+      if (found) {
+        const wp = new THREE.Vector3();
+        const wq = new THREE.Quaternion();
+        const ws = new THREE.Vector3();
+        (found as THREE.Object3D).getWorldPosition(wp);
+        (found as THREE.Object3D).getWorldQuaternion(wq);
+        (found as THREE.Object3D).getWorldScale(ws);
+        const wr = new THREE.Euler().setFromQuaternion(wq);
+        transforms[obj.id] = {
+          pos: [wp.x, wp.y, wp.z],
+          rot: [wr.x, wr.y, wr.z],
+          scl: [ws.x, ws.y, ws.z],
+        };
+      } else {
+        transforms[obj.id] = { pos: obj.position, rot: obj.rotation, scl: obj.scale };
+      }
+    });
+    setSimTransforms(transforms);
+    setSelectedId(null);
+    setSimulating(true);
+  }
+
+  function stopSim() {
+    setSimulating(false);
+    setSimTransforms({});
   }
 
   function addLight(kind: 'pointlight' | 'spotlight' | 'dirlight') {
@@ -2460,35 +2567,47 @@ export default function StudioCanvas() {
 
           <Grid args={[100, 100]} cellSize={1} cellThickness={0.5} sectionSize={5} sectionThickness={1} fadeDistance={50} infiniteGrid />
 
-          {/* 루트 오브젝트만 렌더링 — SceneNode가 자식을 재귀로 렌더링 */}
-          {objects.filter(o => !o.hidden && !o.parentId).map(obj => (
-            <SceneNode key={obj.id} obj={obj}
-              allObjects={objects.filter(o => !o.hidden)}
-              selectedId={selectedId}
-              multiSelectedIds={multiSelectedIds}
-              myAssets={myAssets}
-              onObjectClick={id => {
-                if (shiftHeldRef.current) {
-                  shiftClickObject(id);
-                } else {
-                  setStudioMode('scene');
-                  setMultiSelectedIds(new Set());
-                  setSelectedId(id);
-                }
-              }}
-            />
-          ))}
-
-          <SelectedTransform
-            targetId={objects.find(o => o.id === selectedId)?.locked ? null : selectedId}
-            mode={mode}
-            onChange={updateObjectTransform}
-            onDragStart={onTransformDragStart}
-            onDragEnd={() => pushHistory(objects)}
-            snapTranslate={snapEnabled ? snapSize : null}
-            snapRotate={snapEnabled ? (Math.PI / 12) : null}
-            snapScale={snapEnabled ? 0.1 : null}
-          />
+          {simulating ? (
+            /* ── 시뮬레이션 모드 ── */
+            <Suspense fallback={null}>
+              <Physics gravity={[0, -9.81, 0]}>
+                <SimScene objects={objects.filter(o => !o.hidden)} transforms={simTransforms} myAssets={myAssets} />
+              </Physics>
+            </Suspense>
+          ) : (
+            /* ── 편집 모드 ── */
+            <>
+              {/* 루트 오브젝트만 렌더링 — SceneNode가 자식을 재귀로 렌더링 */}
+              {objects.filter(o => !o.hidden && !o.parentId).map(obj => (
+                <SceneNode key={obj.id} obj={obj}
+                  allObjects={objects.filter(o => !o.hidden)}
+                  selectedId={selectedId}
+                  multiSelectedIds={multiSelectedIds}
+                  myAssets={myAssets}
+                  onObjectClick={id => {
+                    if (shiftHeldRef.current) {
+                      shiftClickObject(id);
+                    } else {
+                      setStudioMode('scene');
+                      setMultiSelectedIds(new Set());
+                      setSelectedId(id);
+                    }
+                  }}
+                />
+              ))}
+              <SelectedTransform
+                targetId={objects.find(o => o.id === selectedId)?.locked ? null : selectedId}
+                mode={mode}
+                onChange={updateObjectTransform}
+                onDragStart={onTransformDragStart}
+                onDragEnd={() => pushHistory(objects)}
+                snapTranslate={snapEnabled ? snapSize : null}
+                snapRotate={snapEnabled ? (Math.PI / 12) : null}
+                snapScale={snapEnabled ? 0.1 : null}
+              />
+            </>
+          )}
+          <SceneRefCapture target={threeSceneRef} />
 
           <OrbitControls
             ref={orbitRef}
@@ -2507,6 +2626,21 @@ export default function StudioCanvas() {
           <CanvasCapture captureFnRef={captureFnRef} />
           <CameraRefCapture cameraRef={cameraRef} />
         </Canvas>
+
+        {/* ── 시뮬레이션 ▶/⏹ 버튼 — 뷰포트 상단 중앙 ── */}
+        <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', gap: 6, pointerEvents: 'none' }}>
+          {simulating ? (
+            <button onClick={stopSim}
+              style={{ pointerEvents: 'auto', background: 'rgba(239,68,68,0.9)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, color: '#fff', fontSize: 13, padding: '6px 20px', cursor: 'pointer', fontWeight: 700, boxShadow: '0 2px 10px rgba(0,0,0,0.5)', letterSpacing: 0.5 }}>
+              ⏹ 중지 (Esc)
+            </button>
+          ) : (
+            <button onClick={startSim}
+              style={{ pointerEvents: 'auto', background: 'rgba(34,197,94,0.85)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, color: '#fff', fontSize: 13, padding: '6px 20px', cursor: 'pointer', fontWeight: 700, boxShadow: '0 2px 10px rgba(0,0,0,0.5)', letterSpacing: 0.5 }}>
+              ▶ 시뮬레이션
+            </button>
+          )}
+        </div>
 
         {/* 마퀴 셀렉션 사각형 */}
         {marqueeStart && marqueeEnd && (
