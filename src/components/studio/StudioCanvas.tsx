@@ -169,32 +169,40 @@ function AxisInputRow({ label, values, step, min, onChange, onCommit }: {
   );
 }
 
-/* ── FBX 폴더 트리 노드 (선택만 담당) ──── */
-function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onToggle }: {
+/* ── FBX 폴더 트리 노드 ──────────────────── */
+function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onToggle, onDrop, dragOverPath, setDragOverPath }: {
   node: FolderNode;
   depth: number;
   openFolders: Set<string>;
   selectedFolder: string | null;
   onSelect: (path: string | null) => void;
   onToggle: (path: string) => void;
+  onDrop: (assetId: string, path: string | null) => void;
+  dragOverPath: string | undefined;
+  setDragOverPath: (p: string | undefined) => void;
 }) {
   const isOpen = openFolders.has(node.path);
   const isSelected = selectedFolder === node.path;
   const hasChildren = node.children.length > 0;
+  const isDragOver = dragOverPath === node.path;
 
   return (
     <div>
       <div
         onClick={() => { onSelect(node.path); if (hasChildren) onToggle(node.path); }}
+        onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOverPath(node.path); }}
+        onDragLeave={e => { e.stopPropagation(); setDragOverPath(undefined); }}
+        onDrop={e => { e.preventDefault(); e.stopPropagation(); const id = e.dataTransfer.getData('assetId'); if (id) onDrop(id, node.path); setDragOverPath(undefined); }}
         style={{
           display: 'flex', alignItems: 'center', gap: 4,
           paddingLeft: depth * 14 + 6, paddingTop: 5, paddingBottom: 5, paddingRight: 8,
           cursor: 'pointer', borderRadius: 5, userSelect: 'none' as const,
-          background: isSelected ? 'rgba(129,140,248,0.22)' : 'transparent',
-          color: isSelected ? '#c7d2fe' : '#cbd5e1',
+          background: isDragOver ? 'rgba(52,211,153,0.18)' : isSelected ? 'rgba(129,140,248,0.22)' : 'transparent',
+          color: isDragOver ? '#6ee7b7' : isSelected ? '#c7d2fe' : '#cbd5e1',
+          outline: isDragOver ? '1px dashed #34d399' : 'none',
         }}
-        onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.06)'; }}
-        onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
+        onMouseEnter={e => { if (!isSelected && !isDragOver) (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.06)'; }}
+        onMouseLeave={e => { if (!isSelected && !isDragOver) (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
       >
         <span style={{ width: 12, textAlign: 'center', fontSize: 9, flexShrink: 0, color: 'rgba(255,255,255,0.35)' }}>
           {hasChildren ? (isOpen ? '▾' : '▸') : ''}
@@ -209,7 +217,8 @@ function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onT
           {node.children.map(child => (
             <FbxFolderNode key={child.path} node={child} depth={depth + 1}
               openFolders={openFolders} selectedFolder={selectedFolder}
-              onSelect={onSelect} onToggle={onToggle} />
+              onSelect={onSelect} onToggle={onToggle}
+              onDrop={onDrop} dragOverPath={dragOverPath} setDragOverPath={setDragOverPath} />
           ))}
         </div>
       )}
@@ -688,6 +697,10 @@ export default function StudioCanvas() {
   const [activeAssetPicker, setActiveAssetPicker] = useState(false);
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [localFolders, setLocalFolders] = useState<string[]>([]);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [showNewFolder, setShowNewFolder] = useState(false);
+  const [dragOverPath, setDragOverPath] = useState<string | undefined>(undefined);
   const [texPicker, setTexPicker] = useState<null | 'albedo' | 'normal' | 'roughness'>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
@@ -928,11 +941,32 @@ export default function StudioCanvas() {
 
   const fbxAssets = useMemo(() => myAssets.filter(a => /\.fbx$/i.test(a.modelUrl)), [myAssets]);
   const fbxFolderTree = useMemo(() => {
-    const folders = [...new Set(
-      fbxAssets.map(a => normalizeFolder(a.folder)).filter((f): f is string => f !== null)
-    )].sort();
-    return buildFolderTree(folders);
-  }, [fbxAssets]);
+    const fromAssets = fbxAssets.map(a => normalizeFolder(a.folder)).filter((f): f is string => f !== null);
+    const allFolders = [...new Set([...fromAssets, ...localFolders])].sort();
+    return buildFolderTree(allFolders);
+  }, [fbxAssets, localFolders]);
+
+  async function moveAssetToFolder(assetId: string, folder: string | null) {
+    try {
+      await fetch(`${API}/api/assets/${assetId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ folder }),
+      });
+      setMyAssets(prev => prev.map(a => a.id === assetId ? { ...a, folder } : a));
+    } catch (e) { console.error('폴더 이동 실패', e); }
+  }
+
+  function confirmNewFolder() {
+    const name = newFolderName.trim();
+    if (!name) return;
+    const path = selectedFolder ? `${selectedFolder}/${name}` : `/${name}`;
+    setLocalFolders(prev => prev.includes(path) ? prev : [...prev, path]);
+    setOpenFolders(prev => { const next = new Set(prev); if (selectedFolder) next.add(selectedFolder); return next; });
+    setSelectedFolder(path);
+    setNewFolderName('');
+    setShowNewFolder(false);
+  }
   const selectedFolderAssets = useMemo(
     () => fbxAssets.filter(a => normalizeFolder(a.folder) === selectedFolder),
     [fbxAssets, selectedFolder]
@@ -1672,21 +1706,45 @@ export default function StudioCanvas() {
             <div style={{
               width: 200, flexShrink: 0, overflowY: 'auto',
               borderRight: '1px solid rgba(255,255,255,0.08)',
-              padding: '4px 4px',
+              padding: '4px 4px', display: 'flex', flexDirection: 'column',
             }}>
+              {/* 새 폴더 버튼 */}
+              <div style={{ padding: '4px 6px 6px', flexShrink: 0 }}>
+                {showNewFolder ? (
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <input
+                      autoFocus
+                      value={newFolderName}
+                      onChange={e => setNewFolderName(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') confirmNewFolder(); if (e.key === 'Escape') { setShowNewFolder(false); setNewFolderName(''); } }}
+                      placeholder="폴더명"
+                      style={{ flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.4)', border: '1px solid #6366f1', borderRadius: 5, color: '#fff', fontSize: 11, padding: '4px 6px', outline: 'none' }}
+                    />
+                    <button onClick={confirmNewFolder} style={{ background: '#4f46e5', border: 'none', borderRadius: 5, color: '#fff', fontSize: 11, padding: '4px 7px', cursor: 'pointer' }}>✓</button>
+                    <button onClick={() => { setShowNewFolder(false); setNewFolderName(''); }} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 11, padding: '4px 7px', cursor: 'pointer' }}>✕</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setShowNewFolder(true)} style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px dashed rgba(255,255,255,0.15)', borderRadius: 5, color: 'rgba(255,255,255,0.5)', fontSize: 11, padding: '4px 0', cursor: 'pointer' }}>
+                    ＋ 새 폴더
+                  </button>
+                )}
+              </div>
+
               {/* 루트(폴더 없음) 항목 */}
               <div
                 onClick={() => setSelectedFolder(null)}
+                onDragOver={e => { e.preventDefault(); setDragOverPath('__root__'); }}
+                onDragLeave={() => setDragOverPath(undefined)}
+                onDrop={e => { e.preventDefault(); const id = e.dataTransfer.getData('assetId'); if (id) moveAssetToFolder(id, null); setDragOverPath(undefined); }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 4,
                   padding: '5px 8px', borderRadius: 5, cursor: 'pointer',
                   userSelect: 'none' as const,
-                  background: selectedFolder === null ? 'rgba(129,140,248,0.22)' : 'transparent',
-                  color: selectedFolder === null ? '#c7d2fe' : '#94a3b8',
+                  background: dragOverPath === '__root__' ? 'rgba(52,211,153,0.18)' : selectedFolder === null ? 'rgba(129,140,248,0.22)' : 'transparent',
+                  color: dragOverPath === '__root__' ? '#6ee7b7' : selectedFolder === null ? '#c7d2fe' : '#94a3b8',
                   fontSize: 12, fontWeight: selectedFolder === null ? 700 : 400,
+                  outline: dragOverPath === '__root__' ? '1px dashed #34d399' : 'none',
                 }}
-                onMouseEnter={e => { if (selectedFolder !== null) (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.06)'; }}
-                onMouseLeave={e => { if (selectedFolder !== null) (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
               >
                 <span style={{ width: 12 }} />
                 <span style={{ fontSize: 13 }}>🗂️</span>
@@ -1697,7 +1755,8 @@ export default function StudioCanvas() {
               {fbxFolderTree.map(node => (
                 <FbxFolderNode key={node.path} node={node} depth={0}
                   openFolders={openFolders} selectedFolder={selectedFolder}
-                  onSelect={setSelectedFolder} onToggle={toggleFolder} />
+                  onSelect={setSelectedFolder} onToggle={toggleFolder}
+                  onDrop={moveAssetToFolder} dragOverPath={dragOverPath} setDragOverPath={setDragOverPath} />
               ))}
             </div>
 
@@ -1716,10 +1775,12 @@ export default function StudioCanvas() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 7 }}>
                   {selectedFolderAssets.map(a => (
                     <button key={a.id} onClick={() => addAsset(a)}
+                      draggable
+                      onDragStart={e => { e.dataTransfer.setData('assetId', a.id); e.dataTransfer.effectAllowed = 'move'; }}
                       style={{
                         background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)',
                         borderRadius: 8, color: '#e2e8f0', fontSize: 11, padding: '8px 6px',
-                        cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                        cursor: 'grab', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                       }}
                       onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.2)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}>
