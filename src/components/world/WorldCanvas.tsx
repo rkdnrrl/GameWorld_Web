@@ -1033,62 +1033,24 @@ function Player({
               {mobileSprinting ? '⚡ ON' : '⚡ OFF'}
             </button>
 
-            {/* ── 오른쪽 버튼 열 ── */}
-            <div style={{
-              position: 'absolute', right: 20, bottom: 20,
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
-              pointerEvents: 'none',
-            }}>
-              {/* 줌 아웃 */}
-              <button
-                type="button"
-                onPointerDown={e => e.stopPropagation()}
-                onClick={() => { camDist.current = Math.min(14, camDist.current + 1.5); }}
-                style={{
-                  width: 48, height: 48, borderRadius: '50%',
-                  border: '1px solid rgba(255,255,255,0.25)',
-                  background: 'rgba(10,15,30,0.50)',
-                  color: 'rgba(255,255,255,0.85)', fontSize: 22, fontWeight: 700,
-                  pointerEvents: 'auto', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-                }}
-              >−</button>
-
-              {/* 점프 */}
-              <button
-                type="button"
-                onPointerDown={e => {
-                  e.stopPropagation();
-                  if (!inputLocked) jumpTouchQueued.current = true;
-                }}
-                style={{
-                  width: 76, height: 76, borderRadius: '50%',
-                  border: '2px solid rgba(99,102,241,0.85)',
-                  background: 'rgba(79,70,229,0.50)',
-                  color: '#fff', fontSize: 30, fontWeight: 700,
-                  pointerEvents: 'auto', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 4px 16px rgba(79,70,229,0.4)',
-                }}
-              >↑</button>
-
-              {/* 줌 인 */}
-              <button
-                type="button"
-                onPointerDown={e => e.stopPropagation()}
-                onClick={() => { camDist.current = Math.max(1.1, camDist.current - 1.5); }}
-                style={{
-                  width: 48, height: 48, borderRadius: '50%',
-                  border: '1px solid rgba(255,255,255,0.25)',
-                  background: 'rgba(10,15,30,0.50)',
-                  color: 'rgba(255,255,255,0.85)', fontSize: 22, fontWeight: 700,
-                  pointerEvents: 'auto', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-                }}
-              >+</button>
-            </div>
+            {/* ── 점프 버튼 (오른쪽 하단) ── */}
+            <button
+              type="button"
+              onPointerDown={e => {
+                e.stopPropagation();
+                if (!inputLocked) jumpTouchQueued.current = true;
+              }}
+              style={{
+                position: 'absolute', right: 24, bottom: 24,
+                width: 80, height: 80, borderRadius: '50%',
+                border: '2px solid rgba(99,102,241,0.85)',
+                background: 'rgba(79,70,229,0.50)',
+                color: '#fff', fontSize: 32, fontWeight: 700,
+                pointerEvents: 'auto', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 16px rgba(79,70,229,0.4)',
+              }}
+            >↑</button>
 
           </div>
         </Html>
