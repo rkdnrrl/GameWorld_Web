@@ -979,7 +979,7 @@ export default function StudioCanvas() {
   const [lightDir, setLightDir] = useState(1.5);
   const [skyEnabled, setSkyEnabled] = useState(true);
   const [lightPanelOpen, setLightPanelOpen] = useState(false);
-  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [studioMode, setStudioMode] = useState<'settings' | 'scene'>('settings');
   const [multiSelectedIds, setMultiSelectedIds] = useState<Set<string>>(new Set());
   const [marqueeStart, setMarqueeStart] = useState<{x:number,y:number}|null>(null);
   const [marqueeEnd,   setMarqueeEnd]   = useState<{x:number,y:number}|null>(null);
@@ -1426,7 +1426,7 @@ export default function StudioCanvas() {
 
   /** Shift+클릭으로 멀티셀렉션 토글 */
   function shiftClickObject(id: string) {
-    setRightPanelOpen(true);
+    setStudioMode('scene');
     setMultiSelectedIds(prev => {
       // 현재 selectedId도 set에 포함
       const next = new Set(prev);
@@ -1640,7 +1640,7 @@ export default function StudioCanvas() {
     <div style={{ display: 'flex', width: '100%', height: '100%', background: '#0f172a', overflow: 'hidden', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif", position: 'relative' }}>
 
       {/* ── 좌측 패널 ──────────────────────── */}
-      <div style={{
+      {(isMobile || studioMode === 'settings') && <div style={{
         width: 260,
         background: '#1e293b',
         borderRight: '1px solid rgba(255,255,255,0.08)',
@@ -1830,7 +1830,7 @@ export default function StudioCanvas() {
             {t('playTest')}
           </a>
         )}
-      </div>
+      </div>}
       {isMobile && mobilePanelOpen && (
         <div
           onClick={() => setMobilePanelOpen(false)}
@@ -1885,7 +1885,7 @@ export default function StudioCanvas() {
       )}
 
       {/* ── 우측 패널: 씬 계층 + 인스펙터 ─── */}
-      {rightPanelOpen && <div style={{
+      {studioMode === 'scene' && <div style={{
         width: 260, flexShrink: 0,
         background: '#1e293b',
         borderLeft: '1px solid rgba(255,255,255,0.08)',
@@ -1896,9 +1896,16 @@ export default function StudioCanvas() {
       }}>
         {/* ── 씬 계층 ── */}
         <div style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid rgba(255,255,255,0.1)', minHeight: 0, flex: '0 0 auto', maxHeight: '45%' }}>
-          <div style={{ padding: '10px 12px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, letterSpacing: 0.5 }}>씬 오브젝트</span>
-            <span style={{ fontSize: 10, opacity: 0.35, background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '1px 7px' }}>{objects.length}</span>
+          <div style={{ padding: '8px 12px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+            <button
+              onClick={() => setStudioMode('settings')}
+              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 3, fontWeight: 700 }}>
+              ← 스튜디오
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, letterSpacing: 0.5 }}>씬 오브젝트</span>
+              <span style={{ fontSize: 10, opacity: 0.35, background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '1px 7px' }}>{objects.length}</span>
+            </div>
           </div>
           {/* 루트 드롭 영역 (자식 → 루트로 올리기) */}
           <div
@@ -1919,7 +1926,7 @@ export default function StudioCanvas() {
                   if (shiftHeldRef.current) {
                     shiftClickObject(id);
                   } else {
-                    setRightPanelOpen(true);
+                    setStudioMode('scene');
                     setMultiSelectedIds(new Set());
                     setSelectedId(id);
                   }
@@ -2095,7 +2102,7 @@ export default function StudioCanvas() {
           camera={{ position: [8, 8, 8], fov: 50 }}
           dpr={[1, 2]}
           gl={{ antialias: true }}
-          onPointerMissed={() => { if (!isGizmoActive()) setSelectedId(null); }}
+          onPointerMissed={() => { if (!isGizmoActive()) { setSelectedId(null); setStudioMode('scene'); } }}
         >
           <ambientLight intensity={lightAmbient} />
           <directionalLight position={[20, 30, 10]} intensity={lightDir} castShadow shadow-mapSize={[2048, 2048]} />
@@ -2120,7 +2127,7 @@ export default function StudioCanvas() {
                 if (shiftHeldRef.current) {
                   shiftClickObject(id);
                 } else {
-                  setRightPanelOpen(true);
+                  setStudioMode('scene');
                   setMultiSelectedIds(new Set());
                   setSelectedId(id);
                 }
@@ -2169,21 +2176,6 @@ export default function StudioCanvas() {
             background: 'rgba(99,102,241,0.1)',
           }} />
         )}
-
-        {/* 씬 패널 토글 버튼 */}
-        <button
-          onClick={() => setRightPanelOpen(v => !v)}
-          title={rightPanelOpen ? '씬 패널 숨기기' : '씬 패널 열기'}
-          style={{
-            position: 'absolute', top: 14, left: 14, zIndex: 10,
-            background: rightPanelOpen ? 'rgba(99,102,241,0.3)' : 'rgba(2,6,23,0.6)',
-            border: `1px solid ${rightPanelOpen ? '#6366f1' : 'rgba(255,255,255,0.2)'}`,
-            color: rightPanelOpen ? '#a5b4fc' : '#fff',
-            borderRadius: 8, padding: '5px 11px', fontSize: 12, cursor: 'pointer',
-            backdropFilter: 'blur(8px)', fontWeight: 700, transition: 'all 0.15s',
-          }}>
-          {rightPanelOpen ? '◧ 씬' : '◨ 씬'}
-        </button>
 
         {/* 단축키 힌트 */}
         <div style={{ position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', pointerEvents: 'none' }}>
