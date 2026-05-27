@@ -53,7 +53,42 @@ export default function AssetsPage() {
   const [manualFolders, setManualFolders] = useState<string[]>([]);
   function createFolder(path: string) {
     setManualFolders(prev => prev.includes(path) ? prev : [...prev, path]);
-    setQuery({ folder: path });   // 만든 폴더로 이동
+    setQuery({ folder: path });
+  }
+
+  async function deleteFolder(folderPath: string) {
+    const folderName = folderPath.split('/').filter(Boolean).pop() ?? folderPath;
+    const toDelete = assets.filter(a => {
+      const f = a.folder ?? null;
+      return f === folderPath || (f !== null && f.startsWith(folderPath + '/'));
+    });
+
+    const msg = toDelete.length > 0
+      ? `"${folderName}" 폴더를 삭제하면 안에 있는 에셋 ${toDelete.length}개도 모두 영구 삭제됩니다.\n\n계속하시겠습니까?`
+      : `"${folderName}" 폴더를 삭제하시겠습니까?`;
+    if (!window.confirm(msg)) return;
+
+    const ids = toDelete.map(a => a.id);
+
+    // 로컬 state 즉시 반영
+    setAssets(prev => prev.filter(a => !ids.includes(a.id)));
+    setManualFolders(prev => prev.filter(f => f !== folderPath && !f.startsWith(folderPath + '/')));
+
+    // 현재 해당 폴더를 보고 있으면 루트로 이동
+    if (selectedFolder === folderPath || (selectedFolder !== null && selectedFolder.startsWith(folderPath + '/'))) {
+      setQuery({ folder: null });
+    }
+
+    if (ids.length > 0) {
+      try {
+        const tk = session.getToken() || '';
+        await api.batchUpdateAssets(tk, { ids, action: 'delete', value: null });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'delete failed');
+        fetch(`${API}/api/assets/my`, { headers: { Authorization: `Bearer ${token()}` } })
+          .then(r => r.json()).then(d => setAssets(d.assets || [])).catch(() => {});
+      }
+    }
   }
 
   /* ── 업로드 ── */
@@ -490,6 +525,7 @@ export default function AssetsPage() {
             onSelectFolder={f => setQuery({ folder: f })}
             onDropToFolder={onDropToFolder}
             onCreateFolder={createFolder}
+            onDeleteFolder={deleteFolder}
           />
 
           <div style={{ flex: 1, padding: '20px 32px' }}>

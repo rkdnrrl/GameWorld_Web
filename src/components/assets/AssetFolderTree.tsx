@@ -11,16 +11,14 @@ interface Props {
   selectedFolder: string | null;
   rootCount: number;
   onSelect: (path: string | null) => void;
-  /** 드롭 발생 — files 있으면 OS 파일 업로드, 없으면 카드 이동 */
   onDrop: (folder: string | null, files?: File[]) => void;
-  /** 내부 카드 드래그 중 여부 (외부에서 알려줘야 드롭 영역 강조됨) */
   dragActive: boolean;
+  onDeleteFolder?: (path: string) => void;
 }
 
-export default function AssetFolderTree({ nodes, selectedFolder, rootCount, onSelect, onDrop, dragActive }: Props) {
+export default function AssetFolderTree({ nodes, selectedFolder, rootCount, onSelect, onDrop, dragActive, onDeleteFolder }: Props) {
   return (
     <div>
-      {/* 루트 (분류 안됨) — 드롭 가능 */}
       {(rootCount > 0 || dragActive) && (
         <FolderRow
           name="(루트)"
@@ -42,19 +40,21 @@ export default function AssetFolderTree({ nodes, selectedFolder, rootCount, onSe
           onSelect={onSelect}
           onDrop={onDrop}
           dragActive={dragActive}
+          onDeleteFolder={onDeleteFolder}
         />
       ))}
     </div>
   );
 }
 
-function FolderBranch({ node, depth, selectedFolder, onSelect, onDrop, dragActive }: {
+function FolderBranch({ node, depth, selectedFolder, onSelect, onDrop, dragActive, onDeleteFolder }: {
   node: FolderNode;
   depth: number;
   selectedFolder: string | null;
   onSelect: (path: string | null) => void;
   onDrop: (folder: string | null, files?: File[]) => void;
   dragActive: boolean;
+  onDeleteFolder?: (path: string) => void;
 }) {
   const [open, setOpen] = useState(depth < 2);
   const active = selectedFolder === node.path;
@@ -74,6 +74,7 @@ function FolderBranch({ node, depth, selectedFolder, onSelect, onDrop, dragActiv
         onToggle={hasChildren ? () => setOpen(!open) : undefined}
         onClick={() => onSelect(active ? null : node.path)}
         onDrop={(files) => onDrop(node.path, files)}
+        onDelete={onDeleteFolder ? () => onDeleteFolder(node.path) : undefined}
       />
       {open && node.children.map(c => (
         <FolderBranch key={c.path}
@@ -83,13 +84,14 @@ function FolderBranch({ node, depth, selectedFolder, onSelect, onDrop, dragActiv
           onSelect={onSelect}
           onDrop={onDrop}
           dragActive={dragActive}
+          onDeleteFolder={onDeleteFolder}
         />
       ))}
     </>
   );
 }
 
-function FolderRow({ name, icon, depth, active, hasChildren, open, dragActive, onToggle, onClick, onDrop }: {
+function FolderRow({ name, icon, path, depth, active, hasChildren, open, dragActive, onToggle, onClick, onDrop, onDelete }: {
   name: string;
   icon: string;
   path: string;
@@ -101,11 +103,17 @@ function FolderRow({ name, icon, depth, active, hasChildren, open, dragActive, o
   onToggle?: () => void;
   onClick: () => void;
   onDrop: (files?: File[]) => void;
+  onDelete?: () => void;
 }) {
   const [dragOver, setDragOver] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 1 }}>
+    <div
+      style={{ display: 'flex', alignItems: 'center', marginBottom: 1 }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <div style={{ width: depth * 12 }} />
       <button
         onClick={onToggle ?? (() => {})}
@@ -120,7 +128,6 @@ function FolderRow({ name, icon, depth, active, hasChildren, open, dragActive, o
       <button
         onClick={onClick}
         onDragOver={e => {
-          // 내부 카드 드래그 또는 OS 파일 드래그 (dataTransfer.types 에 'Files')
           const hasFiles = Array.from(e.dataTransfer.types || []).includes('Files');
           if (!dragActive && !hasFiles) return;
           e.preventDefault();
@@ -154,6 +161,22 @@ function FolderRow({ name, icon, depth, active, hasChildren, open, dragActive, o
         <span style={{ flexShrink: 0 }}>{icon}</span>
         <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
       </button>
+      {/* 삭제 버튼 — 루트(path="")는 제외, 호버 시 표시 */}
+      {onDelete && path !== '' && (
+        <button
+          onClick={e => { e.stopPropagation(); onDelete(); }}
+          title="폴더 삭제 (에셋은 상위 폴더로 이동)"
+          style={{
+            opacity: hovered ? 1 : 0,
+            transition: 'opacity 0.15s',
+            background: 'none', border: 'none',
+            color: 'rgba(239,68,68,0.7)', fontSize: 12,
+            cursor: 'pointer', padding: '2px 5px', flexShrink: 0,
+            lineHeight: 1,
+          }}>
+          🗑
+        </button>
+      )}
     </div>
   );
 }

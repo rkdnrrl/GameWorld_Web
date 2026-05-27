@@ -23,10 +23,9 @@ interface Props {
   onSelectKinds: (next: string[]) => void;
   onToggleTag: (tag: string) => void;
   onSelectFolder: (folder: string | null) => void;
-  /** 폴더에 드롭 — files 가 있으면 업로드, 없으면 카드 이동 */
   onDropToFolder: (folder: string | null, files?: File[]) => void;
-  /** 새 폴더 만들기 */
   onCreateFolder: (path: string) => void;
+  onDeleteFolder?: (path: string) => void;
 }
 
 const INITIAL_TAG_LIMIT = 12;
@@ -34,7 +33,7 @@ const INITIAL_TAG_LIMIT = 12;
 export default function AssetSidebar({
   assets, kinds, selectedKinds, selectedTags, selectedFolder,
   manualFolders = [], dragActive = false,
-  onSelectKinds, onToggleTag, onSelectFolder, onDropToFolder, onCreateFolder,
+  onSelectKinds, onToggleTag, onSelectFolder, onDropToFolder, onCreateFolder, onDeleteFolder,
 }: Props) {
   const t = useTranslations('Assets');
   const counts     = countByKind(assets, kinds);
@@ -196,6 +195,7 @@ export default function AssetSidebar({
           dragActive={dragActive}
           onSelect={onSelectFolder}
           onDrop={onDropToFolder}
+          onDeleteFolder={onDeleteFolder}
         />
       )}
     </aside>
