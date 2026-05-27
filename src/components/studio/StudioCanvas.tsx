@@ -83,6 +83,7 @@ interface MapObject {
   id: string;
   label?: string;
   locked?: boolean;
+  hidden?: boolean;
   kind: ObjectKind;
   assetUrl?: string;
   position: [number, number, number];
@@ -557,6 +558,7 @@ export default function StudioCanvas() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode]             = useState<'translate' | 'rotate' | 'scale'>('translate');
   const [name, setName]             = useState(t('newWorldDefault'));
+  const [description, setDescription] = useState('');
   const [savedId, setSavedId]       = useState<string | null>(editingId);
   const [saving, setSaving]         = useState(false);
   const [myAssets, setMyAssets]     = useState<Asset[]>([]);
@@ -670,6 +672,7 @@ export default function StudioCanvas() {
         }
         console.log('[studio] loaded:', d.world.name, 'objects:', d.world.mapData?.objects?.length ?? 0);
         setName(d.world.name);
+        setDescription(d.world.description || '');
         setIsPublic(Boolean(d.world.isPublic));
         const objs = d.world.mapData?.objects || [];
         setObjects(objs);
@@ -838,7 +841,7 @@ export default function StudioCanvas() {
         }
       } catch { /* 썸네일 실패는 무시 */ }
 
-      const payload: Record<string, unknown> = { name, mapData: { objects }, isPublic };
+      const payload: Record<string, unknown> = { name, description, mapData: { objects }, isPublic };
       if (thumbnailUrl) payload.thumbnailUrl = thumbnailUrl;
       const body = JSON.stringify(payload);
       const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` };
@@ -949,11 +952,16 @@ export default function StudioCanvas() {
           </button>
         </div>
 
-        {/* 월드 이름 */}
+        {/* 월드 이름 + 설명 */}
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 4 }}>{t('worldName')}</div>
           <input value={name} onChange={e => setName(e.target.value)} maxLength={100}
             style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#fff', fontSize: 13, padding: '7px 10px', outline: 'none' }} />
+          <div style={{ fontSize: 11, opacity: 0.5, margin: '8px 0 4px' }}>설명 (선택)</div>
+          <textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={300}
+            placeholder="월드를 소개하는 짧은 글을 써주세요"
+            rows={2}
+            style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#fff', fontSize: 11, padding: '6px 10px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
         </div>
 
         {/* 도형 추가 */}
@@ -1035,6 +1043,7 @@ export default function StudioCanvas() {
                       border: `1px solid ${isSelected ? 'rgba(99,102,241,0.6)' : 'rgba(255,255,255,0.07)'}`,
                       borderRadius: 6, padding: '5px 7px', cursor: 'pointer',
                       transition: 'background 0.1s',
+                      opacity: obj.hidden ? 0.4 : 1,
                     }}>
                     <span style={{ fontSize: 13, flexShrink: 0 }}>{KIND_ICONS[obj.kind] ?? '❓'}</span>
                     {editingLabelId === obj.id ? (
@@ -1070,6 +1079,12 @@ export default function StudioCanvas() {
                         {obj.label || `${KIND_LABELS[obj.kind] ?? obj.kind} ${i + 1}`}
                       </span>
                     )}
+                    <button
+                      onClick={e => { e.stopPropagation(); setObjects(prev => prev.map(o => o.id === obj.id ? { ...o, hidden: !o.hidden } : o)); if (obj.hidden === false && selectedId === obj.id) setSelectedId(null); }}
+                      style={{ background: 'none', border: 'none', color: obj.hidden ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer', flexShrink: 0, padding: 0, lineHeight: 1 }}
+                      title={obj.hidden ? '표시' : '숨기기'}>
+                      {obj.hidden ? '🙈' : '👁'}
+                    </button>
                     <button
                       onClick={e => { e.stopPropagation(); setObjects(prev => prev.map(o => o.id === obj.id ? { ...o, locked: !o.locked } : o)); }}
                       style={{ background: 'none', border: 'none', color: obj.locked ? '#fbbf24' : 'rgba(255,255,255,0.2)', fontSize: 11, cursor: 'pointer', flexShrink: 0, padding: 0, lineHeight: 1 }}
@@ -1347,7 +1362,7 @@ export default function StudioCanvas() {
 
           <Grid args={[100, 100]} cellSize={1} cellThickness={0.5} sectionSize={5} sectionThickness={1} fadeDistance={50} infiniteGrid />
 
-          {objects.map(obj => (
+          {objects.filter(o => !o.hidden).map(obj => (
             <Mesh3D key={obj.id} obj={obj}
               selected={obj.id === selectedId}
               onClick={() => setSelectedId(obj.id)}

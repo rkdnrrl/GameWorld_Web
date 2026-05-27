@@ -1167,6 +1167,7 @@ interface UserMapObject {
   rotation: [number, number, number];
   scale:    [number, number, number];
   color:    string;
+  hidden?:  boolean;   // Studio에서 숨김 처리된 오브젝트
   // 머티리얼/텍스처 (선택)
   material?:        MaterialPreset;
   materialColor?:   string;
@@ -1417,7 +1418,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           <Physics gravity={[0, -22, 0]} interpolate={false}>
             {customObjects !== undefined ? (
               // 유저 제작 월드 — 기본 그라운드 없음. 필요하면 평면 직접 배치
-              <>{customObjects.map(obj => <UserMapObjectMesh key={obj.id} obj={obj} />)}</>
+              <>{customObjects.filter(o => !o.hidden).map(obj => <UserMapObjectMesh key={obj.id} obj={obj} />)}</>
             ) : (
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
