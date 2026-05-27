@@ -114,6 +114,8 @@ interface MapObject {
   castShadow?:     boolean;
   // 물리
   physics?: 'none' | 'fixed' | 'dynamic';
+  // JavaScript 스크립트
+  script?: string;
 }
 
 interface Asset {
@@ -2397,6 +2399,60 @@ export default function StudioCanvas() {
                       onChange={e => { setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, castShadow: e.target.checked } : o)); pushHistory(objects); }} />
                     그림자 투영
                   </label>
+                </div>
+              )}
+
+              {/* ── JavaScript 스크립트 에디터 ── */}
+              {selected.kind !== 'pointlight' && selected.kind !== 'spotlight' && selected.kind !== 'dirlight' && (
+                <div style={{ marginBottom: 10 }}>
+                  <button type="button" onClick={() => setObjects(prev => prev.map(o =>
+                    o.id === selected.id ? { ...o, _scriptOpen: !(o as MapObject & { _scriptOpen?: boolean })._scriptOpen } : o
+                  ))}
+                    style={{ width: '100%', textAlign: 'left', background: selected.script ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.05)', border: `1px solid ${selected.script ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 7, color: selected.script ? '#a5b4fc' : 'rgba(255,255,255,0.65)', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 600, marginBottom: 4 }}>
+                    📝 JavaScript 스크립트 {selected.script ? '✓' : ''} {(selected as MapObject & { _scriptOpen?: boolean })._scriptOpen ? '▲' : '▼'}
+                  </button>
+                  {(selected as MapObject & { _scriptOpen?: boolean })._scriptOpen && (
+                    <div>
+                      <textarea
+                        value={selected.script ?? ''}
+                        onChange={e => setObjects(prev => prev.map(o =>
+                          o.id === selected.id ? { ...o, script: e.target.value } : o
+                        ))}
+                        onBlur={() => pushHistory(objects)}
+                        spellCheck={false}
+                        placeholder={`// JavaScript 스크립트\nlet startY = 0;\n\nfunction onStart() {\n  let p = self.getPosition();\n  startY = p.y;\n}\n\nfunction onUpdate(dt) {\n  let p = self.getPosition();\n  self.setPosition(p.x, startY + Math.sin(world.time) * 2, p.z);\n}\n\nfunction onNetEvent(event, data, fromId) {\n  if (event === "hit") {\n    self.setVisible(false);\n  }\n}`}
+                        style={{
+                          width: '100%', minHeight: 200, resize: 'vertical',
+                          background: '#0d1117', color: '#e6edf3',
+                          border: '1px solid rgba(99,102,241,0.3)', borderRadius: 6,
+                          fontFamily: 'monospace', fontSize: 11, lineHeight: 1.5,
+                          padding: '8px 10px', outline: 'none', boxSizing: 'border-box',
+                          tabSize: 2,
+                        }}
+                        onKeyDown={e => {
+                          // Tab → 2 spaces
+                          if (e.key === 'Tab') {
+                            e.preventDefault();
+                            const el = e.currentTarget;
+                            const start = el.selectionStart;
+                            const end = el.selectionEnd;
+                            const val = el.value;
+                            el.value = val.slice(0, start) + '  ' + val.slice(end);
+                            el.selectionStart = el.selectionEnd = start + 2;
+                            setObjects(prev => prev.map(o =>
+                              o.id === selected.id ? { ...o, script: el.value } : o
+                            ));
+                          }
+                        }}
+                      />
+                      {selected.script && (
+                        <button onClick={() => { setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, script: '' } : o)); pushHistory(objects); }}
+                          style={{ marginTop: 4, fontSize: 10, padding: '3px 8px', background: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
+                          스크립트 제거
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -213,12 +213,23 @@ export default function WorldPage() {
   }, [API, ready]);
 
   const { settings: graphics, updateSettings: updateGraphics, applyPreset: applyGraphicsPreset } = useGraphicsSettings();
-  const { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat } = useGameSocket({
+  // WorldCanvas가 핸들러를 등록하는 ref들 (소켓 → WorldCanvas 콜백)
+  const scriptEventRef = useRef<((objectId: string, event: string, data: Record<string, unknown>, fromId: string) => void) | null>(null);
+  type ObjState = { id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean };
+  const objectStatesRef = useRef<((states: ObjState[], fromId: string) => void) | null>(null);
+
+  const { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates } = useGameSocket({
     worldId: worldSocketKey,
     playerId: userId,
     username,
     character: character ?? {},
     enabled: ready && !!userId,
+    onScriptEvent: (msg) => {
+      scriptEventRef.current?.(msg.objectId, msg.event, msg.data, msg.fromId);
+    },
+    onObjectStates: (states, fromId) => {
+      objectStatesRef.current?.(states, fromId);
+    },
   });
 
   useEffect(() => {
@@ -416,6 +427,10 @@ export default function WorldPage() {
         chatInputActive={chatOpen}
         emoteSlot={emoteSlot}
         emoteOneShotOverride={Object.entries(emoteLoopMap).filter(([,v])=>!v).map(([k])=>k)}
+        sendScriptEvent={sendScriptEvent}
+        scriptEventRef={scriptEventRef}
+        sendObjectStates={sendObjectStates}
+        objectStatesRef={objectStatesRef}
       />
 
       <GraphicsPanel settings={graphics} updateSettings={updateGraphics} applyPreset={applyGraphicsPreset} />

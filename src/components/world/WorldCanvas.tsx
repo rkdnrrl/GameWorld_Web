@@ -485,6 +485,23 @@ function BlockMesh({ appearance }: { appearance: Record<string, string> }) {
   );
 }
 
+/* ── JS onUpdate 호출 루프 (Canvas 내부 컴포넌트) ── */
+function LuaUpdateLoop({
+  luaScripts,
+  worldElapsed,
+}: {
+  luaScripts: React.MutableRefObject<Map<string, import('@/lib/world/jsRuntime').JsScript>>;
+  worldElapsed: React.MutableRefObject<number>;
+}) {
+  useFrame((_, dt) => {
+    worldElapsed.current += dt;
+    for (const vm of luaScripts.current.values()) {
+      vm.callUpdate(dt);
+    }
+  });
+  return null;
+}
+
 /* ── 그래픽 설정 변경 시 셰도우맵 강제 갱신 ── */
 function GraphicsApplier({ shadowSize, shadowFilter, shadowRadius }: {
   shadowSize: number;
@@ -1019,6 +1036,8 @@ interface UserMapObject {
   castShadow?:     boolean;
   // 물리
   physics?: 'none' | 'fixed' | 'dynamic';
+  // JavaScript 스크립트
+  script?: string;
 }
 
 /* 머티리얼 프리셋 정의 (PBR 파라미터) */
@@ -1096,8 +1115,27 @@ function disposeMaterial(mat: THREE.MeshStandardMaterial) {
   mat.dispose();
 }
 
-function UserMapObjectMesh({ obj }: { obj: UserMapObject }) {
+function UserMapObjectMesh({ obj, scriptBodyRefs }: {
+  obj: UserMapObject;
+  scriptBodyRefs?: React.MutableRefObject<Map<string, {
+    body: React.MutableRefObject<import('@react-three/rapier').RigidBodyApi | null>;
+    group: React.MutableRefObject<THREE.Group | null>;
+  }>>;
+}) {
   const physics = obj.physics ?? 'fixed';
+  // 스크립트 있는 오브젝트는 ref를 registry에 등록
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const bodyRef = useRef<any>(null);
+  const groupRef = useRef<THREE.Group>(null);
+
+  // dynamic 또는 스크립트 있는 오브젝트는 모두 ref 등록 (멀티 동기화 + Lua 접근용)
+  const needsRefRegistration = !!obj.script || obj.physics === 'dynamic';
+  useEffect(() => {
+    if (!needsRefRegistration || !scriptBodyRefs) return;
+    scriptBodyRefs.current.set(obj.id, { body: bodyRef, group: groupRef });
+    return () => { scriptBodyRefs.current.delete(obj.id); };
+  }, [obj.id, needsRefRegistration, scriptBodyRefs]);
+
   const shape =
     obj.kind === 'sphere'   ? <sphereGeometry args={[0.5, 24, 16]} /> :
     obj.kind === 'cylinder' ? <cylinderGeometry args={[0.5, 0.5, 1, 16]} /> :
@@ -1107,31 +1145,33 @@ function UserMapObjectMesh({ obj }: { obj: UserMapObject }) {
   if (obj.kind === 'asset' && obj.assetUrl) {
     if (physics === 'none') {
       return (
-        <group position={obj.position} rotation={obj.rotation} scale={obj.scale}>
+        <group ref={groupRef} position={obj.position} rotation={obj.rotation} scale={obj.scale}>
           <UserAsset url={obj.assetUrl} matObj={obj} />
         </group>
       );
     }
-    // fixed: trimesh (정밀 콜라이더), dynamic: hull (볼록 근사 — trimesh는 동적 미지원)
     return (
-      <RigidBody type={physics} colliders={physics === 'dynamic' ? 'hull' : 'trimesh'} position={obj.position} rotation={obj.rotation} scale={obj.scale}>
-        <UserAsset url={obj.assetUrl} matObj={obj} />
+      <RigidBody ref={bodyRef} type={physics} colliders={physics === 'dynamic' ? 'hull' : 'trimesh'} position={obj.position} rotation={obj.rotation} scale={obj.scale}>
+        <group ref={groupRef}>
+          <UserAsset url={obj.assetUrl} matObj={obj} />
+        </group>
       </RigidBody>
     );
   }
 
   if (physics === 'none') {
     return (
-      <group position={obj.position} rotation={obj.rotation} scale={obj.scale}>
+      <group ref={groupRef} position={obj.position} rotation={obj.rotation} scale={obj.scale}>
         <PrimitiveMesh obj={obj} shape={shape} />
       </group>
     );
   }
-  // sphere → ball 콜라이더, 나머지 → cuboid
   const colliders = obj.kind === 'sphere' ? 'ball' : 'cuboid';
   return (
-    <RigidBody type={physics} colliders={colliders} position={obj.position} rotation={obj.rotation} scale={obj.scale}>
-      <PrimitiveMesh obj={obj} shape={shape} />
+    <RigidBody ref={bodyRef} type={physics} colliders={colliders} position={obj.position} rotation={obj.rotation} scale={obj.scale}>
+      <group ref={groupRef}>
+        <PrimitiveMesh obj={obj} shape={shape} />
+      </group>
     </RigidBody>
   );
 }
@@ -1238,6 +1278,12 @@ interface WorldCanvasProps {
   chatInputActive?: boolean;
   emoteSlot?: string | null;
   emoteOneShotOverride?: string[];
+  // Lua 스크립팅
+  sendScriptEvent?: (objectId: string, event: string, data: Record<string, unknown>, toId?: string) => void;
+  scriptEventRef?: React.RefObject<((objectId: string, event: string, data: Record<string, unknown>, fromId: string) => void) | null>;
+  // 오브젝트 상태 동기화
+  sendObjectStates?: (states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean }>) => void;
+  objectStatesRef?: React.RefObject<((states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean }>, fromId: string) => void) | null>;
 }
 
 /* ── 모바일 컨트롤 컴포넌트 (Canvas 완전 바깥 — drei Html 스케일 영향 없음) ── */
@@ -1391,7 +1437,7 @@ function MobileControls({ inputLocked }: { inputLocked: boolean }) {
   );
 }
 
-export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride }: WorldCanvasProps) {
+export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef }: WorldCanvasProps) {
   const shadowsEnabled = graphics.shadowSize > 0;
   const shadowMapSize: [number, number] = [graphics.shadowSize || 1024, graphics.shadowSize || 1024];
   const ss = sceneSettings ?? {};
@@ -1401,6 +1447,186 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const lightObjects = (customObjects ?? []).filter(
     (o: UserMapObject) => o.kind === 'pointlight' || o.kind === 'spotlight' || o.kind === 'dirlight'
   );
+
+  // ── JS 스크립트 관리 ──────────────────────────────────────
+  // objectId → JsScript 인스턴스 (자체 구현 인터프리터)
+  const luaScripts = useRef<Map<string, import('@/lib/world/jsRuntime').JsScript>>(new Map());
+  // objectId → { body: Rapier rigid body ref, group: Three.js group ref }
+  const scriptBodyRefs = useRef<Map<string, {
+    body: React.MutableRefObject<import('@react-three/rapier').RigidBodyApi | null>;
+    group: React.MutableRefObject<THREE.Group | null>;
+  }>>(new Map());
+  const worldElapsed = useRef(0); // 월드 시작 후 경과 시간 (초)
+  const playersRef = useRef(players);
+  useEffect(() => { playersRef.current = players; }, [players]);
+
+  // 스크립트 이벤트 수신 → 해당 오브젝트 VM에 전달
+  useEffect(() => {
+    if (!scriptEventRef) return;
+    scriptEventRef.current = (objectId, event, data, fromId) => {
+      luaScripts.current.get(objectId)?.callNetEvent(event, data, fromId);
+    };
+    return () => { if (scriptEventRef.current) scriptEventRef.current = null; };
+  }, [scriptEventRef]);
+
+  // ── Authority 패턴: 가장 작은 playerId를 가진 클라이언트가 dynamic/scripted 오브젝트 상태 broadcast ──
+  const isAuthority = useMemo(() => {
+    const allIds = [playerId, ...Object.keys(players)].filter(Boolean).sort();
+    return allIds.length > 0 && allIds[0] === playerId;
+  }, [playerId, players]);
+
+  // 비-Authority 수신: 상태 적용
+  useEffect(() => {
+    if (!objectStatesRef) return;
+    objectStatesRef.current = (states) => {
+      if (isAuthority) return; // 본인이 authority면 무시
+      for (const s of states) {
+        const ref = scriptBodyRefs.current.get(s.id);
+        if (!ref) continue;
+        // RigidBody가 있으면 setTranslation, 없으면 group 위치 직접 설정
+        if (ref.body.current) {
+          ref.body.current.setTranslation({ x: s.pos[0], y: s.pos[1], z: s.pos[2] }, true);
+          ref.body.current.setRotation(
+            new THREE.Quaternion().setFromEuler(new THREE.Euler(s.rot[0], s.rot[1], s.rot[2])),
+            true,
+          );
+        } else if (ref.group.current) {
+          ref.group.current.position.set(s.pos[0], s.pos[1], s.pos[2]);
+          ref.group.current.rotation.set(s.rot[0], s.rot[1], s.rot[2]);
+        }
+        if (ref.group.current) {
+          ref.group.current.scale.set(s.scl[0], s.scl[1], s.scl[2]);
+          ref.group.current.visible = s.vis;
+        }
+      }
+    };
+    return () => { if (objectStatesRef.current) objectStatesRef.current = null; };
+  }, [objectStatesRef, isAuthority]);
+
+  // Authority broadcast: 100ms마다 동기화 대상 오브젝트 상태 전송
+  useEffect(() => {
+    if (!isAuthority || !sendObjectStates || !customObjects) return;
+    const interval = setInterval(() => {
+      const states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean }> = [];
+      for (const obj of customObjects) {
+        if (obj.hidden) continue;
+        // 동기화 대상: dynamic 물리 또는 스크립트 있는 오브젝트
+        const needsSync = obj.physics === 'dynamic' || !!obj.script;
+        if (!needsSync) continue;
+        const ref = scriptBodyRefs.current.get(obj.id);
+        if (!ref) continue;
+        const body  = ref.body.current;
+        const group = ref.group.current;
+        if (!group) continue;
+        let pos: [number, number, number];
+        let rot: [number, number, number];
+        if (body) {
+          const t = body.translation();
+          const r = body.rotation();
+          const e = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(r.x, r.y, r.z, r.w));
+          pos = [t.x, t.y, t.z];
+          rot = [e.x, e.y, e.z];
+        } else {
+          pos = [group.position.x, group.position.y, group.position.z];
+          rot = [group.rotation.x, group.rotation.y, group.rotation.z];
+        }
+        states.push({
+          id: obj.id,
+          pos, rot,
+          scl: [group.scale.x, group.scale.y, group.scale.z],
+          vis: group.visible,
+        });
+      }
+      if (states.length > 0) sendObjectStates(states);
+    }, 100); // 10Hz
+    return () => clearInterval(interval);
+  }, [isAuthority, sendObjectStates, customObjects]);
+
+  // customObjects 변경 시 VM 재생성
+  useEffect(() => {
+    if (!customObjects) return;
+    const scripted = customObjects.filter(o => o.script && !o.hidden);
+
+    // 제거된 오브젝트 정리
+    for (const [id, vm] of luaScripts.current) {
+      if (!scripted.find(o => o.id === id)) {
+        vm.destroy();
+        luaScripts.current.delete(id);
+      }
+    }
+
+    // 새 스크립트 오브젝트 VM 생성
+    for (const obj of scripted) {
+      if (luaScripts.current.has(obj.id)) continue; // 이미 있음
+      // 동적 import — 빌드 시점 의존성 분리
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { JsScript } = require('@/lib/world/jsRuntime') as typeof import('@/lib/world/jsRuntime');
+      const vm = new JsScript();
+
+      const objectAPI: import('@/lib/world/jsRuntime').JsObjectAPI = {
+        id: obj.id,
+        getPosition: () => {
+          const ref = scriptBodyRefs.current.get(obj.id);
+          if (ref?.body.current) {
+            const t = ref.body.current.translation();
+            return [t.x, t.y, t.z];
+          }
+          return obj.position;
+        },
+        setPosition: (x, y, z) => {
+          const ref = scriptBodyRefs.current.get(obj.id);
+          ref?.body.current?.setTranslation({ x, y, z }, true);
+        },
+        getRotation: () => {
+          const ref = scriptBodyRefs.current.get(obj.id);
+          if (ref?.group.current) {
+            const r = ref.group.current.rotation;
+            return [r.x, r.y, r.z];
+          }
+          return obj.rotation;
+        },
+        setRotation: (rx, ry, rz) => {
+          const ref = scriptBodyRefs.current.get(obj.id);
+          if (ref?.group.current) {
+            ref.group.current.rotation.set(rx, ry, rz);
+          }
+        },
+        applyImpulse: (x, y, z) => {
+          const ref = scriptBodyRefs.current.get(obj.id);
+          ref?.body.current?.applyImpulse({ x, y, z }, true);
+        },
+        setVisible: (b) => {
+          const ref = scriptBodyRefs.current.get(obj.id);
+          if (ref?.group.current) ref.group.current.visible = b;
+        },
+      };
+
+      const worldAPI: import('@/lib/world/jsRuntime').JsWorldAPI = {
+        getTime: () => worldElapsed.current,
+        getPlayers: () => {
+          return Object.values(playersRef.current).map(p => {
+            const pose = posesRef.current?.get(p.id);
+            return { id: p.id, username: p.username, x: pose?.x ?? 0, y: pose?.y ?? 0, z: pose?.z ?? 0 };
+          });
+        },
+      };
+
+      const netAPI: import('@/lib/world/jsRuntime').JsNetAPI = {
+        sendAll: (event, data) => sendScriptEvent?.(obj.id, event, data),
+        sendTo: (pid, event, data) => sendScriptEvent?.(obj.id, event, data, pid),
+      };
+
+      luaScripts.current.set(obj.id, vm);
+      vm.init(obj.script!, objectAPI, worldAPI, netAPI);
+    }
+
+    return () => {
+      for (const vm of luaScripts.current.values()) vm.destroy();
+      luaScripts.current.clear();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customObjects?.map(o => o.id + (o.script ?? '')).join(',')]);
+
   // 모바일 감지 (Canvas 외부)
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -1473,11 +1699,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
 
         {showSky && <Sky sunPosition={[25, 10, 15]} turbidity={0.4} rayleigh={0.25} />}
 
+        {/* ── Lua onUpdate 루프 ── */}
+        <LuaUpdateLoop luaScripts={luaScripts} worldElapsed={worldElapsed} />
+
         <Suspense fallback={null}>
           <Physics gravity={[0, -22, 0]} interpolate={false}>
             {customObjects !== undefined ? (
               // 유저 제작 월드 — 기본 그라운드 없음. 필요하면 평면 직접 배치
-              <>{customObjects.filter(o => !o.hidden && o.kind !== 'pointlight' && o.kind !== 'spotlight' && o.kind !== 'dirlight').map(obj => <UserMapObjectMesh key={obj.id} obj={obj} />)}</>
+              <>{customObjects.filter(o => !o.hidden && o.kind !== 'pointlight' && o.kind !== 'spotlight' && o.kind !== 'dirlight').map(obj => <UserMapObjectMesh key={obj.id} obj={obj} scriptBodyRefs={scriptBodyRefs} />)}</>
             ) : (
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />

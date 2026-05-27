@@ -32,15 +32,34 @@ export interface ChatBubble {
   time: number;
 }
 
+export interface ScriptEventMessage {
+  objectId: string;
+  event: string;
+  data: Record<string, unknown>;
+  fromId: string;
+}
+
+export interface ObjectStateUpdate {
+  id: string;
+  pos: [number, number, number];
+  rot: [number, number, number];
+  scl: [number, number, number];
+  vis: boolean;
+}
+
 interface Options {
   worldId: string;
   playerId: string;
   username: string;
   character: Record<string, unknown>;
   enabled: boolean;
+  onScriptEvent?: (msg: ScriptEventMessage) => void;
+  onObjectStates?: (states: ObjectStateUpdate[], fromId: string) => void;
 }
 
-export function useGameSocket({ worldId, playerId, username, character, enabled }: Options) {
+export function useGameSocket({ worldId, playerId, username, character, enabled, onScriptEvent, onObjectStates }: Options) {
+  const onScriptEventRef  = useRef(onScriptEvent);
+  const onObjectStatesRef = useRef(onObjectStates);
   const [players, setPlayers]     = useState<Record<string, RemotePlayer>>({});
   const [chatLog, setChatLog]     = useState<ChatMessage[]>([]);
   const [chatBubbles, setChatBubbles] = useState<Record<string, ChatBubble>>({});
@@ -122,6 +141,14 @@ export function useGameSocket({ worldId, playerId, username, character, enabled 
           return next;
         });
       }
+      else if (msg.type === 'script_event') {
+        const se = msg as unknown as ScriptEventMessage & { type: string };
+        onScriptEventRef.current?.({ objectId: se.objectId, event: se.event, data: se.data ?? {}, fromId: se.fromId });
+      }
+      else if (msg.type === 'object_states') {
+        const o = msg as unknown as { states: ObjectStateUpdate[]; fromId: string };
+        if (Array.isArray(o.states)) onObjectStatesRef.current?.(o.states, o.fromId);
+      }
       else if (msg.type === 'chat') {
         const { id, username: un, message } = msg as { id: string; username: string; message: string };
         const now = Date.now();
@@ -183,5 +210,25 @@ export function useGameSocket({ worldId, playerId, username, character, enabled 
     }
   }, []);
 
-  return { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat };
+  const sendScriptEvent = useCallback((
+    objectId: string,
+    event: string,
+    data: Record<string, unknown>,
+    toId?: string,
+  ) => {
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({ type: 'script_event', objectId, event, data, toId }));
+    }
+  }, []);
+
+  const sendObjectStates = useCallback((states: ObjectStateUpdate[]) => {
+    if (ws.current?.readyState === WebSocket.OPEN && states.length > 0) {
+      ws.current.send(JSON.stringify({ type: 'object_states', states }));
+    }
+  }, []);
+
+  useEffect(() => { onScriptEventRef.current  = onScriptEvent;  }, [onScriptEvent]);
+  useEffect(() => { onObjectStatesRef.current = onObjectStates; }, [onObjectStates]);
+
+  return { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates };
 }
