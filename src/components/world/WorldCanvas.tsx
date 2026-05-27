@@ -517,19 +517,30 @@ function LuaUpdateLoop({
     worldElapsed.current += dt;
     for (const vm of luaScripts.current.values()) vm.callUpdate(dt);
 
-    // 비호스트는 네트워크 target으로 부드럽게 lerp
+    // 비호스트는 네트워크 target으로 부드럽게 lerp + extrapolation
     if (!isHost) {
-      const lerpF = Math.min(1, 12 * dt); // 부드러움 (값 클수록 빠르게 따라감)
+      const lerpF = Math.min(1, 18 * dt); // 빠른 추종 (지연 줄이기)
+      const now = performance.now();
       for (const [id, target] of syncTargets.current) {
         const ref = scriptBodyRefs.current.get(id);
         if (!ref) continue;
+        // 수신 시각 이후 경과 시간만큼 velocity로 위치 예측 (extrapolation)
+        // 최대 150ms로 클램프 (너무 멀리 예측하면 오버슈트)
+        const dtSinceRecv = Math.min(0.15, (now - target.recvTime) / 1000);
+        const ex = target.pos[0] + target.vel[0] * dtSinceRecv;
+        const ey = target.pos[1] + target.vel[1] * dtSinceRecv;
+        const ez = target.pos[2] + target.vel[2] * dtSinceRecv;
         if (ref.body.current) {
           const cur = ref.body.current.translation();
           ref.body.current.setTranslation({
-            x: cur.x + (target.pos[0] - cur.x) * lerpF,
-            y: cur.y + (target.pos[1] - cur.y) * lerpF,
-            z: cur.z + (target.pos[2] - cur.z) * lerpF,
+            x: cur.x + (ex - cur.x) * lerpF,
+            y: cur.y + (ey - cur.y) * lerpF,
+            z: cur.z + (ez - cur.z) * lerpF,
           }, true);
+          // 속도도 그대로 적용 (오브젝트가 dynamic이면 자연스럽게 굴러감)
+          if (target.vel[0] !== 0 || target.vel[1] !== 0 || target.vel[2] !== 0) {
+            ref.body.current.setLinvel({ x: target.vel[0], y: target.vel[1], z: target.vel[2] }, true);
+          }
           // 회전: 쿼터니언 slerp
           const targetQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(target.rot[0], target.rot[1], target.rot[2]));
           const r = ref.body.current.rotation();
@@ -537,7 +548,7 @@ function LuaUpdateLoop({
           curQ.slerp(targetQ, lerpF);
           ref.body.current.setRotation({ x: curQ.x, y: curQ.y, z: curQ.z, w: curQ.w }, true);
         } else if (ref.group.current) {
-          ref.group.current.position.lerp(new THREE.Vector3(target.pos[0], target.pos[1], target.pos[2]), lerpF);
+          ref.group.current.position.lerp(new THREE.Vector3(ex, ey, ez), lerpF);
           const targetEu = new THREE.Euler(target.rot[0], target.rot[1], target.rot[2]);
           ref.group.current.rotation.x += (targetEu.x - ref.group.current.rotation.x) * lerpF;
           ref.group.current.rotation.y = lerpAngle(ref.group.current.rotation.y, targetEu.y, lerpF);
@@ -1377,8 +1388,8 @@ interface WorldCanvasProps {
   sendScriptEvent?: (objectId: string, event: string, data: Record<string, unknown>, toId?: string) => void;
   scriptEventRef?: React.RefObject<((objectId: string, event: string, data: Record<string, unknown>, fromId: string) => void) | null>;
   // 오브젝트 상태 동기화
-  sendObjectStates?: (states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean }>) => void;
-  objectStatesRef?: React.RefObject<((states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean }>, fromId: string) => void) | null>;
+  sendObjectStates?: (states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean; vel?: [number, number, number] }>) => void;
+  objectStatesRef?: React.RefObject<((states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean; vel?: [number, number, number] }>, fromId: string) => void) | null>;
   // 방장 (가장 일찍 들어온 사람) — 본인이 호스트일 때만 broadcast
   hostId?: string | null;
 }
@@ -1566,13 +1577,18 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     return () => { if (scriptEventRef.current) scriptEventRef.current = null; };
   }, [scriptEventRef]);
 
-  // ── 수신: target만 저장 (실제 적용은 LuaUpdateLoop에서 매 프레임 lerp) ──
-  const syncTargets = useRef<Map<string, { pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean }>>(new Map());
+  // ── 수신: velocity + timestamp 저장 → lerp 시 extrapolation으로 네트워크 지연 보상 ──
+  const syncTargets = useRef<Map<string, { pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean; vel: [number, number, number]; recvTime: number }>>(new Map());
   useEffect(() => {
     if (!objectStatesRef) return;
     objectStatesRef.current = (states) => {
+      const now = performance.now();
       for (const s of states) {
-        syncTargets.current.set(s.id, { pos: s.pos, rot: s.rot, scl: s.scl, vis: s.vis });
+        syncTargets.current.set(s.id, {
+          pos: s.pos, rot: s.rot, scl: s.scl, vis: s.vis,
+          vel: s.vel ?? [0, 0, 0],
+          recvTime: now,
+        });
       }
     };
     return () => { if (objectStatesRef.current) objectStatesRef.current = null; };
@@ -1585,7 +1601,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     if (!isHost || !sendObjectStates || !customObjects) return;
     const MOVE_THRESHOLD = 0.005;
     const interval = setInterval(() => {
-      const states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean }> = [];
+      const states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean; vel?: [number, number, number] }> = [];
       for (const obj of customObjects) {
         if (obj.hidden) continue;
         if (obj.kind === 'pointlight' || obj.kind === 'spotlight' || obj.kind === 'dirlight') continue;
@@ -1597,11 +1613,15 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         let rot: [number, number, number];
         let scl: [number, number, number] = obj.scale;
         let vis = true;
+        let vel: [number, number, number] | undefined;
         if (body) {
           const t = body.translation();
           const r = body.rotation();
           const e = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(r.x, r.y, r.z, r.w));
           pos = [t.x, t.y, t.z]; rot = [e.x, e.y, e.z];
+          // 속도 포함 — 수신측이 extrapolation해서 지연 보상
+          const v = body.linvel();
+          vel = [v.x, v.y, v.z];
         } else if (group) {
           pos = [group.position.x, group.position.y, group.position.z];
           rot = [group.rotation.x, group.rotation.y, group.rotation.z];
@@ -1610,17 +1630,19 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         } else continue;
 
         const last = lastBroadcastPos.current.get(obj.id);
-        if (last) {
+        // 움직이는 중이면 항상 broadcast (속도 동기화 위해), 정지 상태면 위치 변화만 체크
+        const isMoving = vel && (Math.abs(vel[0]) > 0.05 || Math.abs(vel[1]) > 0.05 || Math.abs(vel[2]) > 0.05);
+        if (!isMoving && last) {
           const moved = Math.abs(pos[0] - last[0]) > MOVE_THRESHOLD
                      || Math.abs(pos[1] - last[1]) > MOVE_THRESHOLD
                      || Math.abs(pos[2] - last[2]) > MOVE_THRESHOLD;
           if (!moved) continue;
         }
         lastBroadcastPos.current.set(obj.id, pos);
-        states.push({ id: obj.id, pos, rot, scl, vis });
+        states.push({ id: obj.id, pos, rot, scl, vis, vel });
       }
       if (states.length > 0) sendObjectStates(states);
-    }, 50); // 20Hz
+    }, 33); // ~30Hz
     return () => clearInterval(interval);
   }, [isHost, sendObjectStates, customObjects]);
 

@@ -49,6 +49,8 @@ export interface ObjectStateUpdate {
   rot: [number, number, number];
   scl: [number, number, number];
   vis: boolean;
+  // 선속도 (extrapolation용) — 수신측이 네트워크 지연만큼 앞을 예측
+  vel?: [number, number, number];
 }
 
 interface Options {
