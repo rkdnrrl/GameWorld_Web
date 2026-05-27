@@ -518,18 +518,14 @@ function LuaUpdateLoop({
     for (const vm of luaScripts.current.values()) vm.callUpdate(dt);
 
     // ── Client-side Prediction with Reconciliation ──
-    // 비호스트도 로컬 물리를 그대로 실행 (로컬 prediction).
-    // 서버 broadcast는 "correction"으로 사용:
-    //   - 작은 차이 (< 20cm): 무시 (로컬 prediction이 맞다고 가정)
-    //   - 중간 차이 (20cm ~ 3m): 매우 부드럽게 보정 (jarring 없음)
-    //   - 거대한 차이 (> 3m): 즉시 snap (텔레포트, 끊김 복구)
-    // → 본인 push는 즉시 반응 (로컬), 다른 사람 push는 서버 값으로 따라감
+    // 움직이는 중: 큰 tolerance + 부드러운 보정 (smooth feel)
+    // 정지 상태: 작은 tolerance + 빠른 수렴 (정확한 위치 일치)
     if (!isHost) {
       const now = performance.now();
-      const IGNORE_THRESHOLD_SQ = 0.04;   // 20cm 이내 → 무시
-      const SNAP_THRESHOLD_SQ   = 9;       // 3m 이상 → 강제 snap
-      const SOFT_CORRECTION     = Math.min(1, 4 * dt);  // 부드러운 보정 (기존 18→4)
-      const VEL_CORRECTION      = Math.min(1, 6 * dt);
+      const SNAP_THRESHOLD_SQ        = 9;       // 3m 이상 → 강제 snap
+      const SOFT_CORRECTION          = Math.min(1, 4 * dt);  // 움직일 때 부드러운 보정
+      const REST_CORRECTION          = Math.min(1, 10 * dt); // 정지 시 빠른 수렴
+      const VEL_CORRECTION           = Math.min(1, 6 * dt);
 
       for (const [id, target] of syncTargets.current) {
         const ref = scriptBodyRefs.current.get(id);
@@ -545,38 +541,51 @@ function LuaUpdateLoop({
           const dx = ex - cur.x, dy = ey - cur.y, dz = ez - cur.z;
           const distSq = dx*dx + dy*dy + dz*dz;
 
+          // 현재 / 목표 속도 측정
+          const curV = ref.body.current.linvel();
+          const curSpeedSq = curV.x*curV.x + curV.y*curV.y + curV.z*curV.z;
+          const targetSpeedSq = target.vel[0]*target.vel[0] + target.vel[1]*target.vel[1] + target.vel[2]*target.vel[2];
+          const localMoving  = curSpeedSq > 0.25;     // > 0.5 m/s
+          const serverMoving = targetSpeedSq > 1.0;   // > 1 m/s
+          const isAtRest = !localMoving && !serverMoving; // 둘 다 정지
+
           if (distSq > SNAP_THRESHOLD_SQ) {
             // 텔레포트/끊김 → 즉시 동기화
             ref.body.current.setTranslation({ x: ex, y: ey, z: ez }, true);
             ref.body.current.setLinvel({ x: target.vel[0], y: target.vel[1], z: target.vel[2] }, true);
-          } else if (distSq > IGNORE_THRESHOLD_SQ) {
-            // 중간 차이 → 부드러운 위치 보정
+          } else if (isAtRest) {
+            // 둘 다 정지 상태 → 정확한 위치로 빠르게 수렴 (클라이언트 간 위치 일치)
+            // tolerance 없음. 1mm라도 차이 있으면 보정 (부드럽게)
+            if (distSq > 0.000001) {
+              ref.body.current.setTranslation({
+                x: cur.x + dx * REST_CORRECTION,
+                y: cur.y + dy * REST_CORRECTION,
+                z: cur.z + dz * REST_CORRECTION,
+              }, true);
+            }
+            // velocity는 0으로 고정 (정지 유지)
+            if (curSpeedSq > 0.01) {
+              ref.body.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
+            }
+          } else if (distSq > 0.04) {
+            // 움직이는 중 + 위치 차이 큼 → 부드러운 보정
             ref.body.current.setTranslation({
               x: cur.x + dx * SOFT_CORRECTION,
               y: cur.y + dy * SOFT_CORRECTION,
               z: cur.z + dz * SOFT_CORRECTION,
             }, true);
-            // velocity 보정 — 로컬 박스가 "이미 멈췄으면" 서버 vel 무시 (멈춤 보존)
-            // 안 그러면 다른 클라이언트의 100ms 지연 push 때문에 박스가 멋대로 다시 움직임
-            const curV = ref.body.current.linvel();
-            const curSpeedSq = curV.x*curV.x + curV.y*curV.y + curV.z*curV.z;
-            const targetSpeedSq = target.vel[0]*target.vel[0] + target.vel[1]*target.vel[1] + target.vel[2]*target.vel[2];
-            // 조건: (로컬이 움직이는 중) AND (속도 차이 큼)
-            // 또는: (로컬 정지인데 서버가 강하게 움직임 — 누가 진짜 밀고 있음)
-            const localMoving  = curSpeedSq > 0.25;     // > 0.5 m/s
-            const serverMoving = targetSpeedSq > 1.0;   // > 1 m/s
+            // velocity 차이 큰 경우만 보정
             const dvx = target.vel[0] - curV.x;
             const dvy = target.vel[1] - curV.y;
             const dvz = target.vel[2] - curV.z;
             const velDiffSq = dvx*dvx + dvy*dvy + dvz*dvz;
-            if (velDiffSq > 0.25 && (localMoving || serverMoving)) {
+            if (velDiffSq > 0.25) {
               ref.body.current.setLinvel({
                 x: curV.x + dvx * VEL_CORRECTION,
                 y: curV.y + dvy * VEL_CORRECTION,
                 z: curV.z + dvz * VEL_CORRECTION,
               }, true);
             }
-            // 위 조건 둘 다 false (로컬 정지 + 서버 거의 정지) → velocity 그대로 둠 (멈춤 유지)
           }
           // 회전: 부드러운 slerp
           const targetQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(target.rot[0], target.rot[1], target.rot[2]));
