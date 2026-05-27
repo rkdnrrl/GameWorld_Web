@@ -587,6 +587,11 @@ export default function StudioCanvas() {
   const [lightDir, setLightDir] = useState(1.5);
   const [skyEnabled, setSkyEnabled] = useState(true);
   const [lightPanelOpen, setLightPanelOpen] = useState(false);
+  // HDRI 환경
+  type HdriPreset = 'none' | 'apartment' | 'city' | 'dawn' | 'forest' | 'lobby' | 'night' | 'park' | 'studio' | 'sunset' | 'warehouse';
+  const [hdriPreset, setHdriPreset] = useState<HdriPreset>('city');
+  const [hdriUrl, setHdriUrl] = useState('');          // 커스텀 URL (.hdr/.exr)
+  const [hdriBackground, setHdriBackground] = useState(false); // HDRI를 배경으로 표시
   // 썸네일 캡처 함수 (Canvas 내부에서 등록)
   const captureFnRef = useRef<(() => string | null) | null>(null);
 
@@ -675,6 +680,14 @@ export default function StudioCanvas() {
         setName(d.world.name);
         setDescription(d.world.description || '');
         setIsPublic(Boolean(d.world.isPublic));
+        // 씬 설정 복원
+        const ss = d.world.mapData?.sceneSettings || {};
+        if (ss.lightAmbient  !== undefined) setLightAmbient(ss.lightAmbient);
+        if (ss.lightDir      !== undefined) setLightDir(ss.lightDir);
+        if (ss.skyEnabled    !== undefined) setSkyEnabled(ss.skyEnabled);
+        if (ss.hdriPreset    !== undefined) setHdriPreset(ss.hdriPreset);
+        if (ss.hdriUrl       !== undefined) setHdriUrl(ss.hdriUrl);
+        if (ss.hdriBackground !== undefined) setHdriBackground(ss.hdriBackground);
         const objs = d.world.mapData?.objects || [];
         setObjects(objs);
         setHist({ stack: [clone(objs)], idx: 0 });
@@ -842,7 +855,8 @@ export default function StudioCanvas() {
         }
       } catch { /* 썸네일 실패는 무시 */ }
 
-      const payload: Record<string, unknown> = { name, description, mapData: { objects }, isPublic };
+      const sceneSettings = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground };
+      const payload: Record<string, unknown> = { name, description, mapData: { objects, sceneSettings }, isPublic };
       if (thumbnailUrl) payload.thumbnailUrl = thumbnailUrl;
       const body = JSON.stringify(payload);
       const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` };
@@ -1266,6 +1280,49 @@ export default function StudioCanvas() {
                 <input type="checkbox" checked={skyEnabled} onChange={e => setSkyEnabled(e.target.checked)} />
                 하늘(Sky) 표시
               </label>
+
+              {/* HDRI */}
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ fontSize: 10, opacity: 0.5, fontWeight: 700 }}>HDRI 환경맵</div>
+
+                {/* 프리셋 선택 */}
+                <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  프리셋
+                  <select value={hdriPreset} onChange={e => { setHdriPreset(e.target.value as HdriPreset); setHdriUrl(''); }}
+                    style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '3px 5px' }}>
+                    <option value="none">없음</option>
+                    <option value="apartment">Apartment</option>
+                    <option value="city">City</option>
+                    <option value="dawn">Dawn</option>
+                    <option value="forest">Forest</option>
+                    <option value="lobby">Lobby</option>
+                    <option value="night">Night</option>
+                    <option value="park">Park</option>
+                    <option value="studio">Studio</option>
+                    <option value="sunset">Sunset</option>
+                    <option value="warehouse">Warehouse</option>
+                  </select>
+                </label>
+
+                {/* 커스텀 URL */}
+                <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  커스텀 HDR URL (.hdr/.exr)
+                  <input
+                    value={hdriUrl}
+                    onChange={e => setHdriUrl(e.target.value)}
+                    placeholder="https://example.com/env.hdr"
+                    style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '3px 5px', outline: 'none' }}
+                  />
+                </label>
+
+                {/* 배경으로 사용 */}
+                <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={hdriBackground}
+                    onChange={e => { setHdriBackground(e.target.checked); if (e.target.checked) setSkyEnabled(false); }}
+                  />
+                  HDRI를 배경(Sky 대체)으로 사용
+                </label>
+              </div>
             </div>
           )}
         </div>
@@ -1357,9 +1414,13 @@ export default function StudioCanvas() {
         >
           <ambientLight intensity={lightAmbient} />
           <directionalLight position={[20, 30, 10]} intensity={lightDir} castShadow shadow-mapSize={[2048, 2048]} />
-          {skyEnabled && <Sky sunPosition={[20, 10, 10]} />}
-          {/* 금속·유리 머티리얼이 새까맣게 보이지 않도록 환경맵 제공 */}
-          <Environment preset="city" />
+          {skyEnabled && !hdriBackground && <Sky sunPosition={[20, 10, 10]} />}
+          {/* HDRI 환경맵 — 커스텀 URL 우선, 없으면 프리셋, none이면 미사용 */}
+          {hdriUrl.trim() ? (
+            <Environment files={hdriUrl.trim()} background={hdriBackground} />
+          ) : hdriPreset !== 'none' ? (
+            <Environment preset={hdriPreset} background={hdriBackground} />
+          ) : null}
 
           <Grid args={[100, 100]} cellSize={1} cellThickness={0.5} sectionSize={5} sectionThickness={1} fadeDistance={50} infiniteGrid />
 
