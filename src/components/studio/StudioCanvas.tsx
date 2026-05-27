@@ -835,6 +835,10 @@ export default function StudioCanvas() {
   const [skyEnabled, setSkyEnabled] = useState(true);
   const [lightPanelOpen, setLightPanelOpen] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [multiSelectedIds, setMultiSelectedIds] = useState<Set<string>>(new Set());
+  const [marqueeStart, setMarqueeStart] = useState<{x:number,y:number}|null>(null);
+  const [marqueeEnd,   setMarqueeEnd]   = useState<{x:number,y:number}|null>(null);
+  const isMarqueeRef = useRef(false);
   // HDRI 환경
   type HdriPreset = 'none' | 'apartment' | 'city' | 'dawn' | 'forest' | 'lobby' | 'night' | 'park' | 'studio' | 'sunset' | 'warehouse';
   const [hdriPreset, setHdriPreset] = useState<HdriPreset>('city');
@@ -1045,6 +1049,56 @@ export default function StudioCanvas() {
     });
     setSelectedId(id);
     setActiveAssetPicker(false);
+  }
+
+  /* ── 마퀴 셀렉션 ── */
+  function handleMarqueeDown(e: React.MouseEvent) {
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).tagName !== 'CANVAS') return; // 캔버스 위 클릭만
+    if (isGizmoActive()) return;
+    const rect = viewportRef.current!.getBoundingClientRect();
+    setMarqueeStart({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    setMarqueeEnd(null);
+    isMarqueeRef.current = false;
+  }
+
+  function handleMarqueeMove(e: React.MouseEvent) {
+    if (!marqueeStart) return;
+    const rect = viewportRef.current!.getBoundingClientRect();
+    const cur = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const dx = cur.x - marqueeStart.x, dy = cur.y - marqueeStart.y;
+    if (!isMarqueeRef.current && Math.sqrt(dx*dx + dy*dy) > 5) isMarqueeRef.current = true;
+    if (isMarqueeRef.current) setMarqueeEnd(cur);
+  }
+
+  function handleMarqueeUp(e: React.MouseEvent) {
+    if (e.button !== 0) return;
+    if (isMarqueeRef.current && marqueeStart && marqueeEnd) {
+      const camera = cameraRef.current;
+      const el = viewportRef.current;
+      if (camera && el) {
+        const rect = el.getBoundingClientRect();
+        const minX = Math.min(marqueeStart.x, marqueeEnd.x);
+        const maxX = Math.max(marqueeStart.x, marqueeEnd.x);
+        const minY = Math.min(marqueeStart.y, marqueeEnd.y);
+        const maxY = Math.max(marqueeStart.y, marqueeEnd.y);
+        const matched: string[] = [];
+        for (const obj of objects) {
+          if (obj.hidden) continue;
+          const vec = new THREE.Vector3(...obj.position);
+          vec.project(camera);
+          if (vec.z > 1) continue; // 카메라 뒤
+          const sx = (vec.x + 1) / 2 * rect.width;
+          const sy = (-vec.y + 1) / 2 * rect.height;
+          if (sx >= minX && sx <= maxX && sy >= minY && sy <= maxY) matched.push(obj.id);
+        }
+        setMultiSelectedIds(new Set(matched));
+        setSelectedId(matched[0] ?? null);
+      }
+    }
+    setMarqueeStart(null);
+    setMarqueeEnd(null);
+    isMarqueeRef.current = false;
   }
 
   function dropPositionFromEvent(e: React.DragEvent): [number, number, number] {
@@ -1605,10 +1659,10 @@ export default function StudioCanvas() {
             {objects.length === 0 ? (
               <div style={{ fontSize: 11, opacity: 0.3, textAlign: 'center', paddingTop: 20 }}>오브젝트 없음</div>
             ) : objects.map((obj, i) => {
-              const isSel = obj.id === selectedId;
+              const isSel = obj.id === selectedId || multiSelectedIds.has(obj.id);
               return (
                 <div key={obj.id}
-                  onClick={() => { if (editingLabelId !== obj.id) setSelectedId(isSel ? null : obj.id); }}
+                  onClick={() => { if (editingLabelId !== obj.id) { setMultiSelectedIds(new Set()); setSelectedId(isSel && multiSelectedIds.size === 0 ? null : obj.id); } }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 5,
                     padding: '4px 6px', borderRadius: 6, cursor: 'pointer',
@@ -1783,6 +1837,10 @@ export default function StudioCanvas() {
         ref={viewportRef}
         style={{ flex: 1, position: 'relative' }}
         onContextMenu={(e) => e.preventDefault()}
+        onMouseDown={handleMarqueeDown}
+        onMouseMove={handleMarqueeMove}
+        onMouseUp={handleMarqueeUp}
+        onMouseLeave={handleMarqueeUp}
         onDragOver={e => { if (e.dataTransfer.types.includes('text/plain')) e.preventDefault(); }}
         onDrop={e => {
           e.preventDefault();
@@ -1848,6 +1906,19 @@ export default function StudioCanvas() {
           <CanvasCapture captureFnRef={captureFnRef} />
           <CameraRefCapture cameraRef={cameraRef} />
         </Canvas>
+
+        {/* 마퀴 셀렉션 사각형 */}
+        {marqueeStart && marqueeEnd && (
+          <div style={{
+            position: 'absolute', pointerEvents: 'none', zIndex: 8,
+            left:   Math.min(marqueeStart.x, marqueeEnd.x),
+            top:    Math.min(marqueeStart.y, marqueeEnd.y),
+            width:  Math.abs(marqueeEnd.x - marqueeStart.x),
+            height: Math.abs(marqueeEnd.y - marqueeStart.y),
+            border: '1px solid rgba(99,102,241,0.9)',
+            background: 'rgba(99,102,241,0.1)',
+          }} />
+        )}
 
         {/* 씬 패널 토글 버튼 */}
         <button
