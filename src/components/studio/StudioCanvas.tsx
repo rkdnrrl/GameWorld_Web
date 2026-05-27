@@ -1724,90 +1724,6 @@ export default function StudioCanvas() {
             style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#fff', fontSize: 11, padding: '6px 10px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
         </div>
 
-        {/* 도형 추가 */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 8 }}>{t('addShape')}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-            {([['cube','📦','shapeCube'],['sphere','⚪','shapeSphere'],['cylinder','🥫','shapeCylinder'],['plane','▭','shapePlane']] as const).map(([kind, icon, labelKey]) => (
-              <button key={kind} onClick={() => addPrimitive(kind)}
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 12, padding: '8px 6px', cursor: 'pointer' }}>
-                {icon} {t(labelKey)}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 조명 설정 */}
-        <div style={{ marginBottom: 10 }}>
-          <button type="button" onClick={() => setLightPanelOpen(v => !v)}
-            style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '6px 10px', cursor: 'pointer', fontWeight: 600 }}>
-            🌤 조명 설정 {lightPanelOpen ? '▲' : '▼'}
-          </button>
-          {lightPanelOpen && (
-            <div style={{ padding: '10px 6px 4px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                환경광 {lightAmbient.toFixed(1)}
-                <input type="range" min={0} max={2} step={0.1} value={lightAmbient}
-                  onChange={e => setLightAmbient(Number(e.target.value))}
-                  style={{ accentColor: '#6366f1' }} />
-              </label>
-              <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                직사광 {lightDir.toFixed(1)}
-                <input type="range" min={0} max={4} step={0.1} value={lightDir}
-                  onChange={e => setLightDir(Number(e.target.value))}
-                  style={{ accentColor: '#6366f1' }} />
-              </label>
-              <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                <input type="checkbox" checked={skyEnabled} onChange={e => setSkyEnabled(e.target.checked)} />
-                하늘(Sky) 표시
-              </label>
-
-              {/* HDRI */}
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ fontSize: 10, opacity: 0.5, fontWeight: 700 }}>HDRI 환경맵</div>
-
-                {/* 프리셋 선택 */}
-                <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  프리셋
-                  <select value={hdriPreset} onChange={e => { setHdriPreset(e.target.value as HdriPreset); setHdriUrl(''); }}
-                    style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '3px 5px' }}>
-                    <option value="none">없음</option>
-                    <option value="apartment">Apartment</option>
-                    <option value="city">City</option>
-                    <option value="dawn">Dawn</option>
-                    <option value="forest">Forest</option>
-                    <option value="lobby">Lobby</option>
-                    <option value="night">Night</option>
-                    <option value="park">Park</option>
-                    <option value="studio">Studio</option>
-                    <option value="sunset">Sunset</option>
-                    <option value="warehouse">Warehouse</option>
-                  </select>
-                </label>
-
-                {/* 커스텀 URL */}
-                <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  커스텀 HDR URL (.hdr/.exr)
-                  <input
-                    value={hdriUrl}
-                    onChange={e => setHdriUrl(e.target.value)}
-                    placeholder="https://example.com/env.hdr"
-                    style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '3px 5px', outline: 'none' }}
-                  />
-                </label>
-
-                {/* 배경으로 사용 */}
-                <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={hdriBackground}
-                    onChange={e => { setHdriBackground(e.target.checked); if (e.target.checked) setSkyEnabled(false); }}
-                  />
-                  HDRI를 배경(Sky 대체)으로 사용
-                </label>
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* 공개/비공개 토글 */}
         <button
           type="button"
@@ -1894,18 +1810,86 @@ export default function StudioCanvas() {
         overflow: 'hidden',
         fontFamily: 'inherit',
       }}>
-        {/* ── 씬 계층 ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid rgba(255,255,255,0.1)', minHeight: 0, flex: '0 0 auto', maxHeight: '45%' }}>
-          <div style={{ padding: '8px 12px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        {/* ── 상단: 뒤로가기 + 도형 + 조명 ── */}
+        <div style={{ flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.1)', overflowY: 'auto', maxHeight: '55%' }}>
+          <div style={{ padding: '8px 12px 10px' }}>
             <button
-              onClick={() => setStudioMode('settings')}
-              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 3, fontWeight: 700 }}>
+              onClick={() => { setStudioMode('settings'); setSelectedId(null); setMultiSelectedIds(new Set()); }}
+              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 3, fontWeight: 700, marginBottom: 10 }}>
               ← 스튜디오
             </button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, letterSpacing: 0.5 }}>씬 오브젝트</span>
-              <span style={{ fontSize: 10, opacity: 0.35, background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '1px 7px' }}>{objects.length}</span>
+            {/* 도형 추가 */}
+            <div style={{ fontSize: 10, opacity: 0.4, marginBottom: 5 }}>{t('addShape')}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 8 }}>
+              {([['cube','📦','shapeCube'],['sphere','⚪','shapeSphere'],['cylinder','🥫','shapeCylinder'],['plane','▭','shapePlane']] as const).map(([kind, icon, labelKey]) => (
+                <button key={kind} onClick={() => addPrimitive(kind)}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#fff', fontSize: 11, padding: '6px 4px', cursor: 'pointer' }}>
+                  {icon} {t(labelKey)}
+                </button>
+              ))}
             </div>
+            {/* 조명 설정 */}
+            <button type="button" onClick={() => setLightPanelOpen(v => !v)}
+              style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 600 }}>
+              🌤 조명 설정 {lightPanelOpen ? '▲' : '▼'}
+            </button>
+            {lightPanelOpen && (
+              <div style={{ padding: '8px 4px 2px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+                <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  환경광 {lightAmbient.toFixed(1)}
+                  <input type="range" min={0} max={2} step={0.1} value={lightAmbient}
+                    onChange={e => setLightAmbient(Number(e.target.value))}
+                    style={{ accentColor: '#6366f1' }} />
+                </label>
+                <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  직사광 {lightDir.toFixed(1)}
+                  <input type="range" min={0} max={4} step={0.1} value={lightDir}
+                    onChange={e => setLightDir(Number(e.target.value))}
+                    style={{ accentColor: '#6366f1' }} />
+                </label>
+                <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={skyEnabled} onChange={e => setSkyEnabled(e.target.checked)} />
+                  하늘(Sky) 표시
+                </label>
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <div style={{ fontSize: 10, opacity: 0.5, fontWeight: 700 }}>HDRI 환경맵</div>
+                  <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    프리셋
+                    <select value={hdriPreset} onChange={e => { setHdriPreset(e.target.value as HdriPreset); setHdriUrl(''); }}
+                      style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '3px 5px' }}>
+                      <option value="none">없음</option>
+                      <option value="apartment">Apartment</option>
+                      <option value="city">City</option>
+                      <option value="dawn">Dawn</option>
+                      <option value="forest">Forest</option>
+                      <option value="lobby">Lobby</option>
+                      <option value="night">Night</option>
+                      <option value="park">Park</option>
+                      <option value="studio">Studio</option>
+                      <option value="sunset">Sunset</option>
+                      <option value="warehouse">Warehouse</option>
+                    </select>
+                  </label>
+                  <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    커스텀 HDR URL (.hdr/.exr)
+                    <input value={hdriUrl} onChange={e => setHdriUrl(e.target.value)} placeholder="https://example.com/env.hdr"
+                      style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '3px 5px', outline: 'none' }} />
+                  </label>
+                  <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={hdriBackground}
+                      onChange={e => { setHdriBackground(e.target.checked); if (e.target.checked) setSkyEnabled(false); }} />
+                    HDRI를 배경(Sky 대체)으로 사용
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        {/* ── 씬 계층 ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid rgba(255,255,255,0.1)', minHeight: 0, flex: '0 0 auto', maxHeight: '35%' }}>
+          <div style={{ padding: '6px 12px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, letterSpacing: 0.5 }}>씬 오브젝트</span>
+            <span style={{ fontSize: 10, opacity: 0.35, background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '1px 7px' }}>{objects.length}</span>
           </div>
           {/* 루트 드롭 영역 (자식 → 루트로 올리기) */}
           <div
