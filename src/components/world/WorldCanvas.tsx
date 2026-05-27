@@ -1160,11 +1160,10 @@ function UserMapObjectMesh({ obj, scriptBodyRefs }: {
         </group>
       );
     }
+    // 물리 있음: RigidBody 가 직접 메시를 자식으로 가져야 자동 콜라이더 동작
     return (
       <RigidBody ref={bodyRef} type={physics} colliders={physics === 'dynamic' ? 'hull' : 'trimesh'} position={obj.position} rotation={obj.rotation} scale={obj.scale}>
-        <group ref={groupRef}>
-          <UserAsset url={obj.assetUrl} matObj={obj} />
-        </group>
+        <UserAsset url={obj.assetUrl} matObj={obj} />
       </RigidBody>
     );
   }
@@ -1177,11 +1176,10 @@ function UserMapObjectMesh({ obj, scriptBodyRefs }: {
     );
   }
   const colliders = obj.kind === 'sphere' ? 'ball' : 'cuboid';
+  // 물리 있음: 내부 <group> 래퍼 없이 메시 직접 자식 → rapier 자동 콜라이더 정상 동작
   return (
     <RigidBody ref={bodyRef} type={physics} colliders={colliders} position={obj.position} rotation={obj.rotation} scale={obj.scale}>
-      <group ref={groupRef}>
-        <PrimitiveMesh obj={obj} shape={shape} />
-      </group>
+      <PrimitiveMesh obj={obj} shape={shape} />
     </RigidBody>
   );
 }
@@ -1493,7 +1491,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       for (const s of states) {
         const ref = scriptBodyRefs.current.get(s.id);
         if (!ref) continue;
-        // RigidBody가 있으면 setTranslation, 없으면 group 위치 직접 설정
+        // 물리 RigidBody가 있으면 그쪽으로 (rapier 우선)
         if (ref.body.current) {
           ref.body.current.setTranslation({ x: s.pos[0], y: s.pos[1], z: s.pos[2] }, true);
           ref.body.current.setRotation(
@@ -1501,10 +1499,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             true,
           );
         } else if (ref.group.current) {
+          // 물리 없는 오브젝트는 group 직접
           ref.group.current.position.set(s.pos[0], s.pos[1], s.pos[2]);
           ref.group.current.rotation.set(s.rot[0], s.rot[1], s.rot[2]);
-        }
-        if (ref.group.current) {
           ref.group.current.scale.set(s.scl[0], s.scl[1], s.scl[2]);
           ref.group.current.visible = s.vis;
         }
@@ -1526,25 +1523,27 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         if (!ref) continue;
         const body  = ref.body.current;
         const group = ref.group.current;
-        if (!group) continue;
         let pos: [number, number, number];
         let rot: [number, number, number];
+        let scl: [number, number, number] = obj.scale;
+        let vis = true;
         if (body) {
+          // 물리 오브젝트: rapier에서 직접 읽음
           const t = body.translation();
           const r = body.rotation();
           const e = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(r.x, r.y, r.z, r.w));
           pos = [t.x, t.y, t.z];
           rot = [e.x, e.y, e.z];
-        } else {
+        } else if (group) {
+          // 물리 없는 오브젝트: group에서 읽음
           pos = [group.position.x, group.position.y, group.position.z];
           rot = [group.rotation.x, group.rotation.y, group.rotation.z];
+          scl = [group.scale.x, group.scale.y, group.scale.z];
+          vis = group.visible;
+        } else {
+          continue; // 둘 다 없으면 스킵
         }
-        states.push({
-          id: obj.id,
-          pos, rot,
-          scl: [group.scale.x, group.scale.y, group.scale.z],
-          vis: group.visible,
-        });
+        states.push({ id: obj.id, pos, rot, scl, vis });
       }
       if (states.length > 0) sendObjectStates(states);
     }, 100); // 10Hz
