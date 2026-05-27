@@ -745,7 +745,7 @@ function Player({
         body.current.setLinvel({ x: 0, y: vel.y, z: 0 }, true);
         animStateRef.current = 'idle';
         const now = Date.now();
-        if (now - lastSend.current > 100) {
+        if (now - lastSend.current > 50) {
           lastSend.current = now;
           onMove({ x: posT.x, y: posT.y, z: posT.z, rotY: mesh.current?.rotation.y ?? 0, animState: 'idle' });
         }
@@ -828,7 +828,7 @@ function Player({
       animStateRef.current = state;
 
       const now = Date.now();
-      if (now - lastSend.current > 100) {
+      if (now - lastSend.current > 50) {
         lastSend.current = now;
         onMove({ x: posT.x, y: posT.y, z: posT.z, rotY: mesh.current?.rotation.y ?? 0, animState: state });
       }
@@ -903,25 +903,46 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow }: {
   const bodyRef = useRef<any>(null);
   const meshRef = useRef<THREE.Group>(null);
   const animStateRef = useRef<AnimState>('idle');
+  // 위치 예측을 위한 직전 pose 추적 (속도 추정)
+  const lastPose = useRef<{ x: number; y: number; z: number; t: number } | null>(null);
 
-  // 매 프레임: 네트워크 pose로 kinematic body를 부드럽게 이동
-  // → 모든 클라이언트의 로컬 Rapier에서 원격 플레이어가 물리적으로 다른 오브젝트와 충돌
+  // 매 프레임: 네트워크 pose로 kinematic body를 빠르게 따라가게
+  // 속도 예측 + 빠른 lerp → 박스 미는 힘이 호스트 수준으로 충분
   useFrame((_, dt) => {
     const pose = posesRef.current?.get(player.id);
     if (!pose) return;
     animStateRef.current = pose.animState ?? 'idle';
     const body = bodyRef.current;
     if (!body) return;
+
+    // 직전 pose와 비교해 속도 추정 → 다음 프레임 위치 예측
+    const now = performance.now();
+    let targetX = pose.x, targetY = pose.y, targetZ = pose.z;
+    if (lastPose.current) {
+      const elapsed = (now - lastPose.current.t) / 1000;
+      if (elapsed > 0 && elapsed < 0.3) {
+        const vx = (pose.x - lastPose.current.x) / elapsed;
+        const vy = (pose.y - lastPose.current.y) / elapsed;
+        const vz = (pose.z - lastPose.current.z) / elapsed;
+        // 50ms 정도 앞을 예측 (네트워크 지연 보상)
+        targetX += vx * 0.05;
+        targetY += vy * 0.05;
+        targetZ += vz * 0.05;
+      }
+    }
+    if (!lastPose.current || lastPose.current.x !== pose.x || lastPose.current.y !== pose.y || lastPose.current.z !== pose.z) {
+      lastPose.current = { x: pose.x, y: pose.y, z: pose.z, t: now };
+    }
+
     const cur = body.translation();
-    const lerpF = Math.min(1, 10 * dt);
+    const lerpF = Math.min(1, 25 * dt); // 25 = 매우 빠른 추종 → 박스 push 힘 ↑
     body.setNextKinematicTranslation({
-      x: cur.x + (pose.x - cur.x) * lerpF,
-      y: cur.y + (pose.y - cur.y) * lerpF,
-      z: cur.z + (pose.z - cur.z) * lerpF,
+      x: cur.x + (targetX - cur.x) * lerpF,
+      y: cur.y + (targetY - cur.y) * lerpF,
+      z: cur.z + (targetZ - cur.z) * lerpF,
     });
-    // 회전은 mesh group만 (kinematic body 회전은 보통 락)
     if (meshRef.current) {
-      meshRef.current.rotation.y = lerpAngle(meshRef.current.rotation.y, pose.rotY, lerpF);
+      meshRef.current.rotation.y = lerpAngle(meshRef.current.rotation.y, pose.rotY, Math.min(1, 15 * dt));
     }
   });
 
@@ -1589,7 +1610,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         states.push({ id: obj.id, pos, rot, scl, vis });
       }
       if (states.length > 0) sendObjectStates(states);
-    }, 100); // 10Hz
+    }, 50); // 20Hz
     return () => clearInterval(interval);
   }, [isHost, sendObjectStates, customObjects]);
 
