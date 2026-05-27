@@ -517,43 +517,75 @@ function LuaUpdateLoop({
     worldElapsed.current += dt;
     for (const vm of luaScripts.current.values()) vm.callUpdate(dt);
 
-    // 비호스트는 네트워크 target으로 부드럽게 lerp + extrapolation
+    // ── Client-side Prediction with Reconciliation ──
+    // 비호스트도 로컬 물리를 그대로 실행 (로컬 prediction).
+    // 서버 broadcast는 "correction"으로 사용:
+    //   - 작은 차이 (< 20cm): 무시 (로컬 prediction이 맞다고 가정)
+    //   - 중간 차이 (20cm ~ 3m): 매우 부드럽게 보정 (jarring 없음)
+    //   - 거대한 차이 (> 3m): 즉시 snap (텔레포트, 끊김 복구)
+    // → 본인 push는 즉시 반응 (로컬), 다른 사람 push는 서버 값으로 따라감
     if (!isHost) {
-      const lerpF = Math.min(1, 18 * dt); // 빠른 추종 (지연 줄이기)
       const now = performance.now();
+      const IGNORE_THRESHOLD_SQ = 0.04;   // 20cm 이내 → 무시
+      const SNAP_THRESHOLD_SQ   = 9;       // 3m 이상 → 강제 snap
+      const SOFT_CORRECTION     = Math.min(1, 4 * dt);  // 부드러운 보정 (기존 18→4)
+      const VEL_CORRECTION      = Math.min(1, 6 * dt);
+
       for (const [id, target] of syncTargets.current) {
         const ref = scriptBodyRefs.current.get(id);
         if (!ref) continue;
-        // 수신 시각 이후 경과 시간만큼 velocity로 위치 예측 (extrapolation)
-        // 최대 150ms로 클램프 (너무 멀리 예측하면 오버슈트)
-        const dtSinceRecv = Math.min(0.15, (now - target.recvTime) / 1000);
+        // 네트워크 지연 보상 — 받은 위치를 velocity로 현재 시각까지 예측
+        const dtSinceRecv = Math.min(0.2, (now - target.recvTime) / 1000);
         const ex = target.pos[0] + target.vel[0] * dtSinceRecv;
         const ey = target.pos[1] + target.vel[1] * dtSinceRecv;
         const ez = target.pos[2] + target.vel[2] * dtSinceRecv;
+
         if (ref.body.current) {
           const cur = ref.body.current.translation();
-          ref.body.current.setTranslation({
-            x: cur.x + (ex - cur.x) * lerpF,
-            y: cur.y + (ey - cur.y) * lerpF,
-            z: cur.z + (ez - cur.z) * lerpF,
-          }, true);
-          // 속도도 그대로 적용 (오브젝트가 dynamic이면 자연스럽게 굴러감)
-          if (target.vel[0] !== 0 || target.vel[1] !== 0 || target.vel[2] !== 0) {
+          const dx = ex - cur.x, dy = ey - cur.y, dz = ez - cur.z;
+          const distSq = dx*dx + dy*dy + dz*dz;
+
+          if (distSq > SNAP_THRESHOLD_SQ) {
+            // 텔레포트/끊김 → 즉시 동기화
+            ref.body.current.setTranslation({ x: ex, y: ey, z: ez }, true);
             ref.body.current.setLinvel({ x: target.vel[0], y: target.vel[1], z: target.vel[2] }, true);
+          } else if (distSq > IGNORE_THRESHOLD_SQ) {
+            // 중간 차이 → 부드러운 보정
+            ref.body.current.setTranslation({
+              x: cur.x + dx * SOFT_CORRECTION,
+              y: cur.y + dy * SOFT_CORRECTION,
+              z: cur.z + dz * SOFT_CORRECTION,
+            }, true);
+            // velocity 차이 큰 경우만 보정 (로컬 prediction 우선)
+            const curV = ref.body.current.linvel();
+            const dvx = target.vel[0] - curV.x;
+            const dvy = target.vel[1] - curV.y;
+            const dvz = target.vel[2] - curV.z;
+            const velDiffSq = dvx*dvx + dvy*dvy + dvz*dvz;
+            if (velDiffSq > 0.25) { // 속도 차 > 0.5 m/s
+              ref.body.current.setLinvel({
+                x: curV.x + dvx * VEL_CORRECTION,
+                y: curV.y + dvy * VEL_CORRECTION,
+                z: curV.z + dvz * VEL_CORRECTION,
+              }, true);
+            }
           }
-          // 회전: 쿼터니언 slerp
+          // 회전: 부드러운 slerp
           const targetQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(target.rot[0], target.rot[1], target.rot[2]));
           const r = ref.body.current.rotation();
           const curQ = new THREE.Quaternion(r.x, r.y, r.z, r.w);
-          curQ.slerp(targetQ, lerpF);
-          ref.body.current.setRotation({ x: curQ.x, y: curQ.y, z: curQ.z, w: curQ.w }, true);
+          if (Math.abs(curQ.dot(targetQ)) < 0.999) { // 회전 차이 있을 때만
+            curQ.slerp(targetQ, SOFT_CORRECTION);
+            ref.body.current.setRotation({ x: curQ.x, y: curQ.y, z: curQ.z, w: curQ.w }, true);
+          }
         } else if (ref.group.current) {
-          ref.group.current.position.lerp(new THREE.Vector3(ex, ey, ez), lerpF);
+          // 물리 없는 오브젝트 — 그냥 부드럽게 lerp
+          ref.group.current.position.lerp(new THREE.Vector3(ex, ey, ez), SOFT_CORRECTION);
           const targetEu = new THREE.Euler(target.rot[0], target.rot[1], target.rot[2]);
-          ref.group.current.rotation.x += (targetEu.x - ref.group.current.rotation.x) * lerpF;
-          ref.group.current.rotation.y = lerpAngle(ref.group.current.rotation.y, targetEu.y, lerpF);
-          ref.group.current.rotation.z += (targetEu.z - ref.group.current.rotation.z) * lerpF;
-          ref.group.current.scale.lerp(new THREE.Vector3(target.scl[0], target.scl[1], target.scl[2]), lerpF);
+          ref.group.current.rotation.x += (targetEu.x - ref.group.current.rotation.x) * SOFT_CORRECTION;
+          ref.group.current.rotation.y = lerpAngle(ref.group.current.rotation.y, targetEu.y, SOFT_CORRECTION);
+          ref.group.current.rotation.z += (targetEu.z - ref.group.current.rotation.z) * SOFT_CORRECTION;
+          ref.group.current.scale.lerp(new THREE.Vector3(target.scl[0], target.scl[1], target.scl[2]), SOFT_CORRECTION);
           ref.group.current.visible = target.vis;
         }
       }
