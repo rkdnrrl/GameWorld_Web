@@ -682,6 +682,8 @@ function SpotLightWithTarget({ color, intensity, distance, angle, penumbra, cast
       <spotLight ref={lightRef}
         color={color} intensity={intensity} distance={distance}
         angle={angle} penumbra={penumbra} decay={2} castShadow={castShadow}
+        shadow-camera-near={0.1}
+        shadow-camera-far={distance > 0 ? distance : 100}
       />
       {/* 그룹이 같은 parent group 안에 있으므로 회전이 적용된 local -Y 방향을 target으로 사용 */}
       <group ref={targetRef} position={[0, -5, 0]} />
@@ -720,6 +722,8 @@ function SceneNode({ obj, allObjects, selectedId, multiSelectedIds, onObjectClic
             distance={obj.lightDistance ?? 0}
             decay={2}
             castShadow={obj.castShadow ?? false}
+            shadow-camera-near={0.1}
+            shadow-camera-far={(obj.lightDistance ?? 0) > 0 ? obj.lightDistance! : 100}
           />
         )}
         {obj.kind === 'spotlight' && (

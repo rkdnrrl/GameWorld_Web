@@ -1634,6 +1634,13 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // ── JS 스크립트 관리 ──────────────────────────────────────
   // objectId → JsScript 인스턴스 (자체 구현 인터프리터)
   const luaScripts = useRef<Map<string, import('@/lib/world/jsRuntime').JsScript>>(new Map());
+  // objectId → THREE.Light 인스턴스 (조명 color/intensity 제어용)
+  const lightRefs = useRef<Map<string, THREE.Light>>(new Map());
+  // 런타임 동적 생성된 오브젝트 (world.spawn 으로 만들어진 것 — 저장 안 됨, 로컬 전용)
+  const [runtimeObjects, setRuntimeObjects] = useState<UserMapObject[]>([]);
+  // 스크립트 콜백에서 stale state 피하려는 최신 ref
+  const runtimeObjectsRef = useRef<UserMapObject[]>([]);
+  useEffect(() => { runtimeObjectsRef.current = runtimeObjects; }, [runtimeObjects]);
   // objectId → { body: Rapier rigid body ref, group: Three.js group ref }
   const scriptBodyRefs = useRef<Map<string, {
     body: React.MutableRefObject<RapierBodyApi | null>;
@@ -1684,6 +1691,34 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     };
     return () => { if (objectOwnerRef.current) objectOwnerRef.current = null; };
   }, [objectOwnerRef]);
+
+  // ── world.spawn / obj.destroy 헬퍼 (로컬 전용 — 멀티 sync 없음) ──
+  /** 스크립트에서 world.spawn(opts) 호출 시 새 오브젝트 추가. id 반환. */
+  const spawnObject = useCallback((opts: Partial<UserMapObject>): string => {
+    const id = `rt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const obj: UserMapObject = {
+      id,
+      kind:     opts.kind     ?? 'cube',
+      assetUrl: opts.assetUrl,
+      position: opts.position ?? [0, 5, 0],
+      rotation: opts.rotation ?? [0, 0, 0],
+      scale:    opts.scale    ?? [1, 1, 1],
+      color:    opts.color    ?? '#ffffff',
+      physics:  opts.physics  ?? 'dynamic',
+      material: opts.material,
+      materialColor: opts.materialColor,
+    };
+    setRuntimeObjects(prev => [...prev, obj]);
+    return id;
+  }, []);
+
+  /** id로 런타임 오브젝트 제거. customObjects(저장된 것)는 안전 상 보호. */
+  const destroyObject = useCallback((id: string): void => {
+    setRuntimeObjects(prev => prev.filter(o => o.id !== id));
+    scriptBodyRefs.current.delete(id);
+    syncTargets.current.delete(id);
+    ownersRef.current.delete(id);
+  }, []);
 
   // Player 충돌 콜백 — Optimistic Ownership: 서버 확인 안 기다리고 즉시 본인 owner
   const onObjCollide = useCallback((objectId: string, type: 'enter' | 'exit') => {
@@ -1819,43 +1854,86 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       const { JsScript } = require('@/lib/world/jsRuntime') as typeof import('@/lib/world/jsRuntime');
       const vm = new JsScript();
 
-      const objectAPI: import('@/lib/world/jsRuntime').JsObjectAPI = {
-        id: obj.id,
+      // 어떤 오브젝트 id에 대해서든 JsObjectAPI 만드는 헬퍼 — world.find()에서 재사용
+      const makeObjectAPI = (targetId: string, fallbackObj?: UserMapObject): import('@/lib/world/jsRuntime').JsObjectAPI => ({
+        id: targetId,
         getPosition: () => {
-          const ref = scriptBodyRefs.current.get(obj.id);
+          // 라이트 우선 (라이트는 RigidBody 없이 position만 가짐)
+          const light = lightRefs.current.get(targetId);
+          if (light) return [light.position.x, light.position.y, light.position.z];
+          const ref = scriptBodyRefs.current.get(targetId);
           if (ref?.body.current) {
             const t = ref.body.current.translation();
             return [t.x, t.y, t.z];
           }
-          return obj.position;
+          if (ref?.group.current) {
+            const p = ref.group.current.position;
+            return [p.x, p.y, p.z];
+          }
+          return fallbackObj?.position ?? [0, 0, 0];
         },
         setPosition: (x, y, z) => {
-          const ref = scriptBodyRefs.current.get(obj.id);
-          ref?.body.current?.setTranslation({ x, y, z }, true);
+          const light = lightRefs.current.get(targetId);
+          if (light) { light.position.set(x, y, z); return; }
+          const ref = scriptBodyRefs.current.get(targetId);
+          if (ref?.body.current) ref.body.current.setTranslation({ x, y, z }, true);
+          else if (ref?.group.current) ref.group.current.position.set(x, y, z);
         },
         getRotation: () => {
-          const ref = scriptBodyRefs.current.get(obj.id);
+          const light = lightRefs.current.get(targetId);
+          if (light) return [light.rotation.x, light.rotation.y, light.rotation.z];
+          const ref = scriptBodyRefs.current.get(targetId);
           if (ref?.group.current) {
             const r = ref.group.current.rotation;
             return [r.x, r.y, r.z];
           }
-          return obj.rotation;
+          return fallbackObj?.rotation ?? [0, 0, 0];
         },
         setRotation: (rx, ry, rz) => {
-          const ref = scriptBodyRefs.current.get(obj.id);
-          if (ref?.group.current) {
-            ref.group.current.rotation.set(rx, ry, rz);
-          }
+          const light = lightRefs.current.get(targetId);
+          if (light) { light.rotation.set(rx, ry, rz); return; }
+          const ref = scriptBodyRefs.current.get(targetId);
+          if (ref?.group.current) ref.group.current.rotation.set(rx, ry, rz);
         },
         applyImpulse: (x, y, z) => {
-          const ref = scriptBodyRefs.current.get(obj.id);
+          const ref = scriptBodyRefs.current.get(targetId);
           ref?.body.current?.applyImpulse({ x, y, z }, true);
         },
         setVisible: (b) => {
-          const ref = scriptBodyRefs.current.get(obj.id);
+          const light = lightRefs.current.get(targetId);
+          if (light) { light.visible = b; return; }
+          const ref = scriptBodyRefs.current.get(targetId);
           if (ref?.group.current) ref.group.current.visible = b;
         },
-      };
+        setColor: (hex) => {
+          const light = lightRefs.current.get(targetId);
+          if (light) {
+            try { light.color.set(hex); } catch { /* invalid hex 무시 */ }
+            return;
+          }
+          // 메시 색상 변경 — material에 접근 (PrimitiveMesh material)
+          const ref = scriptBodyRefs.current.get(targetId);
+          if (ref?.group.current) {
+            ref.group.current.traverse((child) => {
+              const m = child as THREE.Mesh;
+              if (m.isMesh && m.material) {
+                const mat = m.material as THREE.MeshStandardMaterial;
+                if (mat.color) { try { mat.color.set(hex); } catch {} }
+              }
+            });
+          }
+        },
+        setIntensity: (v) => {
+          const light = lightRefs.current.get(targetId);
+          if (light) light.intensity = Number(v);
+        },
+        destroy: () => {
+          // 런타임 생성 오브젝트 (rt_ prefix) 만 제거 — 저장된 customObjects 보호
+          if (targetId.startsWith('rt_')) destroyObject(targetId);
+        },
+      });
+
+      const objectAPI = makeObjectAPI(obj.id, obj);
 
       const worldAPI: import('@/lib/world/jsRuntime').JsWorldAPI = {
         getTime: () => worldElapsed.current,
@@ -1864,6 +1942,28 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             const pose = posesRef.current?.get(p.id);
             return { id: p.id, username: p.username, x: pose?.x ?? 0, y: pose?.y ?? 0, z: pose?.z ?? 0 };
           });
+        },
+        // label 또는 id로 다른 오브젝트 검색 → script에서 world.find("door1") 형태로 사용
+        findObject: (nameOrId) => {
+          const target = customObjects?.find(o => o.id === nameOrId || (o as { label?: string }).label === nameOrId)
+                       ?? runtimeObjectsRef.current.find(o => o.id === nameOrId);
+          if (!target) return null;
+          return makeObjectAPI(target.id, target);
+        },
+        // world.spawn({ kind, position, color, physics, ... }) → 생성된 오브젝트 핸들 반환
+        spawn: (opts) => {
+          const id = spawnObject(opts);
+          // 방금 spawn한 오브젝트의 fallback 값
+          const fallback: UserMapObject = {
+            id,
+            kind:     opts.kind     ?? 'cube',
+            position: opts.position ?? [0, 5, 0],
+            rotation: opts.rotation ?? [0, 0, 0],
+            scale:    opts.scale    ?? [1, 1, 1],
+            color:    opts.color    ?? '#ffffff',
+            physics:  opts.physics  ?? 'dynamic',
+          };
+          return makeObjectAPI(id, fallback);
         },
       };
 
@@ -1925,27 +2025,36 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           />
         )}
         {/* 사용자 추가 조명 */}
-        {lightObjects.map(o => (
-          o.kind === 'pointlight' ? (
-            <pointLight key={o.id}
+        {lightObjects.map(o => {
+          const dist = o.lightDistance ?? 0;
+          const shadowFar = dist > 0 ? dist : 100;
+          // ref 콜백: 스크립트에서 light.color / light.intensity 직접 제어 가능하게 등록
+          const refCb = (light: THREE.Light | null) => {
+            if (light) lightRefs.current.set(o.id, light);
+            else lightRefs.current.delete(o.id);
+          };
+          return o.kind === 'pointlight' ? (
+            <pointLight key={o.id} ref={refCb}
               position={o.position} color={o.lightColor || '#ffffff'}
-              intensity={o.lightIntensity ?? 1} distance={o.lightDistance ?? 0}
-              decay={2} castShadow={o.castShadow ?? false} />
+              intensity={o.lightIntensity ?? 1} distance={dist}
+              decay={2} castShadow={o.castShadow ?? false}
+              shadow-camera-near={0.1} shadow-camera-far={shadowFar} />
           ) : o.kind === 'dirlight' ? (
-            <directionalLight key={o.id}
+            <directionalLight key={o.id} ref={refCb}
               position={o.position} color={o.lightColor || '#ffffff'}
               intensity={o.lightIntensity ?? 1}
               castShadow={o.castShadow ?? false}
               shadow-mapSize={shadowMapSize} />
           ) : (
-            <spotLight key={o.id}
+            <spotLight key={o.id} ref={refCb}
               position={o.position} color={o.lightColor || '#ffffff'}
-              intensity={o.lightIntensity ?? 1} distance={o.lightDistance ?? 0}
+              intensity={o.lightIntensity ?? 1} distance={dist}
               angle={(o.lightAngle ?? 45) * Math.PI / 180}
               penumbra={o.lightPenumbra ?? 0.2}
-              decay={2} castShadow={o.castShadow ?? false} />
-          )
-        ))}
+              decay={2} castShadow={o.castShadow ?? false}
+              shadow-camera-near={0.1} shadow-camera-far={shadowFar} />
+          );
+        })}
 
         <GraphicsApplier
           shadowSize={graphics.shadowSize}
@@ -1970,7 +2079,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           <Physics gravity={[0, -22, 0]} interpolate={false}>
             {customObjects !== undefined ? (
               // 유저 제작 월드 — 기본 그라운드 없음. 필요하면 평면 직접 배치
-              <>{customObjects.filter(o => !o.hidden && o.kind !== 'pointlight' && o.kind !== 'spotlight' && o.kind !== 'dirlight').map(obj => <UserMapObjectMesh key={obj.id} obj={obj} scriptBodyRefs={scriptBodyRefs} />)}</>
+              // runtimeObjects: 스크립트 world.spawn() 으로 동적 생성된 것 (로컬 전용, 저장 안 됨)
+              <>{[...customObjects, ...runtimeObjects].filter(o => !o.hidden && o.kind !== 'pointlight' && o.kind !== 'spotlight' && o.kind !== 'dirlight').map(obj => <UserMapObjectMesh key={obj.id} obj={obj} scriptBodyRefs={scriptBodyRefs} />)}</>
             ) : (
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />

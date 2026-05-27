@@ -15,9 +15,11 @@
  * 노출하는 게임 API:
  *   self            — 현재 오브젝트 ({id, position, rotation, color, visible, ...})
  *   self.setPosition(x,y,z) / self.setRotation(rx,ry,rz) / self.setColor(hex) / self.setVisible(b)
- *   self.applyImpulse(x,y,z)
+ *   self.applyImpulse(x,y,z) / self.destroy()   (destroy는 런타임 spawn된 것만 동작)
  *   world.time      — 월드 경과 시간 (초)
  *   world.getPlayers() → [{id, username, x, y, z}]
+ *   world.find(idOrLabel) → 다른 오브젝트 핸들 (self와 같은 인터페이스), 못 찾으면 null
+ *   world.spawn({kind, position, color, physics, ...}) → 새 오브젝트 핸들 (로컬 전용)
  *   net.sendAll(event, data) / net.sendTo(playerId, event, data)
  *   print(...) / console.log(...)
  *   Math.sin / cos / abs / floor / ceil / round / random / PI / min / max / sqrt / pow / atan2
@@ -787,6 +789,25 @@ export interface JsObjectAPI {
   setRotation(rx: number, ry: number, rz: number): void;
   applyImpulse(x: number, y: number, z: number): void;
   setVisible(b: boolean): void;
+  /** 조명/메시 색상 변경. hex 문자열 (e.g. "#ff0000") */
+  setColor?(hex: string): void;
+  /** 조명 강도 변경 (조명 오브젝트만) */
+  setIntensity?(value: number): void;
+  /** 런타임 spawn된 오브젝트만 제거. 저장된 customObject는 무시. */
+  destroy?(): void;
+}
+
+/** world.spawn() 옵션 — UserMapObject 부분 집합 */
+export interface JsSpawnOpts {
+  kind?: 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset';
+  assetUrl?: string;
+  position?: [number, number, number];
+  rotation?: [number, number, number];
+  scale?:    [number, number, number];
+  color?:    string;
+  physics?:  'none' | 'fixed' | 'dynamic';
+  material?: 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 'plastic' | 'emissive';
+  materialColor?: string;
 }
 
 export interface JsPlayerInfo {
@@ -798,6 +819,10 @@ export interface JsPlayerInfo {
 export interface JsWorldAPI {
   getTime(): number;
   getPlayers(): JsPlayerInfo[];
+  /** label 또는 id로 다른 오브젝트 찾기. 못 찾으면 null. */
+  findObject?(nameOrId: string): JsObjectAPI | null;
+  /** 런타임에 새 오브젝트 생성. 생성된 오브젝트 핸들 반환. */
+  spawn?(opts: JsSpawnOpts): JsObjectAPI;
 }
 
 export interface JsNetAPI {
@@ -839,11 +864,47 @@ export class JsScript {
         applyImpulse: (x: number, y: number, z: number) =>
           obj.applyImpulse(Number(x), Number(y), Number(z)),
         setVisible: (b: boolean) => obj.setVisible(Boolean(b)),
+        setColor: (hex: string) => obj.setColor?.(String(hex)),
+        setIntensity: (v: number) => obj.setIntensity?.(Number(v)),
+        destroy: () => obj.destroy?.(),
       };
+
+      // 다른 오브젝트를 self와 동일한 인터페이스로 감싸는 헬퍼
+      const wrapObjectAPI = (api: JsObjectAPI) => ({
+        id: api.id,
+        getPosition: () => {
+          const [x, y, z] = api.getPosition();
+          return { x, y, z };
+        },
+        setPosition: (x: number, y: number, z: number) =>
+          api.setPosition(Number(x), Number(y), Number(z)),
+        getRotation: () => {
+          const [x, y, z] = api.getRotation();
+          return { x, y, z };
+        },
+        setRotation: (rx: number, ry: number, rz: number) =>
+          api.setRotation(Number(rx), Number(ry), Number(rz)),
+        applyImpulse: (x: number, y: number, z: number) =>
+          api.applyImpulse(Number(x), Number(y), Number(z)),
+        setVisible: (b: boolean) => api.setVisible(Boolean(b)),
+        setColor: (hex: string) => api.setColor?.(String(hex)),
+        setIntensity: (v: number) => api.setIntensity?.(Number(v)),
+        destroy: () => api.destroy?.(),
+      });
 
       const world = {
         time: 0,
         getPlayers: () => worldApi.getPlayers(),
+        // world.find("door1") — label 또는 id로 다른 오브젝트 참조 얻기
+        find: (nameOrId: string) => {
+          const found = worldApi.findObject?.(String(nameOrId));
+          return found ? wrapObjectAPI(found) : null;
+        },
+        // world.spawn({ kind:"cube", position:[0,5,0], color:"#f00", physics:"dynamic" })
+        spawn: (opts: JsSpawnOpts | undefined) => {
+          const spawned = worldApi.spawn?.(opts ?? {});
+          return spawned ? wrapObjectAPI(spawned) : null;
+        },
       };
       // world.time을 항상 최신 값으로 → getter처럼 동작
       Object.defineProperty(world, 'time', {
