@@ -1436,8 +1436,8 @@ export default function StudioCanvas() {
           </div>
         </div>
 
-        {/* 씬 오브젝트 목록 */}
-        {objects.length > 0 && (
+        {/* 씬 오브젝트 목록 → 우측 패널로 이동 */}
+        {false && objects.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 6 }}>씬 오브젝트 ({objects.length})</div>
             <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -1511,8 +1511,8 @@ export default function StudioCanvas() {
           </div>
         )}
 
-        {/* 선택된 오브젝트 — 변환 값 표시 */}
-        {selected && (
+        {/* 선택된 오브젝트 — 우측 패널로 이동 */}
+        {false && selected && (
           <div style={{ marginBottom: 16, padding: '12px 14px', background: 'rgba(99,102,241,0.1)', borderRadius: 10, border: '1px solid rgba(99,102,241,0.2)' }}>
             <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 10, fontWeight: 600 }}>{t('selectedKind', { kind: selected.kind })}</div>
 
@@ -1645,10 +1645,6 @@ export default function StudioCanvas() {
             </div>
           </div>
         )}
-
-        <div style={{ fontSize: 11, opacity: 0.45, marginBottom: 16 }}>
-          {t('stats', { count: objects.length, idx: hist.idx + 1, total: hist.stack.length })}
-        </div>
 
         {/* 조명 설정 */}
         <div style={{ marginBottom: 10 }}>
@@ -1796,6 +1792,199 @@ export default function StudioCanvas() {
           </div>
         </div>
       )}
+
+      {/* ── 우측 패널: 씬 계층 + 인스펙터 ─── */}
+      <div style={{
+        width: 260, flexShrink: 0,
+        background: '#1e293b',
+        borderLeft: '1px solid rgba(255,255,255,0.08)',
+        color: '#fff',
+        display: 'flex', flexDirection: 'column',
+        overflow: 'hidden',
+        fontFamily: 'inherit',
+      }}>
+        {/* ── 씬 계층 ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid rgba(255,255,255,0.1)', minHeight: 0, flex: '0 0 auto', maxHeight: '45%' }}>
+          <div style={{ padding: '10px 12px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, letterSpacing: 0.5 }}>씬 오브젝트</span>
+            <span style={{ fontSize: 10, opacity: 0.35, background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '1px 7px' }}>{objects.length}</span>
+          </div>
+          <div style={{ overflowY: 'auto', flex: 1, padding: '0 8px 8px', display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {objects.length === 0 ? (
+              <div style={{ fontSize: 11, opacity: 0.3, textAlign: 'center', paddingTop: 20 }}>오브젝트 없음</div>
+            ) : objects.map((obj, i) => {
+              const isSel = obj.id === selectedId;
+              return (
+                <div key={obj.id}
+                  onClick={() => { if (editingLabelId !== obj.id) setSelectedId(isSel ? null : obj.id); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    padding: '4px 6px', borderRadius: 6, cursor: 'pointer',
+                    background: isSel ? 'rgba(99,102,241,0.25)' : 'transparent',
+                    border: `1px solid ${isSel ? 'rgba(99,102,241,0.5)' : 'transparent'}`,
+                    opacity: obj.hidden ? 0.4 : 1,
+                    transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={e => { if (!isSel) (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.05)'; }}
+                  onMouseLeave={e => { if (!isSel) (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
+                >
+                  <span style={{ fontSize: 12, flexShrink: 0 }}>{KIND_ICONS[obj.kind] ?? '❓'}</span>
+                  {editingLabelId === obj.id ? (
+                    <input autoFocus value={editingLabelValue}
+                      onChange={e => setEditingLabelValue(e.target.value)}
+                      onBlur={() => { const v = editingLabelValue.trim(); if (v) setObjects(prev => prev.map(o => o.id === obj.id ? { ...o, label: v } : o)); setEditingLabelId(null); }}
+                      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingLabelId(null); }}
+                      onClick={e => e.stopPropagation()}
+                      style={{ flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.4)', border: '1px solid #6366f1', borderRadius: 4, color: '#fff', fontSize: 11, padding: '1px 5px', outline: 'none' }}
+                    />
+                  ) : (
+                    <span onDoubleClick={e => { e.stopPropagation(); setEditingLabelId(obj.id); setEditingLabelValue(obj.label || `${KIND_LABELS[obj.kind] ?? obj.kind} ${i + 1}`); }}
+                      title="더블클릭하여 이름 변경"
+                      style={{ flex: 1, fontSize: 11, fontWeight: isSel ? 700 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isSel ? '#a5b4fc' : '#e2e8f0' }}>
+                      {obj.label || `${KIND_LABELS[obj.kind] ?? obj.kind} ${i + 1}`}
+                    </span>
+                  )}
+                  <button onClick={e => { e.stopPropagation(); setObjects(prev => prev.map(o => o.id === obj.id ? { ...o, hidden: !o.hidden } : o)); }}
+                    style={{ background: 'none', border: 'none', color: obj.hidden ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.45)', fontSize: 11, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}
+                    title={obj.hidden ? '표시' : '숨기기'}>{obj.hidden ? '🙈' : '👁'}</button>
+                  <button onClick={e => { e.stopPropagation(); setObjects(prev => prev.map(o => o.id === obj.id ? { ...o, locked: !o.locked } : o)); }}
+                    style={{ background: 'none', border: 'none', color: obj.locked ? '#fbbf24' : 'rgba(255,255,255,0.2)', fontSize: 11, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}
+                    title={obj.locked ? '잠금 해제' : '잠금'}>{obj.locked ? '🔒' : '🔓'}</button>
+                  <button onClick={e => { e.stopPropagation(); setObjects(prev => { const next = prev.filter(o => o.id !== obj.id); pushHistory(next); return next; }); if (selectedId === obj.id) setSelectedId(null); }}
+                    style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.25)', fontSize: 14, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}
+                    title="삭제">×</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── 인스펙터 ── */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px' }}>
+          {!selected ? (
+            <div style={{ fontSize: 11, opacity: 0.3, textAlign: 'center', paddingTop: 32 }}>
+              오브젝트를 선택하세요
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, marginBottom: 10, letterSpacing: 0.5 }}>
+                {KIND_ICONS[selected.kind] ?? '❓'} {selected.label || selected.kind}
+              </div>
+
+              {/* 위치/회전/스케일 탭 */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3, marginBottom: 10 }}>
+                {(['translate','rotate','scale'] as const).map(m => (
+                  <button key={m} onClick={() => setMode(m)}
+                    style={{ background: mode === m ? '#4f46e5' : 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 0', cursor: 'pointer', fontWeight: 600 }}>
+                    {m === 'translate' ? '이동' : m === 'rotate' ? '회전' : '스케일'}
+                  </button>
+                ))}
+              </div>
+
+              <AxisInputRow
+                label={mode === 'translate' ? t('position') : mode === 'rotate' ? t('rotation') : t('scale')}
+                values={
+                  mode === 'translate' ? selected.position :
+                  mode === 'rotate'    ? selected.rotation.map(r => Math.round(r * 180 / Math.PI)) as [number,number,number] :
+                                         selected.scale
+                }
+                step={mode === 'rotate' ? 1 : 0.1}
+                min={mode === 'scale' ? 0.01 : undefined}
+                onChange={(axisIdx, v) => {
+                  if (mode === 'translate') updateAxis('position', axisIdx, v);
+                  else if (mode === 'rotate') updateAxis('rotation', axisIdx, v * Math.PI / 180);
+                  else updateAxis('scale', axisIdx, Math.max(0.01, v));
+                }}
+                onCommit={() => pushHistory(objects)}
+              />
+
+              {selected.kind !== 'asset' && (
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 3 }}>{t('color')}</div>
+                  <input type="color" value={selected.color}
+                    onChange={e => updateColor(selected.id, e.target.value)}
+                    onBlur={() => pushHistory(objects)}
+                    style={{ width: '100%', height: 28, border: 'none', borderRadius: 6, padding: 0, cursor: 'pointer' }} />
+                </div>
+              )}
+
+              {/* 머티리얼 */}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4 }}>{t('material')}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
+                  {(['default','wood','metal','stone','glass','plastic','emissive'] as const).map(key => {
+                    const labels: Record<string,string> = { default: t('matDefault'), wood: t('matWood'), metal: t('matMetal'), stone: t('matStone'), glass: t('matGlass'), plastic: t('matPlastic'), emissive: t('matEmissive') };
+                    const active = (selected.material ?? 'default') === key;
+                    return (
+                      <button key={key} onClick={() => { updateMaterialField('material', key); pushHistory(objects); }}
+                        style={{ background: active ? '#4f46e5' : 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 4px', cursor: 'pointer', textAlign: 'left' }}>
+                        {labels[key]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {selected.material && selected.material !== 'default' && (
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 3 }}>{t('materialColor')}</div>
+                  <input type="color" value={selected.materialColor || '#ffffff'}
+                    onChange={e => updateMaterialField('materialColor', e.target.value)}
+                    onBlur={() => pushHistory(objects)}
+                    style={{ width: '100%', height: 24, border: 'none', borderRadius: 5, padding: 0, cursor: 'pointer' }} />
+                </div>
+              )}
+
+              {/* 텍스처 */}
+              <div style={{ marginBottom: 10, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4 }}>{t('texture')}</div>
+                {([['albedo', t('texAlbedo'), selected.textureAlbedo, 'textureAlbedo'], ['normal', t('texNormal'), selected.textureNormal, 'textureNormal'], ['roughness', t('texRoughness'), selected.textureRoughness, 'textureRoughness']] as const).map(([slot, label, value, field]) => (
+                  <div key={slot} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
+                    <span style={{ fontSize: 9, opacity: 0.55, width: 56 }}>{label}</span>
+                    {value ? (
+                      <><div style={{ width: 22, height: 22, background: `url(${value}) center/cover`, borderRadius: 3 }} />
+                      <button onClick={() => { updateMaterialField(field, undefined); pushHistory(objects); }}
+                        style={{ flex: 1, fontSize: 9, padding: '3px', background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: 'none', borderRadius: 3, cursor: 'pointer' }}>{t('texRemove')}</button></>
+                    ) : (
+                      <button onClick={() => setTexPicker(slot)}
+                        style={{ flex: 1, fontSize: 10, padding: '3px', background: 'rgba(255,255,255,0.06)', color: '#a5b4fc', border: '1px dashed rgba(255,255,255,0.15)', borderRadius: 3, cursor: 'pointer' }}>{t('texChoose')}</button>
+                    )}
+                  </div>
+                ))}
+                {(selected.textureAlbedo || selected.textureNormal || selected.textureRoughness) && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginTop: 4 }}>
+                    {(['textureTilingX','textureTilingY'] as const).map(field => (
+                      <label key={field} style={{ fontSize: 10, opacity: 0.55, display: 'flex', alignItems: 'center', gap: 3 }}>
+                        {field === 'textureTilingX' ? t('texTilingX') : t('texTilingY')}
+                        <input type="number" step={0.5} min={0.1} value={(selected[field] ?? 1) as number}
+                          onChange={e => updateMaterialField(field, Number(e.target.value))}
+                          onBlur={() => pushHistory(objects)}
+                          style={{ flex: 1, background: 'rgba(0,0,0,0.4)', border: 'none', color: '#fff', fontSize: 10, padding: '2px 4px', borderRadius: 3, outline: 'none' }} />
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 복제 / 삭제 */}
+              <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                <button onClick={duplicate}
+                  style={{ flex: 1, background: 'rgba(99,102,241,0.2)', border: 'none', color: '#a5b4fc', fontSize: 11, padding: '7px', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
+                  복제 (Ctrl+D)
+                </button>
+                <button onClick={deleteSelected}
+                  style={{ flex: 1, background: 'rgba(239,68,68,0.2)', border: 'none', color: '#fca5a5', fontSize: 11, padding: '7px', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
+                  {t('delete')}
+                </button>
+              </div>
+
+              <div style={{ fontSize: 10, opacity: 0.3, marginTop: 10, textAlign: 'center' }}>
+                {t('stats', { count: objects.length, idx: hist.idx + 1, total: hist.stack.length })}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
 
       {/* ── 3D 뷰포트 ─────────────────────── */}
       <div
