@@ -2855,6 +2855,68 @@ export default function StudioCanvas() {
     return local;
   }
 
+  /**
+   * 기즈모 드래그 끝나는 순간 — 옮긴 오브젝트의 world center 가 다른 오브젝트의
+   * AABB 안에 들어가 있으면 자동으로 그 오브젝트의 자식으로 reparent.
+   * (씬 트리에서 드래그하지 않고도 3D 뷰포트에서 바로 부모 설정 가능)
+   */
+  function autoParentOnDrop(movedId: string) {
+    const moved = objects.find(o => o.id === movedId);
+    if (!moved) return;
+    const movedWorld = computeWorldMatrix(movedId, objects);
+    const movedPos = new THREE.Vector3().setFromMatrixPosition(movedWorld);
+
+    // 후보 오브젝트들 중 movedId 의 world center 를 AABB 안에 포함하는 것 찾기.
+    // 가장 작은 오브젝트(가장 가까운 fit) 우선.
+    let bestId: string | null = null;
+    let bestVolume = Infinity;
+
+    for (const cand of objects) {
+      if (cand.id === movedId) continue;
+      // 조명/스폰 같은 비-shape 은 부모 대상 제외 (geometric bounds 없음)
+      if (cand.kind === 'pointlight' || cand.kind === 'spotlight' || cand.kind === 'dirlight' || cand.kind === 'spawn') continue;
+
+      // moved 가 cand 의 조상이면 (순환) 제외
+      let p: string | null | undefined = cand.parentId;
+      let isCandDescendantOfMoved = false;
+      while (p) {
+        if (p === movedId) { isCandDescendantOfMoved = true; break; }
+        p = objects.find(o => o.id === p)?.parentId;
+      }
+      if (isCandDescendantOfMoved) continue;
+
+      // cand world transform — center + half extents
+      const candWorld = computeWorldMatrix(cand.id, objects);
+      const candPos = new THREE.Vector3();
+      const candQuat = new THREE.Quaternion();
+      const candScale = new THREE.Vector3();
+      candWorld.decompose(candPos, candQuat, candScale);
+
+      // primitive shape 의 unit half-extents (cube/sphere/cylinder/plane = 1x1x1 unit, plane Y=0)
+      const halfExt = new THREE.Vector3(
+        Math.abs(candScale.x) * 0.5,
+        cand.kind === 'plane' ? 0.05 : Math.abs(candScale.y) * 0.5,
+        Math.abs(candScale.z) * 0.5,
+      );
+
+      // moved center 를 cand 의 local 공간으로 변환 → AABB 검사
+      const localPos = movedPos.clone().applyMatrix4(candWorld.clone().invert());
+      const inside = Math.abs(localPos.x) <= 0.5
+                  && Math.abs(localPos.y) <= (cand.kind === 'plane' ? 0.1 : 0.5)
+                  && Math.abs(localPos.z) <= 0.5;
+      if (!inside) continue;
+
+      const volume = halfExt.x * halfExt.y * halfExt.z;
+      if (volume < bestVolume) { bestVolume = volume; bestId = cand.id; }
+    }
+
+    if (bestId && moved.parentId !== bestId) {
+      reparentObject(movedId, bestId);
+    } else if (!bestId && moved.parentId) {
+      // 어떤 부모 안에도 안 들어가 있고 현재 부모 있음 → 루트로 빼냄? (안전 위해 보류, 사용자 명시적 액션 필요)
+    }
+  }
+
   function reparentObject(childId: string, newParentId: string | null) {
     // 순환 방지
     const isDescendant = (targetId: string, ancestorId: string): boolean => {
@@ -3984,7 +4046,11 @@ export default function StudioCanvas() {
                 mode={mode}
                 onChange={updateObjectTransform}
                 onDragStart={onTransformDragStart}
-                onDragEnd={() => pushHistory(objects)}
+                onDragEnd={() => {
+                  // 이동 모드일 때만 자동 부모 체크 — 회전/스케일 끝났다고 부모 바꿀 필요 없음
+                  if (mode === 'translate' && selectedId) autoParentOnDrop(selectedId);
+                  pushHistory(objects);
+                }}
                 snapTranslate={snapEnabled ? snapSize : null}
                 snapRotate={snapEnabled ? (Math.PI / 12) : null}
                 snapScale={snapEnabled ? 0.1 : null}
