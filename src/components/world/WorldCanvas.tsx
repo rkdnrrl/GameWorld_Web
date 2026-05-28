@@ -1573,7 +1573,12 @@ function UserMapObjectMesh({ obj, scriptBodyRefs }: {
     group: React.MutableRefObject<THREE.Group | null>;
   }>>;
 }) {
-  const physics = obj.physics ?? 'fixed';
+  // 물리 모드 결정 — Physics 컴포넌트 우선, 없으면 레거시 obj.physics 필드.
+  // 둘 다 없으면 'none' (물리/콜라이더 X)
+  const physicsComp = obj.components?.find(c => c.type === 'physics');
+  const physics: 'none' | 'fixed' | 'dynamic' = physicsComp
+    ? (String(physicsComp.props?.mode ?? 'fixed') === 'dynamic' ? 'dynamic' : 'fixed')
+    : (obj.physics ?? 'none');
   // 스크립트 있는 오브젝트는 ref를 registry에 등록
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bodyRef = useRef<any>(null);

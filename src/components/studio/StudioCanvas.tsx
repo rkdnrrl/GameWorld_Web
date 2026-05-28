@@ -3182,23 +3182,22 @@ export default function StudioCanvas() {
                 onCommit={() => pushHistory(objects)}
               />
 
-              {/* 물리 — 조명 외 오브젝트에만 표시 */}
-              {selected.kind !== 'pointlight' && selected.kind !== 'spotlight' && selected.kind !== 'dirlight' && (
-                <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4 }}>{t('inspPhysics')}</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3 }}>
-                    {(['none', 'fixed', 'dynamic'] as const).map(mode => {
-                      const active = (selected.physics ?? 'fixed') === mode;
-                      const labels = { none: t('inspPhysNone'), fixed: t('inspPhysFixed'), dynamic: t('inspPhysDynamic') };
-                      return (
-                        <button key={mode}
-                          onClick={() => { setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, physics: mode } : o)); pushHistory(objects); }}
-                          style={{ background: active ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.06)', border: `1px solid ${active ? '#818cf8' : 'rgba(255,255,255,0.1)'}`, borderRadius: 5, color: active ? '#c7d2fe' : 'rgba(255,255,255,0.65)', fontSize: 10, padding: '5px 3px', cursor: 'pointer', fontWeight: active ? 700 : 400 }}>
-                          {labels[mode]}
-                        </button>
-                      );
-                    })}
-                  </div>
+              {/* 물리 라디오 버튼은 제거됨 — Physics 컴포넌트로 대체.
+                  레거시 obj.physics 필드 있는 경우 안내: */}
+              {selected.physics && selected.physics !== 'none' && !selected.components?.some(c => c.type === 'physics') && (
+                <div style={{ marginBottom: 10, padding: '8px 10px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: 6, fontSize: 10, color: '#fbbf24', lineHeight: 1.5 }}>
+                  ⚠ 레거시 물리 설정 ({selected.physics}). Physics 컴포넌트로 마이그레이션 권장:
+                  <button type="button"
+                    onClick={() => {
+                      const inst: ComponentInstance = { type: 'physics' as ComponentType, props: { mode: selected.physics === 'dynamic' ? 'dynamic' : 'fixed' } };
+                      setObjects(prev => prev.map(o => o.id === selected.id
+                        ? { ...o, components: [...(o.components ?? []), inst], physics: undefined }
+                        : o));
+                      pushHistory(objects);
+                    }}
+                    style={{ display: 'block', marginTop: 5, background: 'rgba(251,191,36,0.2)', border: '1px solid rgba(251,191,36,0.5)', color: '#fbbf24', borderRadius: 4, padding: '4px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer', width: '100%' }}>
+                    Physics 컴포넌트로 변환
+                  </button>
                 </div>
               )}
 
