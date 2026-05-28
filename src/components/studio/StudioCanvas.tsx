@@ -1211,6 +1211,13 @@ function SceneRefCapture({ target }: { target: { current: THREE.Scene | null } }
   return null;
 }
 
+/* ── 노출(toneMapping) 라이브 업데이트 — gl prop 은 초기 마운트만 적용되므로 */
+function ExposureUpdater({ exposure }: { exposure: number }) {
+  const { gl } = useThree();
+  gl.toneMappingExposure = exposure;
+  return null;
+}
+
 /* ── 시뮬레이션: 물리 씬 렌더러 (평면화 — 세계좌표 기준) ── */
 type SimTransforms = Record<string, { pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number] }>;
 
@@ -2085,6 +2092,7 @@ export default function StudioCanvas() {
   const [hdriPreset, setHdriPreset] = useState<HdriPreset>('none');
   const [hdriUrl, setHdriUrl] = useState('');          // 커스텀 URL (.hdr/.exr)
   const [hdriBackground, setHdriBackground] = useState(false); // HDRI를 배경으로 표시
+  const [exposure, setExposure] = useState(0.7);   // tone mapping exposure — 너무 밝으면 낮춤
   // 썸네일 캡처 함수 (Canvas 내부에서 등록)
   const captureFnRef = useRef<(() => string | null) | null>(null);
   const cameraRef    = useRef<THREE.Camera | null>(null);
@@ -2186,6 +2194,7 @@ export default function StudioCanvas() {
         if (ss.hdriPreset    !== undefined) setHdriPreset(ss.hdriPreset);
         if (ss.hdriUrl       !== undefined) setHdriUrl(ss.hdriUrl);
         if (ss.hdriBackground !== undefined) setHdriBackground(ss.hdriBackground);
+        if (ss.exposure       !== undefined) setExposure(ss.exposure);
         const objs = d.world.mapData?.objects || [];
         setObjects(objs);
         setHist({ stack: [clone(objs)], idx: 0 });
@@ -2966,7 +2975,7 @@ export default function StudioCanvas() {
         }
       } catch { /* 썸네일 실패는 무시 */ }
 
-      const sceneSettings = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground };
+      const sceneSettings = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, exposure };
       const payload: Record<string, unknown> = { name, description, mapData: { objects, sceneSettings }, isPublic };
       if (thumbnailUrl) payload.thumbnailUrl = thumbnailUrl;
       const body = JSON.stringify(payload);
@@ -3006,11 +3015,11 @@ export default function StudioCanvas() {
   }, [selected, inspTab]);
 
   // dirty — 현재 상태가 저장된 상태와 다른가
-  const sceneSettingsForDirty = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground };
+  const sceneSettingsForDirty = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, exposure };
   const currentKey = useMemo(
     () => JSON.stringify({ name, objects, sceneSettings: sceneSettingsForDirty }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [name, objects, lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground],
+    [name, objects, lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, exposure],
   );
   const dirty = savedKey !== '' && currentKey !== savedKey;
 
@@ -3135,8 +3144,8 @@ export default function StudioCanvas() {
         </button>
       </div>{/* /내부 스크롤 컨테이너 (메타) */}
 
-      {/* ── 씬 계층 ── 좌측 패널 메인 영역 */}
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      {/* ── 씬 계층 ── 좌측 패널 메인 영역. minHeight 로 너무 작아지지 않게 보장. */}
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 180 }}>
         <div style={{ padding: '8px 12px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, letterSpacing: 0.5 }}>{t('scSceneObjects')}</span>
           <span style={{ fontSize: 10, opacity: 0.35, background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '1px 7px' }}>{objects.length}</span>
@@ -3218,8 +3227,9 @@ export default function StudioCanvas() {
         </div>
       </div>
 
-      {/* ── 추가 버튼 (좌측 하단 고정) ── */}
-      <div style={{ flexShrink: 0, borderTop: '1px solid rgba(255,255,255,0.08)', padding: '8px 10px 10px' }}>
+      {/* ── 추가 버튼 (좌측 하단 고정) ── 자기 컨텐츠 크기 유지, 넘치면 자체 스크롤.
+          씬 트리 보장은 위 minHeight: 180 으로 처리됨. */}
+      <div style={{ flexShrink: 0, borderTop: '1px solid rgba(255,255,255,0.08)', padding: '8px 10px 10px', maxHeight: '65vh', overflowY: 'auto' }}>
         <button type="button" onClick={() => setShapePanelOpen(v => !v)}
           style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '4px 8px', cursor: 'pointer', fontWeight: 600, marginBottom: 4 }}>
           📦 {t('addShape')} {shapePanelOpen ? '▲' : '▼'}
@@ -3311,6 +3321,18 @@ export default function StudioCanvas() {
                 <input type="checkbox" checked={hdriBackground}
                   onChange={e => { setHdriBackground(e.target.checked); pushHistory(objects); }} />
                 HDRI 를 배경으로 표시
+              </label>
+
+              {/* 노출 (tone mapping exposure) */}
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.75 }}>
+                노출 (exposure): {exposure.toFixed(2)}
+                <input type="range" min={0.1} max={2} step={0.05} value={exposure}
+                  onChange={e => setExposure(Number(e.target.value))}
+                  onMouseUp={() => pushHistory(objects)}
+                  style={{ accentColor: '#fb923c' }} />
+                <span style={{ fontSize: 10, opacity: 0.55, marginTop: 1 }}>
+                  땅이 너무 밝으면 0.4~0.6, 너무 어두우면 1.0+ 로 조정
+                </span>
               </label>
 
               {/* Ambient light 강도 */}
@@ -3890,9 +3912,10 @@ export default function StudioCanvas() {
           shadows
           camera={{ position: [8, 8, 8], fov: 50 }}
           dpr={[1, 2]}
-          gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.7 }}
+          gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: exposure }}
           onPointerMissed={() => { if (!isGizmoActive()) { setSelectedId(null); setStudioMode('scene'); } }}
         >
+          <ExposureUpdater exposure={exposure} />
           <ambientLight intensity={lightAmbient} />
           <directionalLight position={[20, 30, 10]} intensity={lightDir} castShadow
             shadow-mapSize={[2048, 2048]}

@@ -653,6 +653,13 @@ function LuaUpdateLoop({
 }
 
 /* ── 그래픽 설정 변경 시 셰도우맵 강제 갱신 ── */
+/* 노출(toneMapping) 라이브 업데이트 — gl prop 은 초기 마운트만 적용되므로 */
+function ExposureUpdater({ exposure }: { exposure: number }) {
+  const { gl } = useThree();
+  gl.toneMappingExposure = exposure;
+  return null;
+}
+
 function GraphicsApplier({ shadowSize, shadowFilter, shadowRadius }: {
   shadowSize: number;
   shadowFilter: 'basic' | 'pcf' | 'pcfsoft';
@@ -1921,6 +1928,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const hdriPreset       = typeof ss.hdriPreset === 'string' ? ss.hdriPreset as string : 'none';
   const hdriUrl          = typeof ss.hdriUrl === 'string' ? ss.hdriUrl as string : '';
   const hdriBackground   = typeof ss.hdriBackground === 'boolean' ? ss.hdriBackground : false;
+  const exposure         = typeof ss.exposure === 'number' ? ss.exposure : 0.7;
   const lightObjects = (customObjects ?? []).filter(
     (o: UserMapObject) => o.kind === 'pointlight' || o.kind === 'spotlight' || o.kind === 'dirlight'
   );
@@ -2582,7 +2590,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
 
       <Canvas
         shadows={{ enabled: true, type: THREE.PCFShadowMap, autoUpdate: true }}
-        camera={{ fov: 60, near: 0.03, far: graphics.farClip, position: [0, 8, 12] }}
+        camera={{ fov: 60, near: 0.3, far: graphics.farClip, position: [0, 8, 12] }}
         dpr={graphics.dpr}
         gl={{
           antialias: true, // 항상 켬 (런타임 변경 시 WebGL 컨텍스트 손실)
@@ -2648,6 +2656,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           shadowFilter={graphics.shadowFilter}
           shadowRadius={graphics.shadowRadius}
         />
+        <ExposureUpdater exposure={exposure} />
 
         {showSky && !hdriBackground && <Sky sunPosition={[25, 10, 15]} turbidity={0.4} rayleigh={0.25} />}
         {/* HDRI 환경맵 — 커스텀 URL 우선, 없으면 프리셋, none 이면 미사용 */}
