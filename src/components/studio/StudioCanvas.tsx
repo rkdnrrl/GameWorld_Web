@@ -1262,16 +1262,21 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs }: {
   );
 }
 
-/** 스크립트 onUpdate(dt) 호출 + worldElapsed 누적 — Canvas 내부에서만 useFrame 동작 */
+/** 스크립트 onUpdate(dt) 호출 + worldElapsed 누적 — Canvas 내부에서만 useFrame 동작.
+ *  메인 스크립트 + user 컴포넌트 VM 둘 다 dispatch. */
 function SimScriptLoop({
-  luaScripts, worldElapsed,
+  luaScripts, componentScripts, worldElapsed,
 }: {
   luaScripts: React.MutableRefObject<Map<string, import('@/lib/world/jsRuntime').JsScript>>;
+  componentScripts: React.MutableRefObject<Map<string, Array<{ vm: import('@/lib/world/jsRuntime').JsScript }>>>;
   worldElapsed: React.MutableRefObject<number>;
 }) {
   useFrame((_, dt) => {
     worldElapsed.current += dt;
     for (const vm of luaScripts.current.values()) vm.callUpdate(dt);
+    for (const arr of componentScripts.current.values()) {
+      for (const { vm } of arr) vm.callUpdate(dt);
+    }
   });
   return null;
 }
@@ -1290,7 +1295,31 @@ function SimScene({ objects, transforms, myAssets }: {
   const scriptBodyRefs = useRef<Map<string, SimBodyRefs>>(new Map());
   const lightRefs = useRef<Map<string, THREE.Light>>(new Map());
   const luaScripts = useRef<Map<string, import('@/lib/world/jsRuntime').JsScript>>(new Map());
+  // user 컴포넌트 VM 들 — objectId → 배열 (오브젝트당 여러 부착 가능)
+  const componentScripts = useRef<Map<string, Array<{ vm: import('@/lib/world/jsRuntime').JsScript }>>>(new Map());
+  // user 컴포넌트 코드 캐시 — id → ScriptComponent
+  const scriptComponentDefsRef = useRef<Map<string, ScriptComponent>>(new Map());
+  const [scriptCompsLoaded, setScriptCompsLoaded] = useState(0);
   const worldElapsed = useRef(0);
+
+  // 시뮬레이션 시작 시점에 본인 + 공식 컴포넌트 fetch (캐시 갱신)
+  useEffect(() => {
+    const tok = session.getToken();
+    const tasks: Array<Promise<unknown>> = [];
+    tasks.push(
+      api.listOfficialScriptComponents(tok || undefined)
+        .then(r => { for (const c of r.components) scriptComponentDefsRef.current.set(c.id, c); })
+        .catch(e => console.warn('[SimScene] official fetch fail', e))
+    );
+    if (tok) {
+      tasks.push(
+        api.listMyScriptComponents(tok)
+          .then(r => { for (const c of r.components) scriptComponentDefsRef.current.set(c.id, c); })
+          .catch(e => console.warn('[SimScene] my fetch fail', e))
+      );
+    }
+    Promise.all(tasks).then(() => setScriptCompsLoaded(n => n + 1));
+  }, []);
 
   const spawnObject = useCallback((opts: import('@/lib/world/jsRuntime').JsSpawnOpts): string => {
     const id = `rt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -1318,8 +1347,8 @@ function SimScene({ objects, transforms, myAssets }: {
 
   // 렌더 대상: 원본 + 런타임 spawn된 것
   const allObjects = useMemo(() => [...objects, ...runtimeObjects], [objects, runtimeObjects]);
-  // VM 재생성 키 — 원본 objects 만 추적 (runtimeObjects는 script 없으므로 무시 → spawn 호출이 VM 재초기화 안 함)
-  const scriptsKey = objects.map(o => o.id + '|' + (o.script ?? '')).join(',');
+  // VM 재생성 키 — 원본 objects 의 script + components 변경 추적
+  const scriptsKey = objects.map(o => o.id + '|' + (o.script ?? '') + '|' + JSON.stringify(o.components ?? [])).join(',');
 
   useEffect(() => {
     const scripted = objects.filter(o => o.script);
@@ -1454,16 +1483,121 @@ function SimScene({ objects, transforms, myAssets }: {
       vm.callStart(); // 스튜디오는 단일 클라 — 즉시 시작
     }
 
+    /* ── user 컴포넌트 VM 생성/정리 — 모든 오브젝트의 user: 인스턴스 처리 ── */
+    for (const arr of componentScripts.current.values()) {
+      for (const { vm } of arr) vm.destroy();
+    }
+    componentScripts.current.clear();
+
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { JsScript: JsScript2 } = require('@/lib/world/jsRuntime') as typeof import('@/lib/world/jsRuntime');
+
+    // makeObjectAPI / worldAPI 재사용을 위해 헬퍼 inline
+    const makeAPIForObj = (obj: MapObject) => {
+      const objAPI: import('@/lib/world/jsRuntime').JsObjectAPI = {
+        id: obj.id,
+        getPosition: () => {
+          const ref = scriptBodyRefs.current.get(obj.id);
+          if (ref?.body.current) {
+            const t = ref.body.current.translation();
+            return [t.x, t.y, t.z];
+          }
+          if (ref?.group.current) {
+            const p = ref.group.current.position;
+            return [p.x, p.y, p.z];
+          }
+          return obj.position;
+        },
+        setPosition: (x, y, z) => {
+          const ref = scriptBodyRefs.current.get(obj.id);
+          if (ref?.body.current) ref.body.current.setTranslation({ x, y, z }, true);
+          else if (ref?.group.current) ref.group.current.position.set(x, y, z);
+        },
+        getRotation: () => {
+          const ref = scriptBodyRefs.current.get(obj.id);
+          if (ref?.group.current) {
+            const r = ref.group.current.rotation;
+            return [r.x, r.y, r.z];
+          }
+          return obj.rotation;
+        },
+        setRotation: (rx, ry, rz) => {
+          const ref = scriptBodyRefs.current.get(obj.id);
+          if (ref?.group.current) ref.group.current.rotation.set(rx, ry, rz);
+        },
+        applyImpulse: (x, y, z) => {
+          const ref = scriptBodyRefs.current.get(obj.id);
+          ref?.body.current?.applyImpulse({ x, y, z }, true);
+        },
+        setVisible: (b) => {
+          const ref = scriptBodyRefs.current.get(obj.id);
+          if (ref?.group.current) ref.group.current.visible = b;
+        },
+        setColor: (hex) => {
+          const ref = scriptBodyRefs.current.get(obj.id);
+          if (ref?.group.current) {
+            ref.group.current.traverse((child) => {
+              const m = child as THREE.Mesh;
+              if (m.isMesh && m.material) {
+                const mat = m.material as THREE.MeshStandardMaterial;
+                if (mat.color) { try { mat.color.set(hex); } catch {} }
+              }
+            });
+          }
+        },
+        destroy: () => { if (obj.id.startsWith('rt_')) destroyObject(obj.id); },
+      };
+      return objAPI;
+    };
+
+    const worldAPI2: import('@/lib/world/jsRuntime').JsWorldAPI = {
+      getTime: () => worldElapsed.current,
+      getPlayers: () => [],
+      findObject: () => null,
+      spawn: (opts) => {
+        const id = spawnObject(opts);
+        return makeAPIForObj({ ...opts, id } as MapObject);
+      },
+      isHost: () => true,
+      runtimeCount: () => runtimeObjectsRef.current.length,
+    };
+    const netAPI2: import('@/lib/world/jsRuntime').JsNetAPI = { sendAll: () => {}, sendTo: () => {} };
+
+    for (const obj of objects) {
+      if (obj.hidden) continue;
+      const userComps = (obj.components ?? []).filter(c => c.type.startsWith('user:'));
+      if (userComps.length === 0) continue;
+      const objAPI = makeAPIForObj(obj);
+      const vms: Array<{ vm: import('@/lib/world/jsRuntime').JsScript }> = [];
+      for (const inst of userComps) {
+        const compId = inst.type.slice(5);
+        const def = scriptComponentDefsRef.current.get(compId);
+        if (!def) {
+          console.warn(`[SimScene] user 컴포넌트 코드 없음: ${compId} (오브젝트 ${obj.id})`);
+          continue;
+        }
+        const vm2 = new JsScript2();
+        vm2.init(def.code, objAPI, worldAPI2, netAPI2, inst.props ?? {});
+        vm2.callStart();
+        vms.push({ vm: vm2 });
+      }
+      if (vms.length > 0) componentScripts.current.set(obj.id, vms);
+    }
+
     return () => {
       for (const vm of luaScripts.current.values()) vm.destroy();
       luaScripts.current.clear();
+      for (const arr of componentScripts.current.values()) {
+        for (const { vm } of arr) vm.destroy();
+      }
+      componentScripts.current.clear();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scriptsKey]);
+  }, [scriptsKey, scriptCompsLoaded]);
 
   return (
     <>
-      <SimScriptLoop luaScripts={luaScripts} worldElapsed={worldElapsed} />
+      <SimScriptLoop luaScripts={luaScripts} componentScripts={componentScripts} worldElapsed={worldElapsed} />
       {allObjects.map(obj => (
         <SimObject key={obj.id} obj={obj} transforms={transforms}
           myAssets={myAssets} scriptBodyRefs={scriptBodyRefs} lightRefs={lightRefs} />
