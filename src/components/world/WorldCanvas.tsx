@@ -1,7 +1,7 @@
 'use client';
 import React, { Suspense, useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Html, Sky, Text } from '@react-three/drei';
+import { Html, Sky, Text, Environment } from '@react-three/drei';
 import { Physics, RigidBody, CapsuleCollider, useRapier } from '@react-three/rapier';
 
 /** Rapier 강체 — 우리가 호출하는 메서드만 추린 미니 인터페이스 (버전 무관) */
@@ -1907,6 +1907,10 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const ambientIntensity = typeof ss.lightAmbient === 'number' ? ss.lightAmbient : 0.04;
   const dirIntensity     = typeof ss.lightDir     === 'number' ? ss.lightDir     : 0.0;
   const showSky          = typeof ss.skyEnabled   === 'boolean' ? ss.skyEnabled  : false;
+  // HDRI 환경맵 — Studio 의 sceneSettings 에서 받음. 셋 다 옵션.
+  const hdriPreset       = typeof ss.hdriPreset === 'string' ? ss.hdriPreset as string : 'none';
+  const hdriUrl          = typeof ss.hdriUrl === 'string' ? ss.hdriUrl as string : '';
+  const hdriBackground   = typeof ss.hdriBackground === 'boolean' ? ss.hdriBackground : false;
   const lightObjects = (customObjects ?? []).filter(
     (o: UserMapObject) => o.kind === 'pointlight' || o.kind === 'spotlight' || o.kind === 'dirlight'
   );
@@ -2595,7 +2599,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             <pointLight key={o.id} ref={refCb}
               position={o.position} color={o.lightColor || '#ffffff'}
               intensity={o.lightIntensity ?? 1} distance={dist}
-              decay={2} castShadow={o.castShadow ?? false}
+              decay={1} castShadow={o.castShadow ?? false}
               shadow-camera-near={0.1} shadow-camera-far={shadowFar} />
           ) : o.kind === 'dirlight' ? (
             <directionalLight key={o.id} ref={refCb}
@@ -2609,7 +2613,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               intensity={o.lightIntensity ?? 1} distance={dist}
               angle={(o.lightAngle ?? 45) * Math.PI / 180}
               penumbra={o.lightPenumbra ?? 0.2}
-              decay={2} castShadow={o.castShadow ?? false}
+              decay={1} castShadow={o.castShadow ?? false}
               shadow-camera-near={0.1} shadow-camera-far={shadowFar} />
           );
         })}
@@ -2620,7 +2624,15 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           shadowRadius={graphics.shadowRadius}
         />
 
-        {showSky && <Sky sunPosition={[25, 10, 15]} turbidity={0.4} rayleigh={0.25} />}
+        {showSky && !hdriBackground && <Sky sunPosition={[25, 10, 15]} turbidity={0.4} rayleigh={0.25} />}
+        {/* HDRI 환경맵 — 커스텀 URL 우선, 없으면 프리셋, none 이면 미사용 */}
+        {hdriUrl.trim() ? (
+          <Environment files={hdriUrl.trim()} background={hdriBackground} />
+        ) : hdriPreset !== 'none' ? (
+          // drei Environment preset 타입 — 런타임 검증은 drei 가 함
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          <Environment preset={hdriPreset as any} background={hdriBackground} />
+        ) : null}
 
         {/* ── JS onUpdate + 네트워크 보간 루프 ── */}
         <LuaUpdateLoop

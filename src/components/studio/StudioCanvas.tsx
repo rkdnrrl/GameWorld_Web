@@ -994,7 +994,7 @@ function SpotLightWithTarget({ color, intensity, distance, angle, penumbra, cast
     <>
       <spotLight ref={lightRef}
         color={color} intensity={intensity} distance={distance}
-        angle={angle} penumbra={penumbra} decay={2} castShadow={castShadow}
+        angle={angle} penumbra={penumbra} decay={1} castShadow={castShadow}
         shadow-camera-near={0.1}
         shadow-camera-far={distance > 0 ? distance : 100}
       />
@@ -1033,7 +1033,7 @@ function SceneNode({ obj, allObjects, selectedId, multiSelectedIds, onObjectClic
             color={obj.lightColor || '#ffffff'}
             intensity={obj.lightIntensity ?? 1}
             distance={obj.lightDistance ?? 0}
-            decay={2}
+            decay={1}
             castShadow={obj.castShadow ?? false}
             shadow-camera-near={0.1}
             shadow-camera-far={(obj.lightDistance ?? 0) > 0 ? obj.lightDistance! : 100}
@@ -1226,7 +1226,7 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs }: {
   // 조명은 Three.js 라이트로 렌더링 (물리 없음)
   if (obj.kind === 'pointlight') return (
     <pointLight ref={lightRefCb} position={t.pos} color={obj.lightColor || '#ffffff'}
-      intensity={obj.lightIntensity ?? 1} distance={obj.lightDistance ?? 0} decay={2} castShadow={obj.castShadow ?? false} />
+      intensity={obj.lightIntensity ?? 1} distance={obj.lightDistance ?? 0} decay={1} castShadow={obj.castShadow ?? false} />
   );
   if (obj.kind === 'dirlight') return (
     <directionalLight ref={lightRefCb} position={t.pos} color={obj.lightColor || '#ffffff'}
@@ -1236,7 +1236,7 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs }: {
     <spotLight ref={lightRefCb} position={t.pos} color={obj.lightColor || '#ffffff'}
       intensity={obj.lightIntensity ?? 1} distance={obj.lightDistance ?? 0}
       angle={(obj.lightAngle ?? 45) * Math.PI / 180} penumbra={obj.lightPenumbra ?? 0.2}
-      decay={2} castShadow={obj.castShadow ?? false} />
+      decay={1} castShadow={obj.castShadow ?? false} />
   );
 
   const assetConfig = getAssetMaterialConfig(myAssets.find(a => a.modelUrl === obj.assetUrl));
@@ -1502,11 +1502,13 @@ function SimScene({ objects, transforms, myAssets }: {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { JsScript: JsScript2 } = require('@/lib/world/jsRuntime') as typeof import('@/lib/world/jsRuntime');
 
-    // makeObjectAPI / worldAPI 재사용을 위해 헬퍼 inline
+    // makeObjectAPI / worldAPI 재사용을 위해 헬퍼 inline. 라이트 / RigidBody / Group 모두 처리.
     const makeAPIForObj = (obj: MapObject) => {
       const objAPI: import('@/lib/world/jsRuntime').JsObjectAPI = {
         id: obj.id,
         getPosition: () => {
+          const light = lightRefs.current.get(obj.id);
+          if (light) return [light.position.x, light.position.y, light.position.z];
           const ref = scriptBodyRefs.current.get(obj.id);
           if (ref?.body.current) {
             const t = ref.body.current.translation();
@@ -1519,14 +1521,17 @@ function SimScene({ objects, transforms, myAssets }: {
           return obj.position;
         },
         setPosition: (x, y, z) => {
+          const light = lightRefs.current.get(obj.id);
+          if (light) { light.position.set(x, y, z); return; }
           const ref = scriptBodyRefs.current.get(obj.id);
           if (ref?.body.current) ref.body.current.setTranslation({ x, y, z }, true);
           else if (ref?.group.current) ref.group.current.position.set(x, y, z);
         },
         getRotation: () => {
+          const light = lightRefs.current.get(obj.id);
+          if (light) return [light.rotation.x, light.rotation.y, light.rotation.z];
           const ref = scriptBodyRefs.current.get(obj.id);
           if (ref?.body.current) {
-            // RigidBody: 쿼터니언 → Euler 변환
             const q = ref.body.current.rotation();
             const e = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w));
             return [e.x, e.y, e.z];
@@ -1538,9 +1543,10 @@ function SimScene({ objects, transforms, myAssets }: {
           return obj.rotation;
         },
         setRotation: (rx, ry, rz) => {
+          const light = lightRefs.current.get(obj.id);
+          if (light) { light.rotation.set(rx, ry, rz); return; }
           const ref = scriptBodyRefs.current.get(obj.id);
           if (ref?.body.current) {
-            // RigidBody: Euler → 쿼터니언 변환 후 setRotation
             const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz));
             ref.body.current.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
           } else if (ref?.group.current) {
@@ -1552,10 +1558,14 @@ function SimScene({ objects, transforms, myAssets }: {
           ref?.body.current?.applyImpulse({ x, y, z }, true);
         },
         setVisible: (b) => {
+          const light = lightRefs.current.get(obj.id);
+          if (light) { light.visible = b; return; }
           const ref = scriptBodyRefs.current.get(obj.id);
           if (ref?.group.current) ref.group.current.visible = b;
         },
         setColor: (hex) => {
+          const light = lightRefs.current.get(obj.id);
+          if (light) { try { light.color.set(hex); } catch {} return; }
           const ref = scriptBodyRefs.current.get(obj.id);
           if (ref?.group.current) {
             ref.group.current.traverse((child) => {
@@ -1566,6 +1576,10 @@ function SimScene({ objects, transforms, myAssets }: {
               }
             });
           }
+        },
+        setIntensity: (v) => {
+          const light = lightRefs.current.get(obj.id);
+          if (light) light.intensity = Number(v);
         },
         destroy: () => { if (obj.id.startsWith('rt_')) destroyObject(obj.id); },
       };
@@ -1925,6 +1939,8 @@ export default function StudioCanvas() {
   // 컴포넌트 picker 모달 (인스펙터의 "+ 컴포넌트 추가" 클릭 시 열림)
   const [componentPickerOpen, setComponentPickerOpen] = useState(false);
   const [componentPickerSearch, setComponentPickerSearch] = useState('');
+  // 환경 (Sky/HDRI/ambient) 패널 토글
+  const [envPanelOpen, setEnvPanelOpen] = useState(false);
   // 유저 정의 스크립트 컴포넌트 (DB) + 관리 모달
   const [scriptComponents, setScriptComponents] = useState<ScriptComponent[]>([]);
   // 공식 (운영자가 만든) 컴포넌트 — 모든 유저 picker 에 노출
@@ -1966,7 +1982,7 @@ export default function StudioCanvas() {
   const [sceneSearch, setSceneSearch] = useState('');
   const [sceneFilter, setSceneFilter] = useState<'all' | 'shapes' | 'lights' | 'assets' | 'scripted'>('all');
   // 인스펙터 탭
-  const [inspTab, setInspTab] = useState<'transform' | 'material' | 'script'>('transform');
+  const [inspTab, setInspTab] = useState<'transform' | 'material'>('transform');
   // 데스크톱 좌/우 패널 접기 (모바일은 기존 studioMode 토글 사용)
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
@@ -3189,6 +3205,80 @@ export default function StudioCanvas() {
             </button>
           </div>
         )}
+        {/* 환경 (Sky / HDRI / Ambient) */}
+        <div style={{ marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 8 }}>
+          <button type="button" onClick={() => setEnvPanelOpen(v => !v)}
+            style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '4px 0', cursor: 'pointer', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>🌐 환경 / HDRI</span>
+            <span>{envPanelOpen ? '▲' : '▼'}</span>
+          </button>
+          {envPanelOpen && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+              {/* Sky 토글 */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, opacity: 0.8, cursor: 'pointer' }}>
+                <input type="checkbox" checked={skyEnabled}
+                  onChange={e => { setSkyEnabled(e.target.checked); pushHistory(objects); }} />
+                ☁ 하늘 (Sky)
+              </label>
+
+              {/* HDRI preset */}
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.75 }}>
+                HDRI 프리셋
+                <select value={hdriPreset}
+                  onChange={e => { setHdriPreset(e.target.value as HdriPreset); pushHistory(objects); }}
+                  style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 5, padding: '5px 7px', fontSize: 11, outline: 'none' }}>
+                  <option value="none">없음</option>
+                  <option value="apartment">apartment</option>
+                  <option value="city">city</option>
+                  <option value="dawn">dawn</option>
+                  <option value="forest">forest</option>
+                  <option value="lobby">lobby</option>
+                  <option value="night">night</option>
+                  <option value="park">park</option>
+                  <option value="studio">studio</option>
+                  <option value="sunset">sunset</option>
+                  <option value="warehouse">warehouse</option>
+                </select>
+              </label>
+
+              {/* HDRI URL (커스텀) — preset 보다 우선 */}
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.75 }}>
+                HDRI URL (.hdr / .exr, 선택)
+                <input type="text" value={hdriUrl}
+                  onChange={e => setHdriUrl(e.target.value)}
+                  onBlur={() => pushHistory(objects)}
+                  placeholder="https://... (비우면 프리셋 사용)"
+                  style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 5, padding: '5px 7px', fontSize: 11, outline: 'none' }} />
+              </label>
+
+              {/* HDRI 를 배경으로도 표시 */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, opacity: 0.8, cursor: 'pointer' }}>
+                <input type="checkbox" checked={hdriBackground}
+                  onChange={e => { setHdriBackground(e.target.checked); pushHistory(objects); }} />
+                HDRI 를 배경으로 표시
+              </label>
+
+              {/* Ambient light 강도 */}
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.75 }}>
+                Ambient 강도: {lightAmbient.toFixed(2)}
+                <input type="range" min={0} max={2} step={0.05} value={lightAmbient}
+                  onChange={e => setLightAmbient(Number(e.target.value))}
+                  onMouseUp={() => pushHistory(objects)}
+                  style={{ accentColor: '#a5b4fc' }} />
+              </label>
+
+              {/* Directional light 강도 */}
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.75 }}>
+                태양광 강도: {lightDir.toFixed(2)}
+                <input type="range" min={0} max={5} step={0.1} value={lightDir}
+                  onChange={e => setLightDir(Number(e.target.value))}
+                  onMouseUp={() => pushHistory(objects)}
+                  style={{ accentColor: '#fbbf24' }} />
+              </label>
+            </div>
+          )}
+        </div>
+
         {/* 프리팹 라이브러리 — 드래그해서 뷰포트에 인스턴스화 */}
         <div style={{ marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 8 }}>
           <button type="button" onClick={() => setPrefabPanelOpen(v => !v)}
@@ -3377,11 +3467,11 @@ export default function StudioCanvas() {
                 {KIND_ICONS[selected.kind] ?? '❓'} {selected.label || selected.kind}
               </div>
 
-              {/* 인스펙터 탭 (변환 / 재질 / 스크립트) */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 2, marginBottom: 10, background: 'rgba(0,0,0,0.25)', borderRadius: 7, padding: 2 }}>
-                {(['transform','material','script'] as const).map(tab => {
+              {/* 인스펙터 탭 (변환 / 재질) — 스크립트 탭은 컴포넌트 시스템으로 대체됨 */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, marginBottom: 10, background: 'rgba(0,0,0,0.25)', borderRadius: 7, padding: 2 }}>
+                {(['transform','material'] as const).map(tab => {
                   const isLight = selected.kind === 'pointlight' || selected.kind === 'spotlight' || selected.kind === 'dirlight';
-                  const disabled = isLight && (tab === 'material' || tab === 'script');
+                  const disabled = isLight && tab === 'material';
                   return (
                     <button key={tab} disabled={disabled} onClick={() => setInspTab(tab)}
                       style={{
@@ -3389,7 +3479,7 @@ export default function StudioCanvas() {
                         color: disabled ? 'rgba(255,255,255,0.2)' : (inspTab === tab ? '#fff' : 'rgba(255,255,255,0.55)'),
                         fontSize: 11, padding: '6px 0', cursor: disabled ? 'default' : 'pointer', fontWeight: 700,
                       }}>
-                      {t(tab === 'transform' ? 'inspTabTransform' : tab === 'material' ? 'inspTabMaterial' : 'inspTabScript')}
+                      {t(tab === 'transform' ? 'inspTabTransform' : 'inspTabMaterial')}
                     </button>
                   );
                 })}
@@ -3458,18 +3548,16 @@ export default function StudioCanvas() {
                 </div>
               )}
 
-              {/* ── 컴포넌트 (Unity 스타일) — 조명 외 오브젝트에만 ── */}
-              {selected.kind !== 'pointlight' && selected.kind !== 'spotlight' && selected.kind !== 'dirlight' && (
-                <ComponentsSection
-                  selected={selected}
-                  setObjects={setObjects}
-                  pushHistory={pushHistory}
-                  allObjects={objects}
-                  openPicker={() => setComponentPickerOpen(true)}
-                  scriptComponents={scriptComponents}
-                  officialScriptComponents={officialScriptComponents}
-                />
-              )}
+              {/* ── 컴포넌트 (Unity 스타일) — 모든 오브젝트 (라이트 포함) ── */}
+              <ComponentsSection
+                selected={selected}
+                setObjects={setObjects}
+                pushHistory={pushHistory}
+                allObjects={objects}
+                openPicker={() => setComponentPickerOpen(true)}
+                scriptComponents={scriptComponents}
+                officialScriptComponents={officialScriptComponents}
+              />
 
               {/* 조명 속성 (pointlight / spotlight 전용) */}
               {(selected.kind === 'pointlight' || selected.kind === 'spotlight' || selected.kind === 'dirlight') && (
@@ -3526,59 +3614,7 @@ export default function StudioCanvas() {
               )}
               </>}{/* /transform 탭 끝 */}
 
-              {/* ── 스크립트 탭 ── */}
-              {inspTab === 'script' && selected.kind !== 'pointlight' && selected.kind !== 'spotlight' && selected.kind !== 'dirlight' && (
-                <div style={{ marginBottom: 10 }}>
-                  <button type="button" onClick={() => setObjects(prev => prev.map(o =>
-                    o.id === selected.id ? { ...o, _scriptOpen: !(o as MapObject & { _scriptOpen?: boolean })._scriptOpen } : o
-                  ))}
-                    style={{ width: '100%', textAlign: 'left', background: selected.script ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.05)', border: `1px solid ${selected.script ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 7, color: selected.script ? '#a5b4fc' : 'rgba(255,255,255,0.65)', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 600, marginBottom: 4 }}>
-                    {t('inspScriptPanelTitle')} {selected.script ? '✓' : ''} {(selected as MapObject & { _scriptOpen?: boolean })._scriptOpen ? '▲' : '▼'}
-                  </button>
-                  {(selected as MapObject & { _scriptOpen?: boolean })._scriptOpen && (
-                    <div>
-                      <textarea
-                        value={selected.script ?? ''}
-                        onChange={e => setObjects(prev => prev.map(o =>
-                          o.id === selected.id ? { ...o, script: e.target.value } : o
-                        ))}
-                        onBlur={() => pushHistory(objects)}
-                        spellCheck={false}
-                        placeholder={`// JavaScript 스크립트\nlet startY = 0;\n\nfunction onStart() {\n  let p = self.getPosition();\n  startY = p.y;\n}\n\nfunction onUpdate(dt) {\n  let p = self.getPosition();\n  self.setPosition(p.x, startY + Math.sin(world.time) * 2, p.z);\n\n  // 잡힌 상태 조회 (로컬 클라 기준)\n  if (self.isGrabbed()) {\n    // self.grabber() = 잡고 있는 플레이어 id\n  }\n}\n\nfunction onNetEvent(event, data, fromId) {\n  if (event === "hit") {\n    self.setVisible(false);\n  }\n}\n\n// 1인칭에서 E 키로 잡혔을 때\nfunction onGrab(grabberId) {\n  self.setColor("#fbbf24");\n}\n\n// 놓였을 때 (E 또는 좌클릭 던지기)\nfunction onRelease(grabberId) {\n  self.setColor("#ffffff");\n}`}
-                        style={{
-                          width: '100%', minHeight: 200, resize: 'vertical',
-                          background: '#0d1117', color: '#e6edf3',
-                          border: '1px solid rgba(99,102,241,0.3)', borderRadius: 6,
-                          fontFamily: 'monospace', fontSize: 11, lineHeight: 1.5,
-                          padding: '8px 10px', outline: 'none', boxSizing: 'border-box',
-                          tabSize: 2,
-                        }}
-                        onKeyDown={e => {
-                          // Tab → 2 spaces
-                          if (e.key === 'Tab') {
-                            e.preventDefault();
-                            const el = e.currentTarget;
-                            const start = el.selectionStart;
-                            const end = el.selectionEnd;
-                            const val = el.value;
-                            el.value = val.slice(0, start) + '  ' + val.slice(end);
-                            el.selectionStart = el.selectionEnd = start + 2;
-                            setObjects(prev => prev.map(o =>
-                              o.id === selected.id ? { ...o, script: el.value } : o
-                            ));
-                          }
-                        }}
-                      />
-                      {selected.script && (
-                        <button onClick={() => { setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, script: '' } : o)); pushHistory(objects); }}
-                          style={{ marginTop: 4, fontSize: 10, padding: '3px 8px', background: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
-                          {t('inspRemoveScript')}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
+              {/* 스크립트 탭은 제거됨 — 컴포넌트 시스템 (변환 탭의 COMPONENTS 섹션) 사용 */}
 
               {/* ── 재질 탭 — 색상 / 재질 / 텍스처 — 조명에서는 숨김 ── */}
               {inspTab === 'material' && selected.kind !== 'pointlight' && selected.kind !== 'spotlight' && selected.kind !== 'dirlight' && <>
