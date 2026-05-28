@@ -1563,6 +1563,35 @@ function SimScene({ objects, transforms, myAssets }: {
     };
     const netAPI2: import('@/lib/world/jsRuntime').JsNetAPI = { sendAll: () => {}, sendTo: () => {} };
 
+    // 누락된 id 수집 (캐시에 없는 거)
+    const missingIds = new Set<string>();
+    for (const obj of objects) {
+      if (obj.hidden) continue;
+      for (const c of obj.components ?? []) {
+        if (c.type.startsWith('user:')) {
+          const id = c.type.slice(5);
+          if (!scriptComponentDefsRef.current.has(id)) missingIds.add(id);
+        }
+      }
+    }
+    // 누락된 거 있으면 by-ids fetch 로 보충 → 다시 트리거
+    if (missingIds.size > 0) {
+      const tok = session.getToken();
+      console.warn('[SimScene] 캐시 missing — by-ids fetch:', [...missingIds],
+        '\n   현재 캐시 ids:', [...scriptComponentDefsRef.current.keys()]);
+      api.getScriptComponentsByIds(tok || undefined, [...missingIds])
+        .then(r => {
+          if (r.components.length === 0) {
+            console.error('[SimScene] 서버에서도 해당 id 못 찾음 — 컴포넌트가 삭제됐거나 권한 없음:',
+              [...missingIds]);
+          } else {
+            for (const c of r.components) scriptComponentDefsRef.current.set(c.id, c);
+            setScriptCompsLoaded(n => n + 1);  // 다시 effect 트리거
+          }
+        })
+        .catch(e => console.error('[SimScene] by-ids fetch fail', e));
+    }
+
     for (const obj of objects) {
       if (obj.hidden) continue;
       const userComps = (obj.components ?? []).filter(c => c.type.startsWith('user:'));
@@ -1573,7 +1602,7 @@ function SimScene({ objects, transforms, myAssets }: {
         const compId = inst.type.slice(5);
         const def = scriptComponentDefsRef.current.get(compId);
         if (!def) {
-          console.warn(`[SimScene] user 컴포넌트 코드 없음: ${compId} (오브젝트 ${obj.id})`);
+          // 이미 위에서 missingIds 에 들어가 fetch 트리거됨 — 다음 re-run 에서 처리
           continue;
         }
         const vm2 = new JsScript2();
