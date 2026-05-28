@@ -1264,6 +1264,7 @@
     "inspPhysNone": "🚫 없음",
     "inspPhysFixed": "🧱 고정",
     "inspPhysDynamic": "🎲 동적",
+    "inspGrabbable": "잡기 가능",
     "inspShadow": "그림자 투영",
     "inspLightSettings": "조명 설정",
     "inspMatPanelTitle": "🎨 색상 / 재질 / 텍스처",

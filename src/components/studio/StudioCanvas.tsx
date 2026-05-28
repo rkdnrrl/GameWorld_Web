@@ -117,6 +117,8 @@ interface MapObject {
   castShadow?:     boolean;
   // 물리
   physics?: 'none' | 'fixed' | 'dynamic';
+  // 1인칭 grab 가능 여부 — 월드에서 E 키로 잡을 수 있는지
+  grabbable?: boolean;
   // JavaScript 스크립트
   script?: string;
 }
@@ -2795,6 +2797,21 @@ export default function StudioCanvas() {
                       );
                     })}
                   </div>
+                  {/* 잡기 가능 토글 — 1인칭 E 키 grab 대상 여부 */}
+                  <button
+                    type="button"
+                    onClick={() => { setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, grabbable: !o.grabbable } : o)); pushHistory(objects); }}
+                    style={{
+                      width: '100%', marginTop: 6, padding: '6px 8px',
+                      borderRadius: 5, border: `1px solid ${selected.grabbable ? 'rgba(251,191,36,0.5)' : 'rgba(255,255,255,0.12)'}`,
+                      background: selected.grabbable ? 'rgba(251,191,36,0.18)' : 'rgba(255,255,255,0.04)',
+                      color: selected.grabbable ? '#fbbf24' : 'rgba(255,255,255,0.5)',
+                      fontSize: 10, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+                    }}>
+                    <span>✋ {t('inspGrabbable')}</span>
+                    <span style={{ fontSize: 9, opacity: 0.85 }}>{selected.grabbable ? 'ON' : 'OFF'}</span>
+                  </button>
                 </div>
               )}
 

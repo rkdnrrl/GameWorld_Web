@@ -1264,6 +1264,7 @@
     "inspPhysNone": "🚫 无",
     "inspPhysFixed": "🧱 固定",
     "inspPhysDynamic": "🎲 动态",
+    "inspGrabbable": "可抓取",
     "inspShadow": "投射阴影",
     "inspLightSettings": "灯光设置",
     "inspMatPanelTitle": "🎨 颜色 / 材质 / 纹理",

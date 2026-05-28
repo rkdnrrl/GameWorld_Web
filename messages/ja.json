@@ -1264,6 +1264,7 @@
     "inspPhysNone": "🚫 なし",
     "inspPhysFixed": "🧱 固定",
     "inspPhysDynamic": "🎲 動的",
+    "inspGrabbable": "掴み可能",
     "inspShadow": "影を落とす",
     "inspLightSettings": "ライト設定",
     "inspMatPanelTitle": "🎨 色 / マテリアル / テクスチャ",

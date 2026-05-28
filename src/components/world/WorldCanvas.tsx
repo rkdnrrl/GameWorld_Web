@@ -729,6 +729,7 @@ function Player({
   ownersRef,
   playerId,
   grabbedStateRef,
+  grabbableIdsRef,
   onGrabUiChange,
 }: {
   character: Record<string, unknown>;
@@ -749,6 +750,7 @@ function Player({
   ownersRef?: React.MutableRefObject<Map<string, string>>;
   playerId?: string;
   grabbedStateRef?: React.MutableRefObject<Map<string, string>>;
+  grabbableIdsRef?: React.MutableRefObject<Set<string>>;
   onGrabUiChange?: (state: 'idle' | 'aim' | 'grab') => void;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -830,6 +832,10 @@ function Player({
                 for (const [id, ref] of scriptBodyRefs.current) {
                   if (ref.body.current === hitBody) { foundId = id; break; }
                 }
+                // grabbable 플래그 체크 — false 면 그냥 무시
+                if (foundId && !grabbableIdsRef?.current.has(foundId)) {
+                  foundId = null;
+                }
                 if (foundId) {
                   grabbedIdRef.current = foundId;
                   if (playerId) grabbedStateRef?.current.set(foundId, playerId);
@@ -887,8 +893,9 @@ function Player({
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       // 1인칭 + 잡고 있는 중 → 잡은 거리 조절 (1.2~6m)
+      // 휠 ↑ (deltaY<0) = 멀어지고, 휠 ↓ (deltaY>0) = 가까워짐
       if (grabbedIdRef.current && cameraModeRef.current === 'first') {
-        grabDistRef.current = Math.max(1.2, Math.min(6.0, grabDistRef.current + e.deltaY * 0.004));
+        grabDistRef.current = Math.max(1.2, Math.min(6.0, grabDistRef.current - e.deltaY * 0.004));
         return;
       }
       _mob.camDist = Math.max(1.1, Math.min(14, _mob.camDist + e.deltaY * 0.01));
@@ -1124,8 +1131,12 @@ function Player({
           if (hit) {
             const hb = hit.collider?.parent();
             if (hb) {
-              for (const [, r] of scriptBodyRefs.current) {
-                if (r.body.current === hb) { nextState = 'aim'; break; }
+              for (const [id, r] of scriptBodyRefs.current) {
+                if (r.body.current === hb) {
+                  // grabbable 인 것만 'aim' 상태로 표시
+                  if (grabbableIdsRef?.current.has(id)) nextState = 'aim';
+                  break;
+                }
               }
             }
           }
@@ -1438,6 +1449,8 @@ interface UserMapObject {
   castShadow?:     boolean;
   // 물리
   physics?: 'none' | 'fixed' | 'dynamic';
+  // 1인칭 grab 가능 여부 (true 일 때만 E 키로 잡을 수 있음)
+  grabbable?: boolean;
   // JavaScript 스크립트
   script?: string;
 }
@@ -1883,6 +1896,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // 스크립트 콜백에서 stale state 피하려는 최신 ref
   const runtimeObjectsRef = useRef<UserMapObject[]>([]);
   useEffect(() => { runtimeObjectsRef.current = runtimeObjects; }, [runtimeObjects]);
+  // 1인칭에서 잡을 수 있는 오브젝트 id 셋 — customObjects+runtimeObjects 의 grabbable 플래그 기반
+  const grabbableIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const s = new Set<string>();
+    customObjects?.forEach(o => { if (o.grabbable) s.add(o.id); });
+    runtimeObjects.forEach(o => { if (o.grabbable) s.add(o.id); });
+    grabbableIdsRef.current = s;
+  }, [customObjects, runtimeObjects]);
   // objectId → { body: Rapier rigid body ref, group: Three.js group ref }
   const scriptBodyRefs = useRef<Map<string, {
     body: React.MutableRefObject<RapierBodyApi | null>;
@@ -2385,9 +2406,10 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         const ch = crosshairState === 'grab' ? '#fbbf24'
                  : crosshairState === 'aim'  ? '#34d399'
                  : '#fff';
+        // 힌트는 잡고 있거나 잡을 수 있는 거 조준 중일 때만 띄움
         const hint = crosshairState === 'grab' ? 'E — 놓기 · 좌클릭 — 던지기 · 휠 — 거리'
                    : crosshairState === 'aim'  ? 'E — 잡기'
-                   : 'E — 잡기/놓기';
+                   : null;
         const useBlend = crosshairState === 'idle';
         return (
           <>
@@ -2396,16 +2418,17 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               <div style={{ position: 'absolute', width: 2, height: 14, background: ch, left: -1, top: -7 }} />
               <div style={{ position: 'absolute', width: 3, height: 3, borderRadius: '50%', background: ch, left: -1.5, top: -1.5 }} />
             </div>
-            {/* 상황별 힌트 */}
-            <div style={{
-              position: 'fixed', top: 'calc(50% + 28px)', left: '50%', transform: 'translateX(-50%)',
-              pointerEvents: 'none', zIndex: 1000,
-              fontSize: 11, color: 'rgba(255,255,255,0.78)', fontWeight: 600,
-              textShadow: '0 1px 2px rgba(0,0,0,0.7)',
-              whiteSpace: 'nowrap',
-            }}>
-              {hint}
-            </div>
+            {hint && (
+              <div style={{
+                position: 'fixed', top: 'calc(50% + 28px)', left: '50%', transform: 'translateX(-50%)',
+                pointerEvents: 'none', zIndex: 1000,
+                fontSize: 11, color: 'rgba(255,255,255,0.78)', fontWeight: 600,
+                textShadow: '0 1px 2px rgba(0,0,0,0.7)',
+                whiteSpace: 'nowrap',
+              }}>
+                {hint}
+              </div>
+            )}
           </>
         );
       })()}
@@ -2512,7 +2535,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} onGrabUiChange={setCrosshairState} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}
