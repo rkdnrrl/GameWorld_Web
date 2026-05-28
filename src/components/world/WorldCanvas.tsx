@@ -685,6 +685,8 @@ const _mob = {
   sprint:     false,
 };
 
+export type CameraMode = 'first' | 'third';
+
 /* ── 로컬 플레이어 컨트롤러 ─────────────── */
 function Player({
   character,
@@ -694,6 +696,8 @@ function Player({
   emoteSlot,
   emoteOneShotOverride,
   onObjCollide,
+  cameraMode,
+  onToggleCameraMode,
 }: {
   character: Record<string, unknown>;
   bubble?: ChatBubble;
@@ -702,6 +706,8 @@ function Player({
   emoteSlot?: string | null;
   emoteOneShotOverride?: string[];
   onObjCollide?: (objectId: string, type: 'enter' | 'exit') => void;
+  cameraMode: CameraMode;
+  onToggleCameraMode: () => void;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body      = useRef<any>(null);
@@ -739,6 +745,7 @@ function Player({
       // 토글 키
       if (e.code === 'KeyC') { crouchRef.current = !crouchRef.current; if (crouchRef.current) proneRef.current = false; }
       if (e.code === 'KeyZ') { proneRef.current  = !proneRef.current;  if (proneRef.current)  crouchRef.current = false; }
+      if (e.code === 'KeyV') { onToggleCameraMode(); }
     };
     const onKeyUp = (e: KeyboardEvent) => keys.current.delete(e.code);
 
@@ -778,7 +785,7 @@ function Player({
       el.removeEventListener('click', onClick);
       el.removeEventListener('pointerdown', onPointerDown);
     };
-  }, [gl, inputLocked]);
+  }, [gl, inputLocked, onToggleCameraMode]);
 
   useEffect(() => {
     if (!inputLocked) return;
@@ -872,10 +879,15 @@ function Player({
         jumpHoldUntil.current = Date.now() + 500;
       }
 
-      // 캐릭터 회전 (엎드리기 중엔 회전 안 함)
-      if (mesh.current && len > 0 && !isProne) {
-        const target = Math.atan2(mx, mz);
-        mesh.current.rotation.y = lerpAngle(mesh.current.rotation.y, target, Math.min(1, 12 * dt));
+      // 캐릭터 회전 — 1인칭은 항상 카메라 방향, 3인칭은 이동 방향
+      if (mesh.current && !isProne) {
+        if (cameraMode === 'first') {
+          // FP: 캐릭터 몸이 항상 카메라 보는 방향과 일치 (즉시 동기)
+          mesh.current.rotation.y = _mob.camH + Math.PI;
+        } else if (len > 0) {
+          const target = Math.atan2(mx, mz);
+          mesh.current.rotation.y = lerpAngle(mesh.current.rotation.y, target, Math.min(1, 12 * dt));
+        }
       }
 
       // 현재 애니메이션 상태 결정
@@ -912,16 +924,26 @@ function Player({
     }
 
     /* ── 카메라는 항상 lastPos를 따라감 (물리 초기화 여부 무관) ── */
-    const p    = lastPos.current;
-    const dist = _mob.camDist;
-    const tx   = p.x + dist * Math.sin(_mob.camH) * Math.cos(_mob.camV);
-    const yOffset = dist <= 2.2 ? 0.25 : 0.5;
-    const ty   = p.y + dist * Math.sin(_mob.camV) + yOffset;
-    const tz   = p.z + dist * Math.cos(_mob.camH) * Math.cos(_mob.camV);
-    // 카메라 즉시 추적 — lerp 지연이 빠른 이동 시 blur를 유발하므로 직접 set
-    camera.position.set(tx, ty, tz);
-    const lookY = dist <= 2.2 ? p.y + 0.45 : p.y + 0.7;
-    camera.lookAt(p.x, lookY, p.z);
+    const p = lastPos.current;
+    if (cameraMode === 'first') {
+      // 1인칭: 캐릭터 눈 위치에 카메라, 카메라가 바라보는 방향으로 lookAt
+      const eyeY = p.y + 0.55; // 캡슐 상단 부근 (캡슐 half_height 0.35 + radius 0.28 = 약 0.63)
+      camera.position.set(p.x, eyeY, p.z);
+      const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
+      const fy =  Math.sin(_mob.camV);
+      const fz = -Math.cos(_mob.camH) * Math.cos(_mob.camV);
+      camera.lookAt(p.x + fx * 10, eyeY + fy * 10, p.z + fz * 10);
+    } else {
+      // 3인칭: 캐릭터 뒤에서 거리 + 각도 따라
+      const dist = _mob.camDist;
+      const tx = p.x + dist * Math.sin(_mob.camH) * Math.cos(_mob.camV);
+      const yOffset = dist <= 2.2 ? 0.25 : 0.5;
+      const ty = p.y + dist * Math.sin(_mob.camV) + yOffset;
+      const tz = p.z + dist * Math.cos(_mob.camH) * Math.cos(_mob.camV);
+      camera.position.set(tx, ty, tz);
+      const lookY = dist <= 2.2 ? p.y + 0.45 : p.y + 0.7;
+      camera.lookAt(p.x, lookY, p.z);
+    }
   });
 
   const appearance = (character.appearance ?? {}) as Record<string, string>;
@@ -946,7 +968,8 @@ function Player({
       }}
     >
       <CapsuleCollider args={[PLAYER_CAPSULE_HALF_HEIGHT, PLAYER_CAPSULE_RADIUS]} />
-      <group ref={mesh} position={[0, PLAYER_MESH_Y, 0]}>
+      {/* 1인칭에선 본인 메쉬 숨김 — 카메라가 머리 안에 들어가서 안에서 보이는 거 방지 */}
+      <group ref={mesh} position={[0, PLAYER_MESH_Y, 0]} visible={cameraMode !== 'first'}>
         <CharacterMesh appearance={appearance} animStateRef={animStateRef} emoteOneShotOverride={emoteOneShotOverride} />
       </group>
       {bubble && (
@@ -2127,6 +2150,12 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customObjects?.map(o => o.id + (o.script ?? '')).join(',')]);
 
+  // 카메라 모드 (1인칭 / 3인칭) — V 키로 토글
+  const [cameraMode, setCameraMode] = useState<CameraMode>('third');
+  const toggleCameraMode = useCallback(() => {
+    setCameraMode(m => m === 'first' ? 'third' : 'first');
+  }, []);
+
   // 모바일 감지 (Canvas 외부)
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -2143,6 +2172,32 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     <>
       {/* ── 모바일 컨트롤: Canvas 완전 바깥의 position:fixed DOM ── */}
       {isMobile && <MobileControls inputLocked={chatInputActive} />}
+
+      {/* 1인칭 크로스헤어 */}
+      {cameraMode === 'first' && (
+        <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none', zIndex: 1000, mixBlendMode: 'difference' }}>
+          <div style={{ position: 'absolute', width: 14, height: 2, background: '#fff', left: -7, top: -1 }} />
+          <div style={{ position: 'absolute', width: 2, height: 14, background: '#fff', left: -1, top: -7 }} />
+          <div style={{ position: 'absolute', width: 3, height: 3, borderRadius: '50%', background: '#fff', left: -1.5, top: -1.5 }} />
+        </div>
+      )}
+
+      {/* 카메라 모드 토글 버튼 (V) */}
+      <button
+        type="button"
+        onClick={toggleCameraMode}
+        title="카메라 전환 (V)"
+        style={{
+          position: 'fixed', top: 16, right: 16, zIndex: 1000,
+          background: 'rgba(0,0,0,0.45)', color: '#fff',
+          border: '1px solid rgba(255,255,255,0.15)', borderRadius: 10,
+          padding: '7px 11px', fontSize: 12, fontWeight: 700,
+          cursor: 'pointer', backdropFilter: 'blur(6px)',
+        }}
+      >
+        {cameraMode === 'first' ? '👁 1인칭' : '🎥 3인칭'} (V)
+      </button>
+
       <Canvas
         shadows={{ enabled: true, type: THREE.PCFShadowMap, autoUpdate: true }}
         camera={{ fov: 60, near: 0.03, far: graphics.farClip, position: [0, 8, 12] }}
@@ -2229,7 +2284,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}
