@@ -4016,7 +4016,8 @@ export default function StudioCanvas() {
           onDrop={e => { e.stopPropagation(); }}
           style={{
           position: 'absolute', bottom: 0, left: 0,
-          right: rightPanelOpen ? 300 : 0,
+          // 인스펙터 열림: 300px, 닫힘: strip 40px — 어떤 상황에도 우측 가려지지 않음
+          right: rightPanelOpen ? 300 : 40,
           zIndex: 14,
           background: 'rgba(2,6,23,0.93)',
           borderTop: '1px solid rgba(129,140,248,0.25)',
