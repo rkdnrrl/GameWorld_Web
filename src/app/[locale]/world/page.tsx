@@ -66,7 +66,9 @@ export default function WorldPage() {
 
   // 실제로 로드할 월드 id — 명시 파라미터 우선, 없으면 홈허브, 그것도 없으면 데모 섬
   const effectiveWorldId = worldIdParam || (homeHubId ?? null);
-  const worldSocketKey = effectiveWorldId ? `world:${effectiveWorldId}` : 'home:default';
+  // worldSocketKey = DO routing key. SessionPicker / Lobby DO 가 같은 key 로 조회하므로
+  // 'world:' 접두사 없이 raw worldId 그대로 사용해야 매칭됨. (이전엔 prefix 때문에 Lobby miss)
+  const worldSocketKey = effectiveWorldId || 'home_default';
   // 홈허브 = 개인 모드 (각자 자기 DO 인스턴스). 다른 맵 = 공개 세션 분리.
   const isHomeHub = !!homeHubId && effectiveWorldId === homeHubId;
   // 월드 메타 (kind, maxPlayers) — undefined = 로딩 중. 백엔드 응답 후 'personal' 또는 'multi'.
