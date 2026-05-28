@@ -4010,17 +4010,19 @@ export default function StudioCanvas() {
           {t('myFbxAssets', { count: fbxAssets.length })}
         </button>
 
-        {/* FBX 에셋 바텀 슬라이딩 패널 */}
+        {/* FBX 에셋 바텀 슬라이딩 패널 — 인스펙터 열렸을 땐 우측 300px 비워 가려지지 않게 */}
         <div
           onDragOver={e => { if (e.dataTransfer.types.includes('text/plain')) e.preventDefault(); e.stopPropagation(); }}
           onDrop={e => { e.stopPropagation(); }}
           style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 14,
+          position: 'absolute', bottom: 0, left: 0,
+          right: rightPanelOpen ? 300 : 0,
+          zIndex: 14,
           background: 'rgba(2,6,23,0.93)',
           borderTop: '1px solid rgba(129,140,248,0.25)',
           backdropFilter: 'blur(14px)',
           transform: `translateY(${activeAssetPicker ? '0%' : '100%'})`,
-          transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)',
+          transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1), right 0.2s ease',
           height: 340,
           display: 'flex', flexDirection: 'column',
         }}>
