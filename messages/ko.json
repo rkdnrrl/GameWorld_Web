@@ -1319,6 +1319,19 @@
     "by": "by",
     "confirmDelete": "\"{name}\" 월드를 삭제할까요?"
   },
+  "Session": {
+    "title": "세션 선택",
+    "subtitle": "공개 세션에 참여하거나 새로 만드세요",
+    "createNew": "새 세션 만들기",
+    "activeSessions": "활성 세션",
+    "loading": "불러오는 중…",
+    "emptyHint": "아직 활성 세션이 없어요.\n새로 만들어 친구를 초대해보세요.",
+    "countActive": "{count}/{max}명",
+    "countEmpty": "비어 있음 · 최대 {max}명",
+    "full": "꽉 참",
+    "join": "참여",
+    "cancel": "취소"
+  },
   "World": {
     "loading": "월드 로딩 중…",
     "alpWorld": "ALP World",

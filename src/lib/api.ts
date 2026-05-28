@@ -354,6 +354,37 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
+/** ALP World 세션 정보 (play.airliveplay.com 의 WORLD_LOBBIES DO 가 반환) */
+export interface WorldSession {
+  id:         string;
+  name:       string;
+  count:      number;
+  maxPlayers: number;
+  createdAt:  number;
+  updatedAt:  number;
+}
+
+/** 특정 worldId 의 활성 세션 목록 조회. play.airliveplay.com 의 Worker 가 처리. */
+export async function listWorldSessions(worldId: string): Promise<WorldSession[]> {
+  const base = process.env.NEXT_PUBLIC_PLAY_URL || 'https://play.airliveplay.com';
+  try {
+    const r = await fetch(`${base}/_alp/world-sessions?worldId=${encodeURIComponent(worldId)}`);
+    if (!r.ok) return [];
+    const data = await r.json();
+    return Array.isArray(data?.sessions) ? data.sessions : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 새 세션 id 생성 — 짧고 URL-safe. 친구한테 공유하기 좋게 6자. */
+export function generateSessionId(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 헷갈리는 0/O, 1/I 제외
+  let out = '';
+  for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
+}
+
 export const api = {
   signup(input: { email: string; nickname: string; password: string; redirectTo?: string }) {
     return request<SignupResponse>("/api/auth/signup", {

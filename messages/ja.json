@@ -1319,6 +1319,19 @@
     "by": "by",
     "confirmDelete": "ワールド「{name}」を削除しますか？"
   },
+  "Session": {
+    "title": "セッションを選ぶ",
+    "subtitle": "公開セッションに参加するか、新しく作成してください",
+    "createNew": "新しいセッションを作成",
+    "activeSessions": "アクティブなセッション",
+    "loading": "読み込み中…",
+    "emptyHint": "まだアクティブなセッションがありません。\n新しく作って友達を招待しましょう。",
+    "countActive": "{count}/{max}人",
+    "countEmpty": "空き · 最大{max}人",
+    "full": "満員",
+    "join": "参加",
+    "cancel": "キャンセル"
+  },
   "World": {
     "loading": "ワールド読み込み中…",
     "alpWorld": "ALP World",

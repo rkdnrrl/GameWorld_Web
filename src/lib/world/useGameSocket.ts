@@ -71,6 +71,8 @@ export interface RuntimeObjectSpec {
 
 interface Options {
   worldId: string;
+  /** 같은 worldId 안에서 분리된 세션 (DO 인스턴스). 미지정 시 "main" */
+  sessionId?: string;
   playerId: string;
   username: string;
   character: Record<string, unknown>;
@@ -86,7 +88,7 @@ interface Options {
   onSceneSnapshot?: (objects: unknown[]) => void;
 }
 
-export function useGameSocket({ worldId, playerId, username, character, enabled, onScriptEvent, onObjectStates, onObjectOwnership, onObjSpawn, onObjDestroy, onSceneSnapshot }: Options) {
+export function useGameSocket({ worldId, sessionId = 'main', playerId, username, character, enabled, onScriptEvent, onObjectStates, onObjectOwnership, onObjSpawn, onObjDestroy, onSceneSnapshot }: Options) {
   const onScriptEventRef     = useRef(onScriptEvent);
   const onObjectStatesRef    = useRef(onObjectStates);
   const onObjectOwnershipRef = useRef(onObjectOwnership);
@@ -119,7 +121,7 @@ export function useGameSocket({ worldId, playerId, username, character, enabled,
       try { ws.current.close(); } catch {}
     }
 
-    const sock = new WebSocket(`${wsBase}/_alp/world-ws?worldId=${worldId}`);
+    const sock = new WebSocket(`${wsBase}/_alp/world-ws?worldId=${encodeURIComponent(worldId)}&sessionId=${encodeURIComponent(sessionId)}`);
     ws.current = sock;
 
     sock.onopen = () => {
@@ -251,7 +253,7 @@ export function useGameSocket({ worldId, playerId, username, character, enabled,
       if (mySessionId !== sessionIdRef.current) return;
       sock.close();
     };
-  }, [worldId, playerId, username, character, enabled]);
+  }, [worldId, sessionId, playerId, username, character, enabled]);
 
   useEffect(() => {
     sessionIdRef.current += 1;

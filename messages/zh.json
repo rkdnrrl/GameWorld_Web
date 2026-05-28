@@ -1319,6 +1319,19 @@
     "by": "by",
     "confirmDelete": "删除世界「{name}」？"
   },
+  "Session": {
+    "title": "选择会话",
+    "subtitle": "加入公开会话或创建新会话",
+    "createNew": "创建新会话",
+    "activeSessions": "活跃会话",
+    "loading": "加载中…",
+    "emptyHint": "暂无活跃会话。\n创建一个并邀请朋友吧。",
+    "countActive": "{count}/{max}人",
+    "countEmpty": "空闲 · 最多{max}人",
+    "full": "已满",
+    "join": "加入",
+    "cancel": "取消"
+  },
   "World": {
     "loading": "世界加载中…",
     "alpWorld": "ALP World",

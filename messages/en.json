@@ -1319,6 +1319,19 @@
     "by": "by",
     "confirmDelete": "Delete world \"{name}\"?"
   },
+  "Session": {
+    "title": "Choose a session",
+    "subtitle": "Join a public session or start a new one",
+    "createNew": "Create new session",
+    "activeSessions": "Active sessions",
+    "loading": "Loading…",
+    "emptyHint": "No active sessions yet.\nCreate one and invite your friends.",
+    "countActive": "{count}/{max} players",
+    "countEmpty": "Empty · max {max}",
+    "full": "Full",
+    "join": "Join",
+    "cancel": "Cancel"
+  },
   "World": {
     "loading": "Loading world…",
     "alpWorld": "ALP World",
