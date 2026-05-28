@@ -2340,14 +2340,14 @@ export default function StudioCanvas() {
       />
     <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
 
-      {/* ── 좌측 패널 ──────────────────────── */}
-      {(isMobile || studioMode === 'settings') && <div style={{
-        width: 260,
+      {/* ── 좌측 패널 ── 데스크톱: 항상 표시 / 모바일: 토글 ── */}
+      {(!isMobile || studioMode === 'settings') && <div style={{
+        width: 250,
         background: '#1e293b',
         borderRight: '1px solid rgba(255,255,255,0.08)',
-        padding: 16,
-        overflowY: 'auto',
         color: '#fff',
+        display: 'flex', flexDirection: 'column',
+        overflow: 'hidden',
         position: isMobile ? 'absolute' : 'relative',
         left: isMobile ? 0 : undefined,
         top: isMobile ? 0 : undefined,
@@ -2357,6 +2357,8 @@ export default function StudioCanvas() {
         transition: isMobile ? 'transform 180ms ease' : undefined,
         boxShadow: isMobile ? '0 0 0 1px rgba(255,255,255,0.1), 8px 0 30px rgba(2,6,23,0.6)' : undefined,
       }}>
+      {/* 내부 스크롤 컨테이너로 감싸기 — 메타 + 씬 + 버튼 */}
+      <div style={{ padding: 14, overflowY: 'auto', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         {isMobile && (
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
             <button
@@ -2409,12 +2411,142 @@ export default function StudioCanvas() {
           type="button"
           onClick={() => setIsPublic(v => !v)}
           style={{
-            width: '100%', marginBottom: 6, padding: '8px', borderRadius: 8, border: `1px solid ${isPublic ? 'rgba(52,211,153,0.4)' : 'rgba(255,255,255,0.12)'}`,
+            width: '100%', marginBottom: 4, padding: '8px', borderRadius: 8, border: `1px solid ${isPublic ? 'rgba(52,211,153,0.4)' : 'rgba(255,255,255,0.12)'}`,
             background: isPublic ? 'rgba(52,211,153,0.12)' : 'rgba(255,255,255,0.05)',
             color: isPublic ? '#34d399' : 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
           }}>
           {isPublic ? t('inspPublicYes') : t('inspPublicNo')}
         </button>
+      </div>{/* /내부 스크롤 컨테이너 (메타) */}
+
+      {/* ── 씬 계층 ── 좌측 패널 메인 영역 */}
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <div style={{ padding: '8px 12px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, letterSpacing: 0.5 }}>{t('scSceneObjects')}</span>
+          <span style={{ fontSize: 10, opacity: 0.35, background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '1px 7px' }}>{objects.length}</span>
+        </div>
+        <div style={{ padding: '0 10px 6px', flexShrink: 0 }}>
+          <input
+            value={sceneSearch}
+            onChange={e => setSceneSearch(e.target.value)}
+            placeholder={t('scSearch')}
+            style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#fff', fontSize: 11, padding: '5px 8px', outline: 'none', marginBottom: 4 }}
+          />
+          <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+            {(['all','shapes','lights','assets','scripted'] as const).map(f => (
+              <button
+                key={f}
+                onClick={() => setSceneFilter(f)}
+                style={{
+                  background: sceneFilter === f ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${sceneFilter === f ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.08)'}`,
+                  borderRadius: 999, color: sceneFilter === f ? '#fff' : 'rgba(255,255,255,0.6)',
+                  fontSize: 10, fontWeight: 600, padding: '2px 8px', cursor: 'pointer',
+                }}
+              >
+                {t(`scFilter${f.charAt(0).toUpperCase() + f.slice(1)}` as 'scFilterAll' | 'scFilterShapes' | 'scFilterLights' | 'scFilterAssets' | 'scFilterScripted')}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div
+          onDragOver={e => { e.preventDefault(); }}
+          onDrop={e => { e.preventDefault(); const id = e.dataTransfer.getData('sceneObjId'); if (id) reparentObject(id, null); }}
+          style={{ overflowY: 'auto', flex: 1, padding: '0 8px 8px', display: 'flex', flexDirection: 'column', gap: 1 }}
+        >
+          {(() => {
+            const q = sceneSearch.trim().toLowerCase();
+            const matchesFilter = (o: MapObject): boolean => {
+              if (sceneFilter === 'shapes')   return o.kind === 'cube' || o.kind === 'sphere' || o.kind === 'cylinder' || o.kind === 'plane';
+              if (sceneFilter === 'lights')   return o.kind === 'pointlight' || o.kind === 'spotlight' || o.kind === 'dirlight';
+              if (sceneFilter === 'assets')   return o.kind === 'asset';
+              if (sceneFilter === 'scripted') return !!o.script;
+              return true;
+            };
+            const matchesSearch = (o: MapObject): boolean => {
+              if (!q) return true;
+              const label = (o.label || '').toLowerCase();
+              const kind  = (o.kind  || '').toLowerCase();
+              return label.includes(q) || kind.includes(q);
+            };
+            const filtering = !!q || sceneFilter !== 'all';
+            const rootObjs = filtering
+              ? objects.filter(o => matchesFilter(o) && matchesSearch(o))
+              : objects.filter(o => !o.parentId);
+            if (objects.length === 0) {
+              return <div style={{ fontSize: 11, opacity: 0.3, textAlign: 'center', paddingTop: 20 }}>{t('scEmpty')}</div>;
+            }
+            if (rootObjs.length === 0) {
+              return <div style={{ fontSize: 11, opacity: 0.3, textAlign: 'center', paddingTop: 20 }}>{t('scNoMatch')}</div>;
+            }
+            return rootObjs.map(obj => (
+              <SceneListNode key={obj.id} obj={obj} allObjects={objects} depth={0}
+                selectedId={selectedId} multiSelectedIds={multiSelectedIds}
+                editingLabelId={editingLabelId} editingLabelValue={editingLabelValue}
+                setEditingLabelId={setEditingLabelId} setEditingLabelValue={setEditingLabelValue}
+                setObjects={setObjects} pushHistory={pushHistory}
+                onReparent={reparentObject}
+                onFocusObject={focusObject}
+                selectedCallback={id => {
+                  if (shiftHeldRef.current) {
+                    shiftClickObject(id);
+                  } else {
+                    setStudioMode('scene');
+                    setMultiSelectedIds(new Set());
+                    setSelectedId(id);
+                  }
+                }}
+              />
+            ));
+          })()}
+        </div>
+      </div>
+
+      {/* ── 추가 버튼 (좌측 하단 고정) ── */}
+      <div style={{ flexShrink: 0, borderTop: '1px solid rgba(255,255,255,0.08)', padding: '8px 10px 10px' }}>
+        <button type="button" onClick={() => setShapePanelOpen(v => !v)}
+          style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '4px 8px', cursor: 'pointer', fontWeight: 600, marginBottom: 4 }}>
+          📦 {t('addShape')} {shapePanelOpen ? '▲' : '▼'}
+        </button>
+        {shapePanelOpen && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, marginBottom: 5 }}>
+            {([['cube','📦','shapeCube'],['sphere','⚪','shapeSphere'],['cylinder','🥫','shapeCylinder'],['plane','▭','shapePlane']] as const).map(([kind, icon, labelKey]) => (
+              <button key={kind} onClick={() => addPrimitive(kind)}
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
+                {icon} {t(labelKey)}
+              </button>
+            ))}
+          </div>
+        )}
+        <button type="button" onClick={() => setLightAddPanelOpen(v => !v)}
+          style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '4px 8px', cursor: 'pointer', fontWeight: 600 }}>
+          💡 조명 추가 {lightAddPanelOpen ? '▲' : '▼'}
+        </button>
+        {lightAddPanelOpen && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3, marginTop: 4 }}>
+            <button onClick={() => addLight('pointlight')}
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
+              💡 포인트
+            </button>
+            <button onClick={() => addLight('spotlight')}
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
+              🔦 스폿
+            </button>
+            <button onClick={() => addLight('dirlight')}
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
+              ☀ 방향광
+            </button>
+          </div>
+        )}
+        <button type="button" onClick={() => setAiGuideOpen(true)}
+          style={{ width: '100%', textAlign: 'left', background: 'rgba(99,102,241,0.18)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 6, color: '#a5b4fc', fontSize: 11, padding: '6px 8px', cursor: 'pointer', fontWeight: 700, marginTop: 6 }}>
+          🤖 AI 로 맵 만들기
+        </button>
+        <button type="button" onClick={() => setShortcutsOpen(true)}
+          style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.6)', fontSize: 11, padding: '6px 8px', cursor: 'pointer', fontWeight: 600, marginTop: 4 }}>
+          {t('shortcutsButton')}
+        </button>
+      </div>
       </div>}
       {isMobile && mobilePanelOpen && (
         <div
@@ -2469,9 +2601,9 @@ export default function StudioCanvas() {
         </div>
       )}
 
-      {/* ── 우측 패널: 씬 계층 + 인스펙터 ─── */}
-      {studioMode === 'scene' && <div style={{
-        width: 260, flexShrink: 0,
+      {/* ── 우측 패널: 인스펙터 — 데스크톱 항상 표시 / 모바일 토글 ── */}
+      {(!isMobile || studioMode === 'scene') && <div style={{
+        width: 300, flexShrink: 0,
         background: '#1e293b',
         borderLeft: '1px solid rgba(255,255,255,0.08)',
         color: '#fff',
@@ -2479,149 +2611,17 @@ export default function StudioCanvas() {
         overflow: 'hidden',
         fontFamily: 'inherit',
       }}>
-        {/* ── 뒤로가기 버튼 ── */}
-        <div style={{ flexShrink: 0, padding: '8px 12px 6px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-          <button
-            onClick={() => { setStudioMode('settings'); setSelectedId(null); setMultiSelectedIds(new Set()); }}
-            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 3, fontWeight: 700 }}>
-            {t('inspBackToStudio')}
-          </button>
-        </div>
-        {/* ── 씬 계층 ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid rgba(255,255,255,0.1)', minHeight: 0, flex: '0 0 auto', maxHeight: '40%' }}>
-          <div style={{ padding: '6px 12px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, letterSpacing: 0.5 }}>{t('scSceneObjects')}</span>
-            <span style={{ fontSize: 10, opacity: 0.35, background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '1px 7px' }}>{objects.length}</span>
+        {/* 뒤로가기 — 모바일에서만 (데스크톱은 양쪽 동시 노출) */}
+        {isMobile && (
+          <div style={{ flexShrink: 0, padding: '8px 12px 6px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+            <button
+              onClick={() => { setStudioMode('settings'); setSelectedId(null); setMultiSelectedIds(new Set()); }}
+              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 3, fontWeight: 700 }}>
+              {t('inspBackToStudio')}
+            </button>
           </div>
-          {/* 검색 + 필터 */}
-          <div style={{ padding: '0 10px 6px', flexShrink: 0 }}>
-            <input
-              value={sceneSearch}
-              onChange={e => setSceneSearch(e.target.value)}
-              placeholder={t('scSearch')}
-              style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#fff', fontSize: 11, padding: '5px 8px', outline: 'none', marginBottom: 4 }}
-            />
-            <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-              {(['all','shapes','lights','assets','scripted'] as const).map(f => (
-                <button
-                  key={f}
-                  onClick={() => setSceneFilter(f)}
-                  style={{
-                    background: sceneFilter === f ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.04)',
-                    border: `1px solid ${sceneFilter === f ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.08)'}`,
-                    borderRadius: 999, color: sceneFilter === f ? '#fff' : 'rgba(255,255,255,0.6)',
-                    fontSize: 10, fontWeight: 600, padding: '2px 8px', cursor: 'pointer',
-                  }}
-                >
-                  {t(`scFilter${f.charAt(0).toUpperCase() + f.slice(1)}` as 'scFilterAll' | 'scFilterShapes' | 'scFilterLights' | 'scFilterAssets' | 'scFilterScripted')}
-                </button>
-              ))}
-            </div>
-          </div>
-          {/* 루트 드롭 영역 (자식 → 루트로 올리기) */}
-          <div
-            onDragOver={e => { e.preventDefault(); }}
-            onDrop={e => { e.preventDefault(); const id = e.dataTransfer.getData('sceneObjId'); if (id) reparentObject(id, null); }}
-            style={{ overflowY: 'auto', flex: 1, padding: '0 8px 8px', display: 'flex', flexDirection: 'column', gap: 1 }}
-          >
-            {(() => {
-              const q = sceneSearch.trim().toLowerCase();
-              const matchesFilter = (o: MapObject): boolean => {
-                if (sceneFilter === 'shapes')   return o.kind === 'cube' || o.kind === 'sphere' || o.kind === 'cylinder' || o.kind === 'plane';
-                if (sceneFilter === 'lights')   return o.kind === 'pointlight' || o.kind === 'spotlight' || o.kind === 'dirlight';
-                if (sceneFilter === 'assets')   return o.kind === 'asset';
-                if (sceneFilter === 'scripted') return !!o.script;
-                return true;
-              };
-              const matchesSearch = (o: MapObject): boolean => {
-                if (!q) return true;
-                const label = (o.label || '').toLowerCase();
-                const kind  = (o.kind  || '').toLowerCase();
-                return label.includes(q) || kind.includes(q);
-              };
-              const filtering = !!q || sceneFilter !== 'all';
-              const rootObjs = filtering
-                ? objects.filter(o => matchesFilter(o) && matchesSearch(o))
-                : objects.filter(o => !o.parentId);
-              if (objects.length === 0) {
-                return <div style={{ fontSize: 11, opacity: 0.3, textAlign: 'center', paddingTop: 20 }}>{t('scEmpty')}</div>;
-              }
-              if (rootObjs.length === 0) {
-                return <div style={{ fontSize: 11, opacity: 0.3, textAlign: 'center', paddingTop: 20 }}>{t('scNoMatch')}</div>;
-              }
-              return rootObjs.map(obj => (
-              <SceneListNode key={obj.id} obj={obj} allObjects={objects} depth={0}
-                selectedId={selectedId} multiSelectedIds={multiSelectedIds}
-                editingLabelId={editingLabelId} editingLabelValue={editingLabelValue}
-                setEditingLabelId={setEditingLabelId} setEditingLabelValue={setEditingLabelValue}
-                setObjects={setObjects} pushHistory={pushHistory}
-                onReparent={reparentObject}
-                onFocusObject={focusObject}
-                selectedCallback={id => {
-                  if (shiftHeldRef.current) {
-                    shiftClickObject(id);
-                  } else {
-                    setStudioMode('scene');
-                    setMultiSelectedIds(new Set());
-                    setSelectedId(id);
-                  }
-                }}
-              />
-              ));
-            })()}
-          </div>
-        </div>
-
-        {/* ── 추가 버튼: 도형 + 조명 ── */}
-        <div style={{ flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.1)', padding: '6px 10px 8px' }}>
-          {/* 도형 추가 */}
-          <button type="button" onClick={() => setShapePanelOpen(v => !v)}
-            style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '4px 8px', cursor: 'pointer', fontWeight: 600, marginBottom: 4 }}>
-            📦 {t('addShape')} {shapePanelOpen ? '▲' : '▼'}
-          </button>
-          {shapePanelOpen && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, marginBottom: 5 }}>
-              {([['cube','📦','shapeCube'],['sphere','⚪','shapeSphere'],['cylinder','🥫','shapeCylinder'],['plane','▭','shapePlane']] as const).map(([kind, icon, labelKey]) => (
-                <button key={kind} onClick={() => addPrimitive(kind)}
-                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
-                  {icon} {t(labelKey)}
-                </button>
-              ))}
-            </div>
-          )}
-          {/* 조명 추가 */}
-          <button type="button" onClick={() => setLightAddPanelOpen(v => !v)}
-            style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '4px 8px', cursor: 'pointer', fontWeight: 600 }}>
-            💡 조명 추가 {lightAddPanelOpen ? '▲' : '▼'}
-          </button>
-          {lightAddPanelOpen && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3, marginTop: 4 }}>
-              <button onClick={() => addLight('pointlight')}
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
-                💡 포인트
-              </button>
-              <button onClick={() => addLight('spotlight')}
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
-                🔦 스폿
-              </button>
-              <button onClick={() => addLight('dirlight')}
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
-                ☀ 방향광
-              </button>
-            </div>
-          )}
-          {/* AI 로 맵 만들기 — 외부 AI(ChatGPT/Claude 등) 사용 가이드 모달 */}
-          <button type="button" onClick={() => setAiGuideOpen(true)}
-            style={{ width: '100%', textAlign: 'left', background: 'rgba(99,102,241,0.18)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 6, color: '#a5b4fc', fontSize: 11, padding: '6px 8px', cursor: 'pointer', fontWeight: 700, marginTop: 6 }}>
-            🤖 AI 로 맵 만들기
-          </button>
-          {/* 단축키 모달 열기 */}
-          <button type="button" onClick={() => setShortcutsOpen(true)}
-            style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.6)', fontSize: 11, padding: '6px 8px', cursor: 'pointer', fontWeight: 600, marginTop: 4 }}>
-            {t('shortcutsButton')}
-          </button>
-        </div>
-
+        )}
+        {/* 씬 트리 + 추가 버튼은 좌측 패널로 이동됨 — 우측은 인스펙터 전용 */}
         {/* ── 인스펙터 ── */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px' }}>
           {!selected ? (
