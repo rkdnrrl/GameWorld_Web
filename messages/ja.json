@@ -1352,7 +1352,11 @@
     "homeHubMap": "ホームハブ（基本マップ）",
     "loadingHub": "ハブ情報を読み込み中…",
     "enterFullscreen": "全画面",
-    "exitFullscreen": "全画面を終了"
+    "exitFullscreen": "全画面を終了",
+    "settings": "設定",
+    "display": "ディスプレイ",
+    "graphics": "グラフィック",
+    "escToToggle": "で開閉"
   },
   "Character": {
     "title": "🎮 キャラクター作成",

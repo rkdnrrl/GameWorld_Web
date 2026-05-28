@@ -1352,7 +1352,11 @@
     "homeHubMap": "홈 허브 (기본 맵)",
     "loadingHub": "허브 정보 로딩 중…",
     "enterFullscreen": "전체화면",
-    "exitFullscreen": "전체화면 종료"
+    "exitFullscreen": "전체화면 종료",
+    "settings": "설정",
+    "display": "디스플레이",
+    "graphics": "그래픽",
+    "escToToggle": "로 열기/닫기"
   },
   "Character": {
     "title": "🎮 캐릭터 만들기",

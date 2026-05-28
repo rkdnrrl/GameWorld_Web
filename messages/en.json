@@ -1352,7 +1352,11 @@
     "homeHubMap": "Home Hub (Default Map)",
     "loadingHub": "Loading hub data…",
     "enterFullscreen": "Fullscreen",
-    "exitFullscreen": "Exit Fullscreen"
+    "exitFullscreen": "Exit Fullscreen",
+    "settings": "Settings",
+    "display": "Display",
+    "graphics": "Graphics",
+    "escToToggle": "to toggle"
   },
   "Character": {
     "title": "🎮 Create Character",

@@ -8,6 +8,9 @@ interface Props {
   settings: GraphicsSettings;
   updateSettings: (partial: Partial<GraphicsSettings>) => void;
   applyPreset: (name: Exclude<GraphicsSettings['preset'], 'custom'>) => void;
+  /** 'standalone' = 자기 ⚙ button + 인라인 패널 (기본).
+   *  'embedded' = content 만 렌더 — 외부 모달 안에 포함될 때 사용. */
+  mode?: 'standalone' | 'embedded';
 }
 
 const SHADOW_OPTIONS = [
@@ -18,45 +21,15 @@ const SHADOW_OPTIONS = [
   { value: 4096, labelKey: 'shadowUltra' },
 ] as const;
 
-export default function GraphicsPanel({ settings, updateSettings, applyPreset }: Props) {
+export default function GraphicsPanel({ settings, updateSettings, applyPreset, mode = 'standalone' }: Props) {
   const t = useTranslations('Graphics');
   const [open, setOpen] = useState(false);
 
-  return (
+  // 그래픽 설정 내용만 — embedded 와 standalone 둘 다 동일하게 사용
+  const Content = (
     <>
-      {/* 톱니바퀴 버튼 (상단 우측) */}
-      <button
-        onClick={() => setOpen(v => !v)}
-        title={t('title')}
-        style={{
-          position: 'absolute', top: 16, right: 16, zIndex: 1000,
-          width: 40, height: 40, borderRadius: '50%',
-          background: open ? '#4f46e5' : 'rgba(0,0,0,0.45)',
-          border: 'none', color: '#fff', fontSize: 18,
-          cursor: 'pointer', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}
-      >
-        ⚙️
-      </button>
-
-      {/* 설정 패널 */}
-      {open && (
-        <div style={{
-          position: 'absolute', top: 64, right: 16, zIndex: 1000,
-          width: 280, background: 'rgba(15,23,42,0.92)', backdropFilter: 'blur(14px)',
-          border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14,
-          padding: 16, color: '#fff',
-          fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif",
-          boxShadow: '0 12px 32px rgba(0,0,0,0.4)',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>{t('title')}</div>
-            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 18, cursor: 'pointer' }}>✕</button>
-          </div>
-
-          {/* 프리셋 */}
-          <div style={{ marginBottom: 14 }}>
+      {/* 프리셋 */}
+      <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 6 }}>{t('preset')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 4 }}>
               {(['low','medium','high','ultra'] as const).map(name => (
@@ -136,15 +109,55 @@ export default function GraphicsPanel({ settings, updateSettings, applyPreset }:
               style={{ width: '100%' }} />
           </Section>
 
-          {/* 리셋 */}
-          <button onClick={() => applyPreset('ultra')}
-            style={{
-              width: '100%', marginTop: 8, padding: '8px', borderRadius: 8, border: 'none',
-              background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)',
-              fontSize: 12, cursor: 'pointer',
-            }}>
-            {t('reset')}
-          </button>
+      {/* 리셋 */}
+      <button onClick={() => applyPreset('ultra')}
+        style={{
+          width: '100%', marginTop: 8, padding: '8px', borderRadius: 8, border: 'none',
+          background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)',
+          fontSize: 12, cursor: 'pointer',
+        }}>
+        {t('reset')}
+      </button>
+    </>
+  );
+
+  // embedded 모드 — 외부 컨테이너 (모달 등) 안에 content 만 렌더
+  if (mode === 'embedded') {
+    return <div style={{ color: '#fff' }}>{Content}</div>;
+  }
+
+  // standalone 모드 — 우상단 ⚙ button + 인라인 패널 (기본)
+  return (
+    <>
+      <button
+        onClick={() => setOpen(v => !v)}
+        title={t('title')}
+        style={{
+          position: 'absolute', top: 16, right: 16, zIndex: 1000,
+          width: 40, height: 40, borderRadius: '50%',
+          background: open ? '#4f46e5' : 'rgba(0,0,0,0.45)',
+          border: 'none', color: '#fff', fontSize: 18,
+          cursor: 'pointer', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        ⚙️
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 64, right: 16, zIndex: 1000,
+          width: 280, background: 'rgba(15,23,42,0.92)', backdropFilter: 'blur(14px)',
+          border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14,
+          padding: 16, color: '#fff',
+          fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif",
+          boxShadow: '0 12px 32px rgba(0,0,0,0.4)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>{t('title')}</div>
+            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 18, cursor: 'pointer' }}>✕</button>
+          </div>
+          {Content}
         </div>
       )}
     </>

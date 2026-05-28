@@ -1352,7 +1352,11 @@
     "homeHubMap": "首页中枢（默认地图）",
     "loadingHub": "正在加载中枢信息…",
     "enterFullscreen": "全屏",
-    "exitFullscreen": "退出全屏"
+    "exitFullscreen": "退出全屏",
+    "settings": "设置",
+    "display": "显示",
+    "graphics": "图形",
+    "escToToggle": "开关"
   },
   "Character": {
     "title": "🎮 创建角色",
