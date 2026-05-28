@@ -567,7 +567,8 @@ function LuaUpdateLoop({
         // 본인이 소유 → 적용 안 함 (본인이 권위자)
         if (ownersRef.current.get(id) === playerId) continue;
         // 소유자 없음 + 본인이 호스트 → 적용 안 함 (본인이 fallback authority)
-        if (!ownersRef.current.get(id) && isHost) continue;
+        // EXCEPT: 다른 클라가 1인칭 grab 중이면 owner_change 메시지 도착 전이라도 grabber 가 권위자 — 적용.
+        if (!ownersRef.current.get(id) && isHost && !remoteGrabbedByRef.current.has(id)) continue;
 
         const ref = scriptBodyRefs.current.get(id);
         if (!ref) continue;
@@ -810,6 +811,8 @@ function Player({
   // ── 1인칭 grab (Unreal physics handle) ──
   const grabbedIdRef = useRef<string | null>(null);
   const grabDistRef  = useRef(2.5); // 카메라 앞 m
+  // 도난 reclaim 의 rate limit — objectId → 마지막 reclaim 시각(ms)
+  const grabReclaimAtRef = useRef<Map<string, number>>(new Map());
   // 크로스헤어 UI state 추적 — 매 프레임 setState 호출 안 하려고 ref 로 last 값 보관
   const lastUiStateRef = useRef<'idle' | 'aim' | 'grab'>('idle');
   // onKeyDown 내부에서 cameraMode prop을 stale 없이 읽기 위한 ref
@@ -1135,6 +1138,18 @@ function Player({
       const grabId = grabbedIdRef.current;
       const ref = scriptBodyRefs.current.get(grabId);
       const gb = ref?.body.current;
+      // 도난 방지: grab 중인데 owner 가 본인이 아니면 (다른 클라가 충돌-탈취 시도) 즉시 reclaim.
+      // grabbedBy broadcast 가 도착하기 전 race condition 대비 안전망.
+      if (playerId && ownersRef && ownersRef.current.get(grabId) !== playerId) {
+        const now = performance.now();
+        const last = grabReclaimAtRef.current.get(grabId) ?? 0;
+        if (now - last > 200) {
+          ownersRef.current.set(grabId, playerId);
+          onGrabClaim?.(grabId);
+          grabReclaimAtRef.current.set(grabId, now);
+          console.log('[ALP-SYNC] grab reclaim', grabId);
+        }
+      }
       if (gb) {
         // 카메라 forward
         const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
@@ -1763,8 +1778,8 @@ interface WorldCanvasProps {
   sendScriptEvent?: (objectId: string, event: string, data: Record<string, unknown>, toId?: string) => void;
   scriptEventRef?: React.RefObject<((objectId: string, event: string, data: Record<string, unknown>, fromId: string) => void) | null>;
   // 오브젝트 상태 동기화
-  sendObjectStates?: (states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean; vel?: [number, number, number] }>) => void;
-  objectStatesRef?: React.RefObject<((states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean; vel?: [number, number, number] }>, fromId: string) => void) | null>;
+  sendObjectStates?: (states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean; vel?: [number, number, number]; grabbedBy?: string | null }>) => void;
+  objectStatesRef?: React.RefObject<((states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean; vel?: [number, number, number]; grabbedBy?: string | null }>, fromId: string) => void) | null>;
   // 방장 (가장 일찍 들어온 사람) — 본인이 호스트일 때만 broadcast
   hostId?: string | null;
   // 오브젝트 소유권 (Unity NetworkObject 스타일)
@@ -2030,12 +2045,18 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
 
   // ── 수신: velocity + timestamp 저장 → lerp 시 extrapolation으로 네트워크 지연 보상 ──
   const syncTargets = useRef<Map<string, { pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean; vel: [number, number, number]; recvTime: number }>>(new Map());
+  // 다른 플레이어가 1인칭 grab 으로 들고 있는 오브젝트 — objectId → grabberPlayerId.
+  // collision 충돌-기반 ownership 탈취를 막는 용도 (grab 중인 오브젝트가 캐릭터에 닿아도 owner 빼앗지 않음)
+  const remoteGrabbedByRef = useRef<Map<string, string>>(new Map());
   useEffect(() => {
     if (!objectStatesRef) return;
     objectStatesRef.current = (states) => {
       const now = performance.now();
       if (Math.random() < 0.05) console.log('[ALP-SYNC] recv states', states.length, states.map(s => s.id));
       for (const s of states) {
+        // grabbedBy 추적 — broadcast 마다 갱신 (null/없음 = 안 들고 있음)
+        if (s.grabbedBy) remoteGrabbedByRef.current.set(s.id, s.grabbedBy);
+        else remoteGrabbedByRef.current.delete(s.id);
         // 본인이 owner인 오브젝트의 stale broadcast는 무시 (옛 host의 마지막 broadcast 등)
         if (ownersRef.current.get(s.id) === playerId) continue;
         syncTargets.current.set(s.id, {
@@ -2171,6 +2192,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       touchingRef.current.add(objectId);
       releaseTimerRef.current.delete(objectId);
       console.log('[ALP-SYNC] collide enter', objectId, 'prev owner:', ownersRef.current.get(objectId), 'me:', playerId);
+      // 누가 1인칭 grab 중이면 ownership 빼앗지 않음 (grabber 가 권위자 유지)
+      const remoteGrabber = remoteGrabbedByRef.current.get(objectId);
+      const selfGrabbing  = grabbedStateRef.current.has(objectId);
+      if (remoteGrabber && remoteGrabber !== playerId) {
+        console.log('[ALP-SYNC] skip claim — grabbed by', remoteGrabber);
+        return;
+      }
+      if (selfGrabbing) return; // 본인이 들고 있음 — 이미 owner
       if (ownersRef.current.get(objectId) !== playerId) {
         // 1) 로컬에서 즉시 본인을 owner로 간주
         ownersRef.current.set(objectId, playerId);
@@ -2228,7 +2257,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     if (!sendObjectStates || !customObjects) return;
     const MOVE_THRESHOLD = 0.005;
     const interval = setInterval(() => {
-      const states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean; vel?: [number, number, number] }> = [];
+      const states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean; vel?: [number, number, number]; grabbedBy?: string | null }> = [];
       // 40 tick (25ms × 40 = 1초) 마다 강제 broadcast — DO 캐시 갱신용
       forceBroadcastTickRef.current = (forceBroadcastTickRef.current + 1) % 40;
       const forceAll = forceBroadcastTickRef.current === 0;
@@ -2289,7 +2318,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           if (!moved) continue;
         }
         lastBroadcastPos.current.set(obj.id, pos);
-        states.push({ id: obj.id, pos, rot, scl, vis, vel });
+        // 내가 1인칭으로 들고 있으면 grabbedBy 에 본인 id. 다른 클라가 충돌-탈취하는 것 방지.
+        const grabbedBy = grabbedStateRef.current.get(obj.id) ?? null;
+        states.push({ id: obj.id, pos, rot, scl, vis, vel, grabbedBy });
       }
       if (states.length > 0) {
         sendObjectStates(states);

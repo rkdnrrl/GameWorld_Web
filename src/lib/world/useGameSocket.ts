@@ -51,6 +51,8 @@ export interface ObjectStateUpdate {
   vis: boolean;
   // 선속도 (extrapolation용) — 수신측이 네트워크 지연만큼 앞을 예측
   vel?: [number, number, number];
+  // 1인칭 grab 중인 playerId. 수신측이 충돌-기반 ownership 탈취를 막는데 사용.
+  grabbedBy?: string | null;
 }
 
 /** world.spawn() 으로 만들어진 런타임 오브젝트 — 멀티 동기화용 */
