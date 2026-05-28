@@ -3061,7 +3061,8 @@ export default function StudioCanvas() {
         borderRight: '1px solid rgba(255,255,255,0.08)',
         color: '#fff',
         flexDirection: 'column',
-        overflow: 'hidden',
+        overflowY: 'auto',    // 내부 섹션들이 합쳐서 패널보다 커지면 패널 자체가 세로 스크롤
+        overflowX: 'hidden',
         position: isMobile ? 'absolute' : 'relative',
         left: isMobile ? 0 : undefined,
         top: isMobile ? 0 : undefined,
