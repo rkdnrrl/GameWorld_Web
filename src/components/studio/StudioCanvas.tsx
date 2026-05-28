@@ -1667,14 +1667,25 @@ export default function StudioCanvas() {
   }, [selectedId, simulating, undo, redo, pushHistory, focusObject]);
 
   useEffect(() => {
+    // window.innerWidth 직접 체크 — matchMedia 가 캐시되거나 dev tools 환경에서 잘못 반환되는 경우 회피
     const check = () => {
-      const mobile = window.matchMedia?.('(max-width: 900px)')?.matches ?? false;
+      const mobile = (typeof window !== 'undefined' ? window.innerWidth : 0) < 900;
       setIsMobile(mobile);
-      if (!mobile) setMobilePanelOpen(false);
+      if (!mobile) {
+        setMobilePanelOpen(false);
+        // 데스크톱 복귀 시 모드 정상화 — 좌측 패널이 다시 보이도록
+        setStudioMode('settings');
+      }
     };
     check();
     window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
+    // matchMedia 변경 이벤트도 백업으로 — 일부 환경에서 resize 이벤트가 발생 안 할 때 대비
+    const mql = window.matchMedia?.('(max-width: 900px)');
+    mql?.addEventListener?.('change', check);
+    return () => {
+      window.removeEventListener('resize', check);
+      mql?.removeEventListener?.('change', check);
+    };
   }, []);
 
   // KIND_LABELS / KIND_ICONS — 모듈 상단으로 이동됨
