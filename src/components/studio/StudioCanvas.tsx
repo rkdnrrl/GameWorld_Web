@@ -1428,6 +1428,9 @@ export default function StudioCanvas() {
   const [sceneFilter, setSceneFilter] = useState<'all' | 'shapes' | 'lights' | 'assets' | 'scripted'>('all');
   // 인스펙터 탭
   const [inspTab, setInspTab] = useState<'transform' | 'material' | 'script'>('transform');
+  // 데스크톱 좌/우 패널 접기 (모바일은 기존 studioMode 토글 사용)
+  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
   // 조명 선택 시 자동으로 transform 탭 (조명은 material/script 비활성)
   const [simTransforms, setSimTransforms] = useState<SimTransforms>({});
   const threeSceneRef = useRef<THREE.Scene | null>(null);
@@ -2351,8 +2354,8 @@ export default function StudioCanvas() {
       />
     <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
 
-      {/* ── 좌측 패널 ── 데스크톱: 항상 표시 / 모바일: 토글 ── */}
-      {(!isMobile || studioMode === 'settings') && <div style={{
+      {/* ── 좌측 패널 ── 데스크톱: leftPanelOpen / 모바일: studioMode === 'settings' ── */}
+      {((!isMobile && leftPanelOpen) || (isMobile && studioMode === 'settings')) && <div style={{
         width: 250,
         background: '#1e293b',
         borderRight: '1px solid rgba(255,255,255,0.08)',
@@ -2368,8 +2371,21 @@ export default function StudioCanvas() {
         transition: isMobile ? 'transform 180ms ease' : undefined,
         boxShadow: isMobile ? '0 0 0 1px rgba(255,255,255,0.1), 8px 0 30px rgba(2,6,23,0.6)' : undefined,
       }}>
+      {/* 데스크톱 전용 패널 닫기 버튼 (우측 상단 corner) */}
+      {!isMobile && (
+        <button onClick={() => setLeftPanelOpen(false)}
+          title="패널 닫기"
+          style={{
+            position: 'absolute', top: 6, right: 6, zIndex: 5,
+            width: 22, height: 22, border: 'none', borderRadius: 4,
+            background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.55)',
+            fontSize: 11, cursor: 'pointer', fontWeight: 700,
+          }}>
+          ◀
+        </button>
+      )}
       {/* 내부 스크롤 컨테이너로 감싸기 — 메타 + 씬 + 버튼 */}
-      <div style={{ padding: 14, overflowY: 'auto', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+      <div style={{ padding: 14, overflowY: 'auto', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.08)', position: 'relative' }}>
         {isMobile && (
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
             <button
@@ -2612,8 +2628,8 @@ export default function StudioCanvas() {
         </div>
       )}
 
-      {/* ── 우측 패널: 인스펙터 — 데스크톱 항상 표시 / 모바일 토글 ── */}
-      {(!isMobile || studioMode === 'scene') && <div style={{
+      {/* ── 우측 패널: 인스펙터 — 데스크톱 rightPanelOpen / 모바일 studioMode === 'scene' ── */}
+      {((!isMobile && rightPanelOpen) || (isMobile && studioMode === 'scene')) && <div style={{
         width: 300, flexShrink: 0,
         background: '#1e293b',
         borderLeft: '1px solid rgba(255,255,255,0.08)',
@@ -2622,7 +2638,21 @@ export default function StudioCanvas() {
         overflow: 'hidden',
         fontFamily: 'inherit',
         order: 2, // flex 순서 — 캔버스보다 뒤로 (우측 끝)
+        position: 'relative', // close 버튼 absolute 앵커
       }}>
+        {/* 데스크톱 전용 패널 닫기 버튼 (좌측 상단 corner) */}
+        {!isMobile && (
+          <button onClick={() => setRightPanelOpen(false)}
+            title="패널 닫기"
+            style={{
+              position: 'absolute', top: 6, left: 6, zIndex: 5,
+              width: 22, height: 22, border: 'none', borderRadius: 4,
+              background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.55)',
+              fontSize: 11, cursor: 'pointer', fontWeight: 700,
+            }}>
+            ▶
+          </button>
+        )}
         {/* 뒤로가기 — 모바일에서만 (데스크톱은 양쪽 동시 노출) */}
         {isMobile && (
           <div style={{ flexShrink: 0, padding: '8px 12px 6px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
@@ -2965,6 +2995,35 @@ export default function StudioCanvas() {
           )}
         </div>
       </div>}
+
+      {/* 데스크톱 좌측 패널 열기 (접혀있을 때만) */}
+      {!isMobile && !leftPanelOpen && (
+        <button onClick={() => setLeftPanelOpen(true)}
+          title="좌측 패널 열기"
+          style={{
+            position: 'absolute', top: 12, left: 8, zIndex: 50,
+            width: 28, height: 28, border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6,
+            background: 'rgba(30,41,59,0.92)', color: '#fff',
+            fontSize: 12, cursor: 'pointer', fontWeight: 700,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+          }}>
+          ▶
+        </button>
+      )}
+      {/* 데스크톱 우측 패널 열기 (접혀있을 때만) */}
+      {!isMobile && !rightPanelOpen && (
+        <button onClick={() => setRightPanelOpen(true)}
+          title="우측 패널 열기"
+          style={{
+            position: 'absolute', top: 12, right: 8, zIndex: 50,
+            width: 28, height: 28, border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6,
+            background: 'rgba(30,41,59,0.92)', color: '#fff',
+            fontSize: 12, cursor: 'pointer', fontWeight: 700,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+          }}>
+          ◀
+        </button>
+      )}
 
       {/* ── 3D 뷰포트 ─────────────────────── */}
       <div
