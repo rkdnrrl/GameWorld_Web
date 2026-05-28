@@ -3050,7 +3050,7 @@ export default function StudioCanvas() {
         title="좌측 패널 열기"
         style={{
           display: leftPanelOpen ? 'none' : 'flex',
-          position: 'absolute', left: 0, top: 0, bottom: 0, width: 40, zIndex: 9999,
+          position: 'absolute', left: 0, top: 0, bottom: activeAssetPicker ? 340 : 0, width: 40, zIndex: 9999,
           border: 'none', borderRight: '2px solid #818cf8',
           background: '#4f46e5',
           color: '#fff', cursor: 'pointer', fontWeight: 800,
@@ -3073,7 +3073,7 @@ export default function StudioCanvas() {
         title="우측 패널 열기"
         style={{
           display: rightPanelOpen ? 'none' : 'flex',
-          position: 'absolute', right: 0, top: 0, bottom: 0, width: 40, zIndex: 9999,
+          position: 'absolute', right: 0, top: 0, bottom: activeAssetPicker ? 340 : 0, width: 40, zIndex: 9999,
           border: 'none', borderLeft: '2px solid #818cf8',
           background: '#4f46e5',
           color: '#fff', cursor: 'pointer', fontWeight: 800,
