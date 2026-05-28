@@ -1375,6 +1375,41 @@ export const api = {
       headers: authHeaders(token),
     });
   },
+
+  // ── 유저 스크립트 컴포넌트 ──
+  listMyScriptComponents(token: string) {
+    return request<{ components: ScriptComponent[] }>("/api/script-components/my", {
+      headers: authHeaders(token),
+    });
+  },
+  /** 특정 id 들 한번에 가져오기 (월드 런타임 — 부착된 컴포넌트 fetch). */
+  getScriptComponentsByIds(token: string, ids: string[]) {
+    if (ids.length === 0) return Promise.resolve({ components: [] });
+    const qs = `ids=${encodeURIComponent(ids.join(','))}`;
+    return request<{ components: ScriptComponent[] }>(`/api/script-components/by-ids?${qs}`, {
+      headers: authHeaders(token),
+    });
+  },
+  createScriptComponent(token: string, body: { name: string; icon?: string | null; description?: string | null; code: string }) {
+    return request<{ component: ScriptComponent }>("/api/script-components", {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify(body),
+    });
+  },
+  updateScriptComponent(token: string, id: string, body: Partial<{ name: string; icon: string | null; description: string | null; code: string }>) {
+    return request<{ component: ScriptComponent }>(`/api/script-components/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: authHeaders(token),
+      body: JSON.stringify(body),
+    });
+  },
+  deleteScriptComponent(token: string, id: string) {
+    return request<{ ok: true }>(`/api/script-components/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+    });
+  },
   /** 프리팹 썸네일 이미지 업로드 (R2). url 반환 — 이후 updatePrefab 으로 연결.
    *  FormData 사용을 위해 request 헬퍼 대신 raw fetch (request 가 Content-Type:json 강제). */
   async uploadPrefabThumbnail(token: string, file: File): Promise<{ url: string }> {
@@ -1395,6 +1430,17 @@ export const api = {
     return res.json();
   },
 };
+
+/** 유저 정의 스크립트 컴포넌트 */
+export interface ScriptComponent {
+  id: string;
+  name: string;
+  icon: string | null;
+  description: string | null;
+  code: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 /** 프리팹 — 스튜디오 오브젝트 스냅샷 */
 export interface Prefab {

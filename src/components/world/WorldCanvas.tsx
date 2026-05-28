@@ -525,6 +525,7 @@ function BlockMesh({ appearance, hideHead = false }: { appearance: Record<string
 /* ── JS onUpdate 호출 루프 + 네트워크 상태 보간 (Canvas 내부 컴포넌트) ── */
 function LuaUpdateLoop({
   luaScripts,
+  componentScripts,
   worldElapsed,
   scriptBodyRefs,
   syncTargets,
@@ -534,6 +535,7 @@ function LuaUpdateLoop({
   autoRotateRef,
 }: {
   luaScripts: React.MutableRefObject<Map<string, import('@/lib/world/jsRuntime').JsScript>>;
+  componentScripts: React.MutableRefObject<Map<string, Array<{ vm: import('@/lib/world/jsRuntime').JsScript; key: string }>>>;
   worldElapsed: React.MutableRefObject<number>;
   scriptBodyRefs: React.MutableRefObject<Map<string, {
     body: React.MutableRefObject<RapierBodyApi | null>;
@@ -548,6 +550,10 @@ function LuaUpdateLoop({
   useFrame((_, dt) => {
     worldElapsed.current += dt;
     for (const vm of luaScripts.current.values()) vm.callUpdate(dt);
+    // 유저 정의 컴포넌트 VM 들도 매 프레임 onUpdate
+    for (const arr of componentScripts.current.values()) {
+      for (const { vm } of arr) vm.callUpdate(dt);
+    }
 
     /* ── AutoRotate 컴포넌트 처리 — 매 프레임 회전 ── */
     if (autoRotateRef.current.size > 0) {
@@ -742,6 +748,7 @@ function Player({
   onToggleCameraMode,
   scriptBodyRefs,
   luaScripts,
+  componentScripts,
   ownersRef,
   playerId,
   grabbedStateRef,
@@ -763,6 +770,7 @@ function Player({
     group: React.MutableRefObject<THREE.Group | null>;
   }>>;
   luaScripts?: React.MutableRefObject<Map<string, import('@/lib/world/jsRuntime').JsScript>>;
+  componentScripts?: React.MutableRefObject<Map<string, Array<{ vm: import('@/lib/world/jsRuntime').JsScript; key: string }>>>;
   ownersRef?: React.MutableRefObject<Map<string, string>>;
   playerId?: string;
   grabbedStateRef?: React.MutableRefObject<Map<string, string>>;
@@ -806,9 +814,12 @@ function Player({
       const released = grabbedIdRef.current;
       grabbedIdRef.current = null;
       grabbedStateRef?.current.delete(released);
-      if (playerId) luaScripts?.current.get(released)?.callRelease(playerId);
+      if (playerId) {
+        luaScripts?.current.get(released)?.callRelease(playerId);
+        componentScripts?.current.get(released)?.forEach(({ vm }) => vm.callRelease(playerId));
+      }
     }
-  }, [cameraMode, luaScripts, playerId, grabbedStateRef]);
+  }, [cameraMode, luaScripts, componentScripts, playerId, grabbedStateRef]);
   /* 키보드 + 포인터 락 */
   useEffect(() => {
     const el = gl.domElement;
@@ -830,7 +841,11 @@ function Player({
           const released = grabbedIdRef.current;
           grabbedIdRef.current = null;
           grabbedStateRef?.current.delete(released);
-          if (playerId) luaScripts?.current.get(released)?.callRelease(playerId);
+          if (playerId) {
+            luaScripts?.current.get(released)?.callRelease(playerId);
+            // user 컴포넌트들에도 dispatch
+            componentScripts?.current.get(released)?.forEach(({ vm }) => vm.callRelease(playerId));
+          }
         } else {
           // raycast → grab 시도
           try {
@@ -861,8 +876,11 @@ function Player({
                   const t = hitBody.translation();
                   const dx = t.x - camPos.x, dy = t.y - camPos.y, dz = t.z - camPos.z;
                   grabDistRef.current = Math.max(1.5, Math.min(6.0, Math.sqrt(dx*dx + dy*dy + dz*dz)));
-                  // 스크립트 콜백
-                  if (playerId) luaScripts?.current.get(foundId)?.callGrab(playerId);
+                  // 스크립트 콜백 — 메인 스크립트 + user 컴포넌트 둘 다
+                  if (playerId) {
+                    luaScripts?.current.get(foundId)?.callGrab(playerId);
+                    componentScripts?.current.get(foundId)?.forEach(({ vm }) => vm.callGrab(playerId));
+                  }
                 }
               }
             }
@@ -1905,8 +1923,28 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   );
 
   // ── JS 스크립트 관리 ──────────────────────────────────────
-  // objectId → JsScript 인스턴스 (자체 구현 인터프리터)
+  // objectId → JsScript 인스턴스 (자체 구현 인터프리터). selected.script (메인 스크립트) 용.
   const luaScripts = useRef<Map<string, import('@/lib/world/jsRuntime').JsScript>>(new Map());
+  // 유저 정의 컴포넌트 — objectId → 부착된 VM 들 (오브젝트당 여러 부착 가능)
+  const componentScripts = useRef<Map<string, Array<{ vm: import('@/lib/world/jsRuntime').JsScript; key: string }>>>(new Map());
+  // 유저 정의 컴포넌트 코드 캐시 — id → ScriptComponent (코드/이름)
+  const scriptComponentDefsRef = useRef<Map<string, import('@/lib/api').ScriptComponent>>(new Map());
+  // 컴포넌트 코드 변경 감지용 (state — 변경되면 VM 재생성 트리거)
+  const [scriptComponentsLoaded, setScriptComponentsLoaded] = useState(0);
+  // 본인의 모든 스크립트 컴포넌트 코드 fetch (월드 마운트 시 1회).
+  // 부착된 user 컴포넌트의 코드를 캐시에서 조회하기 위함.
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { api, session } = require('@/lib/api') as typeof import('@/lib/api');
+    const tok = session.getToken();
+    if (!tok) return;
+    api.listMyScriptComponents(tok)
+      .then(r => {
+        for (const c of r.components) scriptComponentDefsRef.current.set(c.id, c);
+        setScriptComponentsLoaded(n => n + 1);
+      })
+      .catch(e => console.warn('[ScriptComponents] world fetch fail', e));
+  }, []);
   // objectId → THREE.Light 인스턴스 (조명 color/intensity 제어용)
   const lightRefs = useRef<Map<string, THREE.Light>>(new Map());
   // 런타임 동적 생성된 오브젝트 (world.spawn 으로 만들어진 것 — 저장 안 됨, 로컬 전용)
@@ -1951,6 +1989,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     if (!scriptEventRef) return;
     scriptEventRef.current = (objectId, event, data, fromId) => {
       luaScripts.current.get(objectId)?.callNetEvent(event, data, fromId);
+      // user 컴포넌트 VM 들에도 dispatch
+      componentScripts.current.get(objectId)?.forEach(({ vm }) => vm.callNetEvent(event, data, fromId));
     };
     return () => { if (scriptEventRef.current) scriptEventRef.current = null; };
   }, [scriptEventRef]);
@@ -2400,13 +2440,57 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       else pendingStartRef.current.add(vm);
     }
 
+    /* ── 유저 정의 컴포넌트 (user:<id>) VM 생성/정리 ── */
+    // 모든 user 컴포넌트 인스턴스 정리 후 재생성 (인스턴스가 idx 기반이라 안전하게 갈아엎음)
+    for (const arr of componentScripts.current.values()) {
+      for (const { vm } of arr) vm.destroy();
+    }
+    componentScripts.current.clear();
+
+    const allObjs = [...(customObjects ?? []), ...runtimeObjectsRef.current];
+    for (const obj of allObjs) {
+      if (obj.hidden) continue;
+      const userComps = (obj.components ?? []).filter(c => c.type.startsWith('user:'));
+      if (userComps.length === 0) continue;
+
+      // 이 오브젝트의 objectAPI 만들기 (위에 정의된 makeObjectAPI 재사용)
+      const objAPI = makeObjectAPI(obj.id, obj);
+      const vms: Array<{ vm: import('@/lib/world/jsRuntime').JsScript; key: string }> = [];
+
+      for (let idx = 0; idx < userComps.length; idx++) {
+        const inst = userComps[idx];
+        const compId = inst.type.slice(5); // 'user:abc' → 'abc'
+        const def = scriptComponentDefsRef.current.get(compId);
+        if (!def) {
+          console.warn(`[user-component] 코드 없음: ${compId} (오브젝트 ${obj.id})`);
+          continue;
+        }
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { JsScript } = require('@/lib/world/jsRuntime') as typeof import('@/lib/world/jsRuntime');
+        const vm2 = new JsScript();
+        // user 컴포넌트는 메인 스크립트와 worldAPI/netAPI 공유 (같은 오브젝트 컨텍스트)
+        vm2.init(def.code, objAPI, worldAPI, netAPI, inst.props ?? {});
+        if (hostId !== null) vm2.callStart();
+        else pendingStartRef.current.add(vm2);
+        vms.push({ vm: vm2, key: `${obj.id}::${idx}::${compId}` });
+      }
+      if (vms.length > 0) componentScripts.current.set(obj.id, vms);
+    }
+
     return () => {
       for (const vm of luaScripts.current.values()) vm.destroy();
       luaScripts.current.clear();
+      for (const arr of componentScripts.current.values()) {
+        for (const { vm } of arr) vm.destroy();
+      }
+      componentScripts.current.clear();
       pendingStartRef.current.clear();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customObjects?.map(o => o.id + (o.script ?? '')).join(',')]);
+  }, [
+    customObjects?.map(o => o.id + (o.script ?? '') + JSON.stringify(o.components ?? [])).join(','),
+    scriptComponentsLoaded,
+  ]);
 
   // 카메라 모드 (1인칭 / 3인칭) — V 키로 토글
   const [cameraMode, setCameraMode] = useState<CameraMode>('third');
@@ -2550,6 +2634,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         {/* ── JS onUpdate + 네트워크 보간 루프 ── */}
         <LuaUpdateLoop
           luaScripts={luaScripts}
+          componentScripts={componentScripts}
           worldElapsed={worldElapsed}
           scriptBodyRefs={scriptBodyRefs}
           syncTargets={syncTargets}
@@ -2569,7 +2654,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}

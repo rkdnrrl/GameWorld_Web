@@ -853,7 +853,7 @@ export class JsScript {
   readonly logs: string[] = [];
   readonly errors: string[] = [];
 
-  init(source: string, obj: JsObjectAPI, worldApi: JsWorldAPI, netApi: JsNetAPI): void {
+  init(source: string, obj: JsObjectAPI, worldApi: JsWorldAPI, netApi: JsNetAPI, props?: Record<string, unknown>): void {
     try {
       const print = (...args: unknown[]) => {
         const line = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
@@ -957,6 +957,9 @@ export class JsScript {
         Math: MathLib,
         console: console_,
         print,
+        // 유저 정의 스크립트 컴포넌트가 부착될 때 받은 props
+        // 스크립트에서 `props.speed` 같이 접근. 없으면 빈 객체.
+        props: props ?? {},
       });
 
       // 파싱 + 모듈 코드 실행 (변수 init, 함수 선언 등)

@@ -9,6 +9,7 @@ import type { FolderNode } from '@/lib/assets/folders';
 import AiGuideModal from './AiGuideModal';
 import StudioTopBar from './StudioTopBar';
 import StudioShortcutsModal from './StudioShortcutsModal';
+import ScriptComponentsModal from './ScriptComponentsModal';
 import { COMPONENT_DEFS, getComponentDef, type ComponentInstance, type ComponentType } from '@/lib/world/components';
 
 const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광' };
@@ -79,7 +80,7 @@ function isGizmoActive(): boolean {
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { session, api } from '@/lib/api';
-import type { Prefab } from '@/lib/api';
+import type { Prefab, ScriptComponent } from '@/lib/api';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type OrbitRef = any;
 
@@ -141,13 +142,14 @@ interface Asset {
 /* ── Unity 스타일 컴포넌트 섹션 (인스펙터) ──
    부착된 컴포넌트 카드 + "+ 컴포넌트 추가" 버튼. 각 카드는 props 편집 input 포함. */
 function ComponentsSection({
-  selected, setObjects, pushHistory, allObjects, openPicker,
+  selected, setObjects, pushHistory, allObjects, openPicker, scriptComponents,
 }: {
   selected: MapObject;
   setObjects: (updater: (prev: MapObject[]) => MapObject[]) => void;
   pushHistory: (objs: MapObject[]) => void;
   allObjects: MapObject[];
   openPicker: () => void;
+  scriptComponents: ScriptComponent[];
 }) {
   const list = selected.components ?? [];
   // 레거시: grabbable 플래그도 가상 컴포넌트로 표시 (제거 시 plain false)
@@ -192,6 +194,28 @@ function ComponentsSection({
         />
       )}
       {list.map((c, idx) => {
+        // user: 접두사 → 유저 정의 컴포넌트 카드 (자유 props 편집)
+        if (c.type.startsWith('user:')) {
+          const userId = c.type.slice(5);
+          const sc = scriptComponents.find(s => s.id === userId);
+          return (
+            <UserComponentCard
+              key={idx}
+              instance={c}
+              scriptComponent={sc}
+              onRemove={() => removeComponent(idx)}
+              onPropsChange={(props) => {
+                setObjects(prev => prev.map(o => {
+                  if (o.id !== selected.id) return o;
+                  const next = [...(o.components ?? [])];
+                  next[idx] = { ...next[idx], props };
+                  return { ...o, components: next };
+                }));
+              }}
+              onPropsCommit={() => pushHistory(allObjects)}
+            />
+          );
+        }
         const def = getComponentDef(c.type);
         if (!def) return null;
         return (
@@ -240,6 +264,81 @@ function ComponentsSection({
       {list.length === 0 && !legacyGrab && (
         <div style={{ fontSize: 10, opacity: 0.35, textAlign: 'center', padding: '8px 0' }}>컴포넌트 없음</div>
       )}
+    </div>
+  );
+}
+
+/* 유저 정의 컴포넌트 카드 — 자유 key:value props 편집 */
+function UserComponentCard({
+  instance, scriptComponent, onRemove, onPropsChange, onPropsCommit,
+}: {
+  instance: ComponentInstance;
+  scriptComponent: ScriptComponent | undefined;
+  onRemove: () => void;
+  onPropsChange: (props: Record<string, number | string | boolean>) => void;
+  onPropsCommit: () => void;
+}) {
+  const props = (instance.props ?? {}) as Record<string, number | string | boolean>;
+  const entries = Object.entries(props);
+  const [newKey, setNewKey] = useState('');
+  const [newValue, setNewValue] = useState('');
+
+  const setProp = (key: string, raw: string) => {
+    // 값 자동 타입 추론: number → number, true/false → boolean, else → string
+    let val: number | string | boolean = raw;
+    if (raw === 'true') val = true;
+    else if (raw === 'false') val = false;
+    else if (raw !== '' && !isNaN(Number(raw))) val = Number(raw);
+    onPropsChange({ ...props, [key]: val });
+  };
+
+  return (
+    <div style={{
+      background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.25)',
+      borderRadius: 6, padding: '6px 8px', marginBottom: 5,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: '#e2e8f0' }}>
+          {scriptComponent?.icon || '🧩'} {scriptComponent?.name || '(삭제된 컴포넌트)'}
+        </span>
+        <button type="button" onClick={onRemove} title="제거"
+          style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontSize: 12, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>
+          ✕
+        </button>
+      </div>
+      {!scriptComponent && (
+        <div style={{ fontSize: 9, opacity: 0.5, marginTop: 3, color: '#fca5a5' }}>
+          원본 컴포넌트가 삭제됨 — 이 인스턴스는 동작하지 않습니다.
+        </div>
+      )}
+      {/* 기존 props 목록 */}
+      {entries.map(([k, v]) => (
+        <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+          <span style={{ fontSize: 10, opacity: 0.6, minWidth: 60 }}>{k}</span>
+          <input type="text" defaultValue={String(v)}
+            onBlur={e => { setProp(k, e.target.value); onPropsCommit(); }}
+            style={{ flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
+          <button type="button" onClick={() => {
+            const next = { ...props };
+            delete next[k];
+            onPropsChange(next);
+            onPropsCommit();
+          }} style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.6)', fontSize: 11, cursor: 'pointer', padding: '0 2px' }}>×</button>
+        </div>
+      ))}
+      {/* 새 키 추가 */}
+      <div style={{ display: 'flex', gap: 4, marginTop: 5 }}>
+        <input type="text" placeholder="key" value={newKey} onChange={e => setNewKey(e.target.value)}
+          style={{ width: 60, background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
+        <input type="text" placeholder="value" value={newValue} onChange={e => setNewValue(e.target.value)}
+          style={{ flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
+        <button type="button" onClick={() => {
+          if (!newKey.trim()) return;
+          setProp(newKey.trim(), newValue);
+          setNewKey(''); setNewValue('');
+          onPropsCommit();
+        }} style={{ background: 'rgba(99,102,241,0.25)', border: '1px solid rgba(99,102,241,0.5)', color: '#a5b4fc', borderRadius: 4, padding: '3px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>+</button>
+      </div>
     </div>
   );
 }
@@ -1566,6 +1665,16 @@ export default function StudioCanvas() {
   // 컴포넌트 picker 모달 (인스펙터의 "+ 컴포넌트 추가" 클릭 시 열림)
   const [componentPickerOpen, setComponentPickerOpen] = useState(false);
   const [componentPickerSearch, setComponentPickerSearch] = useState('');
+  // 유저 정의 스크립트 컴포넌트 (DB) + 관리 모달
+  const [scriptComponents, setScriptComponents] = useState<ScriptComponent[]>([]);
+  const [scriptComponentsModalOpen, setScriptComponentsModalOpen] = useState(false);
+  useEffect(() => {
+    const tok = session.getToken();
+    if (!tok) return;
+    api.listMyScriptComponents(tok)
+      .then(r => setScriptComponents(r.components))
+      .catch(e => console.warn('[ScriptComponents] load fail', e));
+  }, []);
   // ── 프리팹 (Unity 스타일 오브젝트 스냅샷) ──
   const [prefabs, setPrefabs] = useState<Prefab[]>([]);
   const [prefabsLoading, setPrefabsLoading] = useState(false);
@@ -3090,6 +3199,7 @@ export default function StudioCanvas() {
                   pushHistory={pushHistory}
                   allObjects={objects}
                   openPicker={() => setComponentPickerOpen(true)}
+                  scriptComponents={scriptComponents}
                 />
               )}
 
@@ -3753,6 +3863,14 @@ export default function StudioCanvas() {
       {/* 키보드 단축키 안내 */}
       <StudioShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
 
+      {/* 내 스크립트 컴포넌트 관리 */}
+      <ScriptComponentsModal
+        open={scriptComponentsModalOpen}
+        onClose={() => setScriptComponentsModalOpen(false)}
+        components={scriptComponents}
+        onChanged={setScriptComponents}
+      />
+
       {/* 컴포넌트 picker 모달 — 선택된 오브젝트에 컴포넌트 추가 */}
       {componentPickerOpen && selected && (
         <div
@@ -3776,6 +3894,8 @@ export default function StudioCanvas() {
               />
             </div>
             <div style={{ padding: '0 10px 12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {/* 빌트인 컴포넌트 */}
+              <div style={{ fontSize: 10, opacity: 0.5, fontWeight: 700, letterSpacing: 0.5, marginTop: 2 }}>BUILT-IN</div>
               {COMPONENT_DEFS
                 .filter(def => {
                   const q = componentPickerSearch.toLowerCase().trim();
@@ -3818,6 +3938,57 @@ export default function StudioCanvas() {
                     </button>
                   );
                 })}
+
+              {/* 내 (유저 정의) 컴포넌트 */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+                <span style={{ fontSize: 10, opacity: 0.5, fontWeight: 700, letterSpacing: 0.5 }}>MY COMPONENTS ({scriptComponents.length})</span>
+                <button type="button"
+                  onClick={() => { setComponentPickerOpen(false); setScriptComponentsModalOpen(true); }}
+                  style={{ background: 'rgba(99,102,241,0.18)', border: '1px solid rgba(99,102,241,0.4)', color: '#a5b4fc', borderRadius: 5, padding: '2px 8px', cursor: 'pointer', fontSize: 10, fontWeight: 700 }}>
+                  관리/만들기
+                </button>
+              </div>
+              {scriptComponents
+                .filter(c => {
+                  const q = componentPickerSearch.toLowerCase().trim();
+                  if (!q) return true;
+                  return c.name.toLowerCase().includes(q);
+                })
+                .map(c => {
+                  // user: 접두사로 부착. 같은 컴포넌트 여러 번 부착 허용 (props 만 다르면 동작 다르게 가능)
+                  const type = `user:${c.id}`;
+                  return (
+                    <button key={c.id} type="button"
+                      onClick={() => {
+                        const newInst: ComponentInstance = { type: type as ComponentType, props: {} };
+                        setObjects(prev => prev.map(o => o.id === selected.id
+                          ? { ...o, components: [...(o.components ?? []), newInst] }
+                          : o));
+                        pushHistory(objects);
+                        setComponentPickerOpen(false);
+                        setComponentPickerSearch('');
+                      }}
+                      style={{
+                        textAlign: 'left',
+                        background: 'rgba(251,191,36,0.10)',
+                        border: '1px solid rgba(251,191,36,0.35)',
+                        borderRadius: 8, padding: '10px 12px',
+                        cursor: 'pointer', color: '#fff',
+                        display: 'flex', flexDirection: 'column', gap: 3,
+                      }}>
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>{c.icon || '🧩'} {c.name}</span>
+                      {c.description && (
+                        <span style={{ fontSize: 11, opacity: 0.7, fontWeight: 400, lineHeight: 1.4 }}>{c.description}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              {scriptComponents.length === 0 && (
+                <div style={{ fontSize: 11, opacity: 0.4, textAlign: 'center', padding: '10px 0', lineHeight: 1.5 }}>
+                  아직 만든 컴포넌트가 없습니다.<br/>
+                  위 "관리/만들기" 로 새로 만들 수 있어요.
+                </div>
+              )}
             </div>
           </div>
         </div>
