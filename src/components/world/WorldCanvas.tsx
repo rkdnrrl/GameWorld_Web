@@ -2172,18 +2172,20 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // (충돌 ownership 과 같은 흐름. grab 은 가만히 있는 오브젝트도 잡으므로 충돌 경로만으론 부족함.)
   const onGrabClaim = useCallback((objectId: string) => {
     if (!playerId) return;
-    if (ownersRef.current.get(objectId) !== playerId) {
-      ownersRef.current.set(objectId, playerId);
-      syncTargets.current.delete(objectId);
-      sendObjClaim?.(objectId);
-      console.log('[ALP-SYNC] grab claimed', objectId);
-    }
+    console.log('[ALP-SYNC] grab attempt', objectId, 'currentOwner:', ownersRef.current.get(objectId), 'me:', playerId);
+    // grab 은 충돌과 달리 항상 ownership 강제 — 이미 본인 owner 여도 sendObjClaim 으로 서버에 재확인 보냄.
+    // 이전엔 "이미 내거면 skip" 했지만, 그 경우 다른 클라가 옛 ownership 정보를 가지고 있으면 sync 안 됨.
+    ownersRef.current.set(objectId, playerId);
+    syncTargets.current.delete(objectId);
+    sendObjClaim?.(objectId);
+    console.log('[ALP-SYNC] grab claimed', objectId);
     // grab 중에는 1.5s 자동 해제 타이머가 끼어들지 못하게 touching 으로 표시
     touchingRef.current.add(objectId);
     releaseTimerRef.current.delete(objectId);
   }, [playerId, sendObjClaim]);
 
   const onGrabRelease = useCallback((objectId: string) => {
+    console.log('[ALP-SYNC] grab release', objectId);
     // grab 종료 — 1.5s 후 자동 release (충돌 grace period 와 동일 흐름)
     touchingRef.current.delete(objectId);
     releaseTimerRef.current.set(objectId, Date.now() + 1500);
