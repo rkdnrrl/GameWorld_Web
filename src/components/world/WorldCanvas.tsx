@@ -723,6 +723,10 @@ function Player({
   onObjCollide,
   cameraMode,
   onToggleCameraMode,
+  scriptBodyRefs,
+  luaScripts,
+  ownersRef,
+  playerId,
 }: {
   character: Record<string, unknown>;
   bubble?: ChatBubble;
@@ -733,6 +737,14 @@ function Player({
   onObjCollide?: (objectId: string, type: 'enter' | 'exit') => void;
   cameraMode: CameraMode;
   onToggleCameraMode: () => void;
+  // ── 1인칭 grab(Unreal physics handle 흉내) 용 ──
+  scriptBodyRefs?: React.MutableRefObject<Map<string, {
+    body: React.MutableRefObject<RapierBodyApi | null>;
+    group: React.MutableRefObject<THREE.Group | null>;
+  }>>;
+  luaScripts?: React.MutableRefObject<Map<string, import('@/lib/world/jsRuntime').JsScript>>;
+  ownersRef?: React.MutableRefObject<Map<string, string>>;
+  playerId?: string;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body      = useRef<any>(null);
@@ -757,6 +769,20 @@ function Player({
   const proneRef  = useRef(false);
   // 점프 상태 최소 유지 시간 (애니메이션 재생 보장)
   const jumpHoldUntil = useRef(0);
+  // ── 1인칭 grab (Unreal physics handle) ──
+  const grabbedIdRef = useRef<string | null>(null);
+  const grabDistRef  = useRef(2.5); // 카메라 앞 m
+  // onKeyDown 내부에서 cameraMode prop을 stale 없이 읽기 위한 ref
+  const cameraModeRef = useRef(cameraMode);
+  useEffect(() => { cameraModeRef.current = cameraMode; }, [cameraMode]);
+  // 3인칭 전환 시 grab 자동 해제
+  useEffect(() => {
+    if (cameraMode !== 'first' && grabbedIdRef.current) {
+      const released = grabbedIdRef.current;
+      grabbedIdRef.current = null;
+      if (playerId) luaScripts?.current.get(released)?.callRelease(playerId);
+    }
+  }, [cameraMode, luaScripts, playerId]);
   /* 키보드 + 포인터 락 */
   useEffect(() => {
     const el = gl.domElement;
@@ -771,6 +797,47 @@ function Player({
       if (e.code === 'KeyC') { crouchRef.current = !crouchRef.current; if (crouchRef.current) proneRef.current = false; }
       if (e.code === 'KeyZ') { proneRef.current  = !proneRef.current;  if (proneRef.current)  crouchRef.current = false; }
       if (e.code === 'KeyV') { onToggleCameraMode(); }
+      // ── E: 1인칭 grab/release 토글 ──
+      if (e.code === 'KeyE' && cameraModeRef.current === 'first') {
+        if (grabbedIdRef.current) {
+          // release
+          const released = grabbedIdRef.current;
+          grabbedIdRef.current = null;
+          if (playerId) luaScripts?.current.get(released)?.callRelease(playerId);
+        } else {
+          // raycast → grab 시도
+          try {
+            const camPos = camera.position;
+            const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
+            const fy = -Math.sin(_mob.camV);
+            const fz = -Math.cos(_mob.camH) * Math.cos(_mob.camV);
+            const ray = new rapier.Ray({ x: camPos.x, y: camPos.y, z: camPos.z }, { x: fx, y: fy, z: fz });
+            const hit = rWorld.castRay(ray, 4.0, true, undefined, undefined, undefined, body.current ?? undefined);
+            if (hit) {
+              const collider = rWorld.getCollider(hit.colliderHandle);
+              const hitBody  = collider?.parent();
+              if (hitBody && scriptBodyRefs) {
+                // hitBody 와 일치하는 objectId 찾기
+                let foundId: string | null = null;
+                for (const [id, ref] of scriptBodyRefs.current) {
+                  if (ref.body.current === hitBody) { foundId = id; break; }
+                }
+                if (foundId) {
+                  grabbedIdRef.current = foundId;
+                  // 본인 소유로 — 멀티에서 reconciliation 이 자기 setLinvel 을 안 덮어쓰게
+                  if (playerId && ownersRef) ownersRef.current.set(foundId, playerId);
+                  // 잡힌 거리 = 현재 카메라~오브젝트 거리 (초기에 잡은 순간 그대로 유지)
+                  const t = hitBody.translation();
+                  const dx = t.x - camPos.x, dy = t.y - camPos.y, dz = t.z - camPos.z;
+                  grabDistRef.current = Math.max(1.5, Math.min(4.0, Math.sqrt(dx*dx + dy*dy + dz*dz)));
+                  // 스크립트 콜백
+                  if (playerId) luaScripts?.current.get(foundId)?.callGrab(playerId);
+                }
+              }
+            }
+          } catch { /* Rapier 초기화 중 무시 */ }
+        }
+      }
     };
     const onKeyUp = (e: KeyboardEvent) => keys.current.delete(e.code);
 
@@ -973,6 +1040,37 @@ function Player({
       camera.position.set(tx, ty, tz);
       const lookY = dist <= 2.2 ? p.y + 0.45 : p.y + 0.7;
       camera.lookAt(p.x, lookY, p.z);
+    }
+
+    /* ── 1인칭 grab — Unreal physics handle 흉내 ── */
+    if (grabbedIdRef.current && cameraMode === 'first' && scriptBodyRefs) {
+      const grabId = grabbedIdRef.current;
+      const ref = scriptBodyRefs.current.get(grabId);
+      const gb = ref?.body.current;
+      if (gb) {
+        // 카메라 forward
+        const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
+        const fy = -Math.sin(_mob.camV);
+        const fz = -Math.cos(_mob.camH) * Math.cos(_mob.camV);
+        const d  = grabDistRef.current;
+        const cam = camera.position;
+        const targetX = cam.x + fx * d;
+        const targetY = cam.y + fy * d;
+        const targetZ = cam.z + fz * d;
+        const cur = gb.translation();
+        // 속도 = displacement × K (스프링). 너무 강하면 진동 → K=12 정도가 부드러움
+        const K = 12;
+        gb.setLinvel({
+          x: (targetX - cur.x) * K,
+          y: (targetY - cur.y) * K,
+          z: (targetZ - cur.z) * K,
+        }, true);
+        // 회전은 멈춤 (잡고 있는 동안 휘청 X)
+        gb.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      } else {
+        // 바디 사라짐 (destroy 등) → grab 해제
+        grabbedIdRef.current = null;
+      }
     }
   });
 
@@ -2207,11 +2305,23 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
 
       {/* 1인칭 크로스헤어 */}
       {cameraMode === 'first' && (
-        <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none', zIndex: 1000, mixBlendMode: 'difference' }}>
-          <div style={{ position: 'absolute', width: 14, height: 2, background: '#fff', left: -7, top: -1 }} />
-          <div style={{ position: 'absolute', width: 2, height: 14, background: '#fff', left: -1, top: -7 }} />
-          <div style={{ position: 'absolute', width: 3, height: 3, borderRadius: '50%', background: '#fff', left: -1.5, top: -1.5 }} />
-        </div>
+        <>
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none', zIndex: 1000, mixBlendMode: 'difference' }}>
+            <div style={{ position: 'absolute', width: 14, height: 2, background: '#fff', left: -7, top: -1 }} />
+            <div style={{ position: 'absolute', width: 2, height: 14, background: '#fff', left: -1, top: -7 }} />
+            <div style={{ position: 'absolute', width: 3, height: 3, borderRadius: '50%', background: '#fff', left: -1.5, top: -1.5 }} />
+          </div>
+          {/* E 키 안내 */}
+          <div style={{
+            position: 'fixed', top: 'calc(50% + 28px)', left: '50%', transform: 'translateX(-50%)',
+            pointerEvents: 'none', zIndex: 1000,
+            fontSize: 11, color: 'rgba(255,255,255,0.65)', fontWeight: 600,
+            textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+            whiteSpace: 'nowrap',
+          }}>
+            E — 잡기/놓기
+          </div>
+        </>
       )}
 
       {/* 카메라 모드 토글 버튼 (V) */}
@@ -2316,7 +2426,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} ownersRef={ownersRef} playerId={playerId} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}

@@ -30,6 +30,8 @@
  *   function onStart()
  *   function onUpdate(dt)
  *   function onNetEvent(event, data, fromId)
+ *   function onGrab(grabberId)      — 누가 1인칭에서 이 오브젝트를 잡았을 때
+ *   function onRelease(grabberId)   — 잡힌 상태에서 풀려났을 때
  *
  * 안전 장치:
  *   - 무한 루프 방지 (반복문당 최대 10,000회)
@@ -995,6 +997,26 @@ export class JsScript {
     if (!this.ready || !this.interp) return;
     try {
       this.interp.callFunction('onNetEvent', [event, data, fromId]);
+    } catch (e) {
+      const msg = String((e as Error).message ?? e);
+      if (!this.errors.includes(msg)) this.errors.push(msg);
+    }
+  }
+
+  callGrab(grabberId: string): void {
+    if (!this.ready || !this.interp) return;
+    try {
+      this.interp.callFunction('onGrab', [grabberId]);
+    } catch (e) {
+      const msg = String((e as Error).message ?? e);
+      if (!this.errors.includes(msg)) this.errors.push(msg);
+    }
+  }
+
+  callRelease(grabberId: string): void {
+    if (!this.ready || !this.interp) return;
+    try {
+      this.interp.callFunction('onRelease', [grabberId]);
     } catch (e) {
       const msg = String((e as Error).message ?? e);
       if (!this.errors.includes(msg)) this.errors.push(msg);
