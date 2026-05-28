@@ -961,6 +961,14 @@ export class JsScript {
         Math: MathLib,
         console: console_,
         print,
+        // 기본 전역 함수들 — 스크립트에서 자주 씀
+        String: (v: unknown) => String(v),
+        Number: (v: unknown) => Number(v),
+        Boolean: (v: unknown) => Boolean(v),
+        parseInt: (v: unknown, r?: number) => parseInt(String(v), r),
+        parseFloat: (v: unknown) => parseFloat(String(v)),
+        isNaN: (v: unknown) => isNaN(v as number),
+        isFinite: (v: unknown) => isFinite(v as number),
         // JSON 기본 노출 (디버깅용 console.log(JSON.stringify(...)) 자주 씀)
         JSON: {
           stringify: (v: unknown, _r?: unknown, sp?: number) => JSON.stringify(v, null, sp),
@@ -1005,7 +1013,10 @@ export class JsScript {
       this.interp.callFunction('onUpdate', [dt]);
     } catch (e) {
       const msg = String((e as Error).message ?? e);
-      if (!this.errors.includes(msg)) this.errors.push(msg);
+      if (!this.errors.includes(msg)) {
+        this.errors.push(msg);
+        console.error('[JsScript] onUpdate error:', msg);
+      }
     }
   }
 
