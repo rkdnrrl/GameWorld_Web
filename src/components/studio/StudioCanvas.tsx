@@ -1432,6 +1432,10 @@ export default function StudioCanvas() {
   // 데스크톱 좌/우 패널 접기 (모바일은 기존 studioMode 토글 사용)
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  // [DEBUG] panel state 변화 추적 — 사용자가 strip 클릭해도 패널이 안 열리는 버그 진단용
+  useEffect(() => {
+    console.log('[PANEL STATE] leftPanelOpen=', leftPanelOpen, 'rightPanelOpen=', rightPanelOpen);
+  }, [leftPanelOpen, rightPanelOpen]);
   // 조명 선택 시 자동으로 transform 탭 (조명은 material/script 비활성)
   const [simTransforms, setSimTransforms] = useState<SimTransforms>({});
   const threeSceneRef = useRef<THREE.Scene | null>(null);
@@ -2379,7 +2383,7 @@ export default function StudioCanvas() {
       }}>
       {/* 데스크톱 전용 패널 닫기 버튼 (우측 상단 corner) */}
       {!isMobile && (
-        <button onClick={() => setLeftPanelOpen(false)}
+        <button type="button" onClick={() => { console.log('[CLOSE-LEFT] click'); setLeftPanelOpen(false); }}
           title="패널 닫기"
           style={{
             position: 'absolute', top: 6, right: 6, zIndex: 5,
@@ -2673,7 +2677,7 @@ export default function StudioCanvas() {
       }}>
         {/* 데스크톱 전용 패널 닫기 버튼 (좌측 상단 corner) */}
         {!isMobile && (
-          <button onClick={() => setRightPanelOpen(false)}
+          <button type="button" onClick={() => { console.log('[CLOSE-RIGHT] click'); setRightPanelOpen(false); }}
             title="패널 닫기"
             style={{
               position: 'absolute', top: 6, left: 6, zIndex: 5,
@@ -3027,46 +3031,54 @@ export default function StudioCanvas() {
         </div>
       </div>}
 
-      {/* 패널 열기 strip — isMobile 무관 무조건 보임 (모바일에선 studioMode 와 별개로 강제 토글)
-          이전엔 isMobile 체크 때문에 일부 상황에 사라지는 버그가 있었음 */}
-      {!leftPanelOpen && (
-        <button
-          onClick={() => {
-            setLeftPanelOpen(true);
-            if (isMobile) setStudioMode('settings'); // 모바일에선 mode 도 함께
-          }}
-          title="좌측 패널 열기"
-          style={{
-            position: 'absolute', left: 0, top: 0, bottom: 0, width: 40, zIndex: 100,
-            border: 'none', borderRight: '2px solid #818cf8',
-            background: '#4f46e5',
-            color: '#fff', cursor: 'pointer', fontWeight: 800,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12,
-            boxShadow: '4px 0 16px rgba(79,70,229,0.5)',
-          }}>
-          <span style={{ fontSize: 22 }}>▶</span>
-          <span style={{ fontSize: 12, letterSpacing: 2, writingMode: 'vertical-rl' }}>씬·도구</span>
-        </button>
-      )}
-      {!rightPanelOpen && (
-        <button
-          onClick={() => {
-            setRightPanelOpen(true);
-            if (isMobile) setStudioMode('scene');
-          }}
-          title="우측 패널 열기"
-          style={{
-            position: 'absolute', right: 0, top: 0, bottom: 0, width: 40, zIndex: 100,
-            border: 'none', borderLeft: '2px solid #818cf8',
-            background: '#4f46e5',
-            color: '#fff', cursor: 'pointer', fontWeight: 800,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12,
-            boxShadow: '-4px 0 16px rgba(79,70,229,0.5)',
-          }}>
-          <span style={{ fontSize: 22 }}>◀</span>
-          <span style={{ fontSize: 12, letterSpacing: 2, writingMode: 'vertical-rl' }}>인스펙터</span>
-        </button>
-      )}
+      {/* 패널 열기 strip — 항상 마운트, display 로만 토글 (mount/unmount race 회피).
+          z-index 9999 로 항상 최상위, 단순 onClick 으로 패널 강제 OPEN. */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('[STRIP-LEFT] click — opening left panel');
+          setLeftPanelOpen(true);
+          if (isMobile) setStudioMode('settings');
+        }}
+        title="좌측 패널 열기"
+        style={{
+          display: leftPanelOpen ? 'none' : 'flex',
+          position: 'absolute', left: 0, top: 0, bottom: 0, width: 40, zIndex: 9999,
+          border: 'none', borderRight: '2px solid #818cf8',
+          background: '#4f46e5',
+          color: '#fff', cursor: 'pointer', fontWeight: 800,
+          flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12,
+          boxShadow: '4px 0 16px rgba(79,70,229,0.5)',
+          pointerEvents: 'auto',
+        }}>
+        <span style={{ fontSize: 22 }}>▶</span>
+        <span style={{ fontSize: 12, letterSpacing: 2, writingMode: 'vertical-rl' }}>씬·도구</span>
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('[STRIP-RIGHT] click — opening right panel');
+          setRightPanelOpen(true);
+          if (isMobile) setStudioMode('scene');
+        }}
+        title="우측 패널 열기"
+        style={{
+          display: rightPanelOpen ? 'none' : 'flex',
+          position: 'absolute', right: 0, top: 0, bottom: 0, width: 40, zIndex: 9999,
+          border: 'none', borderLeft: '2px solid #818cf8',
+          background: '#4f46e5',
+          color: '#fff', cursor: 'pointer', fontWeight: 800,
+          flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12,
+          boxShadow: '-4px 0 16px rgba(79,70,229,0.5)',
+          pointerEvents: 'auto',
+        }}>
+        <span style={{ fontSize: 22 }}>◀</span>
+        <span style={{ fontSize: 12, letterSpacing: 2, writingMode: 'vertical-rl' }}>인스펙터</span>
+      </button>
 
       {/* ── 3D 뷰포트 ─────────────────────── */}
       <div
