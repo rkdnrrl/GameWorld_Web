@@ -6,6 +6,7 @@ import { Physics, RigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { buildFolderTree, normalizeFolder } from '@/lib/assets/folders';
 import type { FolderNode } from '@/lib/assets/folders';
+import AiGuideModal from './AiGuideModal';
 
 const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광' };
 const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲', pointlight: '💡', spotlight: '🔦', dirlight: '☀' };
@@ -1418,6 +1419,7 @@ export default function StudioCanvas() {
   const [mode, setMode]             = useState<'translate' | 'rotate' | 'scale'>('translate');
   // 시뮬레이션
   const [simulating, setSimulating] = useState(false);
+  const [aiGuideOpen, setAiGuideOpen] = useState(false);
   const [simTransforms, setSimTransforms] = useState<SimTransforms>({});
   const threeSceneRef = useRef<THREE.Scene | null>(null);
   const [name, setName]             = useState(t('newWorldDefault'));
@@ -1735,6 +1737,39 @@ export default function StudioCanvas() {
   function stopSim() {
     setSimulating(false);
     setSimTransforms({});
+  }
+
+  /** AI 가 생성한 오브젝트 배열을 씬에 적용. id 는 충돌 방지 위해 새로 발급. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function importFromAi(imported: any[], mode: 'add' | 'replace') {
+    const stamp = Date.now();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const normalized: MapObject[] = imported.map((o: any, i: number) => ({
+      id: `obj_${stamp}_${i}_${Math.random().toString(36).slice(2, 6)}`,
+      kind: (o.kind || 'cube') as ObjectKind,
+      label: o.label || makeLabel((o.kind || 'cube') as ObjectKind),
+      assetUrl: typeof o.assetUrl === 'string' ? o.assetUrl : undefined,
+      position: Array.isArray(o.position) && o.position.length === 3 ? o.position.map(Number) as [number, number, number] : [0, 1, 0],
+      rotation: Array.isArray(o.rotation) && o.rotation.length === 3 ? o.rotation.map(Number) as [number, number, number] : [0, 0, 0],
+      scale:    Array.isArray(o.scale)    && o.scale.length    === 3 ? o.scale.map(Number)    as [number, number, number] : [1, 1, 1],
+      color:    typeof o.color === 'string' ? o.color : '#888888',
+      physics:  o.physics === 'none' || o.physics === 'dynamic' || o.physics === 'fixed' ? o.physics : undefined,
+      material:        typeof o.material === 'string' ? o.material as MaterialPreset : undefined,
+      materialColor:   typeof o.materialColor === 'string' ? o.materialColor : undefined,
+      lightColor:      typeof o.lightColor === 'string' ? o.lightColor : undefined,
+      lightIntensity:  typeof o.lightIntensity === 'number' ? o.lightIntensity : undefined,
+      lightDistance:   typeof o.lightDistance === 'number'  ? o.lightDistance  : undefined,
+      lightAngle:      typeof o.lightAngle === 'number'     ? o.lightAngle     : undefined,
+      lightPenumbra:   typeof o.lightPenumbra === 'number'  ? o.lightPenumbra  : undefined,
+      castShadow:      typeof o.castShadow === 'boolean'    ? o.castShadow     : undefined,
+      script:          typeof o.script === 'string' ? o.script : undefined,
+    }));
+    setObjects(prev => {
+      const next = mode === 'replace' ? normalized : [...prev, ...normalized];
+      pushHistory(next);
+      return next;
+    });
+    setSelectedId(null);
   }
 
   function addLight(kind: 'pointlight' | 'spotlight' | 'dirlight') {
@@ -2511,6 +2546,11 @@ export default function StudioCanvas() {
               </button>
             </div>
           )}
+          {/* AI 로 맵 만들기 — 외부 AI(ChatGPT/Claude 등) 사용 가이드 모달 */}
+          <button type="button" onClick={() => setAiGuideOpen(true)}
+            style={{ width: '100%', textAlign: 'left', background: 'rgba(99,102,241,0.18)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 6, color: '#a5b4fc', fontSize: 11, padding: '6px 8px', cursor: 'pointer', fontWeight: 700, marginTop: 6 }}>
+            🤖 AI 로 맵 만들기
+          </button>
         </div>
 
         {/* ── 인스펙터 ── */}
@@ -3164,6 +3204,13 @@ export default function StudioCanvas() {
           </div>
         </div>
       </div>
+
+      {/* AI 로 맵 만들기 가이드 */}
+      <AiGuideModal
+        open={aiGuideOpen}
+        onClose={() => setAiGuideOpen(false)}
+        onImport={importFromAi}
+      />
     </div>
   );
 }
