@@ -1397,14 +1397,14 @@ export const api = {
       headers: token ? authHeaders(token) : {},
     });
   },
-  createScriptComponent(token: string, body: { name: string; icon?: string | null; description?: string | null; code: string }) {
+  createScriptComponent(token: string, body: { name: string; icon?: string | null; description?: string | null; code: string; propsSchema?: ScriptComponentPropDef[] }) {
     return request<{ component: ScriptComponent }>("/api/script-components", {
       method: "POST",
       headers: authHeaders(token),
       body: JSON.stringify(body),
     });
   },
-  updateScriptComponent(token: string, id: string, body: Partial<{ name: string; icon: string | null; description: string | null; code: string }>) {
+  updateScriptComponent(token: string, id: string, body: Partial<{ name: string; icon: string | null; description: string | null; code: string; propsSchema: ScriptComponentPropDef[] }>) {
     return request<{ component: ScriptComponent }>(`/api/script-components/${encodeURIComponent(id)}`, {
       method: "PATCH",
       headers: authHeaders(token),
@@ -1424,14 +1424,14 @@ export const api = {
       headers: authHeaders(token),
     });
   },
-  operatorCreateScriptComponent(token: string, body: { name: string; icon?: string | null; description?: string | null; code: string; isOfficial?: boolean }) {
+  operatorCreateScriptComponent(token: string, body: { name: string; icon?: string | null; description?: string | null; code: string; isOfficial?: boolean; propsSchema?: ScriptComponentPropDef[] }) {
     return request<{ component: ScriptComponent }>("/api/operator/script-components", {
       method: "POST",
       headers: authHeaders(token),
       body: JSON.stringify(body),
     });
   },
-  operatorUpdateScriptComponent(token: string, id: string, body: Partial<{ name: string; icon: string | null; description: string | null; code: string; isOfficial: boolean }>) {
+  operatorUpdateScriptComponent(token: string, id: string, body: Partial<{ name: string; icon: string | null; description: string | null; code: string; isOfficial: boolean; propsSchema: ScriptComponentPropDef[] }>) {
     return request<{ component: ScriptComponent }>(`/api/operator/script-components/${encodeURIComponent(id)}`, {
       method: "PATCH",
       headers: authHeaders(token),
@@ -1466,6 +1466,18 @@ export const api = {
   },
 };
 
+/** props 스키마 항목 — 운영자/유저가 컴포넌트 만들 때 각 prop 의 UI 정의 */
+export interface ScriptComponentPropDef {
+  key: string;
+  label: string;
+  type: 'number' | 'string' | 'boolean' | 'enum';
+  default: number | string | boolean;
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: string[];
+}
+
 /** 유저 정의 스크립트 컴포넌트 */
 export interface ScriptComponent {
   id: string;
@@ -1473,6 +1485,8 @@ export interface ScriptComponent {
   icon: string | null;
   description: string | null;
   code: string;
+  /** props 스키마 — 비어있으면 Studio 가 free-form 입력 UI 사용 */
+  propsSchema?: ScriptComponentPropDef[];
   isOfficial?: boolean;
   createdAt: string;
   updatedAt: string;

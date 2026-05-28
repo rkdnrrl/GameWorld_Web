@@ -19,15 +19,21 @@ export interface ComponentInstance {
   props?: Record<string, number | string | boolean>;
 }
 
-/** props 스키마 — Studio Inspector 가 자동으로 input 렌더링. */
+/** props 스키마 — Studio Inspector 가 자동으로 input 렌더링.
+ *  - number: 숫자 input (min/max/step)
+ *  - string: 텍스트 input
+ *  - boolean: 체크박스
+ *  - enum: radio 버튼 그룹 (options 배열에서 선택)
+ */
 export interface ComponentPropDef {
   key: string;
   label: string;
-  type: 'number' | 'string' | 'boolean';
+  type: 'number' | 'string' | 'boolean' | 'enum';
   default: number | string | boolean;
-  min?: number;  // type=number 일 때
+  min?: number;        // type=number 일 때
   max?: number;
   step?: number;
+  options?: string[];  // type=enum 일 때 선택지
 }
 
 export interface ComponentDef {

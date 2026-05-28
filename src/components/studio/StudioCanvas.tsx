@@ -271,7 +271,7 @@ function ComponentsSection({
   );
 }
 
-/* 유저 정의 컴포넌트 카드 — 자유 key:value props 편집 */
+/* 유저 정의 컴포넌트 카드 — schema 가 있으면 타입별 input, 없으면 자유 key:value 편집 */
 function UserComponentCard({
   instance, scriptComponent, onRemove, onPropsChange, onPropsCommit,
 }: {
@@ -282,7 +282,8 @@ function UserComponentCard({
   onPropsCommit: () => void;
 }) {
   const props = (instance.props ?? {}) as Record<string, number | string | boolean>;
-  const entries = Object.entries(props);
+  const schema = scriptComponent?.propsSchema ?? [];
+  const hasSchema = schema.length > 0;
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');
 
@@ -292,6 +293,10 @@ function UserComponentCard({
     if (raw === 'true') val = true;
     else if (raw === 'false') val = false;
     else if (raw !== '' && !isNaN(Number(raw))) val = Number(raw);
+    onPropsChange({ ...props, [key]: val });
+  };
+
+  const setPropTyped = (key: string, val: number | string | boolean) => {
     onPropsChange({ ...props, [key]: val });
   };
 
@@ -314,34 +319,97 @@ function UserComponentCard({
           원본 컴포넌트가 삭제됨 — 이 인스턴스는 동작하지 않습니다.
         </div>
       )}
-      {/* 기존 props 목록 */}
-      {entries.map(([k, v]) => (
-        <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
-          <span style={{ fontSize: 10, opacity: 0.6, minWidth: 60 }}>{k}</span>
-          <input type="text" defaultValue={String(v)}
-            onBlur={e => { setProp(k, e.target.value); onPropsCommit(); }}
-            style={{ flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
-          <button type="button" onClick={() => {
-            const next = { ...props };
-            delete next[k];
-            onPropsChange(next);
-            onPropsCommit();
-          }} style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.6)', fontSize: 11, cursor: 'pointer', padding: '0 2px' }}>×</button>
-        </div>
-      ))}
-      {/* 새 키 추가 */}
-      <div style={{ display: 'flex', gap: 4, marginTop: 5 }}>
-        <input type="text" placeholder="key" value={newKey} onChange={e => setNewKey(e.target.value)}
-          style={{ width: 60, background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
-        <input type="text" placeholder="value" value={newValue} onChange={e => setNewValue(e.target.value)}
-          style={{ flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
-        <button type="button" onClick={() => {
-          if (!newKey.trim()) return;
-          setProp(newKey.trim(), newValue);
-          setNewKey(''); setNewValue('');
-          onPropsCommit();
-        }} style={{ background: 'rgba(99,102,241,0.25)', border: '1px solid rgba(99,102,241,0.5)', color: '#a5b4fc', borderRadius: 4, padding: '3px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>+</button>
-      </div>
+
+      {/* ── schema 가 있으면 타입별 input ── */}
+      {hasSchema && schema.map(p => {
+        const cur = props[p.key] ?? p.default;
+        if (p.type === 'boolean') {
+          return (
+            <label key={p.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, opacity: 0.85, marginTop: 5, cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!cur}
+                onChange={e => { setPropTyped(p.key, e.target.checked); onPropsCommit(); }} />
+              {p.label}
+            </label>
+          );
+        }
+        if (p.type === 'number') {
+          return (
+            <label key={p.key} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, opacity: 0.75, marginTop: 5 }}>
+              {p.label}
+              <input type="number" defaultValue={Number(cur)} step={p.step ?? 1} min={p.min} max={p.max}
+                onBlur={e => { setPropTyped(p.key, Number(e.target.value)); onPropsCommit(); }}
+                style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
+            </label>
+          );
+        }
+        if (p.type === 'enum' && p.options && p.options.length > 0) {
+          return (
+            <div key={p.key} style={{ marginTop: 5 }}>
+              <div style={{ fontSize: 10, opacity: 0.75, marginBottom: 3 }}>{p.label}</div>
+              <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                {p.options.map(opt => {
+                  const active = String(cur) === opt;
+                  return (
+                    <button key={opt} type="button"
+                      onClick={() => { setPropTyped(p.key, opt); onPropsCommit(); }}
+                      style={{
+                        flex: 1, minWidth: 32,
+                        background: active ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.05)',
+                        border: `1px solid ${active ? '#818cf8' : 'rgba(255,255,255,0.12)'}`,
+                        color: active ? '#c7d2fe' : 'rgba(255,255,255,0.65)',
+                        borderRadius: 4, padding: '4px 6px', fontSize: 10, fontWeight: active ? 700 : 500,
+                        cursor: 'pointer',
+                      }}>
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+        // string (default)
+        return (
+          <label key={p.key} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, opacity: 0.75, marginTop: 5 }}>
+            {p.label}
+            <input type="text" defaultValue={String(cur)}
+              onBlur={e => { setPropTyped(p.key, e.target.value); onPropsCommit(); }}
+              style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
+          </label>
+        );
+      })}
+
+      {/* ── schema 없으면 free-form key:value 입력 ── */}
+      {!hasSchema && (
+        <>
+          {Object.entries(props).map(([k, v]) => (
+            <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+              <span style={{ fontSize: 10, opacity: 0.6, minWidth: 60 }}>{k}</span>
+              <input type="text" defaultValue={String(v)}
+                onBlur={e => { setProp(k, e.target.value); onPropsCommit(); }}
+                style={{ flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
+              <button type="button" onClick={() => {
+                const next = { ...props };
+                delete next[k];
+                onPropsChange(next);
+                onPropsCommit();
+              }} style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.6)', fontSize: 11, cursor: 'pointer', padding: '0 2px' }}>×</button>
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 4, marginTop: 5 }}>
+            <input type="text" placeholder="key" value={newKey} onChange={e => setNewKey(e.target.value)}
+              style={{ width: 60, background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
+            <input type="text" placeholder="value" value={newValue} onChange={e => setNewValue(e.target.value)}
+              style={{ flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
+            <button type="button" onClick={() => {
+              if (!newKey.trim()) return;
+              setProp(newKey.trim(), newValue);
+              setNewKey(''); setNewValue('');
+              onPropsCommit();
+            }} style={{ background: 'rgba(99,102,241,0.25)', border: '1px solid rgba(99,102,241,0.5)', color: '#a5b4fc', borderRadius: 4, padding: '3px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>+</button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -3969,7 +4037,10 @@ export default function StudioCanvas() {
                   return (
                     <button key={c.id} type="button"
                       onClick={() => {
-                        const newInst: ComponentInstance = { type: type as ComponentType, props: {} };
+                        // schema 기본값으로 props 미리 채우기
+                        const initProps: Record<string, number | string | boolean> = {};
+                        (c.propsSchema ?? []).forEach(p => { initProps[p.key] = p.default; });
+                        const newInst: ComponentInstance = { type: type as ComponentType, props: initProps };
                         setObjects(prev => prev.map(o => o.id === selected.id
                           ? { ...o, components: [...(o.components ?? []), newInst] }
                           : o));
@@ -4020,7 +4091,10 @@ export default function StudioCanvas() {
                   return (
                     <button key={c.id} type="button"
                       onClick={() => {
-                        const newInst: ComponentInstance = { type: type as ComponentType, props: {} };
+                        // schema 기본값으로 props 미리 채우기
+                        const initProps: Record<string, number | string | boolean> = {};
+                        (c.propsSchema ?? []).forEach(p => { initProps[p.key] = p.default; });
+                        const newInst: ComponentInstance = { type: type as ComponentType, props: initProps };
                         setObjects(prev => prev.map(o => o.id === selected.id
                           ? { ...o, components: [...(o.components ?? []), newInst] }
                           : o));

@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
-import { session, api, type ScriptComponent } from "@/lib/api";
+import { session, api, type ScriptComponent, type ScriptComponentPropDef } from "@/lib/api";
 
 const DEFAULT_CODE = `// 공식 컴포넌트 코드 — 모든 유저가 부착해서 쓸 수 있음.
 // self = 부착된 오브젝트, props = 부착 시 사용자가 입력한 키-값.
@@ -44,6 +44,7 @@ export default function OperatorScriptComponentsPage() {
   const [description, setDescription] = useState("");
   const [code, setCode] = useState(DEFAULT_CODE);
   const [isOfficial, setIsOfficial] = useState(true);
+  const [propsSchema, setPropsSchema] = useState<ScriptComponentPropDef[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -60,13 +61,14 @@ export default function OperatorScriptComponentsPage() {
 
   const startNew = () => {
     setEditing(null);
-    setName(""); setIcon(""); setDescription(""); setCode(DEFAULT_CODE); setIsOfficial(true);
+    setName(""); setIcon(""); setDescription(""); setCode(DEFAULT_CODE); setIsOfficial(true); setPropsSchema([]);
     setView("edit");
   };
   const startEdit = (c: ScriptComponent) => {
     setEditing(c);
     setName(c.name); setIcon(c.icon || ""); setDescription(c.description || "");
     setCode(c.code); setIsOfficial(!!c.isOfficial);
+    setPropsSchema(c.propsSchema ?? []);
     setView("edit");
   };
 
@@ -76,7 +78,7 @@ export default function OperatorScriptComponentsPage() {
     if (!name.trim()) { alert("이름을 입력하세요."); return; }
     setSaving(true);
     try {
-      const body = { name: name.trim(), icon: icon.trim() || null, description: description.trim() || null, code, isOfficial };
+      const body = { name: name.trim(), icon: icon.trim() || null, description: description.trim() || null, code, isOfficial, propsSchema };
       if (editing) {
         const r = await api.operatorUpdateScriptComponent(tk, editing.id, body);
         setComponents((prev) => prev.map((c) => c.id === editing.id ? r.component : c));
@@ -213,6 +215,10 @@ export default function OperatorScriptComponentsPage() {
             <input type="checkbox" checked={isOfficial} onChange={(e) => setIsOfficial(e.target.checked)} />
             공식 (모든 유저의 picker 에 노출)
           </label>
+
+          {/* ── Props Schema 편집기 ── */}
+          <PropsSchemaEditor schema={propsSchema} onChange={setPropsSchema} />
+
           <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, opacity: 0.75 }}>
             코드 *
             <textarea value={code} onChange={(e) => setCode(e.target.value)} spellCheck={false}
@@ -241,6 +247,105 @@ export default function OperatorScriptComponentsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Props Schema 편집기 ── */
+function PropsSchemaEditor({
+  schema, onChange,
+}: {
+  schema: ScriptComponentPropDef[];
+  onChange: (next: ScriptComponentPropDef[]) => void;
+}) {
+  const updateAt = (idx: number, patch: Partial<ScriptComponentPropDef>) => {
+    onChange(schema.map((p, i) => i === idx ? { ...p, ...patch } : p));
+  };
+  const removeAt = (idx: number) => {
+    onChange(schema.filter((_, i) => i !== idx));
+  };
+  const addNew = () => {
+    onChange([...schema, { key: '', label: '', type: 'string', default: '' }]);
+  };
+
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '10px 12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0' }}>Props 스키마</div>
+          <div style={{ fontSize: 10, opacity: 0.55, marginTop: 2 }}>
+            유저가 부착할 때 보이는 input UI. 비워두면 자유 key:value 입력 모드.
+          </div>
+        </div>
+        <button type="button" onClick={addNew}
+          style={{ background: 'rgba(99,102,241,0.25)', border: '1px solid rgba(99,102,241,0.5)', color: '#a5b4fc', borderRadius: 5, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+          + prop 추가
+        </button>
+      </div>
+      {schema.length === 0 && (
+        <div style={{ fontSize: 10, opacity: 0.4, textAlign: 'center', padding: '6px 0' }}>없음</div>
+      )}
+      {schema.map((p, idx) => (
+        <div key={idx} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: 8, marginTop: 6 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 90px 28px', gap: 5 }}>
+            <input type="text" placeholder="key (예: speed)" value={p.key}
+              onChange={(e) => updateAt(idx, { key: e.target.value.trim() })}
+              style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '5px 7px', borderRadius: 4, outline: 'none' }} />
+            <input type="text" placeholder="라벨 (예: 속도)" value={p.label}
+              onChange={(e) => updateAt(idx, { label: e.target.value })}
+              style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '5px 7px', borderRadius: 4, outline: 'none' }} />
+            <select value={p.type}
+              onChange={(e) => {
+                const t = e.target.value as ScriptComponentPropDef['type'];
+                // 타입 변경 시 default 도 적절히 재설정
+                const def: number | string | boolean = t === 'number' ? 0 : t === 'boolean' ? false : '';
+                updateAt(idx, { type: t, default: def });
+              }}
+              style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '5px 4px', borderRadius: 4, outline: 'none' }}>
+              <option value="string">string</option>
+              <option value="number">number</option>
+              <option value="boolean">boolean</option>
+              <option value="enum">enum</option>
+            </select>
+            <button type="button" onClick={() => removeAt(idx)}
+              style={{ background: 'rgba(239,68,68,0.18)', border: '1px solid rgba(239,68,68,0.35)', color: '#fca5a5', borderRadius: 4, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>✕</button>
+          </div>
+          {/* 기본값 + 추가 필드 */}
+          <div style={{ display: 'flex', gap: 5, marginTop: 5, alignItems: 'center' }}>
+            <span style={{ fontSize: 10, opacity: 0.6, minWidth: 50 }}>기본값</span>
+            {p.type === 'boolean' ? (
+              <input type="checkbox" checked={!!p.default}
+                onChange={(e) => updateAt(idx, { default: e.target.checked })} />
+            ) : (
+              <input type={p.type === 'number' ? 'number' : 'text'} value={String(p.default)}
+                onChange={(e) => updateAt(idx, { default: p.type === 'number' ? Number(e.target.value) : e.target.value })}
+                style={{ flex: 1, background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
+            )}
+          </div>
+          {p.type === 'enum' && (
+            <div style={{ display: 'flex', gap: 5, marginTop: 5, alignItems: 'center' }}>
+              <span style={{ fontSize: 10, opacity: 0.6, minWidth: 50 }}>선택지</span>
+              <input type="text" placeholder="x,y,z (쉼표 구분)"
+                value={(p.options ?? []).join(',')}
+                onChange={(e) => updateAt(idx, { options: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                style={{ flex: 1, background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
+            </div>
+          )}
+          {p.type === 'number' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 5, marginTop: 5 }}>
+              <input type="number" placeholder="min" value={p.min ?? ''}
+                onChange={(e) => updateAt(idx, { min: e.target.value === '' ? undefined : Number(e.target.value) })}
+                style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '4px 6px', borderRadius: 4, outline: 'none' }} />
+              <input type="number" placeholder="max" value={p.max ?? ''}
+                onChange={(e) => updateAt(idx, { max: e.target.value === '' ? undefined : Number(e.target.value) })}
+                style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '4px 6px', borderRadius: 4, outline: 'none' }} />
+              <input type="number" placeholder="step" value={p.step ?? ''}
+                onChange={(e) => updateAt(idx, { step: e.target.value === '' ? undefined : Number(e.target.value) })}
+                style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '4px 6px', borderRadius: 4, outline: 'none' }} />
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
