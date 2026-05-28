@@ -1317,7 +1317,15 @@
     "togglePrivate": "Make Private",
     "togglePublic": "Make Public",
     "by": "by",
-    "confirmDelete": "Delete world \"{name}\"?"
+    "confirmDelete": "Delete world \"{name}\"?",
+    "searchPlaceholder": "Search by name or description…",
+    "sortPopular": "Popular",
+    "sortLatest": "Newest",
+    "sortUpdated": "Recently updated",
+    "sortName": "Name",
+    "filteringByTag": "Filtering by tag:",
+    "popularTags": "Popular tags:",
+    "noMatches": "No worlds match your search."
   },
   "Session": {
     "title": "Choose a session",

@@ -1317,7 +1317,15 @@
     "togglePrivate": "非公開にする",
     "togglePublic": "公開する",
     "by": "by",
-    "confirmDelete": "ワールド「{name}」を削除しますか？"
+    "confirmDelete": "ワールド「{name}」を削除しますか？",
+    "searchPlaceholder": "名前・説明で検索…",
+    "sortPopular": "人気順",
+    "sortLatest": "新着順",
+    "sortUpdated": "更新順",
+    "sortName": "名前順",
+    "filteringByTag": "タグで絞り込み:",
+    "popularTags": "人気タグ:",
+    "noMatches": "該当するワールドがありません。"
   },
   "Session": {
     "title": "セッションを選ぶ",

@@ -1317,7 +1317,15 @@
     "togglePrivate": "비공개",
     "togglePublic": "공개",
     "by": "by",
-    "confirmDelete": "\"{name}\" 월드를 삭제할까요?"
+    "confirmDelete": "\"{name}\" 월드를 삭제할까요?",
+    "searchPlaceholder": "월드 이름·설명으로 검색…",
+    "sortPopular": "인기순",
+    "sortLatest": "최신순",
+    "sortUpdated": "업데이트순",
+    "sortName": "이름순",
+    "filteringByTag": "태그 필터:",
+    "popularTags": "인기 태그:",
+    "noMatches": "검색 결과가 없습니다."
   },
   "Session": {
     "title": "세션 선택",
