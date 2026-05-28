@@ -1173,7 +1173,11 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs }: {
 
   const assetConfig = getAssetMaterialConfig(myAssets.find(a => a.modelUrl === obj.assetUrl));
   const mesh = <Mesh3D obj={obj} selected={false} onClick={() => {}} assetConfig={assetConfig} noTransform />;
-  const phys = obj.physics ?? 'fixed';
+  // 물리: Physics 컴포넌트 우선 → 레거시 obj.physics → 없으면 'none' (콜라이더 X)
+  const physicsComp = obj.components?.find(c => c.type === 'physics');
+  const phys: 'none' | 'fixed' | 'dynamic' = physicsComp
+    ? (String(physicsComp.props?.mode ?? 'fixed') === 'dynamic' ? 'dynamic' : 'fixed')
+    : (obj.physics ?? 'none');
 
   if (phys === 'none') {
     return <group ref={groupRef} position={t.pos} rotation={t.rot} scale={t.scl}>{mesh}</group>;
