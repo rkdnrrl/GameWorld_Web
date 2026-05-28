@@ -753,6 +753,7 @@ function Player({
   onGrabUiChange,
   onGrabClaim,
   onGrabRelease,
+  remoteGrabbedByRef,
   spawnPos = [0, 4, 0],
   spawnRotY = 0,
 }: {
@@ -781,6 +782,8 @@ function Player({
   onGrabClaim?: (objectId: string) => void;
   /** 1인칭 grab 해제(어떤 경로든) 시 호출 — 1.5s 후 자동 release timer 등록 */
   onGrabRelease?: (objectId: string) => void;
+  /** 다른 클라가 1인칭 grab 중인 오브젝트 — E 키 grab 시 충돌 방지 + steal 감지용 */
+  remoteGrabbedByRef?: React.MutableRefObject<Map<string, string>>;
   /** 스폰 위치 — 월드의 spawn 오브젝트 중 하나. 없으면 기본 [0,4,0] */
   spawnPos?: [number, number, number];
   /** 스폰 시 카메라 초기 Y 회전 (라디안). spawn 의 rotation.y */
@@ -882,12 +885,20 @@ function Player({
                 if (foundId && !grabbableIdsRef?.current.has(foundId)) {
                   foundId = null;
                 }
+                // 다른 사람이 이미 grab 중이면 무시 — owner 핑퐁 방지
+                if (foundId) {
+                  const otherGrabber = remoteGrabbedByRef?.current.get(foundId);
+                  if (otherGrabber && otherGrabber !== playerId) {
+                    console.log('[ALP-SYNC] grab refused — already grabbed by', otherGrabber);
+                    foundId = null;
+                  }
+                }
                 if (foundId) {
                   grabbedIdRef.current = foundId;
                   if (playerId) grabbedStateRef?.current.set(foundId, playerId);
                   // 본인 소유로 — 멀티에서 reconciliation 이 자기 setLinvel 을 안 덮어쓰게
                   if (playerId && ownersRef) ownersRef.current.set(foundId, playerId);
-                  // 서버에 ownership claim 송신 (다른 클라가 옛 호스트 데이터로 덮어쓰는 것 방지)
+                  // 서버에 ownership claim 송신 (다른 클라가 옛 host 데이터로 덮어쓰는 것 방지)
                   onGrabClaim?.(foundId);
                   // 잡힌 거리 = 현재 카메라~오브젝트 거리 (초기에 잡은 순간 그대로 유지)
                   const t = hitBody.translation();
@@ -1140,17 +1151,34 @@ function Player({
     if (grabbedIdRef.current && cameraMode === 'first' && scriptBodyRefs) {
       const grabId = grabbedIdRef.current;
       const ref = scriptBodyRefs.current.get(grabId);
-      const gb = ref?.body.current;
-      // 도난 방지: grab 중인데 owner 가 본인이 아니면 (다른 클라가 충돌-탈취 시도) 즉시 reclaim.
-      // grabbedBy broadcast 가 도착하기 전 race condition 대비 안전망.
+      let gb = ref?.body.current;
+      // owner 가 본인이 아니게 됐으면:
+      //   - 다른 사람이 grab 으로 가져갔다 → 내 grab 자동 해제 (핑퐁 방지)
+      //   - 그 외 (충돌 탈취 등) → 200ms 쓰로틀로 reclaim (race condition 안전망)
       if (playerId && ownersRef && ownersRef.current.get(grabId) !== playerId) {
-        const now = performance.now();
-        const last = grabReclaimAtRef.current.get(grabId) ?? 0;
-        if (now - last > 200) {
-          ownersRef.current.set(grabId, playerId);
-          onGrabClaim?.(grabId);
-          grabReclaimAtRef.current.set(grabId, now);
-          console.log('[ALP-SYNC] grab reclaim', grabId);
+        const newOwner = ownersRef.current.get(grabId);
+        const newOwnerIsGrabbing = !!newOwner && remoteGrabbedByRef?.current.get(grabId) === newOwner;
+        if (newOwnerIsGrabbing) {
+          // 다른 사람이 grab — 깔끔하게 해제 (spring force 안 보냄)
+          console.log('[ALP-SYNC] grab released — taken by', newOwner);
+          grabbedIdRef.current = null;
+          grabbedStateRef?.current.delete(grabId);
+          onGrabRelease?.(grabId);
+          if (playerId) {
+            luaScripts?.current.get(grabId)?.callRelease(playerId);
+            componentScripts?.current.get(grabId)?.forEach(({ vm }) => vm.callRelease(playerId));
+          }
+          gb = null; // spring force 적용 안 함
+        } else {
+          // 충돌 탈취 등 — reclaim
+          const now = performance.now();
+          const last = grabReclaimAtRef.current.get(grabId) ?? 0;
+          if (now - last > 200) {
+            ownersRef.current.set(grabId, playerId);
+            onGrabClaim?.(grabId);
+            grabReclaimAtRef.current.set(grabId, now);
+            console.log('[ALP-SYNC] grab reclaim', grabId);
+          }
         }
       }
       if (gb) {
@@ -2772,7 +2800,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}
