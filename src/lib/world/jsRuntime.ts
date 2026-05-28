@@ -961,6 +961,11 @@ export class JsScript {
         Math: MathLib,
         console: console_,
         print,
+        // JSON 기본 노출 (디버깅용 console.log(JSON.stringify(...)) 자주 씀)
+        JSON: {
+          stringify: (v: unknown, _r?: unknown, sp?: number) => JSON.stringify(v, null, sp),
+          parse: (s: string) => { try { return JSON.parse(s); } catch { return null; } },
+        },
         // 유저 정의 스크립트 컴포넌트가 부착될 때 받은 props
         // 스크립트에서 `props.speed` 같이 접근. 없으면 빈 객체.
         props: props ?? {},
