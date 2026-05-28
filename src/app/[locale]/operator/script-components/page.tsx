@@ -78,7 +78,13 @@ export default function OperatorScriptComponentsPage() {
     if (!name.trim()) { alert("이름을 입력하세요."); return; }
     setSaving(true);
     try {
-      const body = { name: name.trim(), icon: icon.trim() || null, description: description.trim() || null, code, isOfficial, propsSchema };
+      // 저장 직전 정규화: enum options 빈 항목 제거
+      const cleanedSchema = propsSchema.map((p) =>
+        p.type === 'enum'
+          ? { ...p, options: (p.options ?? []).filter(Boolean) }
+          : p
+      );
+      const body = { name: name.trim(), icon: icon.trim() || null, description: description.trim() || null, code, isOfficial, propsSchema: cleanedSchema };
       if (editing) {
         const r = await api.operatorUpdateScriptComponent(tk, editing.id, body);
         setComponents((prev) => prev.map((c) => c.id === editing.id ? r.component : c));
@@ -329,7 +335,10 @@ function PropsSchemaEditor({
               <span style={{ fontSize: 10, opacity: 0.6, minWidth: 50 }}>선택지</span>
               <input type="text" placeholder="x,y,z (쉼표 구분)"
                 value={(p.options ?? []).join(',')}
-                onChange={(e) => updateAt(idx, { options: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                onChange={(e) => {
+                  // 입력 중 빈 항목 허용 (콤마 직후 등). 저장 시 filter.
+                  updateAt(idx, { options: e.target.value.split(',').map(s => s.trim()) });
+                }}
                 style={{ flex: 1, background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
             </div>
           )}
