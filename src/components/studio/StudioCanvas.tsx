@@ -2611,6 +2611,33 @@ export default function StudioCanvas() {
     ];
   }
 
+  /**
+   * 뷰포트에 드롭된 위치에서 raycast 해서 가장 가까운 씬 오브젝트의 id 를 반환.
+   * 없으면 null. 트리 노드 → 뷰포트 오브젝트로 드래그해서 부모 설정할 때 사용.
+   */
+  function pickObjectIdFromEvent(e: React.DragEvent): string | null {
+    const camera = cameraRef.current;
+    const el = viewportRef.current;
+    const scene = threeSceneRef.current;
+    if (!camera || !el || !scene) return null;
+    const rect = el.getBoundingClientRect();
+    const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
+    // 씬 전체 raycast. 가장 가까운 hit 부터 userData.id 가 있는 조상 찾기.
+    const hits = raycaster.intersectObjects(scene.children, true);
+    for (const h of hits) {
+      let node: THREE.Object3D | null = h.object;
+      while (node) {
+        const id = (node.userData as { id?: string } | undefined)?.id;
+        if (id) return id;
+        node = node.parent;
+      }
+    }
+    return null;
+  }
+
   function toggleFolder(path: string) {
     setOpenFolders(prev => {
       const next = new Set(prev);
@@ -3966,14 +3993,31 @@ export default function StudioCanvas() {
         onMouseUp={handleMarqueeUp}
         onMouseLeave={handleMarqueeUp}
         onDragOver={e => {
-          // 에셋 또는 프리팹 드래그 허용
-          if (e.dataTransfer.types.includes('text/plain') || e.dataTransfer.types.includes('application/x-alp-prefab')) {
+          // 에셋·프리팹·씬 노드 드래그 모두 허용
+          if (
+            e.dataTransfer.types.includes('text/plain') ||
+            e.dataTransfer.types.includes('application/x-alp-prefab') ||
+            e.dataTransfer.types.includes('sceneobjid')  // dataTransfer.types 는 소문자
+          ) {
             e.preventDefault();
           }
         }}
         onDrop={e => {
           e.preventDefault();
-          // 프리팹 먼저 체크 — application/x-alp-prefab MIME 사용
+          // 씬 노드 드래그 — 트리에서 뷰포트로 끌어다 놓으면 그 위치의 오브젝트의 자식으로 reparent.
+          // (오브젝트 위가 아니라 빈 공간에 떨어지면 루트로 빼냄.)
+          const sceneObjId = e.dataTransfer.getData('sceneObjId');
+          if (sceneObjId) {
+            const targetId = pickObjectIdFromEvent(e);
+            if (targetId && targetId !== sceneObjId) {
+              reparentObject(sceneObjId, targetId);
+            } else if (!targetId) {
+              // 빈 공간 드롭 → 루트로
+              reparentObject(sceneObjId, null);
+            }
+            return;
+          }
+          // 프리팹 — application/x-alp-prefab MIME
           const prefabId = e.dataTransfer.getData('application/x-alp-prefab');
           if (prefabId) {
             const pf = prefabs.find(p => p.id === prefabId);
