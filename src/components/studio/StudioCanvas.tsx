@@ -2610,6 +2610,7 @@ export default function StudioCanvas() {
         display: 'flex', flexDirection: 'column',
         overflow: 'hidden',
         fontFamily: 'inherit',
+        order: 2, // flex 순서 — 캔버스보다 뒤로 (우측 끝)
       }}>
         {/* 뒤로가기 — 모바일에서만 (데스크톱은 양쪽 동시 노출) */}
         {isMobile && (
