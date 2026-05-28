@@ -166,7 +166,7 @@ const KEYWORD_FALLBACK: Record<AnimState, string[]> = {
   prone_move:  ['prone_move', 'pronemove', 'crawl', 'crawling', '기어'],
 };
 
-function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animNames, animTrims, blockedAnimStates, animOneShot, animSlotUrls, castShadow = true }: {
+function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animNames, animTrims, blockedAnimStates, animOneShot, animSlotUrls, castShadow = true, hideHead = false }: {
   url: string;
   userScale: number;
   rotX: number;
@@ -181,12 +181,15 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   /** 슬롯별 외부 FBX URL (EXT_ 접두사 클립으로 로드) */
   animSlotUrls?: Record<string, string>;
   castShadow?: boolean;
+  hideHead?: boolean;
 }) {
   const [obj, setObj]   = useState<THREE.Object3D | null>(null);
   const mixer           = useRef<THREE.AnimationMixer | null>(null);
   const clipByState     = useRef<Map<string, THREE.AnimationClip>>(new Map());
   const currentAction   = useRef<THREE.AnimationAction | null>(null);
   const currentState    = useRef<string | null>(null);
+  // 머리 본 — hideHead 시 0 으로 스케일링해서 머리/머리카락 가림
+  const headBone        = useRef<THREE.Object3D | null>(null);
 
   useEffect(() => {
     if (!url) return;
@@ -260,6 +263,18 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
         }
       }
 
+      // 머리 본 탐색 — Mixamo / 표준 네이밍 패턴
+      headBone.current = null;
+      const headPattern = /^(mixamorig:?head|head|.+[:_]head)$/i;
+      cloned.traverse((child) => {
+        if (headBone.current) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const isBone = child.type === 'Bone' || (child as any).isBone;
+        if (isBone && headPattern.test(child.name)) {
+          headBone.current = child;
+        }
+      });
+
       setObj(cloned);
     })();
     return () => {
@@ -268,6 +283,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       mixer.current = null;
       currentAction.current = null;
       currentState.current = null;
+      headBone.current = null;
     };
   }, [url, animNames, animTrims, blockedAnimStates, animSlotUrls]);
 
@@ -300,6 +316,10 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   // 단일 액션 크로스페이드 (state 바뀔 때만 전환)
   useFrame((_, dt) => {
     mixer.current?.update(dt);
+    // 머리 가리기 — mixer 가 매 프레임 본 transform 을 덮어쓰므로 update 후에 강제 적용
+    if (headBone.current) {
+      headBone.current.scale.setScalar(hideHead ? 0.0001 : 1);
+    }
     if (!mixer.current) return;
 
     const desired = animStateRef?.current || 'idle';
@@ -353,11 +373,13 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
 }
 
 /* ── 캐릭터 메쉬 (커스텀 or 블록형) ───── */
-function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneShotOverride }: {
+function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneShotOverride, hideHead = false }: {
   appearance: Record<string, unknown>;
   animStateRef?: React.RefObject<AnimState>;
   castShadow?: boolean;
   emoteOneShotOverride?: string[];
+  /** 1인칭일 때 머리 숨김 — 애니메이션으로 머리가 시야에 들어오는 것 방지 */
+  hideHead?: boolean;
 }) {
   const modelUrl   = appearance.modelUrl as string | undefined;
   const userScale  = Number(appearance.modelScale) || 1.0;
@@ -426,6 +448,7 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneSh
         blockedAnimStates={blockedAnimStates}
         animOneShot={animOneShot}
         animSlotUrls={animSlotUrls}
+        hideHead={hideHead}
       />
     );
   }
@@ -433,13 +456,13 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneSh
   // 에 오도록 +0.30 만큼 올린다.
   return (
     <group position={[0, 0.58, 0]}>
-      <BlockMesh appearance={appearance as Record<string, string>} />
+      <BlockMesh appearance={appearance as Record<string, string>} hideHead={hideHead} />
     </group>
   );
 }
 
 /* ── 블록형 기본 캐릭터 ─────────────────── */
-function BlockMesh({ appearance }: { appearance: Record<string, string> }) {
+function BlockMesh({ appearance, hideHead = false }: { appearance: Record<string, string>; hideHead?: boolean }) {
   const body   = appearance.bodyColor   || '#4f46e5';
   const skin   = appearance.skinColor   || '#fcd9b0';
   const hair   = appearance.hairColor   || '#1e293b';
@@ -452,6 +475,7 @@ function BlockMesh({ appearance }: { appearance: Record<string, string> }) {
         <boxGeometry args={[0.55, 0.65, 0.28]} />
         <meshStandardMaterial color={body} />
       </mesh>
+      {!hideHead && <>
       {/* 머리 */}
       <mesh position={[0, 0.95, 0]} castShadow>
         <boxGeometry args={[0.48, 0.48, 0.48]} />
@@ -472,6 +496,7 @@ function BlockMesh({ appearance }: { appearance: Record<string, string> }) {
         <boxGeometry args={[0.09, 0.09, 0.02]} />
         <meshStandardMaterial color="#111" />
       </mesh>
+      </>}
       {/* 팔 왼 */}
       <mesh position={[-0.40, 0.32, 0]} castShadow>
         <boxGeometry args={[0.22, 0.60, 0.22]} />
@@ -974,9 +999,9 @@ function Player({
     >
       <CapsuleCollider args={[PLAYER_CAPSULE_HALF_HEIGHT, PLAYER_CAPSULE_RADIUS]} />
       {/* 1인칭에서도 본인 메쉬 표시 — 아래 보면 다리/몸 보임.
-          머리는 카메라가 안에 있어서 back-face culling 으로 자연스럽게 숨겨짐 */}
+          머리는 hideHead 로 본 스케일 0 / 블록 머리 미렌더 처리 */}
       <group ref={mesh} position={[0, PLAYER_MESH_Y, 0]}>
-        <CharacterMesh appearance={appearance} animStateRef={animStateRef} emoteOneShotOverride={emoteOneShotOverride} />
+        <CharacterMesh appearance={appearance} animStateRef={animStateRef} emoteOneShotOverride={emoteOneShotOverride} hideHead={cameraMode === 'first'} />
       </group>
       {bubble && (
         <Html position={[0, 1.95, 0]} center>
