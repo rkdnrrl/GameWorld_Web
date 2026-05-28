@@ -926,8 +926,11 @@ function Player({
     /* ── 카메라는 항상 lastPos를 따라감 (물리 초기화 여부 무관) ── */
     const p = lastPos.current;
     if (cameraMode === 'first') {
-      // 1인칭: 캐릭터 눈 위치에 카메라, 카메라가 바라보는 방향으로 lookAt
-      const eyeY = p.y + 0.5; // 캡슐 상단 부근 (머리 안쪽)
+      // 1인칭: 캐릭터 눈 위치에 카메라.
+      // 캐릭터는 autoNormalize 로 1.8m × modelScale 로 정규화됨, 발은 캡슐 바닥(p.y - 0.63)에 위치.
+      // 눈높이 = 발 + 모델키 × 0.94 (정수리에서 약 6% 내려온 위치)
+      const modelScale = Number((character?.appearance as Record<string, unknown> | undefined)?.modelScale) || 1.0;
+      const eyeY = (p.y - 0.63) + 1.8 * modelScale * 0.94;
       camera.position.set(p.x, eyeY, p.z);
       const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
       // FPS 관례: 마우스 아래 = 시점 아래로. camV 는 3인칭 기준 (마우스 아래 = camV ↑ = 카메라 위)
