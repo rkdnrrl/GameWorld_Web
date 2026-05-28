@@ -532,6 +532,7 @@ function LuaUpdateLoop({
   isHost,
   ownersRef,
   playerId,
+  remoteGrabbedByRef,
 }: {
   luaScripts: React.MutableRefObject<Map<string, import('@/lib/world/jsRuntime').JsScript>>;
   componentScripts: React.MutableRefObject<Map<string, Array<{ vm: import('@/lib/world/jsRuntime').JsScript; key: string }>>>;
@@ -544,6 +545,8 @@ function LuaUpdateLoop({
   isHost: boolean;
   ownersRef: React.MutableRefObject<Map<string, string>>;
   playerId: string;
+  /** 다른 클라가 1인칭 grab 중인 오브젝트 — 호스트 fallback skip 룰 완화에 사용 */
+  remoteGrabbedByRef: React.MutableRefObject<Map<string, string>>;
 }) {
   useFrame((_, dt) => {
     worldElapsed.current += dt;
@@ -2745,6 +2748,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           isHost={isHost}
           ownersRef={ownersRef}
           playerId={playerId}
+          remoteGrabbedByRef={remoteGrabbedByRef}
         />
 
         <Suspense fallback={null}>
