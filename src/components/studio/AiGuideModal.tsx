@@ -68,7 +68,7 @@ function onNetEvent(event, data, fromId) {}
 4. 호스트만 spawn 하려면: if (world.isHost() && world.runtimeCount() === 0) { ... }
 
 # 예시
-사용자: "낙시터 4개를 정사각형으로 배치, 가운데 빨간 큐브 회전"
+사용자: "낚시터 4개를 정사각형으로 배치, 가운데 빨간 큐브 회전"
 출력:
 \`\`\`json
 {
