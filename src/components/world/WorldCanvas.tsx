@@ -13,6 +13,7 @@ interface RapierBodyApi {
   applyImpulse(v: { x: number; y: number; z: number }, wakeUp: boolean): void;
   linvel(): { x: number; y: number; z: number };
   setLinvel(v: { x: number; y: number; z: number }, wakeUp: boolean): void;
+  setAngvel(v: { x: number; y: number; z: number }, wakeUp: boolean): void;
 }
 import * as THREE from 'three';
 import type { ChatBubble, RemotePlayer, PlayerPose } from '@/lib/world/useGameSocket';
