@@ -3,7 +3,7 @@ import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from '@/i18n/navigation';
 import { useSearchParams } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useGameSocket } from '@/lib/world/useGameSocket';
 import { useGraphicsSettings } from '@/lib/world/graphicsSettings';
 import { session } from '@/lib/api';
@@ -48,6 +48,7 @@ export default function WorldPage() {
   const tg = useTranslations('Games');
   const th = useTranslations('Header');
   const tw = useTranslations('Worlds');
+  const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const worldIdParam = searchParams.get('id');
@@ -369,12 +370,26 @@ export default function WorldPage() {
     }
   }
 
-  function moveWorld(nextId: string) {
+  /**
+   * 맵 이동 트리거.
+   * - 홈허브(빈 id) → 바로 이동 (personal 모드라 세션 선택 불필요)
+   * - 그 외 → 그 월드의 세션 picker 를 띄움. 세션 고르면 풀 URL 로 navigate.
+   */
+  function moveWorld(nextId: string, nextName?: string) {
     const current = worldIdParam || '';
     if (nextId === current) return;
-    if (!nextId) router.replace('/world');
-    else router.replace(`/world?id=${encodeURIComponent(nextId)}`);
+    if (!nextId) {
+      // 홈허브 — 풀 리로드로 깨끗하게
+      window.location.assign(`/${locale}/world`);
+      return;
+    }
+    // 다른 맵 → 먼저 세션 picker 띄움 (현재 페이지에서)
+    setPickerForWorld({ id: nextId, name: nextName || nextId });
+    setMapModalOpen(false); // map browser 모달 닫기
   }
+
+  // picker 가 보여줄 대상 월드 — 맵 카드의 "Move to Map" 클릭 시 set
+  const [pickerForWorld, setPickerForWorld] = useState<{ id: string; name: string } | null>(null);
 
   function openMapBrowser() {
     setMapTab('public'); // 기본 탭 = 공개 (탐색 우선)
@@ -479,6 +494,18 @@ export default function WorldPage() {
             const url = new URL(window.location.href);
             url.searchParams.set('s', sid);
             window.location.assign(url.toString());
+          }}
+        />
+      )}
+      {/* 맵 이동 트리거 시 — 그 대상 월드의 세션 picker. 세션 선택 → 그 URL 로 풀 navigate */}
+      {pickerForWorld && (
+        <SessionPicker
+          worldId={pickerForWorld.id}
+          worldName={pickerForWorld.name}
+          maxPlayersDefault={50}
+          onClose={() => setPickerForWorld(null)}
+          onPick={(sid) => {
+            window.location.assign(`/${locale}/world?id=${encodeURIComponent(pickerForWorld.id)}&s=${encodeURIComponent(sid)}`);
           }}
         />
       )}
@@ -852,7 +879,7 @@ export default function WorldPage() {
                             onMouseLeave={(e) => { if (!isCurrent) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.transform = 'translateY(0)'; }}
                           >
                             <button
-                              onClick={() => { moveWorld(w.id); setMapModalOpen(false); }}
+                              onClick={() => moveWorld(w.id, w.name)}
                               style={{ display: 'block', width: '100%', aspectRatio: '16/9', position: 'relative', background: w.thumbnailUrl ? `url(${w.thumbnailUrl}) center/cover` : 'linear-gradient(135deg,#334155,#111827)', border: 'none', padding: 0, cursor: 'pointer' }}
                             >
                               {!w.thumbnailUrl && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, opacity: 0.5 }}>🌍</div>}
@@ -880,7 +907,7 @@ export default function WorldPage() {
                                 </div>
                               )}
                               <button
-                                onClick={() => { moveWorld(w.id); setMapModalOpen(false); }}
+                                onClick={() => moveWorld(w.id, w.name)}
                                 disabled={isCurrent}
                                 style={{ width: '100%', padding: '7px 0', borderRadius: 7, border: 'none', cursor: isCurrent ? 'default' : 'pointer', fontSize: 12, fontWeight: 700, background: isCurrent ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: isCurrent ? 'rgba(255,255,255,0.5)' : '#fff' }}
                               >
