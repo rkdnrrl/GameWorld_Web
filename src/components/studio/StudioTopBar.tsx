@@ -17,6 +17,10 @@ interface StudioTopBarProps {
   simulating: boolean;
   onStartSim: () => void;
   onStopSim: () => void;
+  leftPanelOpen: boolean;
+  rightPanelOpen: boolean;
+  onToggleLeft: () => void;
+  onToggleRight: () => void;
 }
 
 export default function StudioTopBar({
@@ -24,6 +28,7 @@ export default function StudioTopBar({
   savedId, dirty, saving, onSave,
   canUndo, canRedo, onUndo, onRedo,
   simulating, onStartSim, onStopSim,
+  leftPanelOpen, rightPanelOpen, onToggleLeft, onToggleRight,
 }: StudioTopBarProps) {
   const t = useTranslations('Studio');
   const router = useRouter();
@@ -67,6 +72,26 @@ export default function StudioTopBar({
           padding: '7px 12px', cursor: 'pointer', flexShrink: 0,
         }}>
         {t('tbExit')}
+      </button>
+
+      {/* 좌·우 패널 토글 — 상단 바에서 항상 접근 가능 */}
+      <button onClick={onToggleLeft} title="좌측 패널 (씬·도구)"
+        style={{
+          width: 32, height: 32, flexShrink: 0,
+          background: leftPanelOpen ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.06)',
+          border: `1px solid ${leftPanelOpen ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`,
+          borderRadius: 6, color: '#fff', fontSize: 14, cursor: 'pointer', fontWeight: 700,
+        }}>
+        ⬛◧
+      </button>
+      <button onClick={onToggleRight} title="우측 패널 (인스펙터)"
+        style={{
+          width: 32, height: 32, flexShrink: 0,
+          background: rightPanelOpen ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.06)',
+          border: `1px solid ${rightPanelOpen ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`,
+          borderRadius: 6, color: '#fff', fontSize: 14, cursor: 'pointer', fontWeight: 700,
+        }}>
+        ◨⬛
       </button>
 
       <input

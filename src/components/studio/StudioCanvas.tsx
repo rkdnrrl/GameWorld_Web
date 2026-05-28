@@ -2354,6 +2354,10 @@ export default function StudioCanvas() {
         simulating={simulating}
         onStartSim={startSim}
         onStopSim={stopSim}
+        leftPanelOpen={leftPanelOpen}
+        rightPanelOpen={rightPanelOpen}
+        onToggleLeft={() => setLeftPanelOpen(v => !v)}
+        onToggleRight={() => setRightPanelOpen(v => !v)}
       />
     <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
 
@@ -2999,36 +3003,44 @@ export default function StudioCanvas() {
         </div>
       </div>}
 
-      {/* 데스크톱 좌측 패널 열기 — 접혔을 때 좌측 가장자리에 항상 보이는 strip */}
-      {!isMobile && !leftPanelOpen && (
-        <button onClick={() => setLeftPanelOpen(true)}
-          title="좌측 패널 열기 (씬·도구)"
+      {/* 패널 열기 strip — isMobile 무관 무조건 보임 (모바일에선 studioMode 와 별개로 강제 토글)
+          이전엔 isMobile 체크 때문에 일부 상황에 사라지는 버그가 있었음 */}
+      {!leftPanelOpen && (
+        <button
+          onClick={() => {
+            setLeftPanelOpen(true);
+            if (isMobile) setStudioMode('settings'); // 모바일에선 mode 도 함께
+          }}
+          title="좌측 패널 열기"
           style={{
-            position: 'absolute', left: 0, top: 0, bottom: 0, width: 32, zIndex: 50,
-            border: 'none', borderRight: '1px solid rgba(99,102,241,0.4)',
-            background: 'linear-gradient(90deg, rgba(99,102,241,0.25), rgba(30,41,59,0.85))',
-            color: '#fff', fontSize: 14, cursor: 'pointer', fontWeight: 800,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
-            writingMode: 'vertical-rl',
+            position: 'absolute', left: 0, top: 0, bottom: 0, width: 40, zIndex: 100,
+            border: 'none', borderRight: '2px solid #818cf8',
+            background: '#4f46e5',
+            color: '#fff', cursor: 'pointer', fontWeight: 800,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12,
+            boxShadow: '4px 0 16px rgba(79,70,229,0.5)',
           }}>
-          <span style={{ fontSize: 18 }}>▶</span>
-          <span style={{ fontSize: 11, letterSpacing: 1 }}>씬 · 도구</span>
+          <span style={{ fontSize: 22 }}>▶</span>
+          <span style={{ fontSize: 12, letterSpacing: 2, writingMode: 'vertical-rl' }}>씬·도구</span>
         </button>
       )}
-      {/* 데스크톱 우측 패널 열기 — 접혔을 때 우측 가장자리에 항상 보이는 strip */}
-      {!isMobile && !rightPanelOpen && (
-        <button onClick={() => setRightPanelOpen(true)}
-          title="우측 패널 열기 (인스펙터)"
+      {!rightPanelOpen && (
+        <button
+          onClick={() => {
+            setRightPanelOpen(true);
+            if (isMobile) setStudioMode('scene');
+          }}
+          title="우측 패널 열기"
           style={{
-            position: 'absolute', right: 0, top: 0, bottom: 0, width: 32, zIndex: 50,
-            border: 'none', borderLeft: '1px solid rgba(99,102,241,0.4)',
-            background: 'linear-gradient(270deg, rgba(99,102,241,0.25), rgba(30,41,59,0.85))',
-            color: '#fff', fontSize: 14, cursor: 'pointer', fontWeight: 800,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
-            writingMode: 'vertical-rl',
+            position: 'absolute', right: 0, top: 0, bottom: 0, width: 40, zIndex: 100,
+            border: 'none', borderLeft: '2px solid #818cf8',
+            background: '#4f46e5',
+            color: '#fff', cursor: 'pointer', fontWeight: 800,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12,
+            boxShadow: '-4px 0 16px rgba(79,70,229,0.5)',
           }}>
-          <span style={{ fontSize: 18 }}>◀</span>
-          <span style={{ fontSize: 11, letterSpacing: 1 }}>인스펙터</span>
+          <span style={{ fontSize: 22 }}>◀</span>
+          <span style={{ fontSize: 12, letterSpacing: 2, writingMode: 'vertical-rl' }}>인스펙터</span>
         </button>
       )}
 
