@@ -7,6 +7,8 @@ import * as THREE from 'three';
 import { buildFolderTree, normalizeFolder } from '@/lib/assets/folders';
 import type { FolderNode } from '@/lib/assets/folders';
 import AiGuideModal from './AiGuideModal';
+import StudioTopBar from './StudioTopBar';
+import StudioShortcutsModal from './StudioShortcutsModal';
 
 const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광' };
 const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲', pointlight: '💡', spotlight: '🔦', dirlight: '☀' };
@@ -1420,6 +1422,13 @@ export default function StudioCanvas() {
   // 시뮬레이션
   const [simulating, setSimulating] = useState(false);
   const [aiGuideOpen, setAiGuideOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // 씬 패널 — 검색·필터
+  const [sceneSearch, setSceneSearch] = useState('');
+  const [sceneFilter, setSceneFilter] = useState<'all' | 'shapes' | 'lights' | 'assets' | 'scripted'>('all');
+  // 인스펙터 탭
+  const [inspTab, setInspTab] = useState<'transform' | 'material' | 'script'>('transform');
+  // 조명 선택 시 자동으로 transform 탭 (조명은 material/script 비활성)
   const [simTransforms, setSimTransforms] = useState<SimTransforms>({});
   const threeSceneRef = useRef<THREE.Scene | null>(null);
   const [name, setName]             = useState(t('newWorldDefault'));
@@ -1500,6 +1509,9 @@ export default function StudioCanvas() {
       return { stack: [...truncated, clone(snapshot)], idx: truncated.length };
     });
   }, []);
+
+  // 마지막 저장 시 스냅샷 — dirty 판단용. 빈 문자열 = 한 번도 저장 안 함.
+  const [savedKey, setSavedKey] = useState<string>('');
 
   const undo = useCallback(() => {
     setHist(s => {
@@ -1586,6 +1598,8 @@ export default function StudioCanvas() {
         setHist({ stack: [clone(objs)], idx: 0 });
         setSelectedId(null);
         setSavedId(d.world.id);
+        // 로드 직후엔 dirty 아님 — 현재 상태를 저장된 기준점으로 마킹
+        setSavedKey(JSON.stringify({ name: d.world.name, objects: objs, sceneSettings: ss }));
       })
       .catch(e => {
         console.error('[studio] load failed:', e);
@@ -1973,7 +1987,7 @@ export default function StudioCanvas() {
 
   async function deleteAsset(assetId: string) {
     const asset = myAssets.find(a => a.id === assetId);
-    if (!window.confirm(`"${asset?.name ?? assetId}" 에셋을 영구 삭제하시겠습니까?`)) return;
+    if (!window.confirm(t('deleteAssetConfirm', { name: asset?.name ?? assetId }))) return;
     setMyAssets(prev => prev.filter(a => a.id !== assetId));
     try {
       await fetch(`${API}/api/assets/${assetId}`, {
@@ -1990,8 +2004,8 @@ export default function StudioCanvas() {
       return f === folderPath || (f !== null && f.startsWith(folderPath + '/'));
     });
     const msg = toDelete.length > 0
-      ? `"${folderName}" 폴더를 삭제하면 안에 있는 에셋 ${toDelete.length}개도 모두 영구 삭제됩니다.\n\n계속하시겠습니까?`
-      : `"${folderName}" 폴더를 삭제하시겠습니까?`;
+      ? t('deleteFolderWithAssets', { folder: folderName, count: toDelete.length })
+      : t('deleteFolderEmpty', { folder: folderName });
     if (!window.confirm(msg)) return;
     const ids = toDelete.map(a => a.id);
     setMyAssets(prev => prev.filter(a => !ids.includes(a.id)));
@@ -2273,7 +2287,8 @@ export default function StudioCanvas() {
           router.replace(`/studio?id=${newId}`);
         }
       }
-      alert(t('saved'));
+      // dirty 해제 — 현재 상태를 저장된 기준점으로 마킹
+      setSavedKey(JSON.stringify({ name, objects, sceneSettings }));
     } catch (e) {
       alert((e as Error).message);
     } finally {
@@ -2285,13 +2300,45 @@ export default function StudioCanvas() {
   const canUndo  = hist.idx > 0;
   const canRedo  = hist.idx < hist.stack.length - 1;
 
+  // 조명 선택 시 transform 탭으로 자동 전환 (material/script 비활성이라 빈 화면 방지)
+  useEffect(() => {
+    if (!selected) return;
+    const isLight = selected.kind === 'pointlight' || selected.kind === 'spotlight' || selected.kind === 'dirlight';
+    if (isLight && inspTab !== 'transform') setInspTab('transform');
+  }, [selected, inspTab]);
+
+  // dirty — 현재 상태가 저장된 상태와 다른가
+  const sceneSettingsForDirty = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground };
+  const currentKey = useMemo(
+    () => JSON.stringify({ name, objects, sceneSettings: sceneSettingsForDirty }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [name, objects, lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground],
+  );
+  const dirty = savedKey !== '' && currentKey !== savedKey;
+
   function openMyWorld(id: string) {
     setMyWorldsOpen(false);
     router.replace(`/studio?id=${id}`);
   }
 
   return (
-    <div style={{ display: 'flex', width: '100%', height: '100%', background: '#0f172a', overflow: 'hidden', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif", position: 'relative' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: '#0f172a', overflow: 'hidden', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif" }}>
+      <StudioTopBar
+        name={name}
+        onNameChange={setName}
+        savedId={savedId}
+        dirty={dirty}
+        saving={saving}
+        onSave={save}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={undo}
+        onRedo={redo}
+        simulating={simulating}
+        onStartSim={startSim}
+        onStopSim={stopSim}
+      />
+    <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
 
       {/* ── 좌측 패널 ──────────────────────── */}
       {(isMobile || studioMode === 'settings') && <div style={{
@@ -2348,32 +2395,11 @@ export default function StudioCanvas() {
           </div>
         )}
 
-        {/* Undo/Redo */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 14 }}>
-          <button onClick={undo} disabled={!canUndo}
-            style={{ flex: 1, padding: '7px', borderRadius: 6, border: 'none',
-              background: canUndo ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)',
-              color: canUndo ? '#fff' : 'rgba(255,255,255,0.3)',
-              fontSize: 11, fontWeight: 600, cursor: canUndo ? 'pointer' : 'default' }}>
-            {t('undo')} (Ctrl+Z)
-          </button>
-          <button onClick={redo} disabled={!canRedo}
-            style={{ flex: 1, padding: '7px', borderRadius: 6, border: 'none',
-              background: canRedo ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)',
-              color: canRedo ? '#fff' : 'rgba(255,255,255,0.3)',
-              fontSize: 11, fontWeight: 600, cursor: canRedo ? 'pointer' : 'default' }}>
-            {t('redo')} (Ctrl+Y)
-          </button>
-        </div>
-
-        {/* 월드 이름 + 설명 */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 4 }}>{t('worldName')}</div>
-          <input value={name} onChange={e => setName(e.target.value)} maxLength={100}
-            style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#fff', fontSize: 13, padding: '7px 10px', outline: 'none' }} />
-          <div style={{ fontSize: 11, opacity: 0.5, margin: '8px 0 4px' }}>설명 (선택)</div>
+        {/* 설명 + 공개/비공개 — 이름/저장/Undo/Redo 는 상단 툴바로 이동됨 */}
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 11, opacity: 0.5, margin: '0 0 4px' }}>{t('inspDescription')}</div>
           <textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={300}
-            placeholder="월드를 소개하는 짧은 글을 써주세요"
+            placeholder={t('inspDescPlaceholder')}
             rows={2}
             style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#fff', fontSize: 11, padding: '6px 10px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
         </div>
@@ -2387,19 +2413,8 @@ export default function StudioCanvas() {
             background: isPublic ? 'rgba(52,211,153,0.12)' : 'rgba(255,255,255,0.05)',
             color: isPublic ? '#34d399' : 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
           }}>
-          {isPublic ? '🌍 공개 — 허브에서 탐색 가능' : '🔒 비공개 — 나만 접근 가능'}
+          {isPublic ? t('inspPublicYes') : t('inspPublicNo')}
         </button>
-
-        <button onClick={save} disabled={saving}
-          style={{ width: '100%', padding: '11px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#10b981,#06b6d4)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1, marginBottom: 8 }}>
-          {saving ? t('saving') : savedId ? t('update') : t('save')}
-        </button>
-        {savedId && (
-          <a href={`/world?id=${savedId}`} target="_blank" rel="noreferrer"
-            style={{ display: 'block', textAlign: 'center', padding: '9px', borderRadius: 10, background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-            {t('playTest')}
-          </a>
-        )}
       </div>}
       {isMobile && mobilePanelOpen && (
         <div
@@ -2469,14 +2484,39 @@ export default function StudioCanvas() {
           <button
             onClick={() => { setStudioMode('settings'); setSelectedId(null); setMultiSelectedIds(new Set()); }}
             style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 3, fontWeight: 700 }}>
-            ← 스튜디오
+            {t('inspBackToStudio')}
           </button>
         </div>
         {/* ── 씬 계층 ── */}
         <div style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid rgba(255,255,255,0.1)', minHeight: 0, flex: '0 0 auto', maxHeight: '40%' }}>
           <div style={{ padding: '6px 12px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, letterSpacing: 0.5 }}>씬 오브젝트</span>
+            <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, letterSpacing: 0.5 }}>{t('scSceneObjects')}</span>
             <span style={{ fontSize: 10, opacity: 0.35, background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '1px 7px' }}>{objects.length}</span>
+          </div>
+          {/* 검색 + 필터 */}
+          <div style={{ padding: '0 10px 6px', flexShrink: 0 }}>
+            <input
+              value={sceneSearch}
+              onChange={e => setSceneSearch(e.target.value)}
+              placeholder={t('scSearch')}
+              style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#fff', fontSize: 11, padding: '5px 8px', outline: 'none', marginBottom: 4 }}
+            />
+            <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+              {(['all','shapes','lights','assets','scripted'] as const).map(f => (
+                <button
+                  key={f}
+                  onClick={() => setSceneFilter(f)}
+                  style={{
+                    background: sceneFilter === f ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${sceneFilter === f ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.08)'}`,
+                    borderRadius: 999, color: sceneFilter === f ? '#fff' : 'rgba(255,255,255,0.6)',
+                    fontSize: 10, fontWeight: 600, padding: '2px 8px', cursor: 'pointer',
+                  }}
+                >
+                  {t(`scFilter${f.charAt(0).toUpperCase() + f.slice(1)}` as 'scFilterAll' | 'scFilterShapes' | 'scFilterLights' | 'scFilterAssets' | 'scFilterScripted')}
+                </button>
+              ))}
+            </div>
           </div>
           {/* 루트 드롭 영역 (자식 → 루트로 올리기) */}
           <div
@@ -2484,9 +2524,32 @@ export default function StudioCanvas() {
             onDrop={e => { e.preventDefault(); const id = e.dataTransfer.getData('sceneObjId'); if (id) reparentObject(id, null); }}
             style={{ overflowY: 'auto', flex: 1, padding: '0 8px 8px', display: 'flex', flexDirection: 'column', gap: 1 }}
           >
-            {objects.length === 0 ? (
-              <div style={{ fontSize: 11, opacity: 0.3, textAlign: 'center', paddingTop: 20 }}>오브젝트 없음</div>
-            ) : objects.filter(o => !o.parentId).map(obj => (
+            {(() => {
+              const q = sceneSearch.trim().toLowerCase();
+              const matchesFilter = (o: MapObject): boolean => {
+                if (sceneFilter === 'shapes')   return o.kind === 'cube' || o.kind === 'sphere' || o.kind === 'cylinder' || o.kind === 'plane';
+                if (sceneFilter === 'lights')   return o.kind === 'pointlight' || o.kind === 'spotlight' || o.kind === 'dirlight';
+                if (sceneFilter === 'assets')   return o.kind === 'asset';
+                if (sceneFilter === 'scripted') return !!o.script;
+                return true;
+              };
+              const matchesSearch = (o: MapObject): boolean => {
+                if (!q) return true;
+                const label = (o.label || '').toLowerCase();
+                const kind  = (o.kind  || '').toLowerCase();
+                return label.includes(q) || kind.includes(q);
+              };
+              const filtering = !!q || sceneFilter !== 'all';
+              const rootObjs = filtering
+                ? objects.filter(o => matchesFilter(o) && matchesSearch(o))
+                : objects.filter(o => !o.parentId);
+              if (objects.length === 0) {
+                return <div style={{ fontSize: 11, opacity: 0.3, textAlign: 'center', paddingTop: 20 }}>{t('scEmpty')}</div>;
+              }
+              if (rootObjs.length === 0) {
+                return <div style={{ fontSize: 11, opacity: 0.3, textAlign: 'center', paddingTop: 20 }}>{t('scNoMatch')}</div>;
+              }
+              return rootObjs.map(obj => (
               <SceneListNode key={obj.id} obj={obj} allObjects={objects} depth={0}
                 selectedId={selectedId} multiSelectedIds={multiSelectedIds}
                 editingLabelId={editingLabelId} editingLabelValue={editingLabelValue}
@@ -2504,7 +2567,8 @@ export default function StudioCanvas() {
                   }
                 }}
               />
-            ))}
+              ));
+            })()}
           </div>
         </div>
 
@@ -2551,26 +2615,51 @@ export default function StudioCanvas() {
             style={{ width: '100%', textAlign: 'left', background: 'rgba(99,102,241,0.18)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 6, color: '#a5b4fc', fontSize: 11, padding: '6px 8px', cursor: 'pointer', fontWeight: 700, marginTop: 6 }}>
             🤖 AI 로 맵 만들기
           </button>
+          {/* 단축키 모달 열기 */}
+          <button type="button" onClick={() => setShortcutsOpen(true)}
+            style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.6)', fontSize: 11, padding: '6px 8px', cursor: 'pointer', fontWeight: 600, marginTop: 4 }}>
+            {t('shortcutsButton')}
+          </button>
         </div>
 
         {/* ── 인스펙터 ── */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px' }}>
           {!selected ? (
             <div style={{ fontSize: 11, opacity: 0.3, textAlign: 'center', paddingTop: 32 }}>
-              오브젝트를 선택하세요
+              {t('inspSelect')}
             </div>
           ) : (
             <>
-              <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, marginBottom: 10, letterSpacing: 0.5 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, marginBottom: 8, letterSpacing: 0.5 }}>
                 {KIND_ICONS[selected.kind] ?? '❓'} {selected.label || selected.kind}
               </div>
 
-              {/* 위치/회전/스케일 탭 */}
+              {/* 인스펙터 탭 (변환 / 재질 / 스크립트) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 2, marginBottom: 10, background: 'rgba(0,0,0,0.25)', borderRadius: 7, padding: 2 }}>
+                {(['transform','material','script'] as const).map(tab => {
+                  const isLight = selected.kind === 'pointlight' || selected.kind === 'spotlight' || selected.kind === 'dirlight';
+                  const disabled = isLight && (tab === 'material' || tab === 'script');
+                  return (
+                    <button key={tab} disabled={disabled} onClick={() => setInspTab(tab)}
+                      style={{
+                        background: inspTab === tab ? '#4f46e5' : 'transparent', border: 'none', borderRadius: 5,
+                        color: disabled ? 'rgba(255,255,255,0.2)' : (inspTab === tab ? '#fff' : 'rgba(255,255,255,0.55)'),
+                        fontSize: 11, padding: '6px 0', cursor: disabled ? 'default' : 'pointer', fontWeight: 700,
+                      }}>
+                      {t(tab === 'transform' ? 'inspTabTransform' : tab === 'material' ? 'inspTabMaterial' : 'inspTabScript')}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* ── 변환 탭 ── */}
+              {inspTab === 'transform' && <>
+              {/* 위치/회전/스케일 모드 */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3, marginBottom: 6 }}>
                 {(['translate','rotate','scale'] as const).map(m => (
                   <button key={m} onClick={() => setMode(m)}
                     style={{ background: mode === m ? '#4f46e5' : 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 0', cursor: 'pointer', fontWeight: 600 }}>
-                    {m === 'translate' ? '이동' : m === 'rotate' ? '회전' : '스케일'}
+                    {m === 'translate' ? t('inspMove') : m === 'rotate' ? t('inspRotate') : t('inspScale')}
                   </button>
                 ))}
               </div>
@@ -2580,7 +2669,7 @@ export default function StudioCanvas() {
                 <button
                   onClick={() => setSnapEnabled(v => !v)}
                   style={{ flex: 1, background: snapEnabled ? 'rgba(52,211,153,0.15)' : 'rgba(255,255,255,0.04)', border: `1px solid ${snapEnabled ? '#34d399' : 'rgba(255,255,255,0.1)'}`, borderRadius: 5, color: snapEnabled ? '#34d399' : 'rgba(255,255,255,0.4)', fontSize: 10, padding: '4px 0', cursor: 'pointer', fontWeight: 600 }}>
-                  {snapEnabled ? '⊞ 스냅 ON' : '⊟ 스냅 OFF'}
+                  {snapEnabled ? t('inspSnapOn') : t('inspSnapOff')}
                 </button>
                 {snapEnabled && (
                   <select value={snapSize} onChange={e => setSnapSize(Number(e.target.value))}
@@ -2610,11 +2699,11 @@ export default function StudioCanvas() {
               {/* 물리 — 조명 외 오브젝트에만 표시 */}
               {selected.kind !== 'pointlight' && selected.kind !== 'spotlight' && selected.kind !== 'dirlight' && (
                 <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4 }}>물리 / 콜라이더</div>
+                  <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4 }}>{t('inspPhysics')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3 }}>
                     {(['none', 'fixed', 'dynamic'] as const).map(mode => {
                       const active = (selected.physics ?? 'fixed') === mode;
-                      const labels = { none: '🚫 없음', fixed: '🧱 고정', dynamic: '🎲 동적' };
+                      const labels = { none: t('inspPhysNone'), fixed: t('inspPhysFixed'), dynamic: t('inspPhysDynamic') };
                       return (
                         <button key={mode}
                           onClick={() => { setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, physics: mode } : o)); pushHistory(objects); }}
@@ -2630,10 +2719,10 @@ export default function StudioCanvas() {
               {/* 조명 속성 (pointlight / spotlight 전용) */}
               {(selected.kind === 'pointlight' || selected.kind === 'spotlight' || selected.kind === 'dirlight') && (
                 <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 6 }}>조명 설정</div>
+                  <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 6 }}>{t('inspLightSettings')}</div>
                   {/* 색상 */}
                   <div style={{ marginBottom: 6 }}>
-                    <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 3 }}>색상</div>
+                    <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 3 }}>{t('lightColor')}</div>
                     <input type="color" value={selected.lightColor || '#ffffff'}
                       onChange={e => setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, lightColor: e.target.value } : o))}
                       onBlur={() => pushHistory(objects)}
@@ -2641,7 +2730,7 @@ export default function StudioCanvas() {
                   </div>
                   {/* 강도 */}
                   <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
-                    강도 {(selected.lightIntensity ?? 1).toFixed(1)}
+                    {t('lightIntensity')} {(selected.lightIntensity ?? 1).toFixed(1)}
                     <input type="range" min={0} max={10} step={0.1} value={selected.lightIntensity ?? 1}
                       onChange={e => setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, lightIntensity: Number(e.target.value) } : o))}
                       onMouseUp={() => pushHistory(objects)}
@@ -2649,7 +2738,7 @@ export default function StudioCanvas() {
                   </label>
                   {/* 거리 (0 = 무한) */}
                   <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
-                    거리 (0=무한) {(selected.lightDistance ?? 0).toFixed(0)}
+                    {t('lightDistance')} {(selected.lightDistance ?? 0).toFixed(0)}
                     <input type="range" min={0} max={50} step={1} value={selected.lightDistance ?? 0}
                       onChange={e => setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, lightDistance: Number(e.target.value) } : o))}
                       onMouseUp={() => pushHistory(objects)}
@@ -2658,14 +2747,14 @@ export default function StudioCanvas() {
                   {/* 스폿 전용 */}
                   {selected.kind === 'spotlight' && (<>
                     <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
-                      각도 {(selected.lightAngle ?? 45).toFixed(0)}°
+                      {t('lightAngle')} {(selected.lightAngle ?? 45).toFixed(0)}°
                       <input type="range" min={1} max={89} step={1} value={selected.lightAngle ?? 45}
                         onChange={e => setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, lightAngle: Number(e.target.value) } : o))}
                         onMouseUp={() => pushHistory(objects)}
                         style={{ accentColor: '#fbbf24' }} />
                     </label>
                     <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
-                      경계 부드러움 {(selected.lightPenumbra ?? 0.2).toFixed(2)}
+                      {t('lightPenumbra')} {(selected.lightPenumbra ?? 0.2).toFixed(2)}
                       <input type="range" min={0} max={1} step={0.05} value={selected.lightPenumbra ?? 0.2}
                         onChange={e => setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, lightPenumbra: Number(e.target.value) } : o))}
                         onMouseUp={() => pushHistory(objects)}
@@ -2676,19 +2765,20 @@ export default function StudioCanvas() {
                   <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                     <input type="checkbox" checked={selected.castShadow ?? true}
                       onChange={e => { setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, castShadow: e.target.checked } : o)); pushHistory(objects); }} />
-                    그림자 투영
+                    {t('inspShadow')}
                   </label>
                 </div>
               )}
+              </>}{/* /transform 탭 끝 */}
 
-              {/* ── JavaScript 스크립트 에디터 ── */}
-              {selected.kind !== 'pointlight' && selected.kind !== 'spotlight' && selected.kind !== 'dirlight' && (
+              {/* ── 스크립트 탭 ── */}
+              {inspTab === 'script' && selected.kind !== 'pointlight' && selected.kind !== 'spotlight' && selected.kind !== 'dirlight' && (
                 <div style={{ marginBottom: 10 }}>
                   <button type="button" onClick={() => setObjects(prev => prev.map(o =>
                     o.id === selected.id ? { ...o, _scriptOpen: !(o as MapObject & { _scriptOpen?: boolean })._scriptOpen } : o
                   ))}
                     style={{ width: '100%', textAlign: 'left', background: selected.script ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.05)', border: `1px solid ${selected.script ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 7, color: selected.script ? '#a5b4fc' : 'rgba(255,255,255,0.65)', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 600, marginBottom: 4 }}>
-                    📝 JavaScript 스크립트 {selected.script ? '✓' : ''} {(selected as MapObject & { _scriptOpen?: boolean })._scriptOpen ? '▲' : '▼'}
+                    {t('inspScriptPanelTitle')} {selected.script ? '✓' : ''} {(selected as MapObject & { _scriptOpen?: boolean })._scriptOpen ? '▲' : '▼'}
                   </button>
                   {(selected as MapObject & { _scriptOpen?: boolean })._scriptOpen && (
                     <div>
@@ -2727,7 +2817,7 @@ export default function StudioCanvas() {
                       {selected.script && (
                         <button onClick={() => { setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, script: '' } : o)); pushHistory(objects); }}
                           style={{ marginTop: 4, fontSize: 10, padding: '3px 8px', background: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
-                          스크립트 제거
+                          {t('inspRemoveScript')}
                         </button>
                       )}
                     </div>
@@ -2735,11 +2825,11 @@ export default function StudioCanvas() {
                 </div>
               )}
 
-              {/* 색상 / 재질 / 텍스처 — 조명에서는 숨김 */}
-              {selected.kind !== 'pointlight' && selected.kind !== 'spotlight' && selected.kind !== 'dirlight' && <>
+              {/* ── 재질 탭 — 색상 / 재질 / 텍스처 — 조명에서는 숨김 ── */}
+              {inspTab === 'material' && selected.kind !== 'pointlight' && selected.kind !== 'spotlight' && selected.kind !== 'dirlight' && <>
               <button type="button" onClick={() => setMatPanelOpen(v => !v)}
                 style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 600, marginBottom: matPanelOpen ? 8 : 10 }}>
-                🎨 색상 / 재질 / 텍스처 {matPanelOpen ? '▲' : '▼'}
+                {t('inspMatPanelTitle')} {matPanelOpen ? '▲' : '▼'}
               </button>
               {matPanelOpen && (
                 <>
@@ -2962,20 +3052,25 @@ export default function StudioCanvas() {
           <CameraRefCapture cameraRef={cameraRef} />
         </Canvas>
 
-        {/* ── 시뮬레이션 ▶/⏹ 버튼 — 뷰포트 상단 중앙 ── */}
-        <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', gap: 6, pointerEvents: 'none' }}>
-          {simulating ? (
-            <button onClick={stopSim}
-              style={{ pointerEvents: 'auto', background: 'rgba(239,68,68,0.9)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, color: '#fff', fontSize: 13, padding: '6px 20px', cursor: 'pointer', fontWeight: 700, boxShadow: '0 2px 10px rgba(0,0,0,0.5)', letterSpacing: 0.5 }}>
-              ⏹ 중지 (Esc)
-            </button>
-          ) : (
-            <button onClick={startSim}
-              style={{ pointerEvents: 'auto', background: 'rgba(34,197,94,0.85)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, color: '#fff', fontSize: 13, padding: '6px 20px', cursor: 'pointer', fontWeight: 700, boxShadow: '0 2px 10px rgba(0,0,0,0.5)', letterSpacing: 0.5 }}>
-              ▶ 시뮬레이션
-            </button>
-          )}
-        </div>
+        {/* 시뮬레이션 시작/중지 버튼은 상단 툴바로 이동됨 */}
+
+        {/* 빈 씬 온보딩 안내 — 오브젝트 없을 때만 표시 */}
+        {!simulating && objects.length === 0 && (
+          <div style={{
+            position: 'absolute', top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)', pointerEvents: 'none', zIndex: 5,
+            textAlign: 'center', maxWidth: 420, padding: 24,
+            background: 'rgba(15,23,42,0.85)', borderRadius: 14,
+            border: '1px solid rgba(99,102,241,0.3)', backdropFilter: 'blur(8px)',
+          }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#fff', marginBottom: 8 }}>
+              {t('emptyTitle')}
+            </div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>
+              {t('emptyHint')}
+            </div>
+          </div>
+        )}
 
         {/* 마퀴 셀렉션 사각형 */}
         {marqueeStart && marqueeEnd && (
@@ -3054,7 +3149,7 @@ export default function StudioCanvas() {
             borderRadius: 8, padding: '6px 13px', fontSize: 12, cursor: 'pointer',
             backdropFilter: 'blur(8px)', fontWeight: 700, transition: 'all 0.15s',
           }}>
-          📦 내 에셋 ({fbxAssets.length})
+          {t('myFbxAssets', { count: fbxAssets.length })}
         </button>
 
         {/* FBX 에셋 바텀 슬라이딩 패널 */}
@@ -3074,7 +3169,7 @@ export default function StudioCanvas() {
           {/* 헤더 */}
           <div style={{ padding: '9px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#a5b4fc' }}>
-              📦 내 에셋 ({fbxAssets.length})
+              {t('myFbxAssets', { count: fbxAssets.length })}
             </div>
             <button onClick={() => setActiveAssetPicker(false)}
               style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.45)', fontSize: 20, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
@@ -3106,7 +3201,7 @@ export default function StudioCanvas() {
                   </div>
                 ) : (
                   <button onClick={() => setShowNewFolder(true)} style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px dashed rgba(255,255,255,0.15)', borderRadius: 5, color: 'rgba(255,255,255,0.5)', fontSize: 11, padding: '4px 0', cursor: 'pointer' }}>
-                    ＋ 새 폴더
+                    {t('newFolder')}
                   </button>
                 )}
               </div>
@@ -3211,6 +3306,9 @@ export default function StudioCanvas() {
         onClose={() => setAiGuideOpen(false)}
         onImport={importFromAi}
       />
+      {/* 키보드 단축키 안내 */}
+      <StudioShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+    </div>
     </div>
   );
 }
