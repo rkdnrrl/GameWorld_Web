@@ -927,10 +927,12 @@ function Player({
     const p = lastPos.current;
     if (cameraMode === 'first') {
       // 1인칭: 캐릭터 눈 위치에 카메라, 카메라가 바라보는 방향으로 lookAt
-      const eyeY = p.y + 0.55; // 캡슐 상단 부근 (캡슐 half_height 0.35 + radius 0.28 = 약 0.63)
+      const eyeY = p.y + 0.5; // 캡슐 상단 부근 (머리 안쪽)
       camera.position.set(p.x, eyeY, p.z);
       const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
-      const fy =  Math.sin(_mob.camV);
+      // FPS 관례: 마우스 아래 = 시점 아래로. camV 는 3인칭 기준 (마우스 아래 = camV ↑ = 카메라 위)
+      // 이라서 1인칭에선 부호 반전.
+      const fy = -Math.sin(_mob.camV);
       const fz = -Math.cos(_mob.camH) * Math.cos(_mob.camV);
       camera.lookAt(p.x + fx * 10, eyeY + fy * 10, p.z + fz * 10);
     } else {
@@ -968,8 +970,9 @@ function Player({
       }}
     >
       <CapsuleCollider args={[PLAYER_CAPSULE_HALF_HEIGHT, PLAYER_CAPSULE_RADIUS]} />
-      {/* 1인칭에선 본인 메쉬 숨김 — 카메라가 머리 안에 들어가서 안에서 보이는 거 방지 */}
-      <group ref={mesh} position={[0, PLAYER_MESH_Y, 0]} visible={cameraMode !== 'first'}>
+      {/* 1인칭에서도 본인 메쉬 표시 — 아래 보면 다리/몸 보임.
+          머리는 카메라가 안에 있어서 back-face culling 으로 자연스럽게 숨겨짐 */}
+      <group ref={mesh} position={[0, PLAYER_MESH_Y, 0]}>
         <CharacterMesh appearance={appearance} animStateRef={animStateRef} emoteOneShotOverride={emoteOneShotOverride} />
       </group>
       {bubble && (
