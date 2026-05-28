@@ -53,23 +53,23 @@ export default function WorldPage() {
   const sessionIdParam = searchParams.get('s'); // 세션 id — 같은 worldId 안의 분리된 DO 인스턴스
   const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
-  // 운영자가 지정한 홈허브 worldId. worldIdParam 없을 때 이걸로 fallback.
-  const [homeHubId, setHomeHubId] = useState<string | null>(null);
+  // 운영자가 지정한 홈허브 worldId. undefined = 로딩 중, null = 미지정, string = 홈허브 id.
+  // 항상 조회 — worldIdParam 이 홈허브 id 와 같으면 personal 모드 강제.
+  const [homeHubId, setHomeHubId] = useState<string | null | undefined>(undefined);
   useEffect(() => {
-    if (worldIdParam) return; // 명시적 월드면 홈허브 조회 불필요
     fetch(`${API}/api/worlds/home-hub`)
       .then(r => r.ok ? r.json() : { worldId: null })
       .then(d => setHomeHubId(d.worldId || null))
       .catch(() => setHomeHubId(null));
-  }, [API, worldIdParam]);
+  }, [API]);
 
   // 실제로 로드할 월드 id — 명시 파라미터 우선, 없으면 홈허브, 그것도 없으면 데모 섬
-  const effectiveWorldId = worldIdParam || homeHubId;
+  const effectiveWorldId = worldIdParam || (homeHubId ?? null);
   const worldSocketKey = effectiveWorldId ? `world:${effectiveWorldId}` : 'home:default';
   // 홈허브 = 개인 모드 (각자 자기 DO 인스턴스). 다른 맵 = 공개 세션 분리.
   const isHomeHub = !!homeHubId && effectiveWorldId === homeHubId;
-  // 월드 메타 (kind, maxPlayers) — 백엔드가 보내주면 사용, 없으면 fallback default
-  const [worldKind, setWorldKind] = useState<'personal' | 'multi'>('multi');
+  // 월드 메타 (kind, maxPlayers) — undefined = 로딩 중. 백엔드 응답 후 'personal' 또는 'multi'.
+  const [worldKind, setWorldKind] = useState<'personal' | 'multi' | undefined>(undefined);
   const [worldMaxPlayers, setWorldMaxPlayers] = useState<number>(50);
   const [worldName, setWorldName] = useState<string>('');
 
@@ -177,9 +177,11 @@ export default function WorldPage() {
   useEffect(() => {
     if (!effectiveWorldId) {
       setCustomObjects(null);
+      setWorldKind(undefined);
       return;
     }
     setCustomObjects(null);
+    setWorldKind(undefined); // 새 월드 로딩 시작 — picker 노출 결정 보류
     const tok = session.getToken();
     const headers: Record<string, string> = tok ? { Authorization: `Bearer ${tok}` } : {};
     fetch(`${API}/api/worlds/${effectiveWorldId}`, { headers })
@@ -187,18 +189,20 @@ export default function WorldPage() {
       .then((d) => {
         if (!d.world) {
           setCustomObjects([]);
+          setWorldKind('multi'); // 응답 없으면 multi 로 처리해서 picker 흐름 진행
           return;
         }
         setCustomObjects(Array.isArray(d.world.mapData?.objects) ? d.world.mapData.objects : []);
         setSceneSettings(d.world.mapData?.sceneSettings ?? null);
-        // 월드 메타 — 백엔드가 보내면 사용, 없으면 default 유지
-        if (d.world.kind === 'personal' || d.world.kind === 'multi') setWorldKind(d.world.kind);
+        // 월드 메타 — 백엔드가 보내면 사용, 없으면 default 'multi'.
+        const k = d.world.kind === 'personal' ? 'personal' : 'multi';
+        setWorldKind(k);
         if (typeof d.world.maxPlayers === 'number' && d.world.maxPlayers > 0) setWorldMaxPlayers(d.world.maxPlayers);
         if (typeof d.world.name === 'string') setWorldName(d.world.name);
       })
       .catch(() => {
-        // stale map object carry-over 방지
         setCustomObjects([]);
+        setWorldKind('multi');
       });
   }, [API, effectiveWorldId]);
 
@@ -206,12 +210,18 @@ export default function WorldPage() {
   // - 홈허브 OR kind=personal → 본인 id (각자 자기 DO)
   // - sessionId 파라미터 있음 → 그대로 사용
   // - 그 외 → null (= picker 노출 트리거)
-  const isPersonalMode = isHomeHub || worldKind === 'personal';
-  const effectiveSessionId: string | null = isPersonalMode
-    ? (userId || null)
-    : (sessionIdParam || null);
-  // 세션 picker 노출 여부
-  const showSessionPicker = ready && !!effectiveWorldId && !isPersonalMode && !effectiveSessionId;
+  //
+  // 단, homeHubId 와 worldKind 가 둘 다 로드된 후에만 판정 — race condition 방지.
+  // (로딩 중에 잘못 multi 로 처리해서 picker 띄우거나 잘못된 세션에 입장하는 것 막음)
+  const metaLoaded = homeHubId !== undefined && worldKind !== undefined;
+  const isPersonalMode = metaLoaded && (isHomeHub || worldKind === 'personal');
+  const effectiveSessionId: string | null = !metaLoaded
+    ? null
+    : isPersonalMode
+      ? (userId || null)
+      : (sessionIdParam || null);
+  // 세션 picker — 메타 로드 후 multi 모드 + sessionId 없을 때만 노출
+  const showSessionPicker = metaLoaded && ready && !!effectiveWorldId && !isPersonalMode && !effectiveSessionId;
 
   useEffect(() => {
     if (!ready) return;
