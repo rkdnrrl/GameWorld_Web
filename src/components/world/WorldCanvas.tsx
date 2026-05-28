@@ -1444,26 +1444,27 @@ function UserAsset({ url, matObj }: { url: string; matObj: UserMapObject }) {
 
   useEffect(() => {
     let cancelled = false;
-    import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
-      new FBXLoader().load(url, (fbx) => {
+    // 범용 로더 — fbx / glb / gltf / dae / obj 지원
+    import('@/lib/world/modelLoader').then(({ loadStaticModel }) =>
+      loadStaticModel(url).then(model => {
         if (cancelled) return;
-        fbx.updateMatrixWorld(true);
-        const box = new THREE.Box3().setFromObject(fbx);
+        model.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(model);
         const size = box.getSize(new THREE.Vector3());
         const h = Math.max(size.x, size.y, size.z);
-        if (h > 0) fbx.scale.multiplyScalar(1 / h);
+        if (h > 0) model.scale.multiplyScalar(1 / h);
         // 원본 머티리얼 저장
         originalMats.current.clear();
-        fbx.traverse(c => {
+        model.traverse(c => {
           const m = c as THREE.Mesh;
           if (m.isMesh) {
             m.castShadow = true;
             originalMats.current.set(m, m.material);
           }
         });
-        setObj(fbx);
-      });
-    });
+        setObj(model);
+      }).catch(err => console.error('[world] 모델 로드 실패:', err))
+    );
     return () => { cancelled = true; };
   }, [url]);
 

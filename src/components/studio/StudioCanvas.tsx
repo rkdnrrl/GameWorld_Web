@@ -544,16 +544,17 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }:
   useEffect(() => {
     if (!obj.assetUrl) return;
     let cancelled = false;
-    import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
-      new FBXLoader().load(obj.assetUrl!, (fbx) => {
+    // 범용 로더 — fbx / glb / gltf / dae / obj 지원 (SketchUp export 등)
+    import('@/lib/world/modelLoader').then(({ loadStaticModel }) =>
+      loadStaticModel(obj.assetUrl!).then(model => {
         if (cancelled) return;
-        fbx.updateMatrixWorld(true);
-        const box = new THREE.Box3().setFromObject(fbx);
+        model.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(model);
         const size = box.getSize(new THREE.Vector3());
         const h = Math.max(size.x, size.y, size.z);
-        if (h > 0) fbx.scale.multiplyScalar(1 / h);
+        if (h > 0) model.scale.multiplyScalar(1 / h);
         const origMap = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
-        fbx.traverse(c => {
+        model.traverse(c => {
           const m = c as THREE.Mesh;
           if (m.isMesh) {
             m.castShadow = true;
@@ -561,9 +562,9 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }:
           }
         });
         originalMatsRef.current = origMap;
-        setModel(fbx);
-      });
-    });
+        setModel(model);
+      }).catch(err => console.error('[studio] 모델 로드 실패:', err))
+    );
     return () => { cancelled = true; };
   }, [obj.assetUrl]);
 
