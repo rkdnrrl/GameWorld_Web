@@ -1211,10 +1211,13 @@ function SceneRefCapture({ target }: { target: { current: THREE.Scene | null } }
   return null;
 }
 
-/* ── 노출(toneMapping) 라이브 업데이트 — gl prop 은 초기 마운트만 적용되므로 */
-function ExposureUpdater({ exposure }: { exposure: number }) {
-  const { gl } = useThree();
+/* ── 노출(toneMapping) + HDRI IBL 강도 라이브 업데이트
+   gl prop / Environment prop 은 초기 마운트만 적용되므로 매 렌더마다 직접 세팅한다. */
+function ExposureUpdater({ exposure, hdriIntensity }: { exposure: number; hdriIntensity: number }) {
+  const { gl, scene } = useThree();
   gl.toneMappingExposure = exposure;
+  // scene.environmentIntensity 는 Three.js r155+ 지원. HDRI 가 머티리얼에 주는 빛 세기를 곱함.
+  (scene as THREE.Scene & { environmentIntensity?: number }).environmentIntensity = hdriIntensity;
   return null;
 }
 
@@ -2092,6 +2095,7 @@ export default function StudioCanvas() {
   const [hdriPreset, setHdriPreset] = useState<HdriPreset>('none');
   const [hdriUrl, setHdriUrl] = useState('');          // 커스텀 URL (.hdr/.exr)
   const [hdriBackground, setHdriBackground] = useState(false); // HDRI를 배경으로 표시
+  const [hdriIntensity, setHdriIntensity] = useState(1.0);     // HDRI 환경광 (IBL) 강도 — scene.environmentIntensity
   const [exposure, setExposure] = useState(0.7);   // tone mapping exposure — 너무 밝으면 낮춤
   // 썸네일 캡처 함수 (Canvas 내부에서 등록)
   const captureFnRef = useRef<(() => string | null) | null>(null);
@@ -2194,6 +2198,7 @@ export default function StudioCanvas() {
         if (ss.hdriPreset    !== undefined) setHdriPreset(ss.hdriPreset);
         if (ss.hdriUrl       !== undefined) setHdriUrl(ss.hdriUrl);
         if (ss.hdriBackground !== undefined) setHdriBackground(ss.hdriBackground);
+        if (ss.hdriIntensity  !== undefined) setHdriIntensity(ss.hdriIntensity);
         if (ss.exposure       !== undefined) setExposure(ss.exposure);
         const objs = d.world.mapData?.objects || [];
         setObjects(objs);
@@ -2975,7 +2980,7 @@ export default function StudioCanvas() {
         }
       } catch { /* 썸네일 실패는 무시 */ }
 
-      const sceneSettings = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, exposure };
+      const sceneSettings = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, hdriIntensity, exposure };
       const payload: Record<string, unknown> = { name, description, mapData: { objects, sceneSettings }, isPublic };
       if (thumbnailUrl) payload.thumbnailUrl = thumbnailUrl;
       const body = JSON.stringify(payload);
@@ -3015,7 +3020,7 @@ export default function StudioCanvas() {
   }, [selected, inspTab]);
 
   // dirty — 현재 상태가 저장된 상태와 다른가
-  const sceneSettingsForDirty = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, exposure };
+  const sceneSettingsForDirty = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, hdriIntensity, exposure };
   const currentKey = useMemo(
     () => JSON.stringify({ name, objects, sceneSettings: sceneSettingsForDirty }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3333,6 +3338,18 @@ export default function StudioCanvas() {
                   style={{ accentColor: '#fb923c' }} />
                 <span style={{ fontSize: 10, opacity: 0.55, marginTop: 1 }}>
                   땅이 너무 밝으면 0.4~0.6, 너무 어두우면 1.0+ 로 조정
+                </span>
+              </label>
+
+              {/* HDRI 환경광(IBL) 강도 — Ambient/태양광 슬라이더와는 별개. HDRI 가 머티리얼에 주는 빛 세기. */}
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.75 }}>
+                HDRI 강도: {hdriIntensity.toFixed(2)}
+                <input type="range" min={0} max={3} step={0.05} value={hdriIntensity}
+                  onChange={e => setHdriIntensity(Number(e.target.value))}
+                  onMouseUp={() => pushHistory(objects)}
+                  style={{ accentColor: '#22d3ee' }} />
+                <span style={{ fontSize: 10, opacity: 0.55, marginTop: 1 }}>
+                  HDRI 가 씬에 주는 빛 세기 (Ambient/태양광과 별개). 0 = HDRI 끔 효과.
                 </span>
               </label>
 
@@ -3916,7 +3933,7 @@ export default function StudioCanvas() {
           gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: exposure }}
           onPointerMissed={() => { if (!isGizmoActive()) { setSelectedId(null); setStudioMode('scene'); } }}
         >
-          <ExposureUpdater exposure={exposure} />
+          <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
           <ambientLight intensity={lightAmbient} />
           <directionalLight position={[20, 30, 10]} intensity={lightDir} castShadow
             shadow-mapSize={[2048, 2048]}
