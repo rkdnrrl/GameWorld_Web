@@ -118,13 +118,14 @@ export default function OperatorScriptComponentsPage() {
   };
 
   if (loading) {
-    return <div style={{ padding: 40, color: "#94a3b8" }}>로드 중...</div>;
+    return <div style={{ minHeight: "100vh", background: "#0f172a", padding: 40, color: "#94a3b8" }}>로드 중...</div>;
   }
   if (forbidden) {
-    return <div style={{ padding: 40, color: "#fca5a5" }}>운영자만 접근할 수 있습니다.</div>;
+    return <div style={{ minHeight: "100vh", background: "#0f172a", padding: 40, color: "#fca5a5" }}>운영자만 접근할 수 있습니다.</div>;
   }
 
   return (
+    <div style={{ minHeight: "100vh", background: "#0f172a" }}>
     <div style={{ maxWidth: 980, margin: "0 auto", padding: "20px 24px", color: "#e2e8f0" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12 }}>
         <div>
@@ -247,6 +248,7 @@ export default function OperatorScriptComponentsPage() {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }
