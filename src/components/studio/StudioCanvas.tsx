@@ -78,7 +78,8 @@ function isGizmoActive(): boolean {
 }
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { session } from '@/lib/api';
+import { session, api } from '@/lib/api';
+import type { Prefab } from '@/lib/api';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type OrbitRef = any;
 
@@ -1565,6 +1566,25 @@ export default function StudioCanvas() {
   // 컴포넌트 picker 모달 (인스펙터의 "+ 컴포넌트 추가" 클릭 시 열림)
   const [componentPickerOpen, setComponentPickerOpen] = useState(false);
   const [componentPickerSearch, setComponentPickerSearch] = useState('');
+  // ── 프리팹 (Unity 스타일 오브젝트 스냅샷) ──
+  const [prefabs, setPrefabs] = useState<Prefab[]>([]);
+  const [prefabsLoading, setPrefabsLoading] = useState(false);
+  const [prefabPanelOpen, setPrefabPanelOpen] = useState(true);
+  // 프리팹 목록 로드 — 컴포넌트 마운트 시 + savePrefab/deletePrefab 후 갱신
+  const reloadPrefabs = useCallback(async () => {
+    const tok = session.getToken();
+    if (!tok) return;
+    setPrefabsLoading(true);
+    try {
+      const res = await api.listMyPrefabs(tok);
+      setPrefabs(res.prefabs);
+    } catch (e) {
+      console.error('[Prefab] load fail', e);
+    } finally {
+      setPrefabsLoading(false);
+    }
+  }, []);
+  useEffect(() => { reloadPrefabs(); }, [reloadPrefabs]);
   // 씬 패널 — 검색·필터
   const [sceneSearch, setSceneSearch] = useState('');
   const [sceneFilter, setSceneFilter] = useState<'all' | 'shapes' | 'lights' | 'assets' | 'scripted'>('all');
@@ -1874,6 +1894,60 @@ export default function StudioCanvas() {
       return next;
     });
     setSelectedId(id);
+  }
+
+  /* ── 프리팹 — 선택된 오브젝트를 스냅샷으로 DB 저장 ─────────── */
+  async function savePrefab() {
+    if (!selected) return;
+    const name = prompt('프리팹 이름:', selected.label || makeLabel(selected.kind));
+    if (!name || !name.trim()) return;
+    const tok = session.getToken();
+    if (!tok) { alert('로그인이 필요합니다.'); return; }
+    // payload: 위치/회전 0 으로 정규화해 저장 (instantiate 때 드롭 위치로 덮어씀)
+    const snapshot = clone(selected);
+    snapshot.position = [0, 0, 0];
+    try {
+      const res = await api.createPrefab(tok, {
+        name: name.trim().slice(0, 100),
+        payload: { version: 1, root: snapshot },
+      });
+      setPrefabs(prev => [res.prefab, ...prev]);
+    } catch (e) {
+      alert('프리팹 저장 실패: ' + (e as Error).message);
+    }
+  }
+
+  /* 프리팹을 씬에 인스턴스화 — 위치 인자로 받음 */
+  function instantiatePrefab(prefab: Prefab, position: [number, number, number]) {
+    const payload = prefab.payload as { version?: number; root?: MapObject } | null;
+    const root = payload?.root;
+    if (!root) { alert('프리팹 payload 손상'); return; }
+    const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const inst: MapObject = {
+      ...clone(root),
+      id,
+      label: root.label || prefab.name,
+      position,
+    };
+    setObjects(prev => {
+      const next = [...prev, inst];
+      pushHistory(next);
+      return next;
+    });
+    setSelectedId(id);
+  }
+
+  /* 프리팹 삭제 */
+  async function removePrefab(id: string) {
+    if (!confirm('이 프리팹을 삭제할까요?')) return;
+    const tok = session.getToken();
+    if (!tok) return;
+    try {
+      await api.deletePrefab(tok, id);
+      setPrefabs(prev => prev.filter(p => p.id !== id));
+    } catch (e) {
+      alert('삭제 실패: ' + (e as Error).message);
+    }
   }
 
   /* ── 물리 시뮬레이션 ─────────────────────── */
@@ -2719,6 +2793,43 @@ export default function StudioCanvas() {
             </button>
           </div>
         )}
+        {/* 프리팹 라이브러리 — 드래그해서 뷰포트에 인스턴스화 */}
+        <div style={{ marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 8 }}>
+          <button type="button" onClick={() => setPrefabPanelOpen(v => !v)}
+            style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '4px 0', cursor: 'pointer', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>💾 프리팹 ({prefabs.length})</span>
+            <span>{prefabPanelOpen ? '▲' : '▼'}</span>
+          </button>
+          {prefabPanelOpen && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 4 }}>
+              {prefabsLoading && (
+                <div style={{ fontSize: 10, opacity: 0.4, textAlign: 'center', padding: '6px 0' }}>로드 중…</div>
+              )}
+              {!prefabsLoading && prefabs.length === 0 && (
+                <div style={{ fontSize: 10, opacity: 0.35, textAlign: 'center', padding: '6px 0', lineHeight: 1.4 }}>
+                  오브젝트 선택 후<br/>"💾 프리팹으로 저장"
+                </div>
+              )}
+              {prefabs.map(pf => (
+                <div key={pf.id}
+                  draggable
+                  onDragStart={e => { e.dataTransfer.setData('application/x-alp-prefab', pf.id); e.dataTransfer.effectAllowed = 'copy'; }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, padding: '4px 6px', cursor: 'grab' }}
+                  title="드래그해서 뷰포트에 놓기"
+                >
+                  <span style={{ fontSize: 13 }}>📦</span>
+                  <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pf.name}</span>
+                  <button type="button" onClick={(ev) => { ev.stopPropagation(); removePrefab(pf.id); }}
+                    title="삭제"
+                    style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontSize: 11, cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <button type="button" onClick={() => setAiGuideOpen(true)}
           style={{ width: '100%', textAlign: 'left', background: 'rgba(99,102,241,0.18)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 6, color: '#a5b4fc', fontSize: 11, padding: '6px 8px', cursor: 'pointer', fontWeight: 700, marginTop: 6 }}>
           🤖 AI 로 맵 만들기
@@ -3179,6 +3290,11 @@ export default function StudioCanvas() {
                   {t('delete')}
                 </button>
               </div>
+              {/* 프리팹으로 저장 */}
+              <button onClick={savePrefab}
+                style={{ width: '100%', marginTop: 4, background: 'rgba(251,191,36,0.18)', border: '1px solid rgba(251,191,36,0.4)', color: '#fbbf24', fontSize: 11, padding: '7px', borderRadius: 6, cursor: 'pointer', fontWeight: 700 }}>
+                💾 프리팹으로 저장
+              </button>
 
               <div style={{ fontSize: 10, opacity: 0.3, marginTop: 10, textAlign: 'center' }}>
                 {t('stats', { count: objects.length, idx: hist.idx + 1, total: hist.stack.length })}
@@ -3246,9 +3362,22 @@ export default function StudioCanvas() {
         onMouseMove={handleMarqueeMove}
         onMouseUp={handleMarqueeUp}
         onMouseLeave={handleMarqueeUp}
-        onDragOver={e => { if (e.dataTransfer.types.includes('text/plain')) e.preventDefault(); }}
+        onDragOver={e => {
+          // 에셋 또는 프리팹 드래그 허용
+          if (e.dataTransfer.types.includes('text/plain') || e.dataTransfer.types.includes('application/x-alp-prefab')) {
+            e.preventDefault();
+          }
+        }}
         onDrop={e => {
           e.preventDefault();
+          // 프리팹 먼저 체크 — application/x-alp-prefab MIME 사용
+          const prefabId = e.dataTransfer.getData('application/x-alp-prefab');
+          if (prefabId) {
+            const pf = prefabs.find(p => p.id === prefabId);
+            if (pf) instantiatePrefab(pf, dropPositionFromEvent(e));
+            return;
+          }
+          // 일반 에셋 드롭
           const assetId = e.dataTransfer.getData('text/plain');
           const asset = myAssets.find(a => a.id === assetId);
           if (!asset) return;

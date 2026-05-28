@@ -1344,7 +1344,50 @@ export const api = {
       headers: authHeaders(token),
     });
   },
+
+  // ── 프리팹 (스튜디오 오브젝트 스냅샷) ──
+  /** 본인 프리팹 목록 (최신순). */
+  listMyPrefabs(token: string) {
+    return request<{ prefabs: Prefab[] }>("/api/prefabs/my", {
+      headers: authHeaders(token),
+    });
+  },
+  /** 새 프리팹 저장. */
+  createPrefab(token: string, body: { name: string; payload: unknown; thumbnailUrl?: string | null }) {
+    return request<{ prefab: Prefab }>("/api/prefabs", {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify(body),
+    });
+  },
+  /** 이름/payload/thumbnail 수정. */
+  updatePrefab(token: string, id: string, body: { name?: string; payload?: unknown; thumbnailUrl?: string | null }) {
+    return request<{ prefab: Prefab }>(`/api/prefabs/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: authHeaders(token),
+      body: JSON.stringify(body),
+    });
+  },
+  /** 프리팹 삭제. */
+  deletePrefab(token: string, id: string) {
+    return request<{ ok: true }>(`/api/prefabs/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+    });
+  },
 };
+
+/** 프리팹 — 스튜디오 오브젝트 스냅샷 */
+export interface Prefab {
+  id: string;
+  name: string;
+  thumbnailUrl: string | null;
+  // payload 는 { version, root } 형태 — 자세한 타입은 컴포넌트 측에서 정의
+  payload: unknown;
+  isPublic?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
 const TOKEN_KEY         = "gameworld_token";
 const USER_KEY          = "gameworld_user";
