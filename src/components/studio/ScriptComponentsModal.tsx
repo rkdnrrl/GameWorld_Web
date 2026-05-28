@@ -5,7 +5,8 @@
  * 새 컴포넌트 만들기 / 편집 / 삭제. 부착은 인스펙터의 컴포넌트 picker 에서.
  */
 import { useState } from 'react';
-import { api, session, type ScriptComponent } from '@/lib/api';
+import { api, session, type ScriptComponent, type ScriptComponentPropDef } from '@/lib/api';
+import PropsSchemaEditor, { normalizePropsSchema } from './PropsSchemaEditor';
 
 interface Props {
   open: boolean;
@@ -48,18 +49,20 @@ export default function ScriptComponentsModal({ open, onClose, components, onCha
   const [icon, setIcon]               = useState('');
   const [description, setDescription] = useState('');
   const [code, setCode]               = useState(DEFAULT_CODE);
+  const [propsSchema, setPropsSchema] = useState<ScriptComponentPropDef[]>([]);
   const [saving, setSaving]           = useState(false);
 
   if (!open) return null;
 
   const startNew = () => {
     setEditing(null);
-    setName(''); setIcon(''); setDescription(''); setCode(DEFAULT_CODE);
+    setName(''); setIcon(''); setDescription(''); setCode(DEFAULT_CODE); setPropsSchema([]);
     setView('edit');
   };
   const startEdit = (c: ScriptComponent) => {
     setEditing(c);
     setName(c.name); setIcon(c.icon || ''); setDescription(c.description || ''); setCode(c.code);
+    setPropsSchema(c.propsSchema ?? []);
     setView('edit');
   };
 
@@ -72,6 +75,7 @@ export default function ScriptComponentsModal({ open, onClose, components, onCha
       const body = {
         name: name.trim(), icon: icon.trim() || null,
         description: description.trim() || null, code,
+        propsSchema: normalizePropsSchema(propsSchema),
       };
       if (editing) {
         const res = await api.updateScriptComponent(tok, editing.id, body);
@@ -177,6 +181,8 @@ export default function ScriptComponentsModal({ open, onClose, components, onCha
                 placeholder="이 컴포넌트가 뭐 하는지 한 줄로"
                 style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 6, padding: '7px 9px', fontSize: 12, outline: 'none' }} />
             </label>
+            {/* Props 스키마 편집기 */}
+            <PropsSchemaEditor schema={propsSchema} onChange={setPropsSchema} />
             <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.7 }}>
               코드 *
               <textarea value={code} onChange={e => setCode(e.target.value)}
