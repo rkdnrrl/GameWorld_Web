@@ -193,6 +193,15 @@ export function useGameSocket({ worldId, playerId, username, character, enabled,
         const o = msg as unknown as { objectId: string; ownerId: string | null };
         onObjectOwnershipRef.current?.(o.objectId, o.ownerId ?? null);
       }
+      else if (msg.type === 'obj_owner_snapshot') {
+        // 신규 join 시 서버가 현재 owner 상태 전체를 전송
+        const o = msg as unknown as { owners: Array<{ objectId: string; ownerId: string | null }> };
+        if (Array.isArray(o.owners)) {
+          for (const { objectId, ownerId } of o.owners) {
+            onObjectOwnershipRef.current?.(objectId, ownerId ?? null);
+          }
+        }
+      }
       else if (msg.type === 'obj_spawn') {
         const o = msg as unknown as { spec: RuntimeObjectSpec };
         if (o.spec && o.spec.id) onObjSpawnRef.current?.(o.spec);
