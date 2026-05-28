@@ -1821,6 +1821,11 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const isHostRef = useRef(isHost);
   useEffect(() => { isHostRef.current = isHost; }, [isHost]);
 
+  // 입장자가 정확한 위치 받게 하려고 — 호스트는 1초에 한 번씩 모든 소유 오브젝트를
+  // 강제 broadcast (move threshold 무시). DO 가 캐시해서 신규 입장자에게 init 으로 전달.
+  // 비용: 정적 씬도 초당 1회 broadcast. 오브젝트 ~수십 개면 무시 가능.
+  const forceBroadcastTickRef = useRef(0);
+
   // 호스트 정보 도착 후 onStart 호출 (도착 전엔 world.isHost() 가 잘못된 값 반환)
   // pendingStartRef: VM 만들어졌지만 아직 onStart 안 부른 것들
   const pendingStartRef = useRef<Set<import('@/lib/world/jsRuntime').JsScript>>(new Set());
@@ -1836,6 +1841,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     const MOVE_THRESHOLD = 0.005;
     const interval = setInterval(() => {
       const states: Array<{ id: string; pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number]; vis: boolean; vel?: [number, number, number] }> = [];
+      // 40 tick (25ms × 40 = 1초) 마다 강제 broadcast — DO 캐시 갱신용
+      forceBroadcastTickRef.current = (forceBroadcastTickRef.current + 1) % 40;
+      const forceAll = forceBroadcastTickRef.current === 0;
       // 원본 customObjects + 런타임 spawn된 것 모두 broadcast 대상 (runtimeObjects는 ref로 읽어 stale 회피)
       for (const obj of [...customObjects, ...runtimeObjectsRef.current]) {
         if (obj.hidden) continue;
@@ -1886,7 +1894,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         const justStopped = wasMoving && !isMoving;
         lastVelocityNonZeroRef.current.set(obj.id, !!isMoving);
 
-        if (!isMoving && !justStopped && last) {
+        if (!forceAll && !isMoving && !justStopped && last) {
           const moved = Math.abs(pos[0] - last[0]) > MOVE_THRESHOLD
                      || Math.abs(pos[1] - last[1]) > MOVE_THRESHOLD
                      || Math.abs(pos[2] - last[2]) > MOVE_THRESHOLD;
