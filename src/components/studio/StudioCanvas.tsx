@@ -1396,6 +1396,11 @@ function SimScene({ objects, transforms, myAssets }: {
           const light = lightRefs.current.get(targetId);
           if (light) return [light.rotation.x, light.rotation.y, light.rotation.z];
           const ref = scriptBodyRefs.current.get(targetId);
+          if (ref?.body.current) {
+            const q = ref.body.current.rotation();
+            const e = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w));
+            return [e.x, e.y, e.z];
+          }
           if (ref?.group.current) {
             const r = ref.group.current.rotation;
             return [r.x, r.y, r.z];
@@ -1406,7 +1411,12 @@ function SimScene({ objects, transforms, myAssets }: {
           const light = lightRefs.current.get(targetId);
           if (light) { light.rotation.set(rx, ry, rz); return; }
           const ref = scriptBodyRefs.current.get(targetId);
-          if (ref?.group.current) ref.group.current.rotation.set(rx, ry, rz);
+          if (ref?.body.current) {
+            const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz));
+            ref.body.current.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+          } else if (ref?.group.current) {
+            ref.group.current.rotation.set(rx, ry, rz);
+          }
         },
         applyImpulse: (x, y, z) => {
           const ref = scriptBodyRefs.current.get(targetId);
@@ -1515,6 +1525,12 @@ function SimScene({ objects, transforms, myAssets }: {
         },
         getRotation: () => {
           const ref = scriptBodyRefs.current.get(obj.id);
+          if (ref?.body.current) {
+            // RigidBody: 쿼터니언 → Euler 변환
+            const q = ref.body.current.rotation();
+            const e = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w));
+            return [e.x, e.y, e.z];
+          }
           if (ref?.group.current) {
             const r = ref.group.current.rotation;
             return [r.x, r.y, r.z];
@@ -1523,7 +1539,13 @@ function SimScene({ objects, transforms, myAssets }: {
         },
         setRotation: (rx, ry, rz) => {
           const ref = scriptBodyRefs.current.get(obj.id);
-          if (ref?.group.current) ref.group.current.rotation.set(rx, ry, rz);
+          if (ref?.body.current) {
+            // RigidBody: Euler → 쿼터니언 변환 후 setRotation
+            const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz));
+            ref.body.current.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+          } else if (ref?.group.current) {
+            ref.group.current.rotation.set(rx, ry, rz);
+          }
         },
         applyImpulse: (x, y, z) => {
           const ref = scriptBodyRefs.current.get(obj.id);

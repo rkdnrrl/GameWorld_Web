@@ -152,7 +152,11 @@ function tokenize(source: string): Token[] {
       }
     }
     if (!matched) {
-      throw new Error(`[line ${line}] 알 수 없는 문자: ${c}`);
+      // 알 수 없는 문자 (한글, 이모지, 보이지 않는 유니코드 등) — 조용히 스킵.
+      // 코드 본문에 있으면 의도치 않은 동작이 될 수 있지만, 주석/문자열 밖에
+      // 유니코드가 들어가는 건 보통 의도가 아님 (복붙 사고).
+      console.warn(`[JsScript] line ${line}: 알 수 없는 문자 무시 — '${c}' (U+${c.charCodeAt(0).toString(16).padStart(4, '0')})`);
+      i++;
     }
   }
 
