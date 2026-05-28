@@ -1676,8 +1676,10 @@ export default function StudioCanvas() {
       setIsMobile(mobile);
       if (!mobile) {
         setMobilePanelOpen(false);
-        // 데스크톱 복귀 시 모드 정상화 — 좌측 패널이 다시 보이도록
+        // 데스크톱 복귀 시 — 모드/패널 강제 정상화 (모바일에서 꼬인 상태 회복)
         setStudioMode('settings');
+        setLeftPanelOpen(true);
+        setRightPanelOpen(true);
       }
     };
     check();
