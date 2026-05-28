@@ -372,18 +372,20 @@ export default function WorldPage() {
 
   /**
    * 맵 이동 트리거.
-   * - 홈허브(빈 id) → 바로 이동 (personal 모드라 세션 선택 불필요)
+   * - 홈허브 (빈 id 또는 homeHubId 와 일치) → 바로 이동 (personal 모드라 세션 불필요)
    * - 그 외 → 그 월드의 세션 picker 를 띄움. 세션 고르면 풀 URL 로 navigate.
    */
   function moveWorld(nextId: string, nextName?: string) {
     const current = worldIdParam || '';
     if (nextId === current) return;
-    if (!nextId) {
-      // 홈허브 — 풀 리로드로 깨끗하게
+    // 빈 id 또는 명시적으로 홈허브 id 클릭한 경우 — picker 없이 바로 이동
+    const isTargetHomeHub = !nextId || (!!homeHubId && nextId === homeHubId);
+    if (isTargetHomeHub) {
+      // /world (no id) → 페이지가 home-hub API 로 해석. 홈허브 = personal 모드 → sessionId=playerId 자동.
       window.location.assign(`/${locale}/world`);
       return;
     }
-    // 다른 맵 → 먼저 세션 picker 띄움 (현재 페이지에서)
+    // 그 외 맵 → 먼저 세션 picker 띄움 (현재 페이지에서)
     setPickerForWorld({ id: nextId, name: nextName || nextId });
     setMapModalOpen(false); // map browser 모달 닫기
   }

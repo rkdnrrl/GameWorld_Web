@@ -632,14 +632,13 @@ function LuaUpdateLoop({
               }, true);
             }
           }
-          // 회전: 부드러운 slerp
+          // 회전: 부드러운 slerp. threshold 두면 천천히 도는 오브젝트(AutoRotate 등)가
+          // 매 broadcast 사이 임계값 미달로 안 움직이고 점프 → 항상 slerp.
           const targetQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(target.rot[0], target.rot[1], target.rot[2]));
           const r = ref.body.current.rotation();
           const curQ = new THREE.Quaternion(r.x, r.y, r.z, r.w);
-          if (Math.abs(curQ.dot(targetQ)) < 0.999) { // 회전 차이 있을 때만
-            curQ.slerp(targetQ, SOFT_CORRECTION);
-            ref.body.current.setRotation({ x: curQ.x, y: curQ.y, z: curQ.z, w: curQ.w }, true);
-          }
+          curQ.slerp(targetQ, SOFT_CORRECTION);
+          ref.body.current.setRotation({ x: curQ.x, y: curQ.y, z: curQ.z, w: curQ.w }, true);
         } else if (ref.group.current) {
           // 물리 없는 오브젝트 — 그냥 부드럽게 lerp
           ref.group.current.position.lerp(new THREE.Vector3(ex, ey, ez), SOFT_CORRECTION);
@@ -2279,6 +2278,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const lastVelocityNonZeroRef = useRef<Map<string, boolean>>(new Map());
   // 마지막으로 broadcast 한 grabbedBy 값 — state 변화 감지용 (잡기 시작/놓기 순간 강제 broadcast)
   const lastBroadcastGrabbedByRef = useRef<Map<string, string | null>>(new Map());
+  // 마지막으로 broadcast 한 회전 — 회전만 바뀌는 경우 (AutoRotate 등) 감지용
+  const lastBroadcastRotRef = useRef<Map<string, [number, number, number]>>(new Map());
   useEffect(() => {
     if (!sendObjectStates || !customObjects) return;
     const MOVE_THRESHOLD = 0.005;
@@ -2349,9 +2350,17 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           const moved = Math.abs(pos[0] - last[0]) > MOVE_THRESHOLD
                      || Math.abs(pos[1] - last[1]) > MOVE_THRESHOLD
                      || Math.abs(pos[2] - last[2]) > MOVE_THRESHOLD;
-          if (!moved) continue;
+          // 회전도 체크 — AutoRotate 처럼 위치 안 변하고 회전만 하는 케이스 sync 보장
+          const ROT_THRESHOLD = 0.01; // 약 0.57도
+          const lastRot = lastBroadcastRotRef.current.get(obj.id);
+          const rotated = !lastRot
+                       || Math.abs(rot[0] - lastRot[0]) > ROT_THRESHOLD
+                       || Math.abs(rot[1] - lastRot[1]) > ROT_THRESHOLD
+                       || Math.abs(rot[2] - lastRot[2]) > ROT_THRESHOLD;
+          if (!moved && !rotated) continue;
         }
         lastBroadcastPos.current.set(obj.id, pos);
+        lastBroadcastRotRef.current.set(obj.id, rot);
         lastBroadcastGrabbedByRef.current.set(obj.id, grabbedBy);
         states.push({ id: obj.id, pos, rot, scl, vis, vel, grabbedBy });
       }
