@@ -474,12 +474,11 @@ export default function WorldPage() {
           worldName={worldName}
           maxPlayersDefault={worldMaxPlayers}
           onPick={(sid) => {
-            // URL 에 ?s= 붙여서 갱신 → effectiveSessionId 갱신 → 소켓 connect
+            // URL 갱신 + 풀 리로드. next-intl router 의 query string 갱신이 불완전해서
+            // useSearchParams 가 안 바뀌는 케이스 있음 → location.assign 으로 확실히 reconnect.
             const url = new URL(window.location.href);
             url.searchParams.set('s', sid);
-            window.history.replaceState({}, '', url.toString());
-            // useSearchParams 가 변경 감지하도록 router 통해 강제 갱신
-            router.replace(`/world?id=${effectiveWorldId}&s=${encodeURIComponent(sid)}`);
+            window.location.assign(url.toString());
           }}
         />
       )}
