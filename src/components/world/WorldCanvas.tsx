@@ -2300,16 +2300,12 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       }
     }
 
-    // 새 스크립트 오브젝트 VM 생성
-    for (const obj of scripted) {
-      if (luaScripts.current.has(obj.id)) continue; // 이미 있음
-      // 동적 import — 빌드 시점 의존성 분리
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { JsScript } = require('@/lib/world/jsRuntime') as typeof import('@/lib/world/jsRuntime');
-      const vm = new JsScript();
+    // 동적 import — 빌드 시점 의존성 분리. 메인 스크립트 + user 컴포넌트 양쪽에서 사용.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { JsScript } = require('@/lib/world/jsRuntime') as typeof import('@/lib/world/jsRuntime');
 
-      // 어떤 오브젝트 id에 대해서든 JsObjectAPI 만드는 헬퍼 — world.find()에서 재사용
-      const makeObjectAPI = (targetId: string, fallbackObj?: UserMapObject): import('@/lib/world/jsRuntime').JsObjectAPI => ({
+    // 어떤 오브젝트 id에 대해서든 JsObjectAPI 만드는 헬퍼 — world.find() / user 컴포넌트에서 재사용
+    const makeObjectAPI = (targetId: string, fallbackObj?: UserMapObject): import('@/lib/world/jsRuntime').JsObjectAPI => ({
         id: targetId,
         getPosition: () => {
           // 라이트 우선 (라이트는 RigidBody 없이 position만 가짐)
@@ -2390,52 +2386,49 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         grabber: () => grabbedStateRef.current.get(targetId) ?? null,
       });
 
+    // worldAPI 도 obj 의존성 없음 — hoist
+    const worldAPI: import('@/lib/world/jsRuntime').JsWorldAPI = {
+      getTime: () => worldElapsed.current,
+      getPlayers: () => {
+        return Object.values(playersRef.current).map(p => {
+          const pose = posesRef.current?.get(p.id);
+          return { id: p.id, username: p.username, x: pose?.x ?? 0, y: pose?.y ?? 0, z: pose?.z ?? 0 };
+        });
+      },
+      findObject: (nameOrId) => {
+        const target = customObjects?.find(o => o.id === nameOrId || (o as { label?: string }).label === nameOrId)
+                     ?? runtimeObjectsRef.current.find(o => o.id === nameOrId);
+        if (!target) return null;
+        return makeObjectAPI(target.id, target);
+      },
+      spawn: (opts) => {
+        const id = spawnObject(opts);
+        const fallback: UserMapObject = {
+          id,
+          kind:     opts.kind     ?? 'cube',
+          position: opts.position ?? [0, 5, 0],
+          rotation: opts.rotation ?? [0, 0, 0],
+          scale:    opts.scale    ?? [1, 1, 1],
+          color:    opts.color    ?? '#ffffff',
+          physics:  opts.physics  ?? 'dynamic',
+        };
+        return makeObjectAPI(id, fallback);
+      },
+      isHost: () => isHostRef.current,
+      runtimeCount: () => runtimeObjectsRef.current.length,
+    };
+
+    // 메인 스크립트 (obj.script) VM 생성
+    for (const obj of scripted) {
+      if (luaScripts.current.has(obj.id)) continue;
+      const vm = new JsScript();
       const objectAPI = makeObjectAPI(obj.id, obj);
-
-      const worldAPI: import('@/lib/world/jsRuntime').JsWorldAPI = {
-        getTime: () => worldElapsed.current,
-        getPlayers: () => {
-          return Object.values(playersRef.current).map(p => {
-            const pose = posesRef.current?.get(p.id);
-            return { id: p.id, username: p.username, x: pose?.x ?? 0, y: pose?.y ?? 0, z: pose?.z ?? 0 };
-          });
-        },
-        // label 또는 id로 다른 오브젝트 검색 → script에서 world.find("door1") 형태로 사용
-        findObject: (nameOrId) => {
-          const target = customObjects?.find(o => o.id === nameOrId || (o as { label?: string }).label === nameOrId)
-                       ?? runtimeObjectsRef.current.find(o => o.id === nameOrId);
-          if (!target) return null;
-          return makeObjectAPI(target.id, target);
-        },
-        // world.spawn({ kind, position, color, physics, ... }) → 생성된 오브젝트 핸들 반환
-        spawn: (opts) => {
-          const id = spawnObject(opts);
-          // 방금 spawn한 오브젝트의 fallback 값
-          const fallback: UserMapObject = {
-            id,
-            kind:     opts.kind     ?? 'cube',
-            position: opts.position ?? [0, 5, 0],
-            rotation: opts.rotation ?? [0, 0, 0],
-            scale:    opts.scale    ?? [1, 1, 1],
-            color:    opts.color    ?? '#ffffff',
-            physics:  opts.physics  ?? 'dynamic',
-          };
-          return makeObjectAPI(id, fallback);
-        },
-        // hostId 와 playerId 비교 — 본인이 호스트면 true (호스트 이전 시 자동 반영)
-        isHost: () => isHostRef.current,
-        // 현재 spawn 된 런타임 오브젝트 수 — 호스트 fallback 시 중복 spawn 방지 가드
-        runtimeCount: () => runtimeObjectsRef.current.length,
-      };
-
       const netAPI: import('@/lib/world/jsRuntime').JsNetAPI = {
         sendAll: (event, data) => sendScriptEvent?.(obj.id, event, data),
         sendTo: (pid, event, data) => sendScriptEvent?.(obj.id, event, data, pid),
       };
-
       luaScripts.current.set(obj.id, vm);
       vm.init(obj.script!, objectAPI, worldAPI, netAPI);
-      // 호스트 정보 알면 즉시 onStart, 아니면 hostId 도착 시까지 대기
       if (hostId !== null) vm.callStart();
       else pendingStartRef.current.add(vm);
     }
@@ -2453,8 +2446,12 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       const userComps = (obj.components ?? []).filter(c => c.type.startsWith('user:'));
       if (userComps.length === 0) continue;
 
-      // 이 오브젝트의 objectAPI 만들기 (위에 정의된 makeObjectAPI 재사용)
+      // 이 오브젝트의 objectAPI / netAPI 만들기 (worldAPI 는 위에서 hoist 됨)
       const objAPI = makeObjectAPI(obj.id, obj);
+      const userNetAPI: import('@/lib/world/jsRuntime').JsNetAPI = {
+        sendAll: (event, data) => sendScriptEvent?.(obj.id, event, data),
+        sendTo: (pid, event, data) => sendScriptEvent?.(obj.id, event, data, pid),
+      };
       const vms: Array<{ vm: import('@/lib/world/jsRuntime').JsScript; key: string }> = [];
 
       for (let idx = 0; idx < userComps.length; idx++) {
@@ -2465,11 +2462,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           console.warn(`[user-component] 코드 없음: ${compId} (오브젝트 ${obj.id})`);
           continue;
         }
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { JsScript } = require('@/lib/world/jsRuntime') as typeof import('@/lib/world/jsRuntime');
         const vm2 = new JsScript();
-        // user 컴포넌트는 메인 스크립트와 worldAPI/netAPI 공유 (같은 오브젝트 컨텍스트)
-        vm2.init(def.code, objAPI, worldAPI, netAPI, inst.props ?? {});
+        vm2.init(def.code, objAPI, worldAPI, userNetAPI, inst.props ?? {});
         if (hostId !== null) vm2.callStart();
         else pendingStartRef.current.add(vm2);
         vms.push({ vm: vm2, key: `${obj.id}::${idx}::${compId}` });
