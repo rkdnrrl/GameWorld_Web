@@ -2364,7 +2364,7 @@ export default function StudioCanvas() {
         onToggleLeft={() => setLeftPanelOpen(v => !v)}
         onToggleRight={() => setRightPanelOpen(v => !v)}
       />
-    <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
+    <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative', paddingRight: rightPanelOpen ? 300 : 0 }}>
 
       {/* ── 좌측 패널 ── 항상 마운트, display 로만 토글 (mount/unmount race 회피).
           모바일에선 absolute 로 오버레이 ── */}
@@ -2666,18 +2666,18 @@ export default function StudioCanvas() {
         </div>
       )}
 
-      {/* ── 우측 패널: 인스펙터 — 항상 마운트, display 로만 토글 ── */}
+      {/* ── 우측 패널: 인스펙터 — 항상 마운트, display 로만 토글.
+          position:absolute 로 부모 우측에 핀 (flex order 트릭 의존 X) ── */}
       <div style={{
         display: rightPanelOpen ? 'flex' : 'none',
-        width: 300, flexShrink: 0,
+        position: 'absolute', right: 0, top: 0, bottom: 0,
+        width: 300,
         background: '#1e293b',
         borderLeft: '1px solid rgba(255,255,255,0.08)',
         color: '#fff',
         flexDirection: 'column',
         overflow: 'hidden',
         fontFamily: 'inherit',
-        order: 2, // flex 순서 — 캔버스보다 뒤로 (우측 끝)
-        position: 'relative', // close 버튼 absolute 앵커
         zIndex: 50,
       }}>
         {/* 데스크톱 전용 패널 닫기 버튼 (좌측 상단 corner) */}
