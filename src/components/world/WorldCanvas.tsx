@@ -738,6 +738,8 @@ function Player({
   grabbedStateRef,
   grabbableIdsRef,
   onGrabUiChange,
+  spawnPos = [0, 4, 0],
+  spawnRotY = 0,
 }: {
   character: Record<string, unknown>;
   bubble?: ChatBubble;
@@ -760,6 +762,10 @@ function Player({
   grabbedStateRef?: React.MutableRefObject<Map<string, string>>;
   grabbableIdsRef?: React.MutableRefObject<Set<string>>;
   onGrabUiChange?: (state: 'idle' | 'aim' | 'grab') => void;
+  /** 스폰 위치 — 월드의 spawn 오브젝트 중 하나. 없으면 기본 [0,4,0] */
+  spawnPos?: [number, number, number];
+  /** 스폰 시 카메라 초기 Y 회전 (라디안). spawn 의 rotation.y */
+  spawnRotY?: number;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body      = useRef<any>(null);
@@ -773,7 +779,9 @@ function Player({
   const isLocked = useRef(false);
   const lastSend = useRef(0);
   const jumpPrev = useRef(false);
-  const lastPos  = useRef(new THREE.Vector3(0, 1, 0));
+  const lastPos  = useRef(new THREE.Vector3(spawnPos[0], spawnPos[1], spawnPos[2]));
+  // 마운트 시 1회 — 카메라 H 회전을 스폰 포인트의 Y 회전으로 (마운트 후엔 마우스로 자유)
+  useEffect(() => { _mob.camH = spawnRotY; /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
   // 현재 애니메이션 상태 (CustomModel이 참조)
   const animStateRef = useRef<AnimState>('idle');
   // 이모트(커스텀 애니메이션) 오버라이드 — idle 상태일 때만 적용
@@ -987,7 +995,7 @@ function Player({
 
       // 추락 방지: y가 너무 낮으면 스폰 위치로 복귀
       if (posT.y < -50) {
-        body.current.setTranslation({ x: 0, y: 5, z: 0 }, true);
+        body.current.setTranslation({ x: spawnPos[0], y: spawnPos[1] + 1, z: spawnPos[2] }, true);
         body.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
         return;
       }
@@ -1075,12 +1083,14 @@ function Player({
 
     /* ── 카메라는 항상 lastPos를 따라감 (물리 초기화 여부 무관) ── */
     const p = lastPos.current;
+    // 자세에 따른 카메라 높이 배수 — 서있음 1.0, 앉기 0.55, 엎드리기 0.18
+    const postureScale = proneRef.current ? 0.18 : crouchRef.current ? 0.55 : 1.0;
     if (cameraMode === 'first') {
       // 1인칭: 캐릭터 눈 위치에 카메라.
       // 캐릭터는 autoNormalize 로 1.8m × modelScale 로 정규화됨, 발은 캡슐 바닥(p.y - 0.63)에 위치.
-      // 눈높이 = 발 + 모델키 × 0.94 (정수리에서 약 6% 내려온 위치)
+      // 눈높이 = 발 + 모델키 × 0.94 × postureScale (자세별 낮춤)
       const modelScale = Number((character?.appearance as Record<string, unknown> | undefined)?.modelScale) || 1.0;
-      const eyeY = (p.y - 0.63) + 1.8 * modelScale * 0.94;
+      const eyeY = (p.y - 0.63) + 1.8 * modelScale * 0.94 * postureScale;
       camera.position.set(p.x, eyeY, p.z);
       const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
       // FPS 관례: 마우스 아래 = 시점 아래로. camV 는 3인칭 기준 (마우스 아래 = camV ↑ = 카메라 위)
@@ -1089,14 +1099,14 @@ function Player({
       const fz = -Math.cos(_mob.camH) * Math.cos(_mob.camV);
       camera.lookAt(p.x + fx * 10, eyeY + fy * 10, p.z + fz * 10);
     } else {
-      // 3인칭: 캐릭터 뒤에서 거리 + 각도 따라
+      // 3인칭: 캐릭터 뒤에서 거리 + 각도. 자세별로 카메라 높이 + 시선 높이도 낮춤.
       const dist = _mob.camDist;
       const tx = p.x + dist * Math.sin(_mob.camH) * Math.cos(_mob.camV);
-      const yOffset = dist <= 2.2 ? 0.25 : 0.5;
-      const ty = p.y + dist * Math.sin(_mob.camV) + yOffset;
+      const yOffset = (dist <= 2.2 ? 0.25 : 0.5) * postureScale;
+      const ty = p.y + dist * Math.sin(_mob.camV) + yOffset - (1 - postureScale) * 0.6;
       const tz = p.z + dist * Math.cos(_mob.camH) * Math.cos(_mob.camV);
       camera.position.set(tx, ty, tz);
-      const lookY = dist <= 2.2 ? p.y + 0.45 : p.y + 0.7;
+      const lookY = (dist <= 2.2 ? p.y + 0.45 : p.y + 0.7) - (1 - postureScale) * 0.6;
       camera.lookAt(p.x, lookY, p.z);
     }
 
@@ -1179,7 +1189,7 @@ function Player({
       colliders={false}
       mass={1}
       lockRotations
-      position={[0, 4, 0]}
+      position={spawnPos}
       linearDamping={0.6}
       onCollisionEnter={(p) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1443,7 +1453,7 @@ export type MaterialPreset = 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 
 
 interface UserMapObject {
   id: string;
-  kind: 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight';
+  kind: 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight' | 'spawn';
   assetUrl?: string;
   position: [number, number, number];
   rotation: [number, number, number];
@@ -1914,6 +1924,15 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const lightObjects = (customObjects ?? []).filter(
     (o: UserMapObject) => o.kind === 'pointlight' || o.kind === 'spotlight' || o.kind === 'dirlight'
   );
+  // 스폰 포인트 — 여러 개 있으면 랜덤 선택. 없으면 기본 [0, 4, 0].
+  const spawnObjects = (customObjects ?? []).filter((o: UserMapObject) => o.kind === 'spawn' && !o.hidden);
+  // 컴포넌트 마운트 시 1회만 픽 (재렌더 시 점프 방지) — useMemo with stable dep
+  const spawnPick = useMemo(() => {
+    if (spawnObjects.length === 0) return { pos: [0, 4, 0] as [number, number, number], rotY: 0 };
+    const pick = spawnObjects[Math.floor(Math.random() * spawnObjects.length)];
+    return { pos: pick.position, rotY: pick.rotation[1] };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spawnObjects.map(s => s.id).join(',')]);
 
   // ── JS 스크립트 관리 ──────────────────────────────────────
   // objectId → JsScript 인스턴스 (자체 구현 인터프리터). selected.script (메인 스크립트) 용.
@@ -2569,6 +2588,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           antialias: true, // 항상 켬 (런타임 변경 시 WebGL 컨텍스트 손실)
           powerPreference: 'high-performance',
           stencil: false,
+          toneMapping: THREE.ACESFilmicToneMapping,
+          toneMappingExposure: 0.7,
         }}
         style={{ width: '100vw', height: '100vh', display: 'block', background: showSky ? '#87ceeb' : '#0a0a0f', transform: 'translateZ(0)', willChange: 'transform' }}
       >
@@ -2655,12 +2676,12 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             {customObjects !== undefined ? (
               // 유저 제작 월드 — 기본 그라운드 없음. 필요하면 평면 직접 배치
               // runtimeObjects: 스크립트 world.spawn() 으로 동적 생성된 것 (로컬 전용, 저장 안 됨)
-              <>{[...customObjects, ...runtimeObjects].filter(o => !o.hidden && o.kind !== 'pointlight' && o.kind !== 'spotlight' && o.kind !== 'dirlight').map(obj => <UserMapObjectMesh key={obj.id} obj={obj} scriptBodyRefs={scriptBodyRefs} />)}</>
+              <>{[...customObjects, ...runtimeObjects].filter(o => !o.hidden && o.kind !== 'pointlight' && o.kind !== 'spotlight' && o.kind !== 'dirlight' && o.kind !== 'spawn').map(obj => <UserMapObjectMesh key={obj.id} obj={obj} scriptBodyRefs={scriptBodyRefs} />)}</>
             ) : (
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}

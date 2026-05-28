@@ -12,8 +12,8 @@ import StudioShortcutsModal from './StudioShortcutsModal';
 import ScriptComponentsModal from './ScriptComponentsModal';
 import { COMPONENT_DEFS, getComponentDef, type ComponentInstance, type ComponentType } from '@/lib/world/components';
 
-const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광' };
-const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲', pointlight: '💡', spotlight: '🔦', dirlight: '☀' };
+const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광', spawn: '스폰 포인트' };
+const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲', pointlight: '💡', spotlight: '🔦', dirlight: '☀', spawn: '🎯' };
 
 /* ── 머티리얼 프리셋 (WorldCanvas와 동일) ── */
 const MAT_PRESETS: Record<string, { metalness: number; roughness: number; opacity?: number; transparent?: boolean; defaultColor: string; emissive?: string; emissiveIntensity?: number }> = {
@@ -87,7 +87,7 @@ type OrbitRef = any;
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
 /* ── 데이터 모델 ───────────────────────────── */
-type ObjectKind = 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight';
+type ObjectKind = 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight' | 'spawn';
 
 type MaterialPreset = 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 'plastic' | 'emissive';
 
@@ -783,6 +783,29 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
 
   if (obj.kind === 'asset') return <AssetMesh obj={obj} selected={selected} onClick={handle} assetConfig={assetConfig} noTransform={noTransform} />;
 
+  // 스폰 포인트 — 시각화용 (캡슐 + forward 화살표). 월드 플레이 시엔 안 보임.
+  if (obj.kind === 'spawn') {
+    return (
+      <group
+        position={noTransform ? undefined : obj.position}
+        rotation={noTransform ? undefined : obj.rotation}
+        scale={noTransform ? undefined : obj.scale}
+        onClick={handle as unknown as React.MouseEventHandler}
+        userData={noTransform ? undefined : { id: obj.id }}>
+        {/* 사람 모양 캡슐 */}
+        <mesh position={[0, 0, 0]}>
+          <capsuleGeometry args={[0.3, 1.2, 8, 16]} />
+          <meshStandardMaterial color={selected ? '#fbbf24' : '#34d399'} transparent opacity={0.6} emissive={selected ? '#fbbf24' : '#10b981'} emissiveIntensity={0.5} />
+        </mesh>
+        {/* forward 방향 화살표 (Z- 방향) */}
+        <mesh position={[0, 0, -1.0]} rotation={[Math.PI / 2, 0, 0]}>
+          <coneGeometry args={[0.2, 0.5, 8]} />
+          <meshStandardMaterial color={selected ? '#fbbf24' : '#34d399'} emissive={selected ? '#fbbf24' : '#10b981'} emissiveIntensity={1} />
+        </mesh>
+      </group>
+    );
+  }
+
   const geometry =
     obj.kind === 'sphere'   ? <sphereGeometry args={[0.5, 24, 16]} /> :
     obj.kind === 'cylinder' ? <cylinderGeometry args={[0.5, 0.5, 1, 16]} /> :
@@ -1227,6 +1250,9 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs }: {
     if (light) lightRefs.current.set(obj.id, light);
     else lightRefs.current.delete(obj.id);
   };
+
+  // 스폰 포인트 — 시뮬레이션에선 렌더 X (위치 표시만 했다가 사라짐)
+  if (obj.kind === 'spawn') return null;
 
   // 조명은 Three.js 라이트로 렌더링 (물리 없음)
   if (obj.kind === 'pointlight') return (
@@ -2464,6 +2490,24 @@ export default function StudioCanvas() {
     setStudioMode('scene');
   }
 
+  function addSpawn() {
+    const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const label = makeLabel('spawn');
+    setObjects(prev => {
+      const next: MapObject[] = [...prev, {
+        id, kind: 'spawn', label,
+        position: [0, 1, 0],     // 발이 바닥 위에 살짝 (모델 절반 높이)
+        rotation: [0, 0, 0],     // forward = -z (회전 시 그쪽으로 바라봄)
+        scale:    [1, 1, 1],
+        color:    '#34d399',     // 시각화 색 (월드에선 안 보임)
+      }];
+      pushHistory(next);
+      return next;
+    });
+    setSelectedId(id);
+    setStudioMode('scene');
+  }
+
   function addAsset(asset: Asset, position: [number, number, number] = [0, 0, 0]) {
     const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const label = asset.name || makeLabel('asset');
@@ -3190,6 +3234,12 @@ export default function StudioCanvas() {
             ))}
           </div>
         )}
+        {/* 🎯 스폰 포인트 추가 — 월드 진입 시 플레이어가 여기서 등장. 여러 개 가능 (랜덤 선택). */}
+        <button type="button" onClick={addSpawn}
+          title="플레이어 스폰 위치. 여러 개 두면 랜덤으로 선택됨. 회전 = 초기 바라보는 방향."
+          style={{ width: '100%', textAlign: 'left', background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 6, color: '#86efac', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 700, marginBottom: 4 }}>
+          🎯 스폰 포인트 추가
+        </button>
         <button type="button" onClick={() => setLightAddPanelOpen(v => !v)}
           style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '4px 8px', cursor: 'pointer', fontWeight: 600 }}>
           💡 조명 추가 {lightAddPanelOpen ? '▲' : '▼'}
@@ -3840,7 +3890,7 @@ export default function StudioCanvas() {
           shadows
           camera={{ position: [8, 8, 8], fov: 50 }}
           dpr={[1, 2]}
-          gl={{ antialias: true }}
+          gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.7 }}
           onPointerMissed={() => { if (!isGizmoActive()) { setSelectedId(null); setStudioMode('scene'); } }}
         >
           <ambientLight intensity={lightAmbient} />
