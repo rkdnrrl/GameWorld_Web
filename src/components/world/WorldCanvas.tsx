@@ -728,6 +728,8 @@ function Player({
   luaScripts,
   ownersRef,
   playerId,
+  grabbedStateRef,
+  onGrabUiChange,
 }: {
   character: Record<string, unknown>;
   bubble?: ChatBubble;
@@ -746,6 +748,8 @@ function Player({
   luaScripts?: React.MutableRefObject<Map<string, import('@/lib/world/jsRuntime').JsScript>>;
   ownersRef?: React.MutableRefObject<Map<string, string>>;
   playerId?: string;
+  grabbedStateRef?: React.MutableRefObject<Map<string, string>>;
+  onGrabUiChange?: (state: 'idle' | 'aim' | 'grab') => void;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body      = useRef<any>(null);
@@ -773,6 +777,8 @@ function Player({
   // ── 1인칭 grab (Unreal physics handle) ──
   const grabbedIdRef = useRef<string | null>(null);
   const grabDistRef  = useRef(2.5); // 카메라 앞 m
+  // 크로스헤어 UI state 추적 — 매 프레임 setState 호출 안 하려고 ref 로 last 값 보관
+  const lastUiStateRef = useRef<'idle' | 'aim' | 'grab'>('idle');
   // onKeyDown 내부에서 cameraMode prop을 stale 없이 읽기 위한 ref
   const cameraModeRef = useRef(cameraMode);
   useEffect(() => { cameraModeRef.current = cameraMode; }, [cameraMode]);
@@ -781,9 +787,10 @@ function Player({
     if (cameraMode !== 'first' && grabbedIdRef.current) {
       const released = grabbedIdRef.current;
       grabbedIdRef.current = null;
+      grabbedStateRef?.current.delete(released);
       if (playerId) luaScripts?.current.get(released)?.callRelease(playerId);
     }
-  }, [cameraMode, luaScripts, playerId]);
+  }, [cameraMode, luaScripts, playerId, grabbedStateRef]);
   /* 키보드 + 포인터 락 */
   useEffect(() => {
     const el = gl.domElement;
@@ -804,6 +811,7 @@ function Player({
           // release
           const released = grabbedIdRef.current;
           grabbedIdRef.current = null;
+          grabbedStateRef?.current.delete(released);
           if (playerId) luaScripts?.current.get(released)?.callRelease(playerId);
         } else {
           // raycast → grab 시도
@@ -824,12 +832,13 @@ function Player({
                 }
                 if (foundId) {
                   grabbedIdRef.current = foundId;
+                  if (playerId) grabbedStateRef?.current.set(foundId, playerId);
                   // 본인 소유로 — 멀티에서 reconciliation 이 자기 setLinvel 을 안 덮어쓰게
                   if (playerId && ownersRef) ownersRef.current.set(foundId, playerId);
                   // 잡힌 거리 = 현재 카메라~오브젝트 거리 (초기에 잡은 순간 그대로 유지)
                   const t = hitBody.translation();
                   const dx = t.x - camPos.x, dy = t.y - camPos.y, dz = t.z - camPos.z;
-                  grabDistRef.current = Math.max(1.5, Math.min(4.0, Math.sqrt(dx*dx + dy*dy + dz*dz)));
+                  grabDistRef.current = Math.max(1.5, Math.min(6.0, Math.sqrt(dx*dx + dy*dy + dz*dz)));
                   // 스크립트 콜백
                   if (playerId) luaScripts?.current.get(foundId)?.callGrab(playerId);
                 }
@@ -854,10 +863,34 @@ function Player({
       if (document.pointerLockElement === el) return;
       el.requestPointerLock();
     };
-    const onClick = () => tryLockPointer();
+    const onClick = () => {
+      // 1인칭 + 잡은 상태 + 포인터 락 중 → 던지기 (forward 임펄스 + release)
+      if (grabbedIdRef.current && cameraModeRef.current === 'first' && isLocked.current) {
+        const grabId = grabbedIdRef.current;
+        const ref = scriptBodyRefs?.current.get(grabId);
+        const gb = ref?.body.current;
+        if (gb) {
+          const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
+          const fy = -Math.sin(_mob.camV);
+          const fz = -Math.cos(_mob.camH) * Math.cos(_mob.camV);
+          const STRENGTH = 8;
+          gb.applyImpulse({ x: fx * STRENGTH, y: fy * STRENGTH + 1.5, z: fz * STRENGTH }, true);
+        }
+        grabbedIdRef.current = null;
+        grabbedStateRef?.current.delete(grabId);
+        if (playerId) luaScripts?.current.get(grabId)?.callRelease(playerId);
+        return;
+      }
+      tryLockPointer();
+    };
     const onPointerDown = () => tryLockPointer();
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      // 1인칭 + 잡고 있는 중 → 잡은 거리 조절 (1.2~6m)
+      if (grabbedIdRef.current && cameraModeRef.current === 'first') {
+        grabDistRef.current = Math.max(1.2, Math.min(6.0, grabDistRef.current + e.deltaY * 0.004));
+        return;
+      }
       _mob.camDist = Math.max(1.1, Math.min(14, _mob.camDist + e.deltaY * 0.01));
     };
 
@@ -1070,7 +1103,42 @@ function Player({
       } else {
         // 바디 사라짐 (destroy 등) → grab 해제
         grabbedIdRef.current = null;
+        grabbedStateRef?.current.delete(grabId);
       }
+    }
+
+    /* ── 크로스헤어 색 변경: aim 감지 (1인칭 only) ── */
+    if (onGrabUiChange && cameraMode === 'first') {
+      let nextState: 'idle' | 'aim' | 'grab' = 'idle';
+      if (grabbedIdRef.current) {
+        nextState = 'grab';
+      } else if (scriptBodyRefs) {
+        // raycast 로 잡을 수 있는 오브젝트 조준 중인지 확인
+        try {
+          const cam = camera.position;
+          const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
+          const fy = -Math.sin(_mob.camV);
+          const fz = -Math.cos(_mob.camH) * Math.cos(_mob.camV);
+          const ray = new rapier.Ray({ x: cam.x, y: cam.y, z: cam.z }, { x: fx, y: fy, z: fz });
+          const hit = rWorld.castRay(ray, 4.0, true, undefined, undefined, undefined, body.current ?? undefined);
+          if (hit) {
+            const hb = hit.collider?.parent();
+            if (hb) {
+              for (const [, r] of scriptBodyRefs.current) {
+                if (r.body.current === hb) { nextState = 'aim'; break; }
+              }
+            }
+          }
+        } catch { /* ignore */ }
+      }
+      if (nextState !== lastUiStateRef.current) {
+        lastUiStateRef.current = nextState;
+        onGrabUiChange(nextState);
+      }
+    } else if (onGrabUiChange && lastUiStateRef.current !== 'idle') {
+      // 3인칭으로 돌아왔으면 강제 idle
+      lastUiStateRef.current = 'idle';
+      onGrabUiChange('idle');
     }
   });
 
@@ -1855,6 +1923,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
 
   // ── 오브젝트 소유권 (Unity NetworkObject 스타일) ──────────────
   const ownersRef = useRef<Map<string, string>>(new Map()); // objectId → ownerPlayerId
+  // 1인칭 grab 상태 — objectId → grabberPlayerId (로컬 클라 기준)
+  // Player 가 grab/release 시 업데이트, JsObjectAPI 의 isGrabbed/grabber 가 읽음
+  const grabbedStateRef = useRef<Map<string, string>>(new Map());
   const touchingRef = useRef<Set<string>>(new Set());        // 현재 닿아있는 오브젝트
   const releaseTimerRef = useRef<Map<string, number>>(new Map()); // 충돌 종료 후 해제 예정 시각
 
@@ -2220,6 +2291,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           // 런타임 생성 오브젝트 (rt_ prefix) 만 제거 — 저장된 customObjects 보호
           if (targetId.startsWith('rt_')) destroyObject(targetId);
         },
+        // 1인칭 grab 상태 조회 — 로컬 클라 기준 (네트워크 동기 X)
+        isGrabbed: () => grabbedStateRef.current.has(targetId),
+        grabber: () => grabbedStateRef.current.get(targetId) ?? null,
       });
 
       const objectAPI = makeObjectAPI(obj.id, obj);
@@ -2285,6 +2359,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const toggleCameraMode = useCallback(() => {
     setCameraMode(m => m === 'first' ? 'third' : 'first');
   }, []);
+  // 1인칭 크로스헤어 UI state — Player 가 grab/aim 상태에 따라 호출
+  const [crosshairState, setCrosshairState] = useState<'idle' | 'aim' | 'grab'>('idle');
 
   // 모바일 감지 (Canvas 외부)
   const [isMobile, setIsMobile] = useState(false);
@@ -2304,25 +2380,35 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       {isMobile && <MobileControls inputLocked={chatInputActive} />}
 
       {/* 1인칭 크로스헤어 */}
-      {cameraMode === 'first' && (
-        <>
-          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none', zIndex: 1000, mixBlendMode: 'difference' }}>
-            <div style={{ position: 'absolute', width: 14, height: 2, background: '#fff', left: -7, top: -1 }} />
-            <div style={{ position: 'absolute', width: 2, height: 14, background: '#fff', left: -1, top: -7 }} />
-            <div style={{ position: 'absolute', width: 3, height: 3, borderRadius: '50%', background: '#fff', left: -1.5, top: -1.5 }} />
-          </div>
-          {/* E 키 안내 */}
-          <div style={{
-            position: 'fixed', top: 'calc(50% + 28px)', left: '50%', transform: 'translateX(-50%)',
-            pointerEvents: 'none', zIndex: 1000,
-            fontSize: 11, color: 'rgba(255,255,255,0.65)', fontWeight: 600,
-            textShadow: '0 1px 2px rgba(0,0,0,0.6)',
-            whiteSpace: 'nowrap',
-          }}>
-            E — 잡기/놓기
-          </div>
-        </>
-      )}
+      {cameraMode === 'first' && (() => {
+        // 크로스헤어 색: idle=흰, aim=초록, grab=노랑. mixBlendMode 는 grab/aim 일 때 끔 (색이 살게)
+        const ch = crosshairState === 'grab' ? '#fbbf24'
+                 : crosshairState === 'aim'  ? '#34d399'
+                 : '#fff';
+        const hint = crosshairState === 'grab' ? 'E — 놓기 · 좌클릭 — 던지기 · 휠 — 거리'
+                   : crosshairState === 'aim'  ? 'E — 잡기'
+                   : 'E — 잡기/놓기';
+        const useBlend = crosshairState === 'idle';
+        return (
+          <>
+            <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none', zIndex: 1000, mixBlendMode: useBlend ? 'difference' : 'normal' }}>
+              <div style={{ position: 'absolute', width: 14, height: 2, background: ch, left: -7, top: -1 }} />
+              <div style={{ position: 'absolute', width: 2, height: 14, background: ch, left: -1, top: -7 }} />
+              <div style={{ position: 'absolute', width: 3, height: 3, borderRadius: '50%', background: ch, left: -1.5, top: -1.5 }} />
+            </div>
+            {/* 상황별 힌트 */}
+            <div style={{
+              position: 'fixed', top: 'calc(50% + 28px)', left: '50%', transform: 'translateX(-50%)',
+              pointerEvents: 'none', zIndex: 1000,
+              fontSize: 11, color: 'rgba(255,255,255,0.78)', fontWeight: 600,
+              textShadow: '0 1px 2px rgba(0,0,0,0.7)',
+              whiteSpace: 'nowrap',
+            }}>
+              {hint}
+            </div>
+          </>
+        );
+      })()}
 
       {/* 카메라 모드 토글 버튼 (V) */}
       <button
@@ -2426,7 +2512,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} ownersRef={ownersRef} playerId={playerId} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} onGrabUiChange={setCrosshairState} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}

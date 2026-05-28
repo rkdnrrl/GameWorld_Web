@@ -2871,7 +2871,7 @@ export default function StudioCanvas() {
                         ))}
                         onBlur={() => pushHistory(objects)}
                         spellCheck={false}
-                        placeholder={`// JavaScript 스크립트\nlet startY = 0;\n\nfunction onStart() {\n  let p = self.getPosition();\n  startY = p.y;\n}\n\nfunction onUpdate(dt) {\n  let p = self.getPosition();\n  self.setPosition(p.x, startY + Math.sin(world.time) * 2, p.z);\n}\n\nfunction onNetEvent(event, data, fromId) {\n  if (event === "hit") {\n    self.setVisible(false);\n  }\n}\n\n// 1인칭에서 E 키로 잡혔을 때\nfunction onGrab(grabberId) {\n  self.setColor("#fbbf24");\n}\n\n// 놓였을 때\nfunction onRelease(grabberId) {\n  self.setColor("#ffffff");\n}`}
+                        placeholder={`// JavaScript 스크립트\nlet startY = 0;\n\nfunction onStart() {\n  let p = self.getPosition();\n  startY = p.y;\n}\n\nfunction onUpdate(dt) {\n  let p = self.getPosition();\n  self.setPosition(p.x, startY + Math.sin(world.time) * 2, p.z);\n\n  // 잡힌 상태 조회 (로컬 클라 기준)\n  if (self.isGrabbed()) {\n    // self.grabber() = 잡고 있는 플레이어 id\n  }\n}\n\nfunction onNetEvent(event, data, fromId) {\n  if (event === "hit") {\n    self.setVisible(false);\n  }\n}\n\n// 1인칭에서 E 키로 잡혔을 때\nfunction onGrab(grabberId) {\n  self.setColor("#fbbf24");\n}\n\n// 놓였을 때 (E 또는 좌클릭 던지기)\nfunction onRelease(grabberId) {\n  self.setColor("#ffffff");\n}`}
                         style={{
                           width: '100%', minHeight: 200, resize: 'vertical',
                           background: '#0d1117', color: '#e6edf3',

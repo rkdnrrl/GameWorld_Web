@@ -803,6 +803,10 @@ export interface JsObjectAPI {
   setIntensity?(value: number): void;
   /** 런타임 spawn된 오브젝트만 제거. 저장된 customObject는 무시. */
   destroy?(): void;
+  /** 현재 누가 1인칭으로 잡고 있는지 — true/false. (로컬 클라 기준) */
+  isGrabbed?(): boolean;
+  /** 잡고 있는 플레이어 id — 안 잡혀있으면 null. (로컬 클라 기준) */
+  grabber?(): string | null;
 }
 
 /** world.spawn() 옵션 — UserMapObject 부분 집합 */
