@@ -531,6 +531,7 @@ function LuaUpdateLoop({
   isHost,
   ownersRef,
   playerId,
+  autoRotateRef,
 }: {
   luaScripts: React.MutableRefObject<Map<string, import('@/lib/world/jsRuntime').JsScript>>;
   worldElapsed: React.MutableRefObject<number>;
@@ -542,10 +543,25 @@ function LuaUpdateLoop({
   isHost: boolean;
   ownersRef: React.MutableRefObject<Map<string, string>>;
   playerId: string;
+  autoRotateRef: React.MutableRefObject<Map<string, { axis: 'x' | 'y' | 'z'; speed: number }>>;
 }) {
   useFrame((_, dt) => {
     worldElapsed.current += dt;
     for (const vm of luaScripts.current.values()) vm.callUpdate(dt);
+
+    /* ── AutoRotate 컴포넌트 처리 — 매 프레임 회전 ── */
+    if (autoRotateRef.current.size > 0) {
+      const radPerSec = (deg: number) => (deg * Math.PI) / 180;
+      for (const [id, conf] of autoRotateRef.current) {
+        const ref = scriptBodyRefs.current.get(id);
+        const group = ref?.group.current;
+        if (!group) continue;
+        const delta = radPerSec(conf.speed) * dt;
+        if (conf.axis === 'x') group.rotation.x += delta;
+        else if (conf.axis === 'z') group.rotation.z += delta;
+        else group.rotation.y += delta;
+      }
+    }
 
     // ── Client-side Prediction with Reconciliation ──
     // 본인이 소유한 오브젝트 = 본인 로컬 물리가 권위자 → 수신 적용 안 함
@@ -1449,8 +1465,10 @@ interface UserMapObject {
   castShadow?:     boolean;
   // 물리
   physics?: 'none' | 'fixed' | 'dynamic';
-  // 1인칭 grab 가능 여부 (true 일 때만 E 키로 잡을 수 있음)
+  // 1인칭 grab 가능 여부 (레거시 — components 의 grab 으로 대체됨. 둘 다 인식)
   grabbable?: boolean;
+  // Unity 스타일 컴포넌트 — Grab / AutoRotate 등 부착 가능
+  components?: import('@/lib/world/components').ComponentInstance[];
   // JavaScript 스크립트
   script?: string;
 }
@@ -1896,13 +1914,28 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // 스크립트 콜백에서 stale state 피하려는 최신 ref
   const runtimeObjectsRef = useRef<UserMapObject[]>([]);
   useEffect(() => { runtimeObjectsRef.current = runtimeObjects; }, [runtimeObjects]);
-  // 1인칭에서 잡을 수 있는 오브젝트 id 셋 — customObjects+runtimeObjects 의 grabbable 플래그 기반
+  // 1인칭에서 잡을 수 있는 오브젝트 id 셋 — components 에 'grab' 있거나 grabbable 플래그(레거시) true
   const grabbableIdsRef = useRef<Set<string>>(new Set());
+  // AutoRotate 컴포넌트 — id → {axis, speed} 매핑
+  const autoRotateRef = useRef<Map<string, { axis: 'x' | 'y' | 'z'; speed: number }>>(new Map());
   useEffect(() => {
-    const s = new Set<string>();
-    customObjects?.forEach(o => { if (o.grabbable) s.add(o.id); });
-    runtimeObjects.forEach(o => { if (o.grabbable) s.add(o.id); });
-    grabbableIdsRef.current = s;
+    const grab = new Set<string>();
+    const rot  = new Map<string, { axis: 'x' | 'y' | 'z'; speed: number }>();
+    const check = (o: UserMapObject) => {
+      const hasGrab = o.components?.some(c => c.type === 'grab') || o.grabbable;
+      if (hasGrab) grab.add(o.id);
+      const ar = o.components?.find(c => c.type === 'autoRotate');
+      if (ar) {
+        const axisRaw = String(ar.props?.axis ?? 'y').toLowerCase();
+        const axis: 'x' | 'y' | 'z' = axisRaw === 'x' ? 'x' : axisRaw === 'z' ? 'z' : 'y';
+        const speed = Number(ar.props?.speed ?? 60);
+        rot.set(o.id, { axis, speed });
+      }
+    };
+    customObjects?.forEach(check);
+    runtimeObjects.forEach(check);
+    grabbableIdsRef.current = grab;
+    autoRotateRef.current = rot;
   }, [customObjects, runtimeObjects]);
   // objectId → { body: Rapier rigid body ref, group: Three.js group ref }
   const scriptBodyRefs = useRef<Map<string, {
@@ -2523,6 +2556,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           isHost={isHost}
           ownersRef={ownersRef}
           playerId={playerId}
+          autoRotateRef={autoRotateRef}
         />
 
         <Suspense fallback={null}>

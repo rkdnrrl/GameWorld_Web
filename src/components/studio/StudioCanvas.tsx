@@ -9,6 +9,7 @@ import type { FolderNode } from '@/lib/assets/folders';
 import AiGuideModal from './AiGuideModal';
 import StudioTopBar from './StudioTopBar';
 import StudioShortcutsModal from './StudioShortcutsModal';
+import { COMPONENT_DEFS, getComponentDef, type ComponentInstance, type ComponentType } from '@/lib/world/components';
 
 const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광' };
 const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲', pointlight: '💡', spotlight: '🔦', dirlight: '☀' };
@@ -117,8 +118,10 @@ interface MapObject {
   castShadow?:     boolean;
   // 물리
   physics?: 'none' | 'fixed' | 'dynamic';
-  // 1인칭 grab 가능 여부 — 월드에서 E 키로 잡을 수 있는지
+  // 1인칭 grab 가능 여부 — 레거시 (components 의 grab 으로 대체)
   grabbable?: boolean;
+  // Unity 스타일 컴포넌트 — Grab / AutoRotate 등
+  components?: import('@/lib/world/components').ComponentInstance[];
   // JavaScript 스크립트
   script?: string;
 }
@@ -132,6 +135,139 @@ interface Asset {
   materialConfig?: any;     // 구버전 (DEPRECATED)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata?: any;           // 신규 — metadata.materialConfig
+}
+
+/* ── Unity 스타일 컴포넌트 섹션 (인스펙터) ──
+   부착된 컴포넌트 카드 + "+ 컴포넌트 추가" 버튼. 각 카드는 props 편집 input 포함. */
+function ComponentsSection({
+  selected, setObjects, pushHistory, allObjects, openPicker,
+}: {
+  selected: MapObject;
+  setObjects: (updater: (prev: MapObject[]) => MapObject[]) => void;
+  pushHistory: (objs: MapObject[]) => void;
+  allObjects: MapObject[];
+  openPicker: () => void;
+}) {
+  const list = selected.components ?? [];
+  // 레거시: grabbable 플래그도 가상 컴포넌트로 표시 (제거 시 plain false)
+  const legacyGrab = !!selected.grabbable && !list.some(c => c.type === 'grab');
+
+  const removeComponent = (idx: number) => {
+    setObjects(prev => prev.map(o => o.id === selected.id
+      ? { ...o, components: (o.components ?? []).filter((_, i) => i !== idx) }
+      : o));
+    pushHistory(allObjects);
+  };
+
+  const updateProp = (idx: number, key: string, value: number | string | boolean) => {
+    setObjects(prev => prev.map(o => {
+      if (o.id !== selected.id) return o;
+      const next = [...(o.components ?? [])];
+      const cur = next[idx];
+      next[idx] = { ...cur, props: { ...(cur.props ?? {}), [key]: value } };
+      return { ...o, components: next };
+    }));
+  };
+
+  const removeLegacyGrab = () => {
+    setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, grabbable: false } : o));
+    pushHistory(allObjects);
+  };
+
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <div style={{ fontSize: 10, opacity: 0.5, fontWeight: 700, letterSpacing: 0.5 }}>COMPONENTS</div>
+        <button type="button" onClick={openPicker}
+          style={{ background: 'rgba(99,102,241,0.22)', border: '1px solid rgba(99,102,241,0.45)', color: '#a5b4fc', borderRadius: 5, padding: '3px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>
+          + 컴포넌트 추가
+        </button>
+      </div>
+      {/* 레거시 grabbable 표시 */}
+      {legacyGrab && (
+        <ComponentCard
+          icon="✋" name="Grab (잡기) — legacy"
+          onRemove={removeLegacyGrab}
+        />
+      )}
+      {list.map((c, idx) => {
+        const def = getComponentDef(c.type);
+        if (!def) return null;
+        return (
+          <ComponentCard
+            key={idx}
+            icon={def.icon}
+            name={def.name}
+            onRemove={() => removeComponent(idx)}
+          >
+            {def.props?.map(p => {
+              const val = c.props?.[p.key] ?? p.default;
+              if (p.type === 'number') {
+                return (
+                  <label key={p.key} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, opacity: 0.75, marginTop: 4 }}>
+                    {p.label}
+                    <input type="number" value={Number(val)} step={p.step ?? 1} min={p.min} max={p.max}
+                      onChange={e => updateProp(idx, p.key, Number(e.target.value))}
+                      onBlur={() => pushHistory(allObjects)}
+                      style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
+                  </label>
+                );
+              }
+              if (p.type === 'boolean') {
+                return (
+                  <label key={p.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, opacity: 0.75, marginTop: 4, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={!!val}
+                      onChange={e => { updateProp(idx, p.key, e.target.checked); pushHistory(allObjects); }} />
+                    {p.label}
+                  </label>
+                );
+              }
+              // string
+              return (
+                <label key={p.key} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, opacity: 0.75, marginTop: 4 }}>
+                  {p.label}
+                  <input type="text" value={String(val)}
+                    onChange={e => updateProp(idx, p.key, e.target.value)}
+                    onBlur={() => pushHistory(allObjects)}
+                    style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
+                </label>
+              );
+            })}
+          </ComponentCard>
+        );
+      })}
+      {list.length === 0 && !legacyGrab && (
+        <div style={{ fontSize: 10, opacity: 0.35, textAlign: 'center', padding: '8px 0' }}>컴포넌트 없음</div>
+      )}
+    </div>
+  );
+}
+
+/* 컴포넌트 카드 — collapsible 헤더 + props 영역 */
+function ComponentCard({
+  icon, name, onRemove, children,
+}: {
+  icon: string;
+  name: string;
+  onRemove: () => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div style={{
+      background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+      borderRadius: 6, padding: '6px 8px', marginBottom: 5,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: '#e2e8f0' }}>{icon} {name}</span>
+        <button type="button" onClick={onRemove}
+          title="제거"
+          style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontSize: 12, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>
+          ✕
+        </button>
+      </div>
+      {children}
+    </div>
+  );
 }
 
 interface MyWorldItem {
@@ -1426,6 +1562,9 @@ export default function StudioCanvas() {
   const [simulating, setSimulating] = useState(false);
   const [aiGuideOpen, setAiGuideOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // 컴포넌트 picker 모달 (인스펙터의 "+ 컴포넌트 추가" 클릭 시 열림)
+  const [componentPickerOpen, setComponentPickerOpen] = useState(false);
+  const [componentPickerSearch, setComponentPickerSearch] = useState('');
   // 씬 패널 — 검색·필터
   const [sceneSearch, setSceneSearch] = useState('');
   const [sceneFilter, setSceneFilter] = useState<'all' | 'shapes' | 'lights' | 'assets' | 'scripted'>('all');
@@ -2797,22 +2936,18 @@ export default function StudioCanvas() {
                       );
                     })}
                   </div>
-                  {/* 잡기 가능 토글 — 1인칭 E 키 grab 대상 여부 */}
-                  <button
-                    type="button"
-                    onClick={() => { setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, grabbable: !o.grabbable } : o)); pushHistory(objects); }}
-                    style={{
-                      width: '100%', marginTop: 6, padding: '6px 8px',
-                      borderRadius: 5, border: `1px solid ${selected.grabbable ? 'rgba(251,191,36,0.5)' : 'rgba(255,255,255,0.12)'}`,
-                      background: selected.grabbable ? 'rgba(251,191,36,0.18)' : 'rgba(255,255,255,0.04)',
-                      color: selected.grabbable ? '#fbbf24' : 'rgba(255,255,255,0.5)',
-                      fontSize: 10, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
-                    }}>
-                    <span>✋ {t('inspGrabbable')}</span>
-                    <span style={{ fontSize: 9, opacity: 0.85 }}>{selected.grabbable ? 'ON' : 'OFF'}</span>
-                  </button>
                 </div>
+              )}
+
+              {/* ── 컴포넌트 (Unity 스타일) — 조명 외 오브젝트에만 ── */}
+              {selected.kind !== 'pointlight' && selected.kind !== 'spotlight' && selected.kind !== 'dirlight' && (
+                <ComponentsSection
+                  selected={selected}
+                  setObjects={setObjects}
+                  pushHistory={pushHistory}
+                  allObjects={objects}
+                  openPicker={() => setComponentPickerOpen(true)}
+                />
               )}
 
               {/* 조명 속성 (pointlight / spotlight 전용) */}
@@ -3456,6 +3591,76 @@ export default function StudioCanvas() {
       />
       {/* 키보드 단축키 안내 */}
       <StudioShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+
+      {/* 컴포넌트 picker 모달 — 선택된 오브젝트에 컴포넌트 추가 */}
+      {componentPickerOpen && selected && (
+        <div
+          onClick={() => setComponentPickerOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.75)', backdropFilter: 'blur(6px)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+        >
+          <div onClick={e => e.stopPropagation()}
+            style={{ width: 'min(520px, 96vw)', maxHeight: '80vh', overflow: 'hidden', borderRadius: 12, border: '1px solid rgba(255,255,255,0.16)', background: 'linear-gradient(180deg, rgba(30,41,59,0.97), rgba(15,23,42,0.97))', color: '#fff', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 14, fontWeight: 800 }}>컴포넌트 추가</div>
+              <button type="button" onClick={() => setComponentPickerOpen(false)}
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
+            </div>
+            <div style={{ padding: 10 }}>
+              <input
+                autoFocus
+                value={componentPickerSearch}
+                onChange={e => setComponentPickerSearch(e.target.value)}
+                placeholder="컴포넌트 검색 (예: grab, rotate)"
+                style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 6, padding: '7px 10px', fontSize: 12, outline: 'none' }}
+              />
+            </div>
+            <div style={{ padding: '0 10px 12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {COMPONENT_DEFS
+                .filter(def => {
+                  const q = componentPickerSearch.toLowerCase().trim();
+                  if (!q) return true;
+                  return def.type.toLowerCase().includes(q) || def.name.toLowerCase().includes(q);
+                })
+                .map(def => {
+                  const alreadyHas = (selected.components ?? []).some(c => c.type === def.type);
+                  return (
+                    <button key={def.type} type="button"
+                      disabled={alreadyHas}
+                      onClick={() => {
+                        if (alreadyHas) return;
+                        const newInst: ComponentInstance = { type: def.type as ComponentType };
+                        if (def.props) {
+                          newInst.props = {};
+                          def.props.forEach(p => { newInst.props![p.key] = p.default; });
+                        }
+                        setObjects(prev => prev.map(o => o.id === selected.id
+                          ? { ...o, components: [...(o.components ?? []), newInst] }
+                          : o));
+                        pushHistory(objects);
+                        setComponentPickerOpen(false);
+                        setComponentPickerSearch('');
+                      }}
+                      style={{
+                        textAlign: 'left',
+                        background: alreadyHas ? 'rgba(255,255,255,0.03)' : 'rgba(99,102,241,0.12)',
+                        border: `1px solid ${alreadyHas ? 'rgba(255,255,255,0.08)' : 'rgba(99,102,241,0.35)'}`,
+                        borderRadius: 8, padding: '10px 12px',
+                        cursor: alreadyHas ? 'default' : 'pointer',
+                        color: alreadyHas ? 'rgba(255,255,255,0.35)' : '#fff',
+                        display: 'flex', flexDirection: 'column', gap: 3,
+                      }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: 13, fontWeight: 700 }}>{def.icon} {def.name}</span>
+                        {alreadyHas && <span style={{ fontSize: 10, opacity: 0.65 }}>이미 추가됨</span>}
+                      </div>
+                      <span style={{ fontSize: 11, opacity: 0.7, fontWeight: 400, lineHeight: 1.4 }}>{def.description}</span>
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     </div>
   );
