@@ -2606,7 +2606,11 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               position={o.position} color={o.lightColor || '#ffffff'}
               intensity={o.lightIntensity ?? 1}
               castShadow={o.castShadow ?? false}
-              shadow-mapSize={shadowMapSize} />
+              shadow-mapSize={shadowMapSize}
+              shadow-camera-left={-80} shadow-camera-right={80}
+              shadow-camera-top={80} shadow-camera-bottom={-80}
+              shadow-camera-near={0.1} shadow-camera-far={200}
+              shadow-bias={-0.0005} />
           ) : (
             <spotLight key={o.id} ref={refCb}
               position={o.position} color={o.lightColor || '#ffffff'}

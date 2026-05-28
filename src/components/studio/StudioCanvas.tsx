@@ -1026,6 +1026,11 @@ function SceneNode({ obj, allObjects, selectedId, multiSelectedIds, onObjectClic
             color={obj.lightColor || '#ffffff'}
             intensity={obj.lightIntensity ?? 1}
             castShadow={obj.castShadow ?? false}
+            shadow-mapSize={[2048, 2048]}
+            shadow-camera-left={-80} shadow-camera-right={80}
+            shadow-camera-top={80} shadow-camera-bottom={-80}
+            shadow-camera-near={0.1} shadow-camera-far={200}
+            shadow-bias={-0.0005}
           />
         )}
         {obj.kind === 'pointlight' && (
@@ -3839,7 +3844,12 @@ export default function StudioCanvas() {
           onPointerMissed={() => { if (!isGizmoActive()) { setSelectedId(null); setStudioMode('scene'); } }}
         >
           <ambientLight intensity={lightAmbient} />
-          <directionalLight position={[20, 30, 10]} intensity={lightDir} castShadow shadow-mapSize={[2048, 2048]} />
+          <directionalLight position={[20, 30, 10]} intensity={lightDir} castShadow
+            shadow-mapSize={[2048, 2048]}
+            shadow-camera-left={-80} shadow-camera-right={80}
+            shadow-camera-top={80} shadow-camera-bottom={-80}
+            shadow-camera-near={0.1} shadow-camera-far={200}
+            shadow-bias={-0.0005} />
           {skyEnabled && !hdriBackground && <Sky sunPosition={[20, 10, 10]} />}
           {/* HDRI 환경맵 — 커스텀 URL 우선, 없으면 프리셋, none이면 미사용 */}
           {hdriUrl.trim() ? (
