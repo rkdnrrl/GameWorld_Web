@@ -2375,8 +2375,6 @@ export default function StudioCanvas() {
         top: isMobile ? 0 : undefined,
         bottom: isMobile ? 0 : undefined,
         zIndex: isMobile ? 220 : undefined,
-        transform: isMobile ? (mobilePanelOpen ? 'translateX(0)' : 'translateX(-108%)') : undefined,
-        transition: isMobile ? 'transform 180ms ease' : undefined,
         boxShadow: isMobile ? '0 0 0 1px rgba(255,255,255,0.1), 8px 0 30px rgba(2,6,23,0.6)' : undefined,
       }}>
       {/* 데스크톱 전용 패널 닫기 버튼 (우측 상단 corner) */}
