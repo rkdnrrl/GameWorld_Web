@@ -1038,7 +1038,12 @@ function SceneNode({ obj, allObjects, selectedId, multiSelectedIds, onObjectClic
   myAssets: any[];
 }) {
   const isSelected = obj.id === selectedId || multiSelectedIds.has(obj.id);
-  const children = allObjects.filter(c => c.parentId === obj.id);
+  // 자식 중 lights/spawn 은 루트 레벨에서 평탄 렌더되므로 여기서 제외 (중복 렌더 방지)
+  const children = allObjects.filter(c =>
+    c.parentId === obj.id
+    && c.kind !== 'pointlight' && c.kind !== 'spotlight' && c.kind !== 'dirlight'
+    && c.kind !== 'spawn'
+  );
 
   // 조명 오브젝트
   if (obj.kind === 'pointlight' || obj.kind === 'spotlight' || obj.kind === 'dirlight') {
@@ -2954,16 +2959,43 @@ export default function StudioCanvas() {
     };
     if (newParentId && isDescendant(newParentId, childId)) return;
 
-    // child의 현재 world transform
-    const childWorld = computeWorldMatrix(childId, objects);
+    const child = objects.find(o => o.id === childId);
+    if (!child) return;
 
-    // 새 부모 공간으로 변환 (없으면 world 그대로)
+    // 조명/스폰은 hierarchical transform 무의미 (월드/시뮬에서 평탄 렌더됨).
+    // position 변환하면 월드에서 0,0 근처로 떨어지는 버그 → parentId 만 변경, position world 유지.
+    const isFlatRendered = child.kind === 'pointlight' || child.kind === 'spotlight' || child.kind === 'dirlight' || child.kind === 'spawn';
+
+    if (isFlatRendered) {
+      // 현재 world position 유지. parentId 만 변경 (UI 트리 정리 목적).
+      const worldMat = computeWorldMatrix(childId, objects);
+      const wp = new THREE.Vector3();
+      const wq = new THREE.Quaternion();
+      const ws = new THREE.Vector3();
+      worldMat.decompose(wp, wq, ws);
+      const we = new THREE.Euler().setFromQuaternion(wq, 'XYZ');
+      setObjects(prev => {
+        const next = prev.map(o => o.id === childId ? {
+          ...o,
+          parentId: newParentId ?? undefined,
+          position: [wp.x, wp.y, wp.z] as [number,number,number],
+          rotation: [we.x, we.y, we.z] as [number,number,number],
+          // scale 도 world (lights 는 1,1,1 유지)
+          scale:    [ws.x, ws.y, ws.z] as [number,number,number],
+        } : o);
+        pushHistory(next);
+        return next;
+      });
+      return;
+    }
+
+    // 일반 오브젝트 — 부모 공간 local 로 변환 (Three.js hierarchical transform 활용)
+    const childWorld = computeWorldMatrix(childId, objects);
     let localMat = childWorld.clone();
     if (newParentId) {
       const parentWorld = computeWorldMatrix(newParentId, objects);
       localMat = parentWorld.clone().invert().multiply(childWorld);
     }
-
     const lp = new THREE.Vector3();
     const lq = new THREE.Quaternion();
     const ls = new THREE.Vector3();
@@ -4067,8 +4099,13 @@ export default function StudioCanvas() {
           ) : (
             /* ── 편집 모드 ── */
             <>
-              {/* 루트 오브젝트만 렌더링 — SceneNode가 자식을 재귀로 렌더링 */}
-              {objects.filter(o => !o.hidden && !o.parentId).map(obj => (
+              {/* 루트 오브젝트 + 조명/스폰 (parentId 있어도 평탄 렌더 — hierarchical transform 무시).
+                  reparent 시 lights/spawn 은 position 을 world 로 유지하므로 평탄 렌더가 맞음. */}
+              {objects.filter(o => !o.hidden && (
+                !o.parentId
+                || o.kind === 'pointlight' || o.kind === 'spotlight' || o.kind === 'dirlight'
+                || o.kind === 'spawn'
+              )).map(obj => (
                 <SceneNode key={obj.id} obj={obj}
                   allObjects={objects.filter(o => !o.hidden)}
                   selectedId={selectedId}
