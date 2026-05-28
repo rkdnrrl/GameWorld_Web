@@ -814,8 +814,7 @@ function Player({
             const ray = new rapier.Ray({ x: camPos.x, y: camPos.y, z: camPos.z }, { x: fx, y: fy, z: fz });
             const hit = rWorld.castRay(ray, 4.0, true, undefined, undefined, undefined, body.current ?? undefined);
             if (hit) {
-              const collider = rWorld.getCollider(hit.colliderHandle);
-              const hitBody  = collider?.parent();
+              const hitBody = hit.collider?.parent();
               if (hitBody && scriptBodyRefs) {
                 // hitBody 와 일치하는 objectId 찾기
                 let foundId: string | null = null;
