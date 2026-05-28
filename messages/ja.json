@@ -1358,6 +1358,7 @@
     "manageCharacters": "キャラクター管理へ",
     "moveMap": "マップ移動",
     "homeHubMap": "ホームハブ（基本マップ）",
+    "homeHubHint": "自分専用のプライベート空間。キャラクター・ワールド作成の出発点。",
     "loadingHub": "ハブ情報を読み込み中…",
     "enterFullscreen": "全画面",
     "exitFullscreen": "全画面を終了",

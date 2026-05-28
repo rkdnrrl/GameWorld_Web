@@ -1,6 +1,7 @@
 'use client';
 /**
- * 크리에이터 도구 네비게이션 — Assets/Character/Studio/Worlds 사이 이동
+ * 크리에이터 도구 네비게이션 — Assets/Character/Studio 사이 이동
+ * (월드 탭은 게임 화면 안의 설정 모달 → 맵 이동 으로 통합)
  * 각 페이지 상단에 한 줄 추가만으로 동작. usePathname 으로 현재 탭 자동 강조.
  */
 import Link from 'next/link';
@@ -20,7 +21,6 @@ const TABS: Tab[] = [
   { match: '/assets',    href: '/assets',    icon: '📦', labelKey: 'navAssets' },
   { match: '/character', href: '/character', icon: '🎮', labelKey: 'navCharacter' },
   { match: '/studio',    href: '/studio',    icon: '🏗️', labelKey: 'navStudio' },
-  { match: '/worlds',    href: '/worlds',    icon: '🌍', labelKey: 'navWorlds' },
 ];
 
 export default function CreatorNav() {

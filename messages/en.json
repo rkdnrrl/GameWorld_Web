@@ -1358,6 +1358,7 @@
     "manageCharacters": "Open Character Manager",
     "moveMap": "Move to Map",
     "homeHubMap": "Home Hub (Default Map)",
+    "homeHubHint": "Your private space. Starting point for character & world setup.",
     "loadingHub": "Loading hub data…",
     "enterFullscreen": "Fullscreen",
     "exitFullscreen": "Exit Fullscreen",

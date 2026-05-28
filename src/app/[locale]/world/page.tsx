@@ -47,6 +47,7 @@ export default function WorldPage() {
   const tc = useTranslations('Common');
   const tg = useTranslations('Games');
   const th = useTranslations('Header');
+  const tw = useTranslations('Worlds');
   const router = useRouter();
   const searchParams = useSearchParams();
   const worldIdParam = searchParams.get('id');
@@ -93,7 +94,6 @@ export default function WorldPage() {
   const [mapSearch, setMapSearch] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
   const [mapSort, setMapSort] = useState<'popular' | 'latest'>('popular');
-  const [previewWorldKey, setPreviewWorldKey] = useState('');
   const [previewCharId, setPreviewCharId] = useState('');
   const [switchingCharId, setSwitchingCharId] = useState('');
   const [myChars, setMyChars] = useState<MyCharacter[]>([]);
@@ -375,11 +375,10 @@ export default function WorldPage() {
   }
 
   function openMapBrowser() {
-    setMapTab('home');
+    setMapTab('public'); // 기본 탭 = 공개 (탐색 우선)
     setMapSearch('');
     setSelectedTag('');
     setMapSort('popular');
-    setPreviewWorldKey('__home__');
     setMapModalOpen(true);
   }
 
@@ -440,35 +439,6 @@ export default function WorldPage() {
     return list;
   }, [currentWorldList, mapSearch, selectedTag, mapSort]);
 
-  const previewCandidates = useMemo(() => {
-    if (mapTab === 'home') {
-      return [{
-        id: '__home__',
-        worldId: '',
-        name: t('homeHubMap'),
-        description: '',
-        thumbnailUrl: null as string | null,
-        ownerName: username || '-',
-        playCount: 0,
-        tags: [] as string[],
-      }];
-    }
-    return filteredWorlds.map((w) => ({
-      id: `world-${w.id}`,
-      worldId: w.id,
-      name: w.name,
-      description: w.description || '',
-      thumbnailUrl: w.thumbnailUrl || null,
-      ownerName: w.ownerName || '-',
-      playCount: w.playCount || 0,
-      tags: w.tags || [],
-    }));
-  }, [mapTab, filteredWorlds, t, username]);
-
-  const previewWorld = useMemo(
-    () => previewCandidates.find((c) => c.id === previewWorldKey) || previewCandidates[0] || null,
-    [previewCandidates, previewWorldKey],
-  );
   const previewChar = useMemo(
     () => myChars.find((c) => c.id === previewCharId) || myChars.find((c) => c.id === activeCharId) || myChars[0] || null,
     [myChars, previewCharId, activeCharId],
@@ -772,164 +742,157 @@ export default function WorldPage() {
               </button>
             </div>
 
-            <div style={{ display: 'flex', gap: 8, padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-              <button onClick={() => setMapTab('home')} style={{ border: '1px solid rgba(255,255,255,0.15)', borderRadius: 999, padding: '6px 12px', cursor: 'pointer', background: mapTab === 'home' ? 'rgba(79,70,229,0.45)' : 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 700 }}>
-                {t('homeHubMap')}
-              </button>
-              <button onClick={() => setMapTab('mine')} style={{ border: '1px solid rgba(255,255,255,0.15)', borderRadius: 999, padding: '6px 12px', cursor: 'pointer', background: mapTab === 'mine' ? 'rgba(79,70,229,0.45)' : 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 700 }}>
-                {t('changeCharacter')}
-              </button>
-              <button onClick={() => setMapTab('public')} style={{ border: '1px solid rgba(255,255,255,0.15)', borderRadius: 999, padding: '6px 12px', cursor: 'pointer', background: mapTab === 'public' ? 'rgba(79,70,229,0.45)' : 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 700 }}>
-                {t('playersList')}
-              </button>
+            {/* 탭 — 공개 / 내가 만든 / 홈 */}
+            <div style={{ display: 'flex', gap: 4, padding: '10px 16px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              {([
+                ['public', `🌐 ${tw('tabPublic')}`,    publicWorlds.length],
+                ['mine',   `🛠 ${tw('tabMine')}`,      myWorlds.length],
+                ['home',   `🏠 ${t('homeHubMap')}`,    null as number | null],
+              ] as const).map(([key, label, count]) => (
+                <button key={key} onClick={() => setMapTab(key as 'home' | 'mine' | 'public')} style={{
+                  background: 'none', border: 'none', padding: '10px 14px', cursor: 'pointer',
+                  color: mapTab === key ? '#fff' : 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: 700,
+                  borderBottom: `2px solid ${mapTab === key ? '#818cf8' : 'transparent'}`, marginBottom: -1,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  {label}
+                  {count !== null && (
+                    <span style={{ opacity: 0.5, fontSize: 11, background: 'rgba(255,255,255,0.08)', padding: '1px 7px', borderRadius: 10 }}>{count}</span>
+                  )}
+                </button>
+              ))}
             </div>
 
-            <div style={{ padding: 16, overflowY: 'auto', maxHeight: 'calc(90vh - 130px)' }}>
-              {mapTab !== 'home' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      onClick={() => setMapSort('popular')}
-                      style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 999, padding: '5px 10px', cursor: 'pointer', background: mapSort === 'popular' ? 'rgba(79,70,229,0.45)' : 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 700 }}
-                    >
-                      🔥 {tg('sortPopular')}
-                    </button>
-                    <button
-                      onClick={() => setMapSort('latest')}
-                      style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 999, padding: '5px 10px', cursor: 'pointer', background: mapSort === 'latest' ? 'rgba(79,70,229,0.45)' : 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 700 }}
-                    >
-                      🕒
-                    </button>
+            <div style={{ padding: 16, overflowY: 'auto', maxHeight: 'calc(90vh - 140px)' }}>
+              {/* 홈 탭 — 단일 카드 */}
+              {mapTab === 'home' && (
+                <button
+                  onClick={() => { moveWorld(''); setMapModalOpen(false); }}
+                  style={{ width: '100%', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14, padding: 0, overflow: 'hidden', background: 'rgba(255,255,255,0.04)', cursor: 'pointer', color: '#fff', textAlign: 'left' }}
+                >
+                  <div style={{ height: 200, background: 'linear-gradient(135deg, #1d4ed8 0%, #0f766e 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64 }}>🏠</div>
+                  <div style={{ padding: '14px 16px' }}>
+                    <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 4 }}>{t('homeHubMap')}</div>
+                    <div style={{ fontSize: 12, opacity: 0.6 }}>{t('homeHubHint')}</div>
                   </div>
-                  <input
-                    value={mapSearch}
-                    onChange={(e) => setMapSearch(e.target.value)}
-                    placeholder={tc('search')}
-                    style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 9, color: '#fff', fontSize: 13, padding: '8px 10px', outline: 'none' }}
-                  />
-                  {availableTags.length > 0 && (
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                </button>
+              )}
+
+              {/* 공개/내가 만든 탭 — 검색/정렬/태그 + 그리드 */}
+              {mapTab !== 'home' && (
+                <>
+                  {/* 검색바 + 정렬 */}
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative', flex: '1 1 240px', minWidth: 200 }}>
+                      <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 13, opacity: 0.5 }}>🔍</span>
+                      <input
+                        value={mapSearch}
+                        onChange={(e) => setMapSearch(e.target.value)}
+                        placeholder={tw('searchPlaceholder')}
+                        style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '9px 12px 9px 36px', color: '#fff', fontSize: 13, outline: 'none' }}
+                      />
+                      {mapSearch && (
+                        <button
+                          onClick={() => setMapSearch('')}
+                          style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.08)', border: 'none', color: 'rgba(255,255,255,0.6)', borderRadius: 6, padding: '3px 7px', cursor: 'pointer', fontSize: 10 }}
+                        >✕</button>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: 3 }}>
                       <button
-                        onClick={() => setSelectedTag('')}
-                        style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 999, padding: '5px 10px', cursor: 'pointer', background: selectedTag ? 'rgba(255,255,255,0.05)' : 'rgba(79,70,229,0.45)', color: '#fff', fontSize: 12, fontWeight: 700 }}
-                      >
-                        {tc('reset')}
-                      </button>
-                      {availableTags.map((tag) => (
+                        onClick={() => setMapSort('popular')}
+                        style={{ padding: '6px 12px', borderRadius: 7, border: 'none', cursor: 'pointer', background: mapSort === 'popular' ? 'rgba(99,102,241,0.85)' : 'transparent', color: mapSort === 'popular' ? '#fff' : 'rgba(255,255,255,0.55)', fontSize: 12, fontWeight: 700 }}
+                      >🔥 {tw('sortPopular')}</button>
+                      <button
+                        onClick={() => setMapSort('latest')}
+                        style={{ padding: '6px 12px', borderRadius: 7, border: 'none', cursor: 'pointer', background: mapSort === 'latest' ? 'rgba(99,102,241,0.85)' : 'transparent', color: mapSort === 'latest' ? '#fff' : 'rgba(255,255,255,0.55)', fontSize: 12, fontWeight: 700 }}
+                      >🕒 {tw('sortLatest')}</button>
+                    </div>
+                  </div>
+
+                  {/* 활성 태그 표시 */}
+                  {selectedTag && (
+                    <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 11, opacity: 0.5 }}>{tw('filteringByTag')}</span>
+                      <span style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', padding: '3px 11px', borderRadius: 999, fontSize: 12, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        #{selectedTag}
+                        <button onClick={() => setSelectedTag('')} style={{ background: 'rgba(255,255,255,0.25)', border: 'none', color: '#fff', borderRadius: 999, width: 16, height: 16, cursor: 'pointer', fontSize: 9, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                      </span>
+                    </div>
+                  )}
+
+                  {/* 인기 태그 칩 */}
+                  {!selectedTag && availableTags.length > 0 && (
+                    <div style={{ marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                      <span style={{ fontSize: 11, opacity: 0.45, alignSelf: 'center', marginRight: 4 }}>{tw('popularTags')}</span>
+                      {availableTags.slice(0, 12).map((tag) => (
                         <button
                           key={tag}
-                          onClick={() => setSelectedTag((prev) => (prev === tag ? '' : tag))}
-                          style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 999, padding: '5px 10px', cursor: 'pointer', background: selectedTag === tag ? 'rgba(16,185,129,0.35)' : 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 700 }}
-                        >
-                          #{tag}
-                        </button>
+                          onClick={() => setSelectedTag(tag)}
+                          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)', padding: '3px 9px', borderRadius: 999, fontSize: 11, cursor: 'pointer' }}
+                        >#{tag}</button>
                       ))}
                     </div>
                   )}
-                </div>
+
+                  {/* 그리드 */}
+                  {filteredWorlds.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: 48, opacity: 0.4, fontSize: 13 }}>
+                      {mapSearch || selectedTag ? tw('noMatches') : (mapTab === 'mine' ? tw('noMineLoggedIn') : tw('noPublic'))}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
+                      {filteredWorlds.map((w) => {
+                        const isCurrent = worldIdParam === w.id;
+                        return (
+                          <div key={`${mapTab}-${w.id}`}
+                            style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${isCurrent ? 'rgba(16,185,129,0.5)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 12, overflow: 'hidden', transition: 'transform .15s, border-color .15s' }}
+                            onMouseEnter={(e) => { if (!isCurrent) e.currentTarget.style.borderColor = 'rgba(129,140,248,0.4)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                            onMouseLeave={(e) => { if (!isCurrent) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                          >
+                            <button
+                              onClick={() => { moveWorld(w.id); setMapModalOpen(false); }}
+                              style={{ display: 'block', width: '100%', aspectRatio: '16/9', position: 'relative', background: w.thumbnailUrl ? `url(${w.thumbnailUrl}) center/cover` : 'linear-gradient(135deg,#334155,#111827)', border: 'none', padding: 0, cursor: 'pointer' }}
+                            >
+                              {!w.thumbnailUrl && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, opacity: 0.5 }}>🌍</div>}
+                              {isCurrent && (
+                                <span style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(16,185,129,0.9)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 4 }}>{tw('badgePublic')} · 현재</span>
+                              )}
+                              {(w.playCount ?? 0) > 0 && (
+                                <span style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 10, padding: '3px 8px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}>
+                                  ▶ {(w.playCount ?? 0).toLocaleString()}
+                                </span>
+                              )}
+                            </button>
+                            <div style={{ padding: '11px 12px' }}>
+                              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{w.name}</div>
+                              {w.ownerName && (
+                                <div style={{ fontSize: 11, opacity: 0.55, marginBottom: 6 }}>{tw('by')} <span style={{ color: 'rgba(255,255,255,0.7)' }}>{w.ownerName}</span></div>
+                              )}
+                              {!!(w.tags && w.tags.length > 0) && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                                  {w.tags.slice(0, 3).map((tag) => (
+                                    <button key={`${w.id}-${tag}`} onClick={() => setSelectedTag(tag)}
+                                      style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', color: '#a5b4fc', borderRadius: 999, padding: '2px 8px', fontSize: 10, cursor: 'pointer' }}
+                                    >#{tag}</button>
+                                  ))}
+                                </div>
+                              )}
+                              <button
+                                onClick={() => { moveWorld(w.id); setMapModalOpen(false); }}
+                                disabled={isCurrent}
+                                style={{ width: '100%', padding: '7px 0', borderRadius: 7, border: 'none', cursor: isCurrent ? 'default' : 'pointer', fontSize: 12, fontWeight: 700, background: isCurrent ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: isCurrent ? 'rgba(255,255,255,0.5)' : '#fff' }}
+                              >
+                                {isCurrent ? '✓ 현재 맵' : `▶ ${t('moveMap')}`}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               )}
-              {previewWorld && (
-                <div style={{ border: '1px solid rgba(255,255,255,0.22)', borderRadius: 12, overflow: 'hidden', background: 'rgba(255,255,255,0.04)', marginBottom: 12 }}>
-                  <div
-                    key={`preview-hero-${previewWorld.id}`}
-                    style={{
-                      height: 220,
-                      background: previewWorld.thumbnailUrl
-                        ? `url(${previewWorld.thumbnailUrl}) center/cover`
-                        : 'linear-gradient(135deg, #1d4ed8 0%, #0f766e 100%)',
-                      animation: 'worldPreviewFadeIn 220ms ease',
-                    }}
-                  />
-                  <div style={{ padding: 12 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 18, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{previewWorld.name}</div>
-                        {!!previewWorld.description && <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>{previewWorld.description}</div>}
-                        <div style={{ fontSize: 11, opacity: 0.65, marginTop: 6 }}>
-                          {previewWorld.ownerName} · {previewWorld.playCount}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => { moveWorld(previewWorld.worldId); setMapModalOpen(false); }}
-                        style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, padding: '10px 14px', cursor: 'pointer', background: 'rgba(16,185,129,0.28)', color: '#fff', fontSize: 13, fontWeight: 800, flexShrink: 0 }}
-                      >
-                        {t('moveMap')}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10, maxHeight: 210, overflowY: 'auto', paddingRight: 2 }}>
-                {previewCandidates.map((w) => (
-                  <button
-                    key={w.id}
-                    onClick={() => setPreviewWorldKey(w.id)}
-                    style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, padding: 0, overflow: 'hidden', background: previewWorldKey === w.id ? 'rgba(79,70,229,0.4)' : 'rgba(255,255,255,0.06)', cursor: 'pointer', color: '#fff', textAlign: 'left', transition: 'transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease' }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
-                      e.currentTarget.style.borderColor = 'rgba(99,102,241,0.85)';
-                      e.currentTarget.style.boxShadow = '0 10px 20px rgba(37,99,235,0.28)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                  >
-                    <div style={{ height: 84, backgroundImage: w.thumbnailUrl ? `url(${w.thumbnailUrl})` : 'linear-gradient(135deg, #334155 0%, #111827 100%)', backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' }}>
-                      {((w.worldId || '') === (worldIdParam || '') || (w.worldId === '' && !worldIdParam)) && (
-                        <div style={{ position: 'absolute', top: 6, right: 6, padding: '2px 6px', borderRadius: 999, background: 'rgba(16,185,129,0.9)', color: '#fff', fontSize: 10, fontWeight: 800 }}>
-                          {t('activeCharacter')}
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ padding: '8px 9px' }}>
-                      <div style={{ fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{w.name}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              <div style={{ display: 'none', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
-                {mapTab === 'home' && (
-                  <button
-                    onClick={() => { moveWorld(''); setMapModalOpen(false); }}
-                    style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, padding: 0, overflow: 'hidden', background: !worldIdParam ? 'rgba(16,185,129,0.22)' : 'rgba(255,255,255,0.06)', cursor: 'pointer', color: '#fff', textAlign: 'left' }}
-                  >
-                    <div style={{ height: 120, background: 'linear-gradient(135deg, #1d4ed8 0%, #0f766e 100%)' }} />
-                    <div style={{ padding: 10 }}>
-                      <div style={{ fontWeight: 800, fontSize: 14 }}>{t('homeHubMap')}</div>
-                    </div>
-                  </button>
-                )}
-
-                {filteredWorlds.map((w) => (
-                  <button
-                    key={`${mapTab}-${w.id}`}
-                    onClick={() => { moveWorld(w.id); setMapModalOpen(false); }}
-                    style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, padding: 0, overflow: 'hidden', background: worldIdParam === w.id ? 'rgba(16,185,129,0.22)' : 'rgba(255,255,255,0.06)', cursor: 'pointer', color: '#fff', textAlign: 'left' }}
-                  >
-                    <div style={{ height: 120, backgroundImage: w.thumbnailUrl ? `url(${w.thumbnailUrl})` : 'linear-gradient(135deg, #334155 0%, #111827 100%)', backgroundSize: 'cover', backgroundPosition: 'center' }} />
-                    <div style={{ padding: 10 }}>
-                      <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4 }}>{w.name}</div>
-                      {!!w.description && <div style={{ fontSize: 12, opacity: 0.75, lineHeight: 1.35, marginBottom: 6 }}>{w.description}</div>}
-                      {!!(w.tags && w.tags.length > 0) && (
-                        <div style={{ marginTop: 6, marginBottom: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                          {w.tags.slice(0, 3).map((tag) => (
-                            <span key={`${w.id}-${tag}`} style={{ fontSize: 10, padding: '2px 6px', borderRadius: 999, background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.9)' }}>
-                              #{tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <div style={{ fontSize: 11, opacity: 0.65 }}>
-                        {(w.ownerName || '-')} · {(w.playCount ?? 0)}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
         </div>
