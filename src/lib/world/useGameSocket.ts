@@ -80,14 +80,17 @@ interface Options {
   onObjSpawn?: (spec: RuntimeObjectSpec) => void;
   /** 다른 클라가 obj.destroy() 한 결과 */
   onObjDestroy?: (objectId: string) => void;
+  /** 호스트가 등록한 씬 전체 스냅샷 (입장 시 한 번 수신) */
+  onSceneSnapshot?: (objects: unknown[]) => void;
 }
 
-export function useGameSocket({ worldId, playerId, username, character, enabled, onScriptEvent, onObjectStates, onObjectOwnership, onObjSpawn, onObjDestroy }: Options) {
+export function useGameSocket({ worldId, playerId, username, character, enabled, onScriptEvent, onObjectStates, onObjectOwnership, onObjSpawn, onObjDestroy, onSceneSnapshot }: Options) {
   const onScriptEventRef     = useRef(onScriptEvent);
   const onObjectStatesRef    = useRef(onObjectStates);
   const onObjectOwnershipRef = useRef(onObjectOwnership);
   const onObjSpawnRef        = useRef(onObjSpawn);
   const onObjDestroyRef      = useRef(onObjDestroy);
+  const onSceneSnapshotRef   = useRef(onSceneSnapshot);
   const [hostId, setHostId] = useState<string | null>(null);
   const [players, setPlayers]     = useState<Record<string, RemotePlayer>>({});
   const [chatLog, setChatLog]     = useState<ChatMessage[]>([]);
@@ -205,6 +208,11 @@ export function useGameSocket({ worldId, playerId, username, character, enabled,
           }
         }
       }
+      else if (msg.type === 'scene_snapshot') {
+        // 호스트가 등록한 씬 전체 (입장 시 1회)
+        const o = msg as unknown as { objects: unknown[] };
+        if (Array.isArray(o.objects)) onSceneSnapshotRef.current?.(o.objects);
+      }
       else if (msg.type === 'chat') {
         const { id, username: un, message } = msg as { id: string; username: string; message: string };
         const now = Date.now();
@@ -308,11 +316,18 @@ export function useGameSocket({ worldId, playerId, username, character, enabled,
     }
   }, []);
 
+  const sendSceneRegister = useCallback((objects: unknown[]) => {
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({ type: 'scene_register', objects }));
+    }
+  }, []);
+
   useEffect(() => { onScriptEventRef.current     = onScriptEvent;     }, [onScriptEvent]);
   useEffect(() => { onObjectStatesRef.current    = onObjectStates;    }, [onObjectStates]);
   useEffect(() => { onObjectOwnershipRef.current = onObjectOwnership; }, [onObjectOwnership]);
   useEffect(() => { onObjSpawnRef.current        = onObjSpawn;        }, [onObjSpawn]);
   useEffect(() => { onObjDestroyRef.current      = onObjDestroy;      }, [onObjDestroy]);
+  useEffect(() => { onSceneSnapshotRef.current   = onSceneSnapshot;   }, [onSceneSnapshot]);
 
-  return { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, sendObjClaim, sendObjRelease, sendObjSpawn, sendObjDestroy, hostId };
+  return { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, sendObjClaim, sendObjRelease, sendObjSpawn, sendObjDestroy, sendSceneRegister, hostId };
 }

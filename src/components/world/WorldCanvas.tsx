@@ -1317,6 +1317,20 @@ function UserMapObjectMesh({ obj, scriptBodyRefs }: {
     return () => { scriptBodyRefs.current.delete(obj.id); };
   }, [obj.id, scriptBodyRefs]);
 
+  // position prop 변경 시 body 워프 — 호스트 스냅샷이 API customObjects 보다 늦게 도착해
+  // customObjects 가 교체된 케이스를 처리. RigidBody position prop 은 초기값만 쓰이고
+  // 이후 변경은 안 먹히기 때문에 명시적으로 setTranslation 호출.
+  // (마운트 직후엔 RigidBody 가 이미 같은 위치에 만들어져 있어 사실상 no-op)
+  const px = obj.position[0], py = obj.position[1], pz = obj.position[2];
+  useEffect(() => {
+    if (bodyRef.current) {
+      bodyRef.current.setTranslation({ x: px, y: py, z: pz }, true);
+      bodyRef.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    } else if (groupRef.current) {
+      groupRef.current.position.set(px, py, pz);
+    }
+  }, [px, py, pz]);
+
   const shape =
     obj.kind === 'sphere'   ? <sphereGeometry args={[0.5, 24, 16]} /> :
     obj.kind === 'cylinder' ? <cylinderGeometry args={[0.5, 0.5, 1, 16]} /> :
@@ -1472,6 +1486,8 @@ interface WorldCanvasProps {
   sendObjDestroy?: (objectId: string) => void;
   objSpawnRef?: React.RefObject<((spec: import('@/lib/world/useGameSocket').RuntimeObjectSpec) => void) | null>;
   objDestroyRef?: React.RefObject<((objectId: string) => void) | null>;
+  // 호스트가 자기 시점 씬 스냅샷 (라이브 body 위치 포함) 을 DO 에 등록 → 신규 입장자가 그대로 받아 구성
+  sendSceneRegister?: (objects: unknown[]) => void;
 }
 
 /* ── 모바일 컨트롤 컴포넌트 (Canvas 완전 바깥 — drei Html 스케일 영향 없음) ── */
@@ -1625,7 +1641,7 @@ function MobileControls({ inputLocked }: { inputLocked: boolean }) {
   );
 }
 
-export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId, sendObjClaim, sendObjRelease, objectOwnerRef, sendObjSpawn, sendObjDestroy, objSpawnRef, objDestroyRef }: WorldCanvasProps) {
+export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId, sendObjClaim, sendObjRelease, objectOwnerRef, sendObjSpawn, sendObjDestroy, objSpawnRef, objDestroyRef, sendSceneRegister }: WorldCanvasProps) {
   const shadowsEnabled = graphics.shadowSize > 0;
   const shadowMapSize: [number, number] = [graphics.shadowSize || 1024, graphics.shadowSize || 1024];
   const ss = sceneSettings ?? {};
@@ -1915,6 +1931,43 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   useEffect(() => {
     lastBroadcastPos.current.clear();
   }, [isHost]);
+
+  // 호스트일 때 — customObjects 전체를 라이브 body 위치 포함해서 DO 에 등록.
+  // 입장자가 받아서 그대로 씬 구성 → 저장된 위치/현재 위치 불일치 X
+  // - 첫 등록: 1초 후 (body 들 settle 되도록)
+  // - 이후: 5초마다 갱신 (호스트가 큐브 움직였을 경우 반영)
+  useEffect(() => {
+    if (!isHost || !customObjects || !sendSceneRegister) return;
+    const build = () => {
+      const snapshot = customObjects.map(obj => {
+        const ref = scriptBodyRefs.current.get(obj.id);
+        if (ref?.body.current) {
+          const t = ref.body.current.translation();
+          const r = ref.body.current.rotation();
+          const e = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(r.x, r.y, r.z, r.w));
+          return {
+            ...obj,
+            position: [t.x, t.y, t.z] as [number, number, number],
+            rotation: [e.x, e.y, e.z] as [number, number, number],
+          };
+        }
+        if (ref?.group.current) {
+          const g = ref.group.current;
+          return {
+            ...obj,
+            position: [g.position.x, g.position.y, g.position.z] as [number, number, number],
+            rotation: [g.rotation.x, g.rotation.y, g.rotation.z] as [number, number, number],
+            scale:    [g.scale.x,    g.scale.y,    g.scale.z]    as [number, number, number],
+          };
+        }
+        return obj; // ref 없으면 원본 그대로
+      });
+      sendSceneRegister(snapshot);
+    };
+    const t0 = setTimeout(build, 1000);          // 첫 등록 (body settle 후)
+    const interval = setInterval(build, 5000);   // 주기 갱신
+    return () => { clearTimeout(t0); clearInterval(interval); };
+  }, [isHost, customObjects, sendSceneRegister]);
 
   // customObjects 변경 시 VM 재생성
   useEffect(() => {

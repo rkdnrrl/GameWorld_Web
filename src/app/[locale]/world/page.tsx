@@ -223,7 +223,12 @@ export default function WorldPage() {
   const objSpawnRef   = useRef<((spec: RuntimeSpec) => void) | null>(null);
   const objDestroyRef = useRef<((objectId: string) => void) | null>(null);
 
-  const { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, sendObjClaim, sendObjRelease, sendObjSpawn, sendObjDestroy, hostId } = useGameSocket({
+  // 호스트가 보낸 씬 스냅샷 — 입장 시 받으면 API customObjects 대신 이걸 사용
+  const [sceneFromHost, setSceneFromHost] = useState<MapObject[] | null>(null);
+  // 월드 바뀌면 스냅샷 초기화
+  useEffect(() => { setSceneFromHost(null); }, [worldIdParam]);
+
+  const { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, sendObjClaim, sendObjRelease, sendObjSpawn, sendObjDestroy, sendSceneRegister, hostId } = useGameSocket({
     worldId: worldSocketKey,
     playerId: userId,
     username,
@@ -244,7 +249,13 @@ export default function WorldPage() {
     onObjDestroy: (objectId) => {
       objDestroyRef.current?.(objectId);
     },
+    onSceneSnapshot: (objects) => {
+      setSceneFromHost(objects as MapObject[]);
+    },
   });
+
+  // WorldCanvas 에 넘길 customObjects — 스냅샷 있으면 그것, 없으면 API 데이터
+  const effectiveCustomObjects = sceneFromHost ?? customObjects;
 
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
@@ -435,7 +446,7 @@ export default function WorldPage() {
         posesRef={posesRef}
         chatBubbles={chatBubbles}
         onMove={sendMove}
-        customObjects={worldIdParam ? (customObjects ?? undefined) : undefined}
+        customObjects={worldIdParam ? (effectiveCustomObjects ?? undefined) : undefined}
         sceneSettings={sceneSettings ?? undefined}
         graphics={graphics}
         chatInputActive={chatOpen}
@@ -453,6 +464,7 @@ export default function WorldPage() {
         sendObjDestroy={sendObjDestroy}
         objSpawnRef={objSpawnRef}
         objDestroyRef={objDestroyRef}
+        sendSceneRegister={sendSceneRegister}
       />
 
       <GraphicsPanel settings={graphics} updateSettings={updateGraphics} applyPreset={applyGraphicsPreset} />
