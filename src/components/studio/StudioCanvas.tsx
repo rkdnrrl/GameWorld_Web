@@ -2999,32 +2999,36 @@ export default function StudioCanvas() {
         </div>
       </div>}
 
-      {/* 데스크톱 좌측 패널 열기 (접혀있을 때만) */}
+      {/* 데스크톱 좌측 패널 열기 — 접혔을 때 좌측 가장자리에 항상 보이는 strip */}
       {!isMobile && !leftPanelOpen && (
         <button onClick={() => setLeftPanelOpen(true)}
-          title="좌측 패널 열기"
+          title="좌측 패널 열기 (씬·도구)"
           style={{
-            position: 'absolute', top: 12, left: 8, zIndex: 50,
-            width: 28, height: 28, border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6,
-            background: 'rgba(30,41,59,0.92)', color: '#fff',
-            fontSize: 12, cursor: 'pointer', fontWeight: 700,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+            position: 'absolute', left: 0, top: 0, bottom: 0, width: 32, zIndex: 50,
+            border: 'none', borderRight: '1px solid rgba(99,102,241,0.4)',
+            background: 'linear-gradient(90deg, rgba(99,102,241,0.25), rgba(30,41,59,0.85))',
+            color: '#fff', fontSize: 14, cursor: 'pointer', fontWeight: 800,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
+            writingMode: 'vertical-rl',
           }}>
-          ▶
+          <span style={{ fontSize: 18 }}>▶</span>
+          <span style={{ fontSize: 11, letterSpacing: 1 }}>씬 · 도구</span>
         </button>
       )}
-      {/* 데스크톱 우측 패널 열기 (접혀있을 때만) */}
+      {/* 데스크톱 우측 패널 열기 — 접혔을 때 우측 가장자리에 항상 보이는 strip */}
       {!isMobile && !rightPanelOpen && (
         <button onClick={() => setRightPanelOpen(true)}
-          title="우측 패널 열기"
+          title="우측 패널 열기 (인스펙터)"
           style={{
-            position: 'absolute', top: 12, right: 8, zIndex: 50,
-            width: 28, height: 28, border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6,
-            background: 'rgba(30,41,59,0.92)', color: '#fff',
-            fontSize: 12, cursor: 'pointer', fontWeight: 700,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+            position: 'absolute', right: 0, top: 0, bottom: 0, width: 32, zIndex: 50,
+            border: 'none', borderLeft: '1px solid rgba(99,102,241,0.4)',
+            background: 'linear-gradient(270deg, rgba(99,102,241,0.25), rgba(30,41,59,0.85))',
+            color: '#fff', fontSize: 14, cursor: 'pointer', fontWeight: 800,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
+            writingMode: 'vertical-rl',
           }}>
-          ◀
+          <span style={{ fontSize: 18 }}>◀</span>
+          <span style={{ fontSize: 11, letterSpacing: 1 }}>인스펙터</span>
         </button>
       )}
 
