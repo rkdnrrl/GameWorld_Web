@@ -885,14 +885,6 @@ function Player({
                 if (foundId && !grabbableIdsRef?.current.has(foundId)) {
                   foundId = null;
                 }
-                // 다른 사람이 이미 grab 중이면 무시 — owner 핑퐁 방지
-                if (foundId) {
-                  const otherGrabber = remoteGrabbedByRef?.current.get(foundId);
-                  if (otherGrabber && otherGrabber !== playerId) {
-                    console.log('[ALP-SYNC] grab refused — already grabbed by', otherGrabber);
-                    foundId = null;
-                  }
-                }
                 if (foundId) {
                   grabbedIdRef.current = foundId;
                   if (playerId) grabbedStateRef?.current.set(foundId, playerId);
@@ -1153,13 +1145,12 @@ function Player({
       const ref = scriptBodyRefs.current.get(grabId);
       let gb = ref?.body.current;
       // owner 가 본인이 아니게 됐으면:
-      //   - 다른 사람이 grab 으로 가져갔다 → 내 grab 자동 해제 (핑퐁 방지)
-      //   - 그 외 (충돌 탈취 등) → 200ms 쓰로틀로 reclaim (race condition 안전망)
+      //   - 다른 플레이어 id 로 owner 가 바뀐 거면 → 누가 뺏어간 거 → 내 grab 자동 해제
+      //   - owner 가 비어 있으면 (서버 release 등) → reclaim (내가 아직 들고 있으니 내 게)
       if (playerId && ownersRef && ownersRef.current.get(grabId) !== playerId) {
         const newOwner = ownersRef.current.get(grabId);
-        const newOwnerIsGrabbing = !!newOwner && remoteGrabbedByRef?.current.get(grabId) === newOwner;
-        if (newOwnerIsGrabbing) {
-          // 다른 사람이 grab — 깔끔하게 해제 (spring force 안 보냄)
+        if (newOwner) {
+          // 다른 사람이 뺏어감 — 깔끔하게 해제 (spring force 안 보냄, 핑퐁 안 함)
           console.log('[ALP-SYNC] grab released — taken by', newOwner);
           grabbedIdRef.current = null;
           grabbedStateRef?.current.delete(grabId);
@@ -1168,9 +1159,9 @@ function Player({
             luaScripts?.current.get(grabId)?.callRelease(playerId);
             componentScripts?.current.get(grabId)?.forEach(({ vm }) => vm.callRelease(playerId));
           }
-          gb = null; // spring force 적용 안 함
+          gb = null;
         } else {
-          // 충돌 탈취 등 — reclaim
+          // owner 비어있음 — 다시 가져옴 (200ms 쓰로틀)
           const now = performance.now();
           const last = grabReclaimAtRef.current.get(grabId) ?? 0;
           if (now - last > 200) {
