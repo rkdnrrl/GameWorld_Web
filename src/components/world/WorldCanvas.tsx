@@ -2256,6 +2256,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   }, [hostId]);
   const lastBroadcastPos = useRef<Map<string, [number, number, number]>>(new Map());
   const lastVelocityNonZeroRef = useRef<Map<string, boolean>>(new Map());
+  // 마지막으로 broadcast 한 grabbedBy 값 — state 변화 감지용 (잡기 시작/놓기 순간 강제 broadcast)
+  const lastBroadcastGrabbedByRef = useRef<Map<string, string | null>>(new Map());
   useEffect(() => {
     if (!sendObjectStates || !customObjects) return;
     const MOVE_THRESHOLD = 0.005;
@@ -2314,15 +2316,22 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         const justStopped = wasMoving && !isMoving;
         lastVelocityNonZeroRef.current.set(obj.id, !!isMoving);
 
-        if (!forceAll && !isMoving && !justStopped && last) {
+        // 내가 1인칭으로 들고 있으면 grabbedBy 에 본인 id. 다른 클라가 충돌-탈취하는 것 방지.
+        const grabbedBy = grabbedStateRef.current.get(obj.id) ?? null;
+        // grab 상태 변화 감지 — 잡기 시작/놓기 직후엔 무조건 broadcast (state 전파 보장)
+        const prevGrabbedBy = lastBroadcastGrabbedByRef.current.get(obj.id) ?? null;
+        const grabStateChanged = prevGrabbedBy !== grabbedBy;
+        // 잡고 있는 동안엔 throttle 무시 (정지 상태에서도 위치 sync 보장)
+        const isGrabbing = grabbedBy !== null;
+
+        if (!forceAll && !isMoving && !justStopped && !grabStateChanged && !isGrabbing && last) {
           const moved = Math.abs(pos[0] - last[0]) > MOVE_THRESHOLD
                      || Math.abs(pos[1] - last[1]) > MOVE_THRESHOLD
                      || Math.abs(pos[2] - last[2]) > MOVE_THRESHOLD;
           if (!moved) continue;
         }
         lastBroadcastPos.current.set(obj.id, pos);
-        // 내가 1인칭으로 들고 있으면 grabbedBy 에 본인 id. 다른 클라가 충돌-탈취하는 것 방지.
-        const grabbedBy = grabbedStateRef.current.get(obj.id) ?? null;
+        lastBroadcastGrabbedByRef.current.set(obj.id, grabbedBy);
         states.push({ id: obj.id, pos, rot, scl, vis, vel, grabbedBy });
       }
       if (states.length > 0) {
