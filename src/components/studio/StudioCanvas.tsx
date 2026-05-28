@@ -2366,19 +2366,22 @@ export default function StudioCanvas() {
       />
     <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
 
-      {/* ── 좌측 패널 ── leftPanelOpen 단일 조건. 모바일에선 absolute 로 오버레이 ── */}
-      {leftPanelOpen && <div style={{
+      {/* ── 좌측 패널 ── 항상 마운트, display 로만 토글 (mount/unmount race 회피).
+          모바일에선 absolute 로 오버레이 ── */}
+      <div style={{
+        display: leftPanelOpen ? 'flex' : 'none',
         width: 250,
+        flexShrink: 0,
         background: '#1e293b',
         borderRight: '1px solid rgba(255,255,255,0.08)',
         color: '#fff',
-        display: 'flex', flexDirection: 'column',
+        flexDirection: 'column',
         overflow: 'hidden',
         position: isMobile ? 'absolute' : 'relative',
         left: isMobile ? 0 : undefined,
         top: isMobile ? 0 : undefined,
         bottom: isMobile ? 0 : undefined,
-        zIndex: isMobile ? 220 : undefined,
+        zIndex: isMobile ? 220 : 50,
         boxShadow: isMobile ? '0 0 0 1px rgba(255,255,255,0.1), 8px 0 30px rgba(2,6,23,0.6)' : undefined,
       }}>
       {/* 데스크톱 전용 패널 닫기 버튼 (우측 상단 corner) */}
@@ -2609,7 +2612,7 @@ export default function StudioCanvas() {
           );
         })()}
       </div>
-      </div>}
+      </div>
       {isMobile && mobilePanelOpen && (
         <div
           onClick={() => setMobilePanelOpen(false)}
@@ -2663,17 +2666,19 @@ export default function StudioCanvas() {
         </div>
       )}
 
-      {/* ── 우측 패널: 인스펙터 — rightPanelOpen 단일 조건 ── */}
-      {rightPanelOpen && <div style={{
+      {/* ── 우측 패널: 인스펙터 — 항상 마운트, display 로만 토글 ── */}
+      <div style={{
+        display: rightPanelOpen ? 'flex' : 'none',
         width: 300, flexShrink: 0,
         background: '#1e293b',
         borderLeft: '1px solid rgba(255,255,255,0.08)',
         color: '#fff',
-        display: 'flex', flexDirection: 'column',
+        flexDirection: 'column',
         overflow: 'hidden',
         fontFamily: 'inherit',
         order: 2, // flex 순서 — 캔버스보다 뒤로 (우측 끝)
         position: 'relative', // close 버튼 absolute 앵커
+        zIndex: 50,
       }}>
         {/* 데스크톱 전용 패널 닫기 버튼 (좌측 상단 corner) */}
         {!isMobile && (
@@ -3029,7 +3034,7 @@ export default function StudioCanvas() {
             </>
           )}
         </div>
-      </div>}
+      </div>
 
       {/* 패널 열기 strip — 항상 마운트, display 로만 토글 (mount/unmount race 회피).
           z-index 9999 로 항상 최상위, 단순 onClick 으로 패널 강제 OPEN. */}
