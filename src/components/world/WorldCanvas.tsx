@@ -747,6 +747,8 @@ function Player({
   grabbedStateRef,
   grabbableIdsRef,
   onGrabUiChange,
+  onGrabClaim,
+  onGrabRelease,
   spawnPos = [0, 4, 0],
   spawnRotY = 0,
 }: {
@@ -771,6 +773,10 @@ function Player({
   grabbedStateRef?: React.MutableRefObject<Map<string, string>>;
   grabbableIdsRef?: React.MutableRefObject<Set<string>>;
   onGrabUiChange?: (state: 'idle' | 'aim' | 'grab') => void;
+  /** 1인칭 grab 성공 시 호출 — 서버에 ownership claim 보내고 syncTargets 비움 */
+  onGrabClaim?: (objectId: string) => void;
+  /** 1인칭 grab 해제(어떤 경로든) 시 호출 — 1.5s 후 자동 release timer 등록 */
+  onGrabRelease?: (objectId: string) => void;
   /** 스폰 위치 — 월드의 spawn 오브젝트 중 하나. 없으면 기본 [0,4,0] */
   spawnPos?: [number, number, number];
   /** 스폰 시 카메라 초기 Y 회전 (라디안). spawn 의 rotation.y */
@@ -815,12 +821,13 @@ function Player({
       const released = grabbedIdRef.current;
       grabbedIdRef.current = null;
       grabbedStateRef?.current.delete(released);
+      onGrabRelease?.(released);
       if (playerId) {
         luaScripts?.current.get(released)?.callRelease(playerId);
         componentScripts?.current.get(released)?.forEach(({ vm }) => vm.callRelease(playerId));
       }
     }
-  }, [cameraMode, luaScripts, componentScripts, playerId, grabbedStateRef]);
+  }, [cameraMode, luaScripts, componentScripts, playerId, grabbedStateRef, onGrabRelease]);
   /* 키보드 + 포인터 락 */
   useEffect(() => {
     const el = gl.domElement;
@@ -842,6 +849,7 @@ function Player({
           const released = grabbedIdRef.current;
           grabbedIdRef.current = null;
           grabbedStateRef?.current.delete(released);
+          onGrabRelease?.(released);
           if (playerId) {
             luaScripts?.current.get(released)?.callRelease(playerId);
             // user 컴포넌트들에도 dispatch
@@ -873,6 +881,8 @@ function Player({
                   if (playerId) grabbedStateRef?.current.set(foundId, playerId);
                   // 본인 소유로 — 멀티에서 reconciliation 이 자기 setLinvel 을 안 덮어쓰게
                   if (playerId && ownersRef) ownersRef.current.set(foundId, playerId);
+                  // 서버에 ownership claim 송신 (다른 클라가 옛 호스트 데이터로 덮어쓰는 것 방지)
+                  onGrabClaim?.(foundId);
                   // 잡힌 거리 = 현재 카메라~오브젝트 거리 (초기에 잡은 순간 그대로 유지)
                   const t = hitBody.translation();
                   const dx = t.x - camPos.x, dy = t.y - camPos.y, dz = t.z - camPos.z;
@@ -919,6 +929,7 @@ function Player({
         }
         grabbedIdRef.current = null;
         grabbedStateRef?.current.delete(grabId);
+        onGrabRelease?.(grabId);
         if (playerId) luaScripts?.current.get(grabId)?.callRelease(playerId);
         return;
       }
@@ -1148,6 +1159,7 @@ function Player({
         // 바디 사라짐 (destroy 등) → grab 해제
         grabbedIdRef.current = null;
         grabbedStateRef?.current.delete(grabId);
+        onGrabRelease?.(grabId);
       }
     }
 
@@ -2132,6 +2144,27 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     sendObjDestroy?.(id);
   }, [sendObjDestroy]);
 
+  // Player 의 1인칭 grab(E) 콜백 — 즉시 owner 잡고 syncTargets 비우고 서버에 claim.
+  // (충돌 ownership 과 같은 흐름. grab 은 가만히 있는 오브젝트도 잡으므로 충돌 경로만으론 부족함.)
+  const onGrabClaim = useCallback((objectId: string) => {
+    if (!playerId) return;
+    if (ownersRef.current.get(objectId) !== playerId) {
+      ownersRef.current.set(objectId, playerId);
+      syncTargets.current.delete(objectId);
+      sendObjClaim?.(objectId);
+      console.log('[ALP-SYNC] grab claimed', objectId);
+    }
+    // grab 중에는 1.5s 자동 해제 타이머가 끼어들지 못하게 touching 으로 표시
+    touchingRef.current.add(objectId);
+    releaseTimerRef.current.delete(objectId);
+  }, [playerId, sendObjClaim]);
+
+  const onGrabRelease = useCallback((objectId: string) => {
+    // grab 종료 — 1.5s 후 자동 release (충돌 grace period 와 동일 흐름)
+    touchingRef.current.delete(objectId);
+    releaseTimerRef.current.set(objectId, Date.now() + 1500);
+  }, []);
+
   // Player 충돌 콜백 — Optimistic Ownership: 서버 확인 안 기다리고 즉시 본인 owner
   const onObjCollide = useCallback((objectId: string, type: 'enter' | 'exit') => {
     if (type === 'enter') {
@@ -2693,7 +2726,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}
