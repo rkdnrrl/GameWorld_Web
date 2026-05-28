@@ -24,6 +24,7 @@ export default function OperatorIndexPage() {
         { href: "/operator/character-animations", emoji: "🦴", label: tAnim("title"), desc: tAnim("subtitle") },
         { href: "/operator/asset-kinds", emoji: "📦", label: "에셋 타입 관리", desc: "에셋 카테고리(3D/이미지/오디오 등)를 추가·수정·삭제합니다." },
         { href: "/operator/asset-reports", emoji: "⚠️", label: "에셋 신고 검토", desc: "공개 에셋에 대한 신고를 검토·처리합니다." },
+        { href: "/operator/home-hub", emoji: "🏠", label: "홈허브 맵 설정", desc: "유저가 /world 진입 시 처음 보이는 월드를 지정합니다." },
       ],
     },
   ];

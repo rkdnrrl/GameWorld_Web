@@ -49,8 +49,21 @@ export default function WorldPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const worldIdParam = searchParams.get('id');
-  const worldSocketKey = worldIdParam ? `world:${worldIdParam}` : 'home:default';
   const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
+
+  // 운영자가 지정한 홈허브 worldId. worldIdParam 없을 때 이걸로 fallback.
+  const [homeHubId, setHomeHubId] = useState<string | null>(null);
+  useEffect(() => {
+    if (worldIdParam) return; // 명시적 월드면 홈허브 조회 불필요
+    fetch(`${API}/api/worlds/home-hub`)
+      .then(r => r.ok ? r.json() : { worldId: null })
+      .then(d => setHomeHubId(d.worldId || null))
+      .catch(() => setHomeHubId(null));
+  }, [API, worldIdParam]);
+
+  // 실제로 로드할 월드 id — 명시 파라미터 우선, 없으면 홈허브, 그것도 없으면 데모 섬
+  const effectiveWorldId = worldIdParam || homeHubId;
+  const worldSocketKey = effectiveWorldId ? `world:${effectiveWorldId}` : 'home:default';
 
   const [character, setCharacter] = useState<Record<string, unknown> | null>(null);
   const [userId, setUserId] = useState('');
@@ -154,14 +167,14 @@ export default function WorldPage() {
   }, [API, router]);
 
   useEffect(() => {
-    if (!worldIdParam) {
+    if (!effectiveWorldId) {
       setCustomObjects(null);
       return;
     }
     setCustomObjects(null);
     const tok = session.getToken();
     const headers: Record<string, string> = tok ? { Authorization: `Bearer ${tok}` } : {};
-    fetch(`${API}/api/worlds/${worldIdParam}`, { headers })
+    fetch(`${API}/api/worlds/${effectiveWorldId}`, { headers })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`world fetch failed: ${r.status}`))))
       .then((d) => {
         if (!d.world) {
@@ -175,7 +188,7 @@ export default function WorldPage() {
         // stale map object carry-over 방지
         setCustomObjects([]);
       });
-  }, [API, worldIdParam]);
+  }, [API, effectiveWorldId]);
 
   useEffect(() => {
     if (!ready) return;
@@ -225,8 +238,8 @@ export default function WorldPage() {
 
   // 호스트가 보낸 씬 스냅샷 — 입장 시 받으면 API customObjects 대신 이걸 사용
   const [sceneFromHost, setSceneFromHost] = useState<MapObject[] | null>(null);
-  // 월드 바뀌면 스냅샷 초기화
-  useEffect(() => { setSceneFromHost(null); }, [worldIdParam]);
+  // 월드 바뀌면 스냅샷 초기화 (홈허브 → 다른 월드 이동 포함)
+  useEffect(() => { setSceneFromHost(null); }, [effectiveWorldId]);
 
   const { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, sendObjClaim, sendObjRelease, sendObjSpawn, sendObjDestroy, sendSceneRegister, hostId } = useGameSocket({
     worldId: worldSocketKey,
@@ -446,7 +459,7 @@ export default function WorldPage() {
         posesRef={posesRef}
         chatBubbles={chatBubbles}
         onMove={sendMove}
-        customObjects={worldIdParam ? (effectiveCustomObjects ?? undefined) : undefined}
+        customObjects={effectiveWorldId ? (effectiveCustomObjects ?? undefined) : undefined}
         sceneSettings={sceneSettings ?? undefined}
         graphics={graphics}
         chatInputActive={chatOpen}
