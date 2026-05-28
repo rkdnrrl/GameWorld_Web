@@ -1818,7 +1818,8 @@ export default function StudioCanvas() {
         lightDistance:  0,
         lightAngle:     45,
         lightPenumbra:  0.2,
-        castShadow:     true,
+        // 새 조명 기본 그림자 OFF — 그림자 캐스팅 조명 너무 많으면 WebGL MAX_TEXTURE_IMAGE_UNITS(16) 초과 오류
+        castShadow:     false,
       }];
       pushHistory(next);
       return next;
@@ -2361,8 +2362,8 @@ export default function StudioCanvas() {
       />
     <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
 
-      {/* ── 좌측 패널 ── 데스크톱: leftPanelOpen / 모바일: studioMode === 'settings' ── */}
-      {((!isMobile && leftPanelOpen) || (isMobile && studioMode === 'settings')) && <div style={{
+      {/* ── 좌측 패널 ── leftPanelOpen 단일 조건. 모바일에선 absolute 로 오버레이 ── */}
+      {leftPanelOpen && <div style={{
         width: 250,
         background: '#1e293b',
         borderRight: '1px solid rgba(255,255,255,0.08)',
@@ -2580,6 +2581,31 @@ export default function StudioCanvas() {
           style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.6)', fontSize: 11, padding: '6px 8px', cursor: 'pointer', fontWeight: 600, marginTop: 4 }}>
           {t('shortcutsButton')}
         </button>
+        {/* 그림자 캐스팅 조명이 많으면 WebGL 한계 초과 — 한 번에 OFF */}
+        {(() => {
+          const shadowLightCount = objects.filter(o =>
+            (o.kind === 'pointlight' || o.kind === 'spotlight' || o.kind === 'dirlight') && (o.castShadow ?? false)
+          ).length;
+          if (shadowLightCount < 5) return null;
+          return (
+            <button type="button"
+              onClick={() => {
+                setObjects(prev => {
+                  const next = prev.map(o =>
+                    (o.kind === 'pointlight' || o.kind === 'spotlight' || o.kind === 'dirlight')
+                      ? { ...o, castShadow: false }
+                      : o
+                  );
+                  pushHistory(next);
+                  return next;
+                });
+              }}
+              title="WebGL 텍스처 슬롯 한계(16) 초과 방지"
+              style={{ width: '100%', textAlign: 'left', background: 'rgba(251,191,36,0.18)', border: '1px solid rgba(251,191,36,0.4)', borderRadius: 6, color: '#fbbf24', fontSize: 10, padding: '6px 8px', cursor: 'pointer', fontWeight: 700, marginTop: 4 }}>
+              ⚠ 그림자 조명 {shadowLightCount}개 → 전체 OFF
+            </button>
+          );
+        })()}
       </div>
       </div>}
       {isMobile && mobilePanelOpen && (
@@ -2635,8 +2661,8 @@ export default function StudioCanvas() {
         </div>
       )}
 
-      {/* ── 우측 패널: 인스펙터 — 데스크톱 rightPanelOpen / 모바일 studioMode === 'scene' ── */}
-      {((!isMobile && rightPanelOpen) || (isMobile && studioMode === 'scene')) && <div style={{
+      {/* ── 우측 패널: 인스펙터 — rightPanelOpen 단일 조건 ── */}
+      {rightPanelOpen && <div style={{
         width: 300, flexShrink: 0,
         background: '#1e293b',
         borderLeft: '1px solid rgba(255,255,255,0.08)',
