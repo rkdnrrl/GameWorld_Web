@@ -1375,6 +1375,25 @@ export const api = {
       headers: authHeaders(token),
     });
   },
+  /** 프리팹 썸네일 이미지 업로드 (R2). url 반환 — 이후 updatePrefab 으로 연결.
+   *  FormData 사용을 위해 request 헬퍼 대신 raw fetch (request 가 Content-Type:json 강제). */
+  async uploadPrefabThumbnail(token: string, file: File): Promise<{ url: string }> {
+    const form = new FormData();
+    form.append('file', file);
+    const base = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
+    const res = await fetch(`${base}/api/prefabs/thumbnail`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },  // Content-Type 은 browser 가 자동 설정
+      body: form,
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      let msg = '업로드 실패';
+      try { msg = JSON.parse(txt).error?.message || msg; } catch {}
+      throw new Error(msg);
+    }
+    return res.json();
+  },
 };
 
 /** 프리팹 — 스튜디오 오브젝트 스냅샷 */

@@ -1896,20 +1896,38 @@ export default function StudioCanvas() {
     setSelectedId(id);
   }
 
-  /* ── 프리팹 — 선택된 오브젝트를 스냅샷으로 DB 저장 ─────────── */
+  /* ── 프리팹 — 선택된 오브젝트를 스냅샷으로 DB 저장 ───────────
+     썸네일은 현재 뷰포트를 자동 캡처해서 R2 에 업로드. */
   async function savePrefab() {
     if (!selected) return;
     const name = prompt('프리팹 이름:', selected.label || makeLabel(selected.kind));
     if (!name || !name.trim()) return;
     const tok = session.getToken();
     if (!tok) { alert('로그인이 필요합니다.'); return; }
+
     // payload: 위치/회전 0 으로 정규화해 저장 (instantiate 때 드롭 위치로 덮어씀)
     const snapshot = clone(selected);
     snapshot.position = [0, 0, 0];
+
+    // 썸네일 자동 캡처 (실패해도 저장 자체는 진행 — thumbnailUrl=null)
+    let thumbnailUrl: string | undefined;
+    try {
+      const dataUrl = captureFnRef.current?.();
+      if (dataUrl) {
+        const blob = await (await fetch(dataUrl)).blob();
+        const file = new File([blob], 'prefab-thumb.webp', { type: 'image/webp' });
+        const up = await api.uploadPrefabThumbnail(tok, file);
+        thumbnailUrl = up.url;
+      }
+    } catch (e) {
+      console.warn('[Prefab] 썸네일 캡처 실패 — thumbnail 없이 저장', e);
+    }
+
     try {
       const res = await api.createPrefab(tok, {
         name: name.trim().slice(0, 100),
         payload: { version: 1, root: snapshot },
+        thumbnailUrl,
       });
       setPrefabs(prev => [res.prefab, ...prev]);
     } catch (e) {
@@ -1949,6 +1967,7 @@ export default function StudioCanvas() {
       alert('삭제 실패: ' + (e as Error).message);
     }
   }
+
 
   /* ── 물리 시뮬레이션 ─────────────────────── */
   function startSim() {
@@ -2814,11 +2833,24 @@ export default function StudioCanvas() {
                 <div key={pf.id}
                   draggable
                   onDragStart={e => { e.dataTransfer.setData('application/x-alp-prefab', pf.id); e.dataTransfer.effectAllowed = 'copy'; }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, padding: '4px 6px', cursor: 'grab' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, padding: '4px 6px', cursor: 'grab' }}
                   title="드래그해서 뷰포트에 놓기"
                 >
-                  <span style={{ fontSize: 13 }}>📦</span>
-                  <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pf.name}</span>
+                  {/* 썸네일 — 저장 시 자동 캡처. 없으면 📦 */}
+                  <div
+                    style={{
+                      width: 32, height: 32, flexShrink: 0, borderRadius: 4,
+                      background: pf.thumbnailUrl
+                        ? `url(${pf.thumbnailUrl}) center/cover`
+                        : 'rgba(99,102,241,0.18)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 16,
+                      border: '1px solid rgba(255,255,255,0.08)',
+                    }}
+                  >
+                    {!pf.thumbnailUrl && '📦'}
+                  </div>
+                  <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{pf.name}</span>
                   <button type="button" onClick={(ev) => { ev.stopPropagation(); removePrefab(pf.id); }}
                     title="삭제"
                     style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontSize: 11, cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>
