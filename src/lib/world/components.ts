@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'autoRotate' | 'physics';
+export type ComponentType = 'grab' | 'physics';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -53,16 +53,6 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     name: 'Grab (잡기)',
     icon: '✋',
     description: '1인칭 모드에서 E 키로 잡을 수 있게 함. Physics handle 처럼 카메라 앞을 따라옴. (Physics dynamic 컴포넌트 같이 부착 권장)',
-  },
-  {
-    type: 'autoRotate',
-    name: 'AutoRotate (자동 회전)',
-    icon: '🔄',
-    description: '매 프레임 지정 축으로 회전. 회전문/풍차/장식용.',
-    props: [
-      { key: 'axis',  label: '축 (x/y/z)', type: 'string', default: 'y' },
-      { key: 'speed', label: '속도 (도/초)', type: 'number', default: 60, min: -720, max: 720, step: 10 },
-    ],
   },
 ];
 

@@ -532,7 +532,6 @@ function LuaUpdateLoop({
   isHost,
   ownersRef,
   playerId,
-  autoRotateRef,
 }: {
   luaScripts: React.MutableRefObject<Map<string, import('@/lib/world/jsRuntime').JsScript>>;
   componentScripts: React.MutableRefObject<Map<string, Array<{ vm: import('@/lib/world/jsRuntime').JsScript; key: string }>>>;
@@ -545,7 +544,6 @@ function LuaUpdateLoop({
   isHost: boolean;
   ownersRef: React.MutableRefObject<Map<string, string>>;
   playerId: string;
-  autoRotateRef: React.MutableRefObject<Map<string, { axis: 'x' | 'y' | 'z'; speed: number }>>;
 }) {
   useFrame((_, dt) => {
     worldElapsed.current += dt;
@@ -553,20 +551,6 @@ function LuaUpdateLoop({
     // 유저 정의 컴포넌트 VM 들도 매 프레임 onUpdate
     for (const arr of componentScripts.current.values()) {
       for (const { vm } of arr) vm.callUpdate(dt);
-    }
-
-    /* ── AutoRotate 컴포넌트 처리 — 매 프레임 회전 ── */
-    if (autoRotateRef.current.size > 0) {
-      const radPerSec = (deg: number) => (deg * Math.PI) / 180;
-      for (const [id, conf] of autoRotateRef.current) {
-        const ref = scriptBodyRefs.current.get(id);
-        const group = ref?.group.current;
-        if (!group) continue;
-        const delta = radPerSec(conf.speed) * dt;
-        if (conf.axis === 'x') group.rotation.x += delta;
-        else if (conf.axis === 'z') group.rotation.z += delta;
-        else group.rotation.y += delta;
-      }
     }
 
     // ── Client-side Prediction with Reconciliation ──
@@ -1968,26 +1952,15 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   useEffect(() => { runtimeObjectsRef.current = runtimeObjects; }, [runtimeObjects]);
   // 1인칭에서 잡을 수 있는 오브젝트 id 셋 — components 에 'grab' 있거나 grabbable 플래그(레거시) true
   const grabbableIdsRef = useRef<Set<string>>(new Set());
-  // AutoRotate 컴포넌트 — id → {axis, speed} 매핑
-  const autoRotateRef = useRef<Map<string, { axis: 'x' | 'y' | 'z'; speed: number }>>(new Map());
   useEffect(() => {
     const grab = new Set<string>();
-    const rot  = new Map<string, { axis: 'x' | 'y' | 'z'; speed: number }>();
     const check = (o: UserMapObject) => {
       const hasGrab = o.components?.some(c => c.type === 'grab') || o.grabbable;
       if (hasGrab) grab.add(o.id);
-      const ar = o.components?.find(c => c.type === 'autoRotate');
-      if (ar) {
-        const axisRaw = String(ar.props?.axis ?? 'y').toLowerCase();
-        const axis: 'x' | 'y' | 'z' = axisRaw === 'x' ? 'x' : axisRaw === 'z' ? 'z' : 'y';
-        const speed = Number(ar.props?.speed ?? 60);
-        rot.set(o.id, { axis, speed });
-      }
     };
     customObjects?.forEach(check);
     runtimeObjects.forEach(check);
     grabbableIdsRef.current = grab;
-    autoRotateRef.current = rot;
   }, [customObjects, runtimeObjects]);
   // objectId → { body: Rapier rigid body ref, group: Three.js group ref }
   const scriptBodyRefs = useRef<Map<string, {
@@ -2649,7 +2622,6 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           isHost={isHost}
           ownersRef={ownersRef}
           playerId={playerId}
-          autoRotateRef={autoRotateRef}
         />
 
         <Suspense fallback={null}>
