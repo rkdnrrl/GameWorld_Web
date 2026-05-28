@@ -2103,6 +2103,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         },
         // hostId 와 playerId 비교 — 본인이 호스트면 true (호스트 이전 시 자동 반영)
         isHost: () => isHostRef.current,
+        // 현재 spawn 된 런타임 오브젝트 수 — 호스트 fallback 시 중복 spawn 방지 가드
+        runtimeCount: () => runtimeObjectsRef.current.length,
       };
 
       const netAPI: import('@/lib/world/jsRuntime').JsNetAPI = {

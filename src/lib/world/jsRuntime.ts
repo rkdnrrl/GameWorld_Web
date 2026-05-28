@@ -21,6 +21,7 @@
  *   world.find(idOrLabel) → 다른 오브젝트 핸들 (self와 같은 인터페이스), 못 찾으면 null
  *   world.spawn({kind, position, color, physics, ...}) → 새 오브젝트 핸들
  *   world.isHost() → 본인이 호스트인지 (중복 spawn 방지에 사용)
+ *   world.runtimeCount() → 현재 spawn 된 오브젝트 수 (멱등 spawn 가드)
  *   net.sendAll(event, data) / net.sendTo(playerId, event, data)
  *   print(...) / console.log(...)
  *   Math.sin / cos / abs / floor / ceil / round / random / PI / min / max / sqrt / pow / atan2
@@ -830,6 +831,8 @@ export interface JsWorldAPI {
   spawn?(opts: JsSpawnOpts): JsObjectAPI;
   /** 본인이 호스트(가장 일찍 입장한 활성 플레이어)인지. 스튜디오 시뮬에선 항상 true. */
   isHost?(): boolean;
+  /** 현재 씬에 있는 런타임(spawn) 오브젝트 개수 — "이미 spawn 됐는지" 가드로 사용. */
+  runtimeCount?(): number;
 }
 
 export interface JsNetAPI {
@@ -916,6 +919,9 @@ export class JsScript {
         // 본인이 호스트인지 — 멀티에서 중복 spawn/sound 등 방지용
         // if (world.isHost()) { world.spawn(...); }
         isHost: () => worldApi.isHost ? worldApi.isHost() : true,
+        // 현재 spawn 된 런타임 오브젝트 개수 — "이미 있나" 가드.
+        // if (world.isHost() && world.runtimeCount() === 0) { ...spawn... }
+        runtimeCount: () => worldApi.runtimeCount ? worldApi.runtimeCount() : 0,
       };
       // world.time을 항상 최신 값으로 → getter처럼 동작
       Object.defineProperty(world, 'time', {
