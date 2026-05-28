@@ -142,7 +142,7 @@ interface Asset {
 /* ── Unity 스타일 컴포넌트 섹션 (인스펙터) ──
    부착된 컴포넌트 카드 + "+ 컴포넌트 추가" 버튼. 각 카드는 props 편집 input 포함. */
 function ComponentsSection({
-  selected, setObjects, pushHistory, allObjects, openPicker, scriptComponents,
+  selected, setObjects, pushHistory, allObjects, openPicker, scriptComponents, officialScriptComponents,
 }: {
   selected: MapObject;
   setObjects: (updater: (prev: MapObject[]) => MapObject[]) => void;
@@ -150,6 +150,7 @@ function ComponentsSection({
   allObjects: MapObject[];
   openPicker: () => void;
   scriptComponents: ScriptComponent[];
+  officialScriptComponents: ScriptComponent[];
 }) {
   const list = selected.components ?? [];
   // 레거시: grabbable 플래그도 가상 컴포넌트로 표시 (제거 시 plain false)
@@ -195,9 +196,11 @@ function ComponentsSection({
       )}
       {list.map((c, idx) => {
         // user: 접두사 → 유저 정의 컴포넌트 카드 (자유 props 편집)
+        // 내 컴포넌트 또는 공식 컴포넌트에서 찾기
         if (c.type.startsWith('user:')) {
           const userId = c.type.slice(5);
-          const sc = scriptComponents.find(s => s.id === userId);
+          const sc = scriptComponents.find(s => s.id === userId)
+                  ?? officialScriptComponents.find(s => s.id === userId);
           return (
             <UserComponentCard
               key={idx}
@@ -1667,13 +1670,21 @@ export default function StudioCanvas() {
   const [componentPickerSearch, setComponentPickerSearch] = useState('');
   // 유저 정의 스크립트 컴포넌트 (DB) + 관리 모달
   const [scriptComponents, setScriptComponents] = useState<ScriptComponent[]>([]);
+  // 공식 (운영자가 만든) 컴포넌트 — 모든 유저 picker 에 노출
+  const [officialScriptComponents, setOfficialScriptComponents] = useState<ScriptComponent[]>([]);
   const [scriptComponentsModalOpen, setScriptComponentsModalOpen] = useState(false);
   useEffect(() => {
     const tok = session.getToken();
-    if (!tok) return;
-    api.listMyScriptComponents(tok)
-      .then(r => setScriptComponents(r.components))
-      .catch(e => console.warn('[ScriptComponents] load fail', e));
+    // 내 컴포넌트 (로그인 필요)
+    if (tok) {
+      api.listMyScriptComponents(tok)
+        .then(r => setScriptComponents(r.components))
+        .catch(e => console.warn('[ScriptComponents] my load fail', e));
+    }
+    // 공식 컴포넌트 (비로그인도 가능)
+    api.listOfficialScriptComponents(tok || undefined)
+      .then(r => setOfficialScriptComponents(r.components))
+      .catch(e => console.warn('[ScriptComponents] official load fail', e));
   }, []);
   // ── 프리팹 (Unity 스타일 오브젝트 스냅샷) ──
   const [prefabs, setPrefabs] = useState<Prefab[]>([]);
@@ -3200,6 +3211,7 @@ export default function StudioCanvas() {
                   allObjects={objects}
                   openPicker={() => setComponentPickerOpen(true)}
                   scriptComponents={scriptComponents}
+                  officialScriptComponents={officialScriptComponents}
                 />
               )}
 
@@ -3938,6 +3950,51 @@ export default function StudioCanvas() {
                     </button>
                   );
                 })}
+
+              {/* 공식 컴포넌트 (운영자가 만든 것, 모든 유저 사용 가능) */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+                <span style={{ fontSize: 10, opacity: 0.5, fontWeight: 700, letterSpacing: 0.5 }}>OFFICIAL ({officialScriptComponents.length})</span>
+              </div>
+              {officialScriptComponents
+                .filter(c => {
+                  const q = componentPickerSearch.toLowerCase().trim();
+                  if (!q) return true;
+                  return c.name.toLowerCase().includes(q);
+                })
+                .map(c => {
+                  const type = `user:${c.id}`;
+                  return (
+                    <button key={c.id} type="button"
+                      onClick={() => {
+                        const newInst: ComponentInstance = { type: type as ComponentType, props: {} };
+                        setObjects(prev => prev.map(o => o.id === selected.id
+                          ? { ...o, components: [...(o.components ?? []), newInst] }
+                          : o));
+                        pushHistory(objects);
+                        setComponentPickerOpen(false);
+                        setComponentPickerSearch('');
+                      }}
+                      style={{
+                        textAlign: 'left',
+                        background: 'rgba(52,211,153,0.10)',
+                        border: '1px solid rgba(52,211,153,0.35)',
+                        borderRadius: 8, padding: '10px 12px',
+                        cursor: 'pointer', color: '#fff',
+                        display: 'flex', flexDirection: 'column', gap: 3,
+                      }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700 }}>{c.icon || '🧩'} {c.name}</span>
+                        <span style={{ fontSize: 9, background: 'rgba(52,211,153,0.3)', color: '#86efac', padding: '1px 6px', borderRadius: 3, fontWeight: 700 }}>공식</span>
+                      </div>
+                      {c.description && (
+                        <span style={{ fontSize: 11, opacity: 0.7, fontWeight: 400, lineHeight: 1.4 }}>{c.description}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              {officialScriptComponents.length === 0 && (
+                <div style={{ fontSize: 10, opacity: 0.35, textAlign: 'center', padding: '6px 0' }}>공식 컴포넌트 없음</div>
+              )}
 
               {/* 내 (유저 정의) 컴포넌트 */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>

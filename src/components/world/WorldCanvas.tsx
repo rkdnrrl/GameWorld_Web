@@ -1931,19 +1931,28 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const scriptComponentDefsRef = useRef<Map<string, import('@/lib/api').ScriptComponent>>(new Map());
   // 컴포넌트 코드 변경 감지용 (state — 변경되면 VM 재생성 트리거)
   const [scriptComponentsLoaded, setScriptComponentsLoaded] = useState(0);
-  // 본인의 모든 스크립트 컴포넌트 코드 fetch (월드 마운트 시 1회).
-  // 부착된 user 컴포넌트의 코드를 캐시에서 조회하기 위함.
+  // 스크립트 컴포넌트 코드 fetch (월드 마운트 시 1회).
+  // - 공식 컴포넌트 (모든 유저, 비로그인도 OK)
+  // - 본인 컴포넌트 (로그인 시)
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { api, session } = require('@/lib/api') as typeof import('@/lib/api');
     const tok = session.getToken();
-    if (!tok) return;
-    api.listMyScriptComponents(tok)
-      .then(r => {
-        for (const c of r.components) scriptComponentDefsRef.current.set(c.id, c);
-        setScriptComponentsLoaded(n => n + 1);
-      })
-      .catch(e => console.warn('[ScriptComponents] world fetch fail', e));
+    const tasks: Array<Promise<unknown>> = [];
+    // 공식 컴포넌트는 비로그인도 fetch
+    tasks.push(
+      api.listOfficialScriptComponents(tok || undefined)
+        .then(r => { for (const c of r.components) scriptComponentDefsRef.current.set(c.id, c); })
+        .catch(e => console.warn('[ScriptComponents] official world fetch fail', e))
+    );
+    if (tok) {
+      tasks.push(
+        api.listMyScriptComponents(tok)
+          .then(r => { for (const c of r.components) scriptComponentDefsRef.current.set(c.id, c); })
+          .catch(e => console.warn('[ScriptComponents] my world fetch fail', e))
+      );
+    }
+    Promise.all(tasks).then(() => setScriptComponentsLoaded(n => n + 1));
   }, []);
   // objectId → THREE.Light 인스턴스 (조명 color/intensity 제어용)
   const lightRefs = useRef<Map<string, THREE.Light>>(new Map());

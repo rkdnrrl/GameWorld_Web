@@ -1382,12 +1382,19 @@ export const api = {
       headers: authHeaders(token),
     });
   },
-  /** 특정 id 들 한번에 가져오기 (월드 런타임 — 부착된 컴포넌트 fetch). */
-  getScriptComponentsByIds(token: string, ids: string[]) {
+  /** 공식 컴포넌트 목록 (운영자가 만든 것, 모든 유저 접근) — 비로그인도 OK */
+  listOfficialScriptComponents(token?: string) {
+    return request<{ components: ScriptComponent[] }>("/api/script-components/official", {
+      headers: token ? authHeaders(token) : {},
+    });
+  },
+  /** 특정 id 들 한번에 가져오기 (월드 런타임 — 부착된 컴포넌트 fetch).
+   *  서버가 본인 것 + 공식 컴포넌트만 반환. */
+  getScriptComponentsByIds(token: string | undefined, ids: string[]) {
     if (ids.length === 0) return Promise.resolve({ components: [] });
     const qs = `ids=${encodeURIComponent(ids.join(','))}`;
     return request<{ components: ScriptComponent[] }>(`/api/script-components/by-ids?${qs}`, {
-      headers: authHeaders(token),
+      headers: token ? authHeaders(token) : {},
     });
   },
   createScriptComponent(token: string, body: { name: string; icon?: string | null; description?: string | null; code: string }) {
@@ -1410,6 +1417,34 @@ export const api = {
       headers: authHeaders(token),
     });
   },
+
+  // ── 운영자 전용 스크립트 컴포넌트 (공식 관리) ──
+  operatorListScriptComponents(token: string) {
+    return request<{ components: ScriptComponent[] }>("/api/operator/script-components", {
+      headers: authHeaders(token),
+    });
+  },
+  operatorCreateScriptComponent(token: string, body: { name: string; icon?: string | null; description?: string | null; code: string; isOfficial?: boolean }) {
+    return request<{ component: ScriptComponent }>("/api/operator/script-components", {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify(body),
+    });
+  },
+  operatorUpdateScriptComponent(token: string, id: string, body: Partial<{ name: string; icon: string | null; description: string | null; code: string; isOfficial: boolean }>) {
+    return request<{ component: ScriptComponent }>(`/api/operator/script-components/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: authHeaders(token),
+      body: JSON.stringify(body),
+    });
+  },
+  operatorDeleteScriptComponent(token: string, id: string) {
+    return request<{ ok: true }>(`/api/operator/script-components/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+    });
+  },
+
   /** 프리팹 썸네일 이미지 업로드 (R2). url 반환 — 이후 updatePrefab 으로 연결.
    *  FormData 사용을 위해 request 헬퍼 대신 raw fetch (request 가 Content-Type:json 강제). */
   async uploadPrefabThumbnail(token: string, file: File): Promise<{ url: string }> {
@@ -1438,8 +1473,11 @@ export interface ScriptComponent {
   icon: string | null;
   description: string | null;
   code: string;
+  isOfficial?: boolean;
   createdAt: string;
   updatedAt: string;
+  // operator 목록 응답에서만 — creator 정보
+  creator?: { username: string | null } | null;
 }
 
 /** 프리팹 — 스튜디오 오브젝트 스냅샷 */
