@@ -919,6 +919,9 @@ export function Player({
   jumpPower = 7,
   spawnPos = [0, 4, 0],
   spawnRotY = 0,
+  localPoseRef,
+  portalRef,
+  onPortalEnter,
 }: {
   character: Record<string, unknown>;
   bubble?: ChatBubble;
@@ -957,10 +960,17 @@ export function Player({
   spawnPos?: [number, number, number];
   /** 스폰 시 카메라 초기 Y 회전 (라디안). spawn 의 rotation.y */
   spawnRotY?: number;
+  /** 매 프레임 로컬 플레이어 위치/방향 보고 (포탈 생성 위치 계산용) */
+  localPoseRef?: React.MutableRefObject<{ x: number; y: number; z: number; rotY: number }>;
+  /** 현재 열린 포탈 (없으면 null). 플레이어가 닿으면 onPortalEnter 호출 */
+  portalRef?: React.MutableRefObject<PortalState | null>;
+  onPortalEnter?: (worldId: string) => void;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body      = useRef<any>(null);
   const mesh      = useRef<THREE.Group>(null);
+  const portalTriggered = useRef(false);   // 같은 포탈 중복 발동 방지
+  const lastPortalId    = useRef<string | null>(null);
   const { rapier, world: rWorld } = useRapier();
   const { camera, gl } = useThree();
 
@@ -1277,6 +1287,26 @@ export function Player({
           animState: state,
           vx: vel.x, vy: vel.y, vz: vel.z,  // 속도 — 원격 클라이언트 kinematic body가 사용
         });
+      }
+
+      // 로컬 포즈 보고 (포탈 생성 위치 계산용)
+      if (localPoseRef) localPoseRef.current = { x: posT.x, y: posT.y, z: posT.z, rotY: mesh.current?.rotation.y ?? 0 };
+
+      // 포탈 근접 판정 — 닿으면 한 번만 발동
+      const pr = portalRef?.current ?? null;
+      if (pr) {
+        if (pr.id !== lastPortalId.current) { lastPortalId.current = pr.id; portalTriggered.current = false; }
+        if (!portalTriggered.current && onPortalEnter) {
+          const dx = posT.x - pr.position[0];
+          const dz = posT.z - pr.position[2];
+          const dy = posT.y - pr.position[1];
+          if (dx * dx + dz * dz < 1.1 * 1.1 && Math.abs(dy) < 2.4) {
+            portalTriggered.current = true;
+            onPortalEnter(pr.worldId);
+          }
+        }
+      } else {
+        lastPortalId.current = null;
       }
       } catch { /* Rapier 초기화 중 에러 무시 */ }
     }
@@ -2087,6 +2117,63 @@ interface WorldCanvasProps {
   objDestroyRef?: React.RefObject<((objectId: string) => void) | null>;
   // 호스트가 자기 시점 씬 스냅샷 (라이브 body 위치 포함) 을 DO 에 등록 → 신규 입장자가 그대로 받아 구성
   sendSceneRegister?: (objects: unknown[]) => void;
+  // VRChat 식 포탈 — 페이지가 portalApiRef.open(worldId, name) 호출 → 플레이어 앞에 포탈 생성.
+  // 플레이어가 포탈에 닿으면 onPortalEnter(worldId) 호출 → 페이지가 그 월드로 이동.
+  portalApiRef?: React.MutableRefObject<{ open: (worldId: string, name: string) => void; close: () => void } | null>;
+  onPortalEnter?: (worldId: string) => void;
+}
+
+/** 런타임 포탈 상태 — 플레이어 앞에 떠 있는 워프 게이트 */
+interface PortalState {
+  id: string;
+  worldId: string;
+  name: string;
+  position: [number, number, number]; // 발판 기준 (캐릭터 발 높이)
+  rotationY: number;
+}
+
+/* ── VRChat 식 포탈 비주얼 — 빛나는 링 + 회전하는 안쪽 디스크 + 이름표 ── */
+function WorldPortal({ portal }: { portal: PortalState }) {
+  const inner = useRef<THREE.Mesh>(null);
+  const swirl = useRef<THREE.Mesh>(null);
+  useFrame((_, dt) => {
+    if (inner.current) inner.current.rotation.z += dt * 0.8;
+    if (swirl.current) swirl.current.rotation.z -= dt * 1.6;
+  });
+  return (
+    <group position={portal.position} rotation={[0, portal.rotationY, 0]}>
+      {/* 중심 높이 1.1m */}
+      <group position={[0, 1.1, 0]}>
+        {/* 바깥 링 */}
+        <mesh>
+          <torusGeometry args={[0.95, 0.1, 16, 56]} />
+          <meshStandardMaterial color="#22d3ee" emissive="#22d3ee" emissiveIntensity={2.2} toneMapped={false} />
+        </mesh>
+        {/* 안쪽 워프 디스크 (회전) */}
+        <mesh ref={inner}>
+          <circleGeometry args={[0.9, 56]} />
+          <meshBasicMaterial color="#0ea5e9" transparent opacity={0.45} side={THREE.DoubleSide} toneMapped={false} />
+        </mesh>
+        {/* 소용돌이 레이어 */}
+        <mesh ref={swirl} position={[0, 0, 0.02]}>
+          <ringGeometry args={[0.2, 0.85, 24, 1]} />
+          <meshBasicMaterial color="#a5f3fc" transparent opacity={0.25} side={THREE.DoubleSide} toneMapped={false} />
+        </mesh>
+        <pointLight color="#22d3ee" intensity={3} distance={7} />
+        {/* 이름표 — 항상 화면을 향함 */}
+        <Html center position={[0, 1.45, 0]} zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+            background: 'rgba(8,15,30,0.82)', border: '1px solid rgba(34,211,238,0.6)',
+            color: '#a5f3fc', fontWeight: 800, fontSize: 13, padding: '5px 12px', borderRadius: 999,
+            boxShadow: '0 0 16px rgba(34,211,238,0.5)', backdropFilter: 'blur(4px)',
+          }}>
+            🌀 {portal.name}
+          </div>
+        </Html>
+      </group>
+    </group>
+  );
 }
 
 /* ── 모바일 컨트롤 컴포넌트 (Canvas 완전 바깥 — drei Html 스케일 영향 없음) ── */
@@ -2240,7 +2327,33 @@ function MobileControls({ inputLocked }: { inputLocked: boolean }) {
   );
 }
 
-export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId, sendObjClaim, sendObjRelease, objectOwnerRef, sendObjSpawn, sendObjDestroy, objSpawnRef, objDestroyRef, sendSceneRegister }: WorldCanvasProps) {
+export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId, sendObjClaim, sendObjRelease, objectOwnerRef, sendObjSpawn, sendObjDestroy, objSpawnRef, objDestroyRef, sendSceneRegister, portalApiRef, onPortalEnter }: WorldCanvasProps) {
+  // ── VRChat 식 포탈 ──
+  const [portal, setPortal] = useState<PortalState | null>(null);
+  const portalRef = useRef<PortalState | null>(null);
+  portalRef.current = portal;
+  // 로컬 플레이어 현재 위치/방향 (Player 가 매 프레임 갱신) — 포탈 생성 위치 계산용
+  const localPoseRef = useRef<{ x: number; y: number; z: number; rotY: number }>({ x: 0, y: 0, z: 0, rotY: 0 });
+  // 페이지가 호출할 포탈 API 등록
+  useEffect(() => {
+    if (!portalApiRef) return;
+    portalApiRef.current = {
+      open: (worldId: string, name: string) => {
+        const p = localPoseRef.current;
+        const dist = 3;
+        // forward = (sin(rotY), cos(rotY)) — 캐릭터가 바라보는 방향 (이동 코드 규약과 일치)
+        const fx = Math.sin(p.rotY), fz = Math.cos(p.rotY);
+        setPortal({
+          id: `portal_${Date.now()}`,
+          worldId, name,
+          position: [p.x + fx * dist, p.y - 0.6, p.z + fz * dist], // 발 높이 기준
+          rotationY: p.rotY,
+        });
+      },
+      close: () => setPortal(null),
+    };
+    return () => { if (portalApiRef) portalApiRef.current = null; };
+  }, [portalApiRef]);
   const shadowsEnabled = graphics.shadowSize > 0;
   const shadowMapSize: [number, number] = [graphics.shadowSize || 1024, graphics.shadowSize || 1024];
   // 같은 dpr 설정이라도 큰 창(PC)은 픽셀 수가 폭증해 fill-rate 렉 → 총 백버퍼 픽셀 예산으로 dpr 상한.
@@ -3105,10 +3218,11 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} portalRef={portalRef} onPortalEnter={onPortalEnter} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}
+            {portal && <WorldPortal portal={portal} />}
           </Physics>
         </Suspense>
       </Canvas>

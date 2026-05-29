@@ -6,6 +6,10 @@ import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
 import * as THREE from 'three';
 import { buildFolderTree, normalizeFolder } from '@/lib/assets/folders';
 import type { FolderNode } from '@/lib/assets/folders';
+import { getKind } from '@/lib/assets/registry';
+import '@/lib/assets/kinds'; // kind 핸들러(Thumbnail/Preview) 등록 — 사이드이펙트
+import AssetPreviewModal from '@/components/assets/AssetPreviewModal';
+import type { Asset as RegistryAsset } from '@/lib/assets/types';
 import AiGuideModal from './AiGuideModal';
 import StudioTopBar from './StudioTopBar';
 import StudioShortcutsModal from './StudioShortcutsModal';
@@ -630,16 +634,29 @@ function NumField({ value, onChange, onCommit, style }: {
   );
 }
 
-/* ── 에셋 카드 (우측 그리드) ─────────────── */
-function StudioAssetCard({ asset, onDelete, onRename }: {
+/* 에셋의 kind id 추정 — kind 필드 우선, 없으면 확장자로 */
+function inferKindId(a: Asset): string {
+  const k = (a as { kind?: string | null }).kind;
+  if (k) return k;
+  const u = a.modelUrl || '';
+  if (/\.(png|jpe?g|webp|gif|svg)$/i.test(u)) return 'image';
+  if (/\.(mp3|wav|ogg|aac)$/i.test(u)) return 'audio';
+  if (/\.(mp4|webm|mov)$/i.test(u)) return 'video';
+  return 'model';
+}
+
+/* ── 에셋 카드 (우측 그리드) — 썸네일 + 호버 미리보기 ─────────────── */
+function StudioAssetCard({ asset, onDelete, onRename, onPreview }: {
   asset: Asset;
   onDelete: (id: string) => void;
   onRename: (id: string, newName: string) => void;
+  onPreview: (a: Asset) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editVal, setEditVal] = useState('');
+  const Thumb = getKind(inferKindId(asset))?.Thumbnail;
 
   function confirmRename() {
     const v = editVal.trim();
@@ -665,19 +682,26 @@ function StudioAssetCard({ asset, onDelete, onRename }: {
         }}
         onDragStart={e => { e.dataTransfer.setData('text/plain', asset.id); e.dataTransfer.effectAllowed = 'move'; }}
         style={{
-          background: hovered || focused ? 'rgba(129,140,248,0.2)' : 'rgba(255,255,255,0.05)',
+          background: hovered || focused ? 'rgba(129,140,248,0.16)' : 'rgba(255,255,255,0.05)',
           border: `1px solid ${focused ? '#818cf8' : 'rgba(255,255,255,0.09)'}`,
-          borderRadius: 8, color: '#e2e8f0', fontSize: 11, padding: '8px 6px',
+          borderRadius: 8, color: '#e2e8f0', fontSize: 11, padding: 6,
           cursor: editing ? 'default' : 'grab',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+          display: 'flex', flexDirection: 'column', gap: 5,
           userSelect: 'none', transition: 'background 0.12s',
         }}>
-        <span style={{ fontSize: 22 }}>
-          {/\.(fbx|obj|glb|gltf)$/i.test(asset.modelUrl) ? '📦' :
-           /\.(png|jpe?g|webp|gif|svg)$/i.test(asset.modelUrl) ? '🖼️' :
-           /\.(mp3|wav|ogg|aac)$/i.test(asset.modelUrl) ? '🎵' :
-           /\.(mp4|webm|mov)$/i.test(asset.modelUrl) ? '🎬' : '📄'}
-        </span>
+        {/* 썸네일 (클릭=미리보기) */}
+        <div
+          onClick={e => { e.stopPropagation(); onPreview(asset); }}
+          title="클릭하여 미리보기"
+          style={{
+            width: '100%', aspectRatio: '1', borderRadius: 6, overflow: 'hidden',
+            background: 'radial-gradient(circle at 50% 35%, #232c44, #0e1424)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-in',
+          }}>
+          {Thumb
+            ? <Thumb asset={asset as unknown as RegistryAsset} />
+            : <span style={{ fontSize: 30, opacity: 0.4 }}>📄</span>}
+        </div>
         {editing ? (
           <input
             autoFocus
@@ -702,16 +726,81 @@ function StudioAssetCard({ asset, onDelete, onRename }: {
         )}
       </div>
       {hovered && !editing && (
-        <button
-          onClick={e => { e.stopPropagation(); onDelete(asset.id); }}
-          title="에셋 삭제"
-          style={{
-            position: 'absolute', top: 3, right: 3,
-            background: 'rgba(239,68,68,0.85)', border: 'none', borderRadius: 4,
-            color: '#fff', fontSize: 10, cursor: 'pointer', padding: '2px 5px', lineHeight: 1,
-          }}>🗑</button>
+        <>
+          {/* 미리보기 버튼 — 좌상단 */}
+          <button
+            onClick={e => { e.stopPropagation(); onPreview(asset); }}
+            title="미리보기"
+            style={{
+              position: 'absolute', top: 3, left: 3,
+              background: 'rgba(15,23,42,0.85)', border: 'none', borderRadius: 4,
+              color: '#fff', fontSize: 11, cursor: 'pointer', padding: '2px 5px', lineHeight: 1, backdropFilter: 'blur(4px)',
+            }}>👁</button>
+          {/* 삭제 버튼 — 우상단 */}
+          <button
+            onClick={e => { e.stopPropagation(); onDelete(asset.id); }}
+            title="에셋 삭제"
+            style={{
+              position: 'absolute', top: 3, right: 3,
+              background: 'rgba(239,68,68,0.85)', border: 'none', borderRadius: 4,
+              color: '#fff', fontSize: 10, cursor: 'pointer', padding: '2px 5px', lineHeight: 1,
+            }}>🗑</button>
+        </>
       )}
     </div>
+  );
+}
+
+/* ── 에셋 미리보기 — image/audio/video 는 kind Preview, model 등은 3D 뷰어 ── */
+function PreviewModel({ url }: { url: string }) {
+  const [obj, setObj] = useState<THREE.Object3D | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    import('@/lib/world/modelLoader').then(({ loadStaticModel }) =>
+      loadStaticModel(url).then(model => {
+        if (cancelled) return;
+        model.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(model);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const h = Math.max(size.x, size.y, size.z) || 1;
+        // 원점 중심 + 1 단위로 정규화
+        model.scale.setScalar(1 / h);
+        model.position.set(-center.x / h, -center.y / h, -center.z / h);
+        model.traverse(c => { const m = c as THREE.Mesh; if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; fixModelMaterials(m); } });
+        setObj(model);
+      }).catch(e => console.error('[studio preview] 모델 로드 실패:', e)),
+    );
+    return () => { cancelled = true; };
+  }, [url]);
+  if (!obj) return null;
+  return <primitive object={obj} />;
+}
+
+function StudioAssetPreview({ asset, onClose }: { asset: Asset; onClose: () => void }) {
+  const handler = getKind(inferKindId(asset));
+  const regAsset = asset as unknown as RegistryAsset;
+  // image/audio/video — 등록된 Preview(라이트박스/플레이어) 사용
+  if (handler?.Preview) {
+    const P = handler.Preview;
+    return <P asset={regAsset} onClose={onClose} />;
+  }
+  // 그 외(3D 모델) — 회전 가능한 3D 뷰어
+  return (
+    <AssetPreviewModal asset={regAsset} onClose={onClose}>
+      <div onClick={e => e.stopPropagation()}
+        style={{
+          width: 'min(78vw, 720px)', height: 'min(70vh, 540px)', borderRadius: 12, overflow: 'hidden',
+          background: 'radial-gradient(circle at 50% 35%, #1e2740, #0b1020)', border: '1px solid rgba(255,255,255,0.12)',
+        }}>
+        <Canvas camera={{ position: [1.8, 1.3, 1.8], fov: 45 }}>
+          <ambientLight intensity={0.9} />
+          <directionalLight position={[4, 6, 3]} intensity={1.0} />
+          <PreviewModel url={asset.modelUrl} />
+          <OrbitControls enablePan={false} autoRotate autoRotateSpeed={1.6} minDistance={0.8} maxDistance={6} />
+        </Canvas>
+      </div>
+    </AssetPreviewModal>
   );
 }
 
@@ -2438,6 +2527,7 @@ export default function StudioCanvas() {
   const [newFolderName, setNewFolderName] = useState('');
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [dragOverPath, setDragOverPath] = useState<string | undefined>(undefined);
+  const [pickerPreview, setPickerPreview] = useState<Asset | null>(null); // 내 에셋 미리보기 모달
   const [dropZoneActive, setDropZoneActive] = useState(false);
   // 에셋 그리드 빈 영역 우클릭 컨텍스트 메뉴 (폴더 만들기)
   const [assetCtxMenu, setAssetCtxMenu] = useState<{ x: number; y: number } | null>(null);
@@ -5206,7 +5296,7 @@ export default function StudioCanvas() {
                   ))}
                   {/* FBX 파일 카드 */}
                   {selectedFolderAssets.map(a => (
-                    <StudioAssetCard key={a.id} asset={a} onDelete={deleteAsset} onRename={renameAsset} />
+                    <StudioAssetCard key={a.id} asset={a} onDelete={deleteAsset} onRename={renameAsset} onPreview={setPickerPreview} />
                   ))}
                   {/* 폴더/파일 모두 없을 때 안내 */}
                   {selectedSubfolders.length === 0 && selectedFolderAssets.length === 0 && (
@@ -5220,6 +5310,11 @@ export default function StudioCanvas() {
           </div>
         </div>
       </div>
+
+      {/* 내 에셋 미리보기 모달 */}
+      {pickerPreview && (
+        <StudioAssetPreview asset={pickerPreview} onClose={() => setPickerPreview(null)} />
+      )}
 
       {/* 에셋 그리드 빈 영역 우클릭 → 폴더 만들기 컨텍스트 메뉴 */}
       {assetCtxMenu && (

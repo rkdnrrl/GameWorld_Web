@@ -103,6 +103,11 @@ export default function WorldPage() {
   const [myWorlds, setMyWorlds] = useState<HubWorld[]>([]);
   const [publicWorlds, setPublicWorlds] = useState<HubWorld[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // VRChat 식 포탈 — WorldCanvas 가 등록하는 API + 열린 포탈 배너 + 맵 피커 포탈 모드
+  const portalApiRef = useRef<{ open: (worldId: string, name: string) => void; close: () => void } | null>(null);
+  const [portalPickMode, setPortalPickMode] = useState(false);
+  const [openedPortal, setOpenedPortal] = useState<{ worldId: string; name: string } | null>(null);
+  const [teleporting, setTeleporting] = useState(false);
   // 이모트 (커스텀 애니메이션 슬롯 트리거)
   const [emoteSlot, setEmoteSlot] = useState<string | null>(null);
   const [emotePanel, setEmotePanel] = useState(false);
@@ -394,11 +399,43 @@ export default function WorldPage() {
   const [pickerForWorld, setPickerForWorld] = useState<{ id: string; name: string } | null>(null);
 
   function openMapBrowser() {
+    setPortalPickMode(false); // 일반 맵 이동 모드
     setMapTab('public'); // 기본 탭 = 공개 (탐색 우선)
     setMapSearch('');
     setSelectedTag('');
     setMapSort('popular');
     setMapModalOpen(true);
+  }
+
+  /** 포탈 열기 — 맵 피커를 "포탈 모드"로 띄움. 맵 선택 시 캐릭터 앞에 포탈 생성. */
+  function openPortalBrowser() {
+    setMapTab('public');
+    setMapSearch('');
+    setSelectedTag('');
+    setMapSort('popular');
+    setMapModalOpen(true);
+    setPortalPickMode(true);
+  }
+
+  /** 맵 피커에서 월드 선택 — 포탈 모드면 포탈 생성, 아니면 기존 맵 이동. */
+  function handleWorldPick(w: HubWorld) {
+    if (portalPickMode) {
+      if (w.id === effectiveWorldId) return; // 현재 맵으로의 포탈은 의미 없음
+      portalApiRef.current?.open(w.id, w.name);
+      setOpenedPortal({ worldId: w.id, name: w.name });
+      setPortalPickMode(false);
+      setMapModalOpen(false);
+    } else {
+      moveWorld(w.id, w.name);
+    }
+  }
+
+  /** 포탈에 걸어 들어감 — 그 월드로 이동 (전체 리로드, 목적지에서 세션 해석). */
+  function enterPortal(worldId: string) {
+    if (!worldId || worldId === effectiveWorldId || teleporting) return;
+    setTeleporting(true);
+    setOpenedPortal(null);
+    window.location.assign(`/${locale}/world?id=${encodeURIComponent(worldId)}`);
   }
 
   function openCharacterBrowser() {
@@ -538,6 +575,8 @@ export default function WorldPage() {
         objSpawnRef={objSpawnRef}
         objDestroyRef={objDestroyRef}
         sendSceneRegister={sendSceneRegister}
+        portalApiRef={portalApiRef}
+        onPortalEnter={enterPortal}
       />
 
       {/* 우상단 단일 설정 버튼 — 클릭 또는 ESC 로 통합 모달 오픈 */}
@@ -648,6 +687,12 @@ export default function WorldPage() {
                     >
                       🗺 {t('moveMap')}
                     </button>
+                    <button
+                      onClick={() => { setSettingsOpen(false); openPortalBrowser(); }}
+                      style={{ border: '1px solid rgba(34,211,238,0.45)', background: 'rgba(34,211,238,0.16)', color: '#fff', borderRadius: 8, padding: '9px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700, textAlign: 'left' }}
+                    >
+                      🌀 {t('portalOpen')}
+                    </button>
                   </div>
 
                   <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginTop: 14, marginBottom: 6 }}>{th('develop')}</div>
@@ -755,17 +800,17 @@ export default function WorldPage() {
 
       {mapModalOpen && (
         <div
-          onClick={() => setMapModalOpen(false)}
+          onClick={() => { setMapModalOpen(false); setPortalPickMode(false); }}
           style={{ position: 'absolute', inset: 0, background: 'rgba(3,7,18,0.72)', backdropFilter: 'blur(6px)', zIndex: 1001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ width: 'min(1100px, 96vw)', maxHeight: '90vh', overflow: 'hidden', borderRadius: 14, border: '1px solid rgba(255,255,255,0.16)', background: 'linear-gradient(180deg, rgba(14,23,46,0.97) 0%, rgba(8,14,30,0.97) 100%)', color: '#fff' }}
+            style={{ width: 'min(1100px, 96vw)', maxHeight: '90vh', overflow: 'hidden', borderRadius: 14, border: `1px solid ${portalPickMode ? 'rgba(34,211,238,0.4)' : 'rgba(255,255,255,0.16)'}`, background: 'linear-gradient(180deg, rgba(14,23,46,0.97) 0%, rgba(8,14,30,0.97) 100%)', color: '#fff' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-              <div style={{ fontSize: 18, fontWeight: 800 }}>{t('moveMap')}</div>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{portalPickMode ? `🌀 ${t('portalPickTitle')}` : t('moveMap')}</div>
               <button
-                onClick={() => setMapModalOpen(false)}
+                onClick={() => { setMapModalOpen(false); setPortalPickMode(false); }}
                 style={{ border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontWeight: 700 }}
               >
                 X
@@ -881,7 +926,7 @@ export default function WorldPage() {
                             onMouseLeave={(e) => { if (!isCurrent) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.transform = 'translateY(0)'; }}
                           >
                             <button
-                              onClick={() => moveWorld(w.id, w.name)}
+                              onClick={() => handleWorldPick(w)}
                               style={{ display: 'block', width: '100%', aspectRatio: '16/9', position: 'relative', background: w.thumbnailUrl ? `url(${w.thumbnailUrl}) center/cover` : 'linear-gradient(135deg,#334155,#111827)', border: 'none', padding: 0, cursor: 'pointer' }}
                             >
                               {!w.thumbnailUrl && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, opacity: 0.5 }}>🌍</div>}
@@ -909,11 +954,11 @@ export default function WorldPage() {
                                 </div>
                               )}
                               <button
-                                onClick={() => moveWorld(w.id, w.name)}
+                                onClick={() => handleWorldPick(w)}
                                 disabled={isCurrent}
-                                style={{ width: '100%', padding: '7px 0', borderRadius: 7, border: 'none', cursor: isCurrent ? 'default' : 'pointer', fontSize: 12, fontWeight: 700, background: isCurrent ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: isCurrent ? 'rgba(255,255,255,0.5)' : '#fff' }}
+                                style={{ width: '100%', padding: '7px 0', borderRadius: 7, border: 'none', cursor: isCurrent ? 'default' : 'pointer', fontSize: 12, fontWeight: 700, background: isCurrent ? 'rgba(255,255,255,0.08)' : (portalPickMode ? 'linear-gradient(135deg,#06b6d4,#3b82f6)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)'), color: isCurrent ? 'rgba(255,255,255,0.5)' : '#fff' }}
                               >
-                                {isCurrent ? '✓ 현재 맵' : `▶ ${t('moveMap')}`}
+                                {isCurrent ? '✓ 현재 맵' : (portalPickMode ? `🌀 ${t('portalHere')}` : `▶ ${t('moveMap')}`)}
                               </button>
                             </div>
                           </div>
@@ -1002,6 +1047,46 @@ export default function WorldPage() {
       <div style={{ position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.35)', borderRadius: 10, padding: '5px 14px', color: 'rgba(255,255,255,0.6)', fontSize: 11, backdropFilter: 'blur(6px)', textAlign: 'center', pointerEvents: 'none' }}>
         {t('controlHint')}
       </div>
+
+      {/* 빠른 포탈 열기 버튼 (우상단, 설정 기어 왼쪽) */}
+      <button
+        onClick={openPortalBrowser}
+        title={t('portalOpen')}
+        style={{
+          position: 'absolute', top: 16, right: 64, zIndex: 1000,
+          width: 40, height: 40, borderRadius: '50%',
+          background: 'rgba(34,211,238,0.18)', border: '1px solid rgba(34,211,238,0.5)',
+          color: '#a5f3fc', fontSize: 18, cursor: 'pointer', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        🌀
+      </button>
+
+      {/* 열린 포탈 배너 (상단 중앙) */}
+      {openedPortal && (
+        <div style={{
+          position: 'absolute', top: 96, left: '50%', transform: 'translateX(-50%)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px 8px 16px',
+          background: 'rgba(8,15,30,0.85)', border: '1px solid rgba(34,211,238,0.55)',
+          borderRadius: 999, color: '#a5f3fc', fontSize: 13, fontWeight: 700, backdropFilter: 'blur(10px)',
+          boxShadow: '0 0 20px rgba(34,211,238,0.35)',
+        }}>
+          🌀 {t('portalOpenedHint', { name: openedPortal.name })}
+          <button
+            onClick={() => { portalApiRef.current?.close(); setOpenedPortal(null); }}
+            style={{ border: 'none', background: 'rgba(255,255,255,0.12)', color: '#fff', borderRadius: 999, width: 24, height: 24, cursor: 'pointer', fontSize: 12, lineHeight: 1 }}
+          >✕</button>
+        </div>
+      )}
+
+      {/* 이동 중 오버레이 */}
+      {teleporting && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 2000, background: 'rgba(2,6,23,0.92)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, color: '#a5f3fc' }}>
+          <div style={{ fontSize: 48 }}>🌀</div>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>{t('teleporting')}</div>
+        </div>
+      )}
 
       <style jsx global>{`
         @keyframes worldPreviewFadeIn {
