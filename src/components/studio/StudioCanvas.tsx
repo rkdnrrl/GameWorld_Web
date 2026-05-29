@@ -11,6 +11,7 @@ import StudioTopBar from './StudioTopBar';
 import StudioShortcutsModal from './StudioShortcutsModal';
 import ScriptComponentsModal from './ScriptComponentsModal';
 import { COMPONENT_DEFS, getComponentDef, type ComponentInstance, type ComponentType } from '@/lib/world/components';
+import { Player } from '@/components/world/WorldCanvas';
 
 const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광', spawn: '스폰 포인트' };
 const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲', pointlight: '💡', spotlight: '🔦', dirlight: '☀', spawn: '🎯' };
@@ -1399,10 +1400,22 @@ function SimScriptLoop({
   return null;
 }
 
-function SimScene({ objects, transforms, myAssets }: {
+function SimScene({ objects, transforms, myAssets, player }: {
   objects: MapObject[];
   transforms: SimTransforms;
   myAssets: Asset[];
+  /** 시뮬레이션 플레이어 — 본인 캐릭터로 직접 플레이 (월드와 동일). null 이면 플레이어 없음. */
+  player?: {
+    character: Record<string, unknown>;
+    cameraMode: 'first' | 'third';
+    onToggleCameraMode: () => void;
+    ownersRef: React.MutableRefObject<Map<string, string>>;
+    grabbedStateRef: React.MutableRefObject<Map<string, string>>;
+    grabbableIdsRef: React.MutableRefObject<Set<string>>;
+    remoteGrabbedByRef: React.MutableRefObject<Map<string, string>>;
+    spawnPos: [number, number, number];
+    spawnRotY: number;
+  };
 }) {
   // 런타임 spawn된 오브젝트 (로컬, 시뮬레이션 종료 시 사라짐)
   const [runtimeObjects, setRuntimeObjects] = useState<MapObject[]>([]);
@@ -1789,6 +1802,27 @@ function SimScene({ objects, transforms, myAssets }: {
         <SimObject key={obj.id} obj={obj} transforms={transforms}
           myAssets={myAssets} scriptBodyRefs={scriptBodyRefs} lightRefs={lightRefs} />
       ))}
+      {/* 시뮬레이션 플레이어 — 월드와 동일한 Player 컴포넌트 재사용. grab 은 sim 의 scriptBodyRefs/스크립트와 연동 */}
+      {player && (
+        <Player
+          character={player.character}
+          onMove={() => {}}
+          cameraMode={player.cameraMode}
+          onToggleCameraMode={player.onToggleCameraMode}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          scriptBodyRefs={scriptBodyRefs as any}
+          luaScripts={luaScripts}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          componentScripts={componentScripts as any}
+          ownersRef={player.ownersRef}
+          playerId="__sim_player__"
+          grabbedStateRef={player.grabbedStateRef}
+          grabbableIdsRef={player.grabbableIdsRef}
+          remoteGrabbedByRef={player.remoteGrabbedByRef}
+          spawnPos={player.spawnPos}
+          spawnRotY={player.spawnRotY}
+        />
+      )}
     </>
   );
 }
@@ -2056,6 +2090,14 @@ export default function StudioCanvas() {
   const [mode, setMode]             = useState<'translate' | 'rotate' | 'scale'>('translate');
   // 시뮬레이션
   const [simulating, setSimulating] = useState(false);
+  // 시뮬레이션 플레이어 — 본인 캐릭터로 직접 플레이 (월드와 동일 조작)
+  const [simCharacter, setSimCharacter] = useState<Record<string, unknown> | null>(null);
+  const [simCameraMode, setSimCameraMode] = useState<'first' | 'third'>('first');
+  // Player 가 요구하는 ref 들 — 스튜디오엔 멀티/소유권 개념 없으니 빈 ref no-op
+  const simOwnersRef       = useRef<Map<string, string>>(new Map());
+  const simGrabbedStateRef = useRef<Map<string, string>>(new Map());
+  const simRemoteGrabbedRef = useRef<Map<string, string>>(new Map());
+  const simGrabbableIdsRef = useRef<Set<string>>(new Set());
   const [aiGuideOpen, setAiGuideOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   // 컴포넌트 picker 모달 (인스펙터의 "+ 컴포넌트 추가" 클릭 시 열림)
@@ -2323,9 +2365,10 @@ export default function StudioCanvas() {
   /* 단축키 */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // 시뮬레이션 중: Escape로 중지, 나머지 단축키 무시
+      // 시뮬레이션 중: 나머지 단축키 무시 (WASD 등은 Player 로 전달).
+      // ESC — 포인터 락 중이면 락만 해제 (sim 유지), 락 없으면 sim 중지 (월드와 동일 UX).
       if (simulating) {
-        if (e.key === 'Escape') stopSim();
+        if (e.key === 'Escape' && !document.pointerLockElement) stopSim();
         return;
       }
       // Undo/Redo
@@ -2519,13 +2562,43 @@ export default function StudioCanvas() {
     });
     setSimTransforms(transforms);
     setSelectedId(null);
+
+    // grab 가능 오브젝트 id 집합 — grab 컴포넌트 있거나 레거시 grabbable
+    const grabSet = new Set<string>();
+    for (const o of objects) {
+      const hasGrab = o.components?.some(c => c.type === 'grab') || (o as { grabbable?: boolean }).grabbable;
+      if (hasGrab) grabSet.add(o.id);
+    }
+    simGrabbableIdsRef.current = grabSet;
+
+    // 본인 활성 캐릭터 fetch (없으면 기본 박스 캐릭터로 플레이)
+    const tok = session.getToken();
+    if (tok) {
+      fetch(`${API}/api/characters/me`, { headers: { Authorization: `Bearer ${tok}` } })
+        .then(r => r.ok ? r.json() : { character: null })
+        .then(d => setSimCharacter(d.character || {}))
+        .catch(() => setSimCharacter({}));
+    } else {
+      setSimCharacter({});
+    }
+    setSimCameraMode('first');
     setSimulating(true);
   }
 
   function stopSim() {
     setSimulating(false);
     setSimTransforms({});
+    setSimCharacter(null);
   }
+
+  // 스폰 위치 — spawn 오브젝트 중 하나 (랜덤). 없으면 기본 [0,4,0]. 시뮬 시작 시 고정.
+  const simSpawn = useMemo(() => {
+    const spawns = objects.filter(o => o.kind === 'spawn' && !o.hidden);
+    if (spawns.length === 0) return { pos: [0, 4, 0] as [number, number, number], rotY: 0 };
+    const pick = spawns[Math.floor(Math.random() * spawns.length)];
+    return { pos: pick.position, rotY: pick.rotation[1] };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [simulating]);
 
   /** AI 가 생성한 오브젝트 배열을 씬에 적용. id 는 충돌 방지 위해 새로 발급. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -4164,7 +4237,19 @@ export default function StudioCanvas() {
             /* ── 시뮬레이션 모드 ── */
             <Suspense fallback={null}>
               <Physics gravity={[0, -9.81, 0]}>
-                <SimScene objects={objects.filter(o => !o.hidden)} transforms={simTransforms} myAssets={myAssets} />
+                <SimScene objects={objects.filter(o => !o.hidden)} transforms={simTransforms} myAssets={myAssets}
+                  player={simCharacter ? {
+                    character: simCharacter,
+                    cameraMode: simCameraMode,
+                    onToggleCameraMode: () => setSimCameraMode(m => m === 'first' ? 'third' : 'first'),
+                    ownersRef: simOwnersRef,
+                    grabbedStateRef: simGrabbedStateRef,
+                    grabbableIdsRef: simGrabbableIdsRef,
+                    remoteGrabbedByRef: simRemoteGrabbedRef,
+                    spawnPos: simSpawn.pos,
+                    spawnRotY: simSpawn.rotY,
+                  } : undefined}
+                />
               </Physics>
             </Suspense>
           ) : (
@@ -4206,20 +4291,25 @@ export default function StudioCanvas() {
           )}
           <SceneRefCapture target={threeSceneRef} />
 
-          <OrbitControls
-            ref={orbitRef}
-            enabled={orbitEnabled}
-            makeDefault
-            enableZoom={true}
-            mouseButtons={{
-              LEFT:   undefined as unknown as THREE.MOUSE,
-              MIDDLE: THREE.MOUSE.PAN,
-              RIGHT:  undefined as unknown as THREE.MOUSE,
-            }}
-          />
-          <DraggingDetector setOrbitEnabled={setOrbitEnabled} />
-          <WasdFlyCamera orbitRef={orbitRef} />
-          <RightClickLook orbitRef={orbitRef} />
+          {/* 시뮬레이션 + 플레이어 활성 시엔 에디터 카메라 컨트롤 끔 (Player 가 카메라 소유) */}
+          {!(simulating && simCharacter) && (
+            <>
+              <OrbitControls
+                ref={orbitRef}
+                enabled={orbitEnabled}
+                makeDefault
+                enableZoom={true}
+                mouseButtons={{
+                  LEFT:   undefined as unknown as THREE.MOUSE,
+                  MIDDLE: THREE.MOUSE.PAN,
+                  RIGHT:  undefined as unknown as THREE.MOUSE,
+                }}
+              />
+              <DraggingDetector setOrbitEnabled={setOrbitEnabled} />
+              <WasdFlyCamera orbitRef={orbitRef} />
+              <RightClickLook orbitRef={orbitRef} />
+            </>
+          )}
           <CanvasCapture captureFnRef={captureFnRef} />
           <CameraRefCapture cameraRef={cameraRef} />
         </Canvas>

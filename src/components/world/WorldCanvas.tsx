@@ -823,7 +823,7 @@ const _mob = {
 export type CameraMode = 'first' | 'third';
 
 /* ── 로컬 플레이어 컨트롤러 ─────────────── */
-function Player({
+export function Player({
   character,
   bubble,
   onMove,
