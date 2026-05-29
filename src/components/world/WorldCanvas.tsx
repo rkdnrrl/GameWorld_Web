@@ -1,7 +1,7 @@
 'use client';
 import React, { Suspense, useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Html, Sky, Text, Environment } from '@react-three/drei';
+import { Html, Sky, Text, Environment, useProgress } from '@react-three/drei';
 import { Physics, RigidBody, CapsuleCollider, useRapier } from '@react-three/rapier';
 
 /** Rapier 강체 — 우리가 호출하는 메서드만 추린 미니 인터페이스 (버전 무관) */
@@ -827,6 +827,53 @@ function ShadowUpdateThrottle({ hz = 30 }: { hz?: number }) {
     if (acc.current >= 1 / hz) { acc.current = 0; gl.shadowMap.needsUpdate = true; }
   });
   return null;
+}
+
+/* ── 맵 로딩 오버레이 ──
+   텍스처/모델이 다 로드될 때까지 진행률 바를 보여주고, 완료되면 사라진다.
+   drei useProgress 가 Three.js DefaultLoadingManager 를 추적 (Canvas 밖 DOM 에서도 동작). */
+function MapLoadingOverlay() {
+  const { active, progress, loaded, total, item } = useProgress();
+  const [visible, setVisible] = useState(true);
+  const hadActivity = useRef(false);
+
+  useEffect(() => { if (active) hadActivity.current = true; }, [active]);
+
+  // 로딩 활동이 있었고 끝났으면 잠깐 뒤 숨김
+  useEffect(() => {
+    if (hadActivity.current && !active) {
+      const t = setTimeout(() => setVisible(false), 400);
+      return () => clearTimeout(t);
+    }
+  }, [active]);
+
+  // 안전장치: 로드할 게 없으면(캐시/빈 맵) 1.5초 뒤 숨김, 그래도 안 끝나면 최대 12초 하드컷
+  useEffect(() => {
+    const t1 = setTimeout(() => { if (!hadActivity.current) setVisible(false); }, 1500);
+    const t2 = setTimeout(() => setVisible(false), 12000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+
+  if (!visible) return null;
+  const pct = Math.min(100, Math.round(progress));
+  const fileName = item ? (item.split('/').pop() || '').split('?')[0] : '';
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'radial-gradient(circle at 50% 38%, #16213e, #0a0f1e)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16,
+      color: '#fff', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif",
+    }}>
+      <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.5 }}>맵 불러오는 중…</div>
+      <div style={{ width: 'min(320px, 72vw)', height: 10, background: 'rgba(255,255,255,0.12)', borderRadius: 6, overflow: 'hidden', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg,#6366f1,#22d3ee)', borderRadius: 6, transition: 'width 0.2s ease' }} />
+      </div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#a5b4fc' }}>{pct}%</div>
+      <div style={{ fontSize: 11, opacity: 0.55, maxWidth: '80vw', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {total > 0 ? `${loaded} / ${total}` : ''}{fileName ? ` · ${fileName}` : ''}
+      </div>
+    </div>
+  );
 }
 
 /* ── 모바일 터치 상태 싱글톤 ─────────────────────────────────────
@@ -3031,6 +3078,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           </Physics>
         </Suspense>
       </Canvas>
+      <MapLoadingOverlay />
     </>
   );
 }
