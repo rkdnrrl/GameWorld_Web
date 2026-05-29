@@ -67,6 +67,27 @@ function disposeMat(mat: THREE.MeshStandardMaterial) {
   mat.map?.dispose(); mat.normalMap?.dispose(); mat.roughnessMap?.dispose(); mat.dispose();
 }
 
+/** 외부 모델(GLB/FBX) 머티리얼 보정 — 검정/투명하게 나오는 문제 해결.
+ *  - 정점 색(vertex color) 속성이 있으면 켠다 (Quaternius 류 저폴리 모델의 색 표현).
+ *  - 알파 블렌드인데 불투명도 1 인 머티리얼(잎/풀 컷아웃)은 alphaTest + 양면으로 바꿔
+ *    통째로 투명하게 사라지는 것 방지. (불투명도 < 1 인 진짜 반투명(유리)은 그대로 둠) */
+function fixModelMaterials(mesh: THREE.Mesh) {
+  const hasVColor = !!mesh.geometry?.getAttribute?.('color');
+  const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  mats.forEach(m => {
+    const mat = m as THREE.MeshStandardMaterial;
+    if (!mat) return;
+    if (hasVColor && !mat.vertexColors) mat.vertexColors = true;
+    if (mat.transparent && (mat.opacity ?? 1) >= 0.99) {
+      mat.transparent = false;
+      mat.alphaTest = 0.5;
+      mat.side = THREE.DoubleSide;
+      mat.depthWrite = true;
+    }
+    mat.needsUpdate = true;
+  });
+}
+
 /* ── TransformControls 기즈모 핸들 hover/drag 상태 (전역 가드) ──
    화살표/링 위에 마우스가 있을 땐 그 뒤의 메시가 선택되지 않도록 막는 용도
 */
@@ -983,6 +1004,8 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }:
           const m = c as THREE.Mesh;
           if (m.isMesh) {
             m.castShadow = true;
+            m.receiveShadow = true;
+            fixModelMaterials(m);
             origMap.set(m, m.material);
           }
         });

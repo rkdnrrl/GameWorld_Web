@@ -1824,6 +1824,25 @@ function disposeMaterial(mat: THREE.MeshStandardMaterial) {
   mat.dispose();
 }
 
+/** 외부 모델(GLB/FBX) 머티리얼 보정 — 스튜디오와 동일.
+ *  정점색 켜기 + 알파 컷아웃(잎/풀이 투명하게 사라지는 것 방지) + 양면. */
+function fixModelMaterials(mesh: THREE.Mesh) {
+  const hasVColor = !!mesh.geometry?.getAttribute?.('color');
+  const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  mats.forEach(m => {
+    const mat = m as THREE.MeshStandardMaterial;
+    if (!mat) return;
+    if (hasVColor && !mat.vertexColors) mat.vertexColors = true;
+    if (mat.transparent && (mat.opacity ?? 1) >= 0.99) {
+      mat.transparent = false;
+      mat.alphaTest = 0.5;
+      mat.side = THREE.DoubleSide;
+      mat.depthWrite = true;
+    }
+    mat.needsUpdate = true;
+  });
+}
+
 /* 계층(부모) 변환을 합성해 오브젝트의 월드 TRS 계산.
    플레이 모드는 물리 바디라 부모 중첩이 안 되므로, 정적 자식의 월드 스케일/위치/회전을
    여기서 미리 구워(bake) 렌더한다. (부모가 스케일된 경우 자식이 얇게 나오던 버그 수정) */
@@ -1969,6 +1988,8 @@ function UserAsset({ url, matObj }: { url: string; matObj: UserMapObject }) {
           const m = c as THREE.Mesh;
           if (m.isMesh) {
             m.castShadow = true;
+            m.receiveShadow = true;
+            fixModelMaterials(m);
             originalMats.current.set(m, m.material);
           }
         });

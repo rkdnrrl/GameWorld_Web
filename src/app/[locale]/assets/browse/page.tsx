@@ -229,12 +229,9 @@ export default function AssetBrowsePage() {
 
       <div style={{ minHeight: '100vh', background: '#0f172a', color: '#fff', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif" }}>
         {/* 헤더 */}
-        <div style={{ padding: '20px 32px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 26 }}>🛒</span>
-          <div style={{ flex: 1 }}>
-            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>{t('marketTitle')}</h1>
-            <p style={{ margin: 0, fontSize: 13, opacity: 0.5 }}>{t('marketSubtitle')}</p>
-          </div>
+        <div style={{ padding: '14px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 22 }}>🛒</span>
+          <h1 style={{ margin: 0, fontSize: 17, fontWeight: 800, flex: 1 }}>{t('marketTitle')}</h1>
           <Link href="/assets/following" style={{
             fontSize: 12, color: '#a5b4fc', textDecoration: 'none',
             padding: '7px 14px', background: 'rgba(99,102,241,0.18)', borderRadius: 8,
@@ -249,7 +246,7 @@ export default function AssetBrowsePage() {
           </Link>
         </div>
 
-        <div style={{ maxWidth: 1400, margin: '0 auto', padding: '20px 32px' }}>
+        <div style={{ maxWidth: 1680, margin: '0 auto', padding: '16px 24px 48px' }}>
           {/* 탭 */}
           <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
             <TabBtn active={tab === 'assets'} onClick={() => setQuery({ tab: null })}>
@@ -342,7 +339,7 @@ export default function AssetBrowsePage() {
                   {t('marketEmpty')}
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(148px, 1fr))', gap: 12 }}>
                   {assets.map(a => (
                     <AssetMarketCard
                       key={a.id}
@@ -385,7 +382,7 @@ export default function AssetBrowsePage() {
                   {t('packMarketEmpty')}
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
                   {packs.map(p => (
                     <PackCard
                       key={p.id}
