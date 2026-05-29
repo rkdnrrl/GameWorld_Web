@@ -534,6 +534,7 @@ function LuaUpdateLoop({
   playerId,
   remoteGrabbedByRef,
   allObjectsRef,
+  lightRefs,
 }: {
   luaScripts: React.MutableRefObject<Map<string, import('@/lib/world/jsRuntime').JsScript>>;
   componentScripts: React.MutableRefObject<Map<string, Array<{ vm: import('@/lib/world/jsRuntime').JsScript; key: string }>>>;
