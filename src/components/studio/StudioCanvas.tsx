@@ -1121,9 +1121,11 @@ function SpotLightWithTarget({ color, intensity, distance, angle, penumbra, cast
 }
 
 /* ── 씬 노드 (부모→자식 재귀 렌더링) ─────── */
-function SceneNode({ obj, allObjects, selectedId, multiSelectedIds, onObjectClick, myAssets }: {
+function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onObjectClick, myAssets }: {
   obj: MapObject;
-  allObjects: MapObject[];
+  wpos: [number, number, number];
+  wrot: [number, number, number];
+  wscale: [number, number, number];
   selectedId: string | null;
   multiSelectedIds: Set<string>;
   onObjectClick: (id: string) => void;
@@ -1131,14 +1133,13 @@ function SceneNode({ obj, allObjects, selectedId, multiSelectedIds, onObjectClic
   myAssets: any[];
 }) {
   const isSelected = obj.id === selectedId || multiSelectedIds.has(obj.id);
-  // 자식 중 spawn 은 루트 레벨에서 평탄 렌더되므로 여기서 제외 (중복 렌더 방지).
-  // 조명은 nest 해서 부모 transform 자동 상속 (EDIT 모드 한정 — sim/world 는 propagation 으로 처리).
-  const children = allObjects.filter(c => c.parentId === obj.id && c.kind !== 'spawn');
+  // 평탄(flat) 렌더 — 각 오브젝트를 자기 "월드 TRS" 로 직접 렌더. 중첩 group 을 안 쓰므로
+  // 비균등 스케일 부모 밑 자식이 회전해도 전단(shear)이 생기지 않음 (sim/world 와 동일 방식).
 
-  // 조명 오브젝트
+  // 조명 오브젝트 (스케일 무시)
   if (obj.kind === 'pointlight' || obj.kind === 'spotlight' || obj.kind === 'dirlight') {
     return (
-      <group position={obj.position} rotation={obj.rotation} scale={[1, 1, 1]} userData={{ id: obj.id }}>
+      <group position={wpos} rotation={wrot} scale={[1, 1, 1]} userData={{ id: obj.id }}>
         {obj.kind === 'dirlight' && (
           <directionalLight
             color={obj.lightColor || '#ffffff'}
@@ -1173,11 +1174,6 @@ function SceneNode({ obj, allObjects, selectedId, multiSelectedIds, onObjectClic
           />
         )}
         <LightGizmo obj={obj} selected={isSelected} onClick={() => onObjectClick(obj.id)} />
-        {children.map(child => (
-          <SceneNode key={child.id} obj={child} allObjects={allObjects}
-            selectedId={selectedId} multiSelectedIds={multiSelectedIds}
-            onObjectClick={onObjectClick} myAssets={myAssets} />
-        ))}
       </group>
     );
   }
@@ -1189,20 +1185,15 @@ function SceneNode({ obj, allObjects, selectedId, multiSelectedIds, onObjectClic
     : undefined;
 
   return (
-    /* userData.id는 이 group에 → TransformControls이 이 group을 조작 → 자식도 함께 이동 */
-    <group position={obj.position} rotation={obj.rotation} scale={obj.scale} userData={{ id: obj.id }}>
+    /* userData.id는 이 group에 → TransformControls이 이 group(월드 TRS)을 조작 */
+    <group position={wpos} rotation={wrot} scale={wscale} userData={{ id: obj.id }}>
       <Mesh3D obj={obj} selected={isSelected} onClick={() => onObjectClick(obj.id)} assetConfig={assetConfig} noTransform />
-      {children.map(child => (
-        <SceneNode key={child.id} obj={child} allObjects={allObjects}
-          selectedId={selectedId} multiSelectedIds={multiSelectedIds}
-          onObjectClick={onObjectClick} myAssets={myAssets} />
-      ))}
     </group>
   );
 }
 
 /* ── 씬 목록 노드 (UI 계층 트리) ──────────── */
-function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, editingLabelId, editingLabelValue, setEditingLabelId, setEditingLabelValue, setObjects, selectedCallback, pushHistory, onReparent, onReorder, onFocusObject, onContextMenu }: {
+function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, editingLabelId, editingLabelValue, setEditingLabelId, setEditingLabelValue, setObjects, selectedCallback, pushHistory, onReparent, onReorder, dragActive, onFocusObject, onContextMenu }: {
   obj: MapObject;
   allObjects: MapObject[];
   depth: number;
@@ -1217,6 +1208,7 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
   pushHistory: (objs: MapObject[]) => void;
   onReparent: (childId: string, newParentId: string | null) => void;
   onReorder: (draggedId: string, targetId: string, pos: 'before' | 'after') => void;
+  dragActive: boolean;
   onFocusObject: (id: string) => void;
   onContextMenu: (objId: string, x: number, y: number) => void;
 }) {
@@ -1230,7 +1222,8 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
 
   return (
     <div>
-      {/* 순서 변경 드롭존 — 이 노드 "위"에 떨어뜨리면 형제로 앞에 삽입 (target 이 루트면 루트로 빼냄) */}
+      {/* 순서 변경 드롭존 — 이 노드 "위"에 떨어뜨리면 형제로 앞에 삽입 (target 이 루트면 루트로 빼냄).
+          드래그 중엔 옅은 선으로 위치 표시, 호버 시 굵은 초록선. */}
       <div
         onDragOver={e => { e.preventDefault(); e.stopPropagation(); setInsertBefore(true); }}
         onDragLeave={() => setInsertBefore(false)}
@@ -1239,8 +1232,15 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
           const id = e.dataTransfer.getData('sceneObjId');
           if (id && id !== obj.id) onReorder(id, obj.id, 'before');
         }}
-        style={{ height: 6, margin: '-3px 0', borderRadius: 2, background: insertBefore ? '#34d399' : 'transparent' }}
-      />
+        style={{ height: 12, margin: '-6px 0', display: 'flex', alignItems: 'center', position: 'relative', zIndex: 2, pointerEvents: dragActive ? 'auto' : 'none' }}
+      >
+        <div style={{
+          height: insertBefore ? 4 : 2, width: '100%', borderRadius: 2,
+          marginLeft: depth * 14, transition: 'all 0.08s',
+          background: insertBefore ? '#34d399' : (dragActive ? 'rgba(52,211,153,0.3)' : 'transparent'),
+          boxShadow: insertBefore ? '0 0 6px rgba(52,211,153,0.8)' : 'none',
+        }} />
+      </div>
       <div
         draggable
         onDragStart={e => { e.dataTransfer.setData('sceneObjId', obj.id); e.dataTransfer.effectAllowed = 'move'; }}
@@ -1309,6 +1309,7 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
           setEditingLabelId={setEditingLabelId} setEditingLabelValue={setEditingLabelValue}
           setObjects={setObjects} selectedCallback={selectedCallback}
           pushHistory={pushHistory} onReparent={onReparent} onReorder={onReorder}
+          dragActive={dragActive}
           onFocusObject={onFocusObject} onContextMenu={onContextMenu} />
       ))}
     </div>
@@ -1962,10 +1963,11 @@ function SimScene({ objects, transforms, myAssets, player }: {
 }
 
 /* ── 변환 컨트롤 ──────────────────────────── */
-function SelectedTransform({ targetId, mode, onChange, onDragEnd, onDragStart, snapTranslate, snapRotate, snapScale }: {
+function SelectedTransform({ targetId, mode, onChange, toLocal, onDragEnd, onDragStart, snapTranslate, snapRotate, snapScale }: {
   targetId: string | null;
   mode: 'translate' | 'rotate' | 'scale';
   onChange: (id: string, t: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }) => void;
+  toLocal: (id: string, w: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }) => { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] };
   onDragEnd: () => void;
   onDragStart?: () => void;
   snapTranslate?: number | null;
@@ -2006,11 +2008,12 @@ function SelectedTransform({ targetId, mode, onChange, onDragEnd, onDragStart, s
       scaleSnap={snapScale ?? null}
       onObjectChange={() => {
         const o = target;
-        onChange(targetId!, {
+        // 평탄 렌더라 o 의 transform 은 월드 — 부모 기준 로컬로 변환해 저장
+        onChange(targetId!, toLocal(targetId!, {
           p: [o.position.x, o.position.y, o.position.z],
           r: [o.rotation.x, o.rotation.y, o.rotation.z],
           s: [o.scale.x,    o.scale.y,    o.scale.z],
-        });
+        }));
       }}
       onMouseDown={onDragStart}
       onMouseUp={onDragEnd}
@@ -2349,6 +2352,11 @@ export default function StudioCanvas() {
   const [assetCtxMenu, setAssetCtxMenu] = useState<{ x: number; y: number } | null>(null);
   // 씬 트리 우클릭 컨텍스트 메뉴 — objId=null 이면 빈 영역(추가), 있으면 노드(빼기/삭제)
   const [treeCtxMenu, setTreeCtxMenu] = useState<{ x: number; y: number; objId: string | null } | null>(null);
+  // 씬 트리 드래그 — 가장자리 자동 스크롤 + 순서 드롭존 표시
+  const treeScrollRef = useRef<HTMLDivElement | null>(null);
+  const treeScrollVel = useRef(0);
+  const treeScrollRAF = useRef<number | null>(null);
+  const [treeDragActive, setTreeDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [texPicker, setTexPicker] = useState<null | 'albedo' | 'normal' | 'roughness'>(null);
   const [dragOverTex, setDragOverTex] = useState<string | null>(null);
@@ -3276,6 +3284,34 @@ export default function StudioCanvas() {
     return local;
   }
 
+  // 평탄 렌더용 — 오브젝트의 월드 TRS 계산. spawn/empty 는 저장값이 곧 월드라 그대로.
+  function worldTRSFor(o: MapObject): { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] } {
+    if (!o.parentId || o.kind === 'spawn' || o.kind === 'empty') {
+      return { p: o.position, r: o.rotation, s: o.scale };
+    }
+    const m = computeWorldMatrix(o.id, objects);
+    const p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+    m.decompose(p, q, s);
+    const e = new THREE.Euler().setFromQuaternion(q, 'XYZ');
+    return { p: [p.x, p.y, p.z], r: [e.x, e.y, e.z], s: [s.x, s.y, s.z] };
+  }
+
+  // 기즈모가 만든 월드 TRS 를 부모 기준 로컬로 변환해 저장 (평탄 렌더라 기즈모는 월드를 만짐)
+  function worldTRSToLocal(id: string, w: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }): { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] } {
+    const obj = objects.find(o => o.id === id);
+    if (!obj || !obj.parentId || obj.kind === 'spawn' || obj.kind === 'empty') return w;
+    const worldMat = new THREE.Matrix4().compose(
+      new THREE.Vector3(w.p[0], w.p[1], w.p[2]),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(w.r[0], w.r[1], w.r[2], 'XYZ')),
+      new THREE.Vector3(w.s[0], w.s[1], w.s[2]),
+    );
+    const localMat = computeWorldMatrix(obj.parentId, objects).clone().invert().multiply(worldMat);
+    const lp = new THREE.Vector3(), lq = new THREE.Quaternion(), ls = new THREE.Vector3();
+    localMat.decompose(lp, lq, ls);
+    const le = new THREE.Euler().setFromQuaternion(lq, 'XYZ');
+    return { p: [lp.x, lp.y, lp.z], r: [le.x, le.y, le.z], s: [ls.x, ls.y, ls.z] };
+  }
+
   /**
    * 기즈모 드래그 끝나는 순간 — 옮긴 오브젝트의 world center 가 다른 오브젝트의
    * AABB 안에 들어가 있으면 자동으로 그 오브젝트의 자식으로 reparent.
@@ -3447,6 +3483,30 @@ export default function StudioCanvas() {
       return next;
     });
   }
+
+  // 트리 가장자리 자동 스크롤 — 드래그 중 위/아래 끝 근처면 목록을 굴림
+  const treeAutoScrollTick = () => {
+    const el = treeScrollRef.current;
+    if (el && treeScrollVel.current !== 0) el.scrollTop += treeScrollVel.current;
+    treeScrollRAF.current = requestAnimationFrame(treeAutoScrollTick);
+  };
+  const onTreeDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!treeDragActive) setTreeDragActive(true);
+    if (treeScrollRAF.current == null) treeScrollRAF.current = requestAnimationFrame(treeAutoScrollTick);
+    const el = treeScrollRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const edge = 52, maxV = 16, y = e.clientY;
+    if (y < r.top + edge)       treeScrollVel.current = -Math.ceil(((r.top + edge - y) / edge) * maxV);
+    else if (y > r.bottom - edge) treeScrollVel.current = Math.ceil(((y - (r.bottom - edge)) / edge) * maxV);
+    else treeScrollVel.current = 0;
+  };
+  const endTreeDrag = () => {
+    treeScrollVel.current = 0;
+    if (treeScrollRAF.current != null) { cancelAnimationFrame(treeScrollRAF.current); treeScrollRAF.current = null; }
+    if (treeDragActive) setTreeDragActive(false);
+  };
 
   function updateObjectTransform(id: string, t: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }) {
     const start = dragStartRef.current;
@@ -3756,8 +3816,11 @@ export default function StudioCanvas() {
           </div>
         </div>
         <div
-          onDragOver={e => { e.preventDefault(); }}
-          onDrop={e => { e.preventDefault(); const id = e.dataTransfer.getData('sceneObjId'); if (id) reparentObject(id, null); }}
+          ref={treeScrollRef}
+          onDragOverCapture={onTreeDragOver}
+          onDrop={e => { e.preventDefault(); endTreeDrag(); const id = e.dataTransfer.getData('sceneObjId'); if (id) reparentObject(id, null); }}
+          onDragEnd={endTreeDrag}
+          onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) endTreeDrag(); }}
           onContextMenu={e => { e.preventDefault(); setTreeCtxMenu({ x: e.clientX, y: e.clientY, objId: null }); }}
           style={{ overflowY: 'auto', flex: 1, padding: '0 8px 8px', display: 'flex', flexDirection: 'column', gap: 1 }}
         >
@@ -3794,6 +3857,7 @@ export default function StudioCanvas() {
                 setObjects={setObjects} pushHistory={pushHistory}
                 onReparent={reparentObject}
                 onReorder={reorderObject}
+                dragActive={treeDragActive}
                 onFocusObject={focusObject}
                 onContextMenu={(objId, x, y) => setTreeCtxMenu({ x, y, objId })}
                 selectedCallback={id => {
@@ -4604,27 +4668,31 @@ export default function StudioCanvas() {
           ) : (
             /* ── 편집 모드 ── */
             <>
-              {/* 루트 오브젝트 + spawn (parentId 있어도 평탄 — spawn 은 world 좌표 유지) */}
-              {objects.filter(o => !o.hidden && (!o.parentId || o.kind === 'spawn')).map(obj => (
-                <SceneNode key={obj.id} obj={obj}
-                  allObjects={objects.filter(o => !o.hidden)}
-                  selectedId={selectedId}
-                  multiSelectedIds={multiSelectedIds}
-                  myAssets={myAssets}
-                  onObjectClick={id => {
-                    if (shiftHeldRef.current) {
-                      shiftClickObject(id);
-                    } else {
-                      setStudioMode('scene');
-                      setMultiSelectedIds(new Set());
-                      setSelectedId(id);
-                    }
-                  }}
-                />
-              ))}
+              {/* 모든 오브젝트를 평탄 렌더 — 각자 월드 TRS 로. 부모 비균등 스케일에 의한 자식 전단 방지 */}
+              {objects.filter(o => !o.hidden).map(obj => {
+                const w = worldTRSFor(obj);
+                return (
+                  <SceneNode key={obj.id} obj={obj}
+                    wpos={w.p} wrot={w.r} wscale={w.s}
+                    selectedId={selectedId}
+                    multiSelectedIds={multiSelectedIds}
+                    myAssets={myAssets}
+                    onObjectClick={id => {
+                      if (shiftHeldRef.current) {
+                        shiftClickObject(id);
+                      } else {
+                        setStudioMode('scene');
+                        setMultiSelectedIds(new Set());
+                        setSelectedId(id);
+                      }
+                    }}
+                  />
+                );
+              })}
               <SelectedTransform
                 targetId={objects.find(o => o.id === selectedId)?.locked ? null : selectedId}
                 mode={mode}
+                toLocal={worldTRSToLocal}
                 onChange={updateObjectTransform}
                 onDragStart={onTransformDragStart}
                 onDragEnd={() => {
