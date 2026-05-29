@@ -1376,6 +1376,10 @@
     "exitFullscreen": "전체화면 종료",
     "settings": "설정",
     "display": "디스플레이",
+    "viewMode": "시점",
+    "firstPerson": "1인칭",
+    "thirdPerson": "3인칭",
+    "viewModeHint": "게임 중 V 키로도 전환 가능",
     "graphics": "그래픽",
     "escToToggle": "로 열기/닫기"
   },

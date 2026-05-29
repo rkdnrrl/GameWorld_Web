@@ -1,6 +1,6 @@
 'use client';
 import dynamic from 'next/dynamic';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from '@/i18n/navigation';
 import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -103,6 +103,16 @@ export default function WorldPage() {
   const [myWorlds, setMyWorlds] = useState<HubWorld[]>([]);
   const [publicWorlds, setPublicWorlds] = useState<HubWorld[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // 카메라 시점 (1인칭/3인칭) — 월드 설정에서 선택, localStorage 에 저장. WorldCanvas 의 V키 토글과 동기화.
+  const [cameraMode, setCameraMode] = useState<'first' | 'third'>('third');
+  useEffect(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('alp_world_cameraMode') : null;
+    if (saved === 'first' || saved === 'third') setCameraMode(saved);
+  }, []);
+  const changeCameraMode = useCallback((m: 'first' | 'third') => {
+    setCameraMode(m);
+    try { localStorage.setItem('alp_world_cameraMode', m); } catch { /* noop */ }
+  }, []);
   // VRChat 식 포탈 — WorldCanvas 가 등록하는 API + 열린 포탈 배너 + 맵 피커 포탈 모드
   const portalApiRef = useRef<{ open: (worldId: string, name: string) => void; close: () => void } | null>(null);
   const [portalPickMode, setPortalPickMode] = useState(false);
@@ -577,6 +587,8 @@ export default function WorldPage() {
         sendSceneRegister={sendSceneRegister}
         portalApiRef={portalApiRef}
         onPortalEnter={enterPortal}
+        cameraMode={cameraMode}
+        onCameraModeChange={changeCameraMode}
       />
 
       {/* 우상단 단일 설정 버튼 — 클릭 또는 ESC 로 통합 모달 오픈 */}
@@ -665,6 +677,28 @@ export default function WorldPage() {
                   >
                     {isFullscreen ? `⛶ ${t('exitFullscreen')}` : `⛶ ${t('enterFullscreen')}`}
                   </button>
+                </div>
+
+                {/* 시점 — 1인칭 / 3인칭 */}
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7, marginBottom: 10, letterSpacing: 0.4 }}>👁 {t('viewMode')}</div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {([['first', `👁 ${t('firstPerson')}`], ['third', `🎥 ${t('thirdPerson')}`]] as const).map(([m, label]) => (
+                      <button
+                        key={m}
+                        onClick={() => changeCameraMode(m)}
+                        style={{
+                          flex: 1,
+                          border: `1px solid ${cameraMode === m ? 'rgba(99,102,241,0.6)' : 'rgba(255,255,255,0.18)'}`,
+                          background: cameraMode === m ? 'rgba(99,102,241,0.25)' : 'rgba(255,255,255,0.06)',
+                          color: '#fff', borderRadius: 8, padding: '10px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 10, opacity: 0.45, marginTop: 6 }}>{t('viewModeHint')}</div>
                 </div>
 
                 {/* 허브 */}

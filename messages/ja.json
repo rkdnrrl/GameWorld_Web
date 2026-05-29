@@ -1376,6 +1376,10 @@
     "exitFullscreen": "全画面を終了",
     "settings": "設定",
     "display": "ディスプレイ",
+    "viewMode": "視点",
+    "firstPerson": "一人称",
+    "thirdPerson": "三人称",
+    "viewModeHint": "ゲーム中 V キーでも切替可能",
     "graphics": "グラフィック",
     "escToToggle": "で開閉"
   },

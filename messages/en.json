@@ -1376,6 +1376,10 @@
     "exitFullscreen": "Exit Fullscreen",
     "settings": "Settings",
     "display": "Display",
+    "viewMode": "View",
+    "firstPerson": "First-person",
+    "thirdPerson": "Third-person",
+    "viewModeHint": "Press V in-game to toggle too",
     "graphics": "Graphics",
     "escToToggle": "to toggle"
   },

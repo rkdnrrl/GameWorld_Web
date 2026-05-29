@@ -2148,6 +2148,9 @@ interface WorldCanvasProps {
   // 플레이어가 포탈에 닿으면 onPortalEnter(worldId) 호출 → 페이지가 그 월드로 이동.
   portalApiRef?: React.MutableRefObject<{ open: (worldId: string, name: string) => void; close: () => void } | null>;
   onPortalEnter?: (worldId: string) => void;
+  // 카메라 시점 — 페이지(월드 설정)가 제어. 없으면 내부 상태(기본 3인칭) 사용.
+  cameraMode?: CameraMode;
+  onCameraModeChange?: (m: CameraMode) => void;
 }
 
 /** 런타임 포탈 상태 — 플레이어 앞에 떠 있는 워프 게이트 */
@@ -2354,7 +2357,7 @@ function MobileControls({ inputLocked }: { inputLocked: boolean }) {
   );
 }
 
-export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId, sendObjClaim, sendObjRelease, objectOwnerRef, sendObjSpawn, sendObjDestroy, objSpawnRef, objDestroyRef, sendSceneRegister, portalApiRef, onPortalEnter }: WorldCanvasProps) {
+export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId, sendObjClaim, sendObjRelease, objectOwnerRef, sendObjSpawn, sendObjDestroy, objSpawnRef, objDestroyRef, sendSceneRegister, portalApiRef, onPortalEnter, cameraMode: cameraModeProp, onCameraModeChange }: WorldCanvasProps) {
   // ── VRChat 식 포탈 ──
   const [portal, setPortal] = useState<PortalState | null>(null);
   const portalRef = useRef<PortalState | null>(null);
@@ -3056,11 +3059,15 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     scriptComponentsLoaded,
   ]);
 
-  // 카메라 모드 (1인칭 / 3인칭) — V 키로 토글
-  const [cameraMode, setCameraMode] = useState<CameraMode>('third');
+  // 카메라 모드 (1인칭 / 3인칭) — V 키 토글 + 월드 설정에서 제어.
+  // 페이지가 cameraMode prop 을 주면 controlled, 없으면 내부 상태(기본 3인칭).
+  const [internalCameraMode, setInternalCameraMode] = useState<CameraMode>(cameraModeProp ?? 'third');
+  const cameraMode = cameraModeProp ?? internalCameraMode;
   const toggleCameraMode = useCallback(() => {
-    setCameraMode(m => m === 'first' ? 'third' : 'first');
-  }, []);
+    const next: CameraMode = cameraMode === 'first' ? 'third' : 'first';
+    if (onCameraModeChange) onCameraModeChange(next);
+    else setInternalCameraMode(next);
+  }, [cameraMode, onCameraModeChange]);
   // 1인칭 크로스헤어 UI state — Player 가 grab/aim 상태에 따라 호출
   const [crosshairState, setCrosshairState] = useState<'idle' | 'aim' | 'grab'>('idle');
 

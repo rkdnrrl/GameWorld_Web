@@ -1376,6 +1376,10 @@
     "exitFullscreen": "退出全屏",
     "settings": "设置",
     "display": "显示",
+    "viewMode": "视角",
+    "firstPerson": "第一人称",
+    "thirdPerson": "第三人称",
+    "viewModeHint": "游戏中按 V 键也可切换",
     "graphics": "图形",
     "escToToggle": "开关"
   },
