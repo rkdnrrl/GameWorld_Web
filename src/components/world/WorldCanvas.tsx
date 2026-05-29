@@ -1929,6 +1929,9 @@ function UserMapObjectMesh({ obj, scriptBodyRefs, world }: {
         Math.max(0.01, Number(colliderComp.props?.sizeZ ?? 1)) / 2,
       ]
     : null;
+  const colliderOffset: [number, number, number] = colliderComp
+    ? [Number(colliderComp.props?.offsetX ?? 0), Number(colliderComp.props?.offsetY ?? 0), Number(colliderComp.props?.offsetZ ?? 0)]
+    : [0, 0, 0];
   // 스크립트 있는 오브젝트는 ref를 registry에 등록
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bodyRef = useRef<any>(null);
@@ -1971,7 +1974,7 @@ function UserMapObjectMesh({ obj, scriptBodyRefs, world }: {
     }
     return (
       <RigidBody ref={bodyRef} type={bodyType} colliders={colliderArgs ? false : (physics === 'dynamic' ? 'hull' : 'trimesh')} position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }}>
-        {colliderArgs && <CuboidCollider args={colliderArgs} />}
+        {colliderArgs && <CuboidCollider args={colliderArgs} position={colliderOffset} />}
         <UserAsset url={obj.assetUrl} matObj={obj} />
       </RigidBody>
     );

@@ -68,11 +68,14 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     type: 'collider',
     name: 'Collider (충돌 박스)',
     icon: '🟩',
-    description: '명시적 박스 콜라이더. 크기를 직접 지정하거나 "자동 맞춤" 으로 오브젝트 경계에 맞춤. Physics 와 같이 쓰면 이 박스 모양으로 충돌하고, Physics 없이 단독이면 고정(fixed) 콜라이더가 된다. 크기는 오브젝트 로컬 단위(스케일 적용 전).',
+    description: '명시적 박스 콜라이더. 크기/위치를 직접 지정하거나 "자동 맞춤" 으로 오브젝트 경계에 맞춤. Physics 와 같이 쓰면 이 박스 모양으로 충돌하고, Physics 없이 단독이면 고정(fixed) 콜라이더가 된다. 크기·오프셋은 오브젝트 로컬 단위(스케일 적용 전).',
     props: [
       { key: 'sizeX', label: '크기 X', type: 'number', default: 1, min: 0.01, step: 0.1 },
       { key: 'sizeY', label: '크기 Y', type: 'number', default: 1, min: 0.01, step: 0.1 },
       { key: 'sizeZ', label: '크기 Z', type: 'number', default: 1, min: 0.01, step: 0.1 },
+      { key: 'offsetX', label: '오프셋 X', type: 'number', default: 0, step: 0.1 },
+      { key: 'offsetY', label: '오프셋 Y', type: 'number', default: 0, step: 0.1 },
+      { key: 'offsetZ', label: '오프셋 Z', type: 'number', default: 0, step: 0.1 },
     ],
   },
   {

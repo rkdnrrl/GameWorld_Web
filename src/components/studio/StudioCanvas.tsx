@@ -493,11 +493,24 @@ function ColliderCard({ instance, onRemove, onChange, onCommit, onAutoFit }: {
   const sx = Number(instance.props?.sizeX ?? 1);
   const sy = Number(instance.props?.sizeY ?? 1);
   const sz = Number(instance.props?.sizeZ ?? 1);
+  const ox = Number(instance.props?.offsetX ?? 0);
+  const oy = Number(instance.props?.offsetY ?? 0);
+  const oz = Number(instance.props?.offsetZ ?? 0);
   const fieldStyle: React.CSSProperties = { background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' };
   return (
     <ComponentCard icon="🟩" name="Collider (충돌 박스)" onRemove={onRemove}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, marginTop: 4 }}>
+      <div style={{ fontSize: 9, opacity: 0.5, marginTop: 4 }}>크기</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, marginTop: 2 }}>
         {([['sizeX', 'X', sx], ['sizeY', 'Y', sy], ['sizeZ', 'Z', sz]] as const).map(([key, label, val]) => (
+          <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, opacity: 0.75 }}>
+            {label}
+            <NumField value={val} onChange={n => onChange(key, n)} onCommit={onCommit} style={fieldStyle} />
+          </label>
+        ))}
+      </div>
+      <div style={{ fontSize: 9, opacity: 0.5, marginTop: 6 }}>오프셋 (위치)</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, marginTop: 2 }}>
+        {([['offsetX', 'X', ox], ['offsetY', 'Y', oy], ['offsetZ', 'Z', oz]] as const).map(([key, label, val]) => (
           <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, opacity: 0.75 }}>
             {label}
             <NumField value={val} onChange={n => onChange(key, n)} onCommit={onCommit} style={fieldStyle} />
@@ -506,7 +519,7 @@ function ColliderCard({ instance, onRemove, onChange, onCommit, onAutoFit }: {
       </div>
       <button type="button" onClick={onAutoFit}
         style={{ marginTop: 6, width: '100%', background: 'rgba(52,211,153,0.18)', border: '1px solid rgba(52,211,153,0.4)', color: '#6ee7b7', fontSize: 10, fontWeight: 700, padding: '4px', borderRadius: 5, cursor: 'pointer' }}>
-        📐 자동 맞춤 (오브젝트 크기에)
+        📐 자동 맞춤 (크기 + 위치)
       </button>
     </ComponentCard>
   );
@@ -1353,7 +1366,12 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
     <group position={wpos} rotation={wrot} scale={wscale} userData={{ id: obj.id }}>
       <Mesh3D obj={obj} selected={isSelected} onClick={() => onObjectClick(obj.id)} assetConfig={assetConfig} noTransform />
       {isSelected && colliderComp && (
-        <mesh userData={{ __collider: true }} raycast={() => null}>
+        <mesh userData={{ __collider: true }} raycast={() => null}
+          position={[
+            Number(colliderComp.props?.offsetX ?? 0),
+            Number(colliderComp.props?.offsetY ?? 0),
+            Number(colliderComp.props?.offsetZ ?? 0),
+          ]}>
           <boxGeometry args={[
             Math.max(0.01, Number(colliderComp.props?.sizeX ?? 1)),
             Math.max(0.01, Number(colliderComp.props?.sizeY ?? 1)),
@@ -1575,10 +1593,13 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs }: {
     const hx = Math.max(0.01, Number(colliderComp.props?.sizeX ?? 1)) / 2;
     const hy = Math.max(0.01, Number(colliderComp.props?.sizeY ?? 1)) / 2;
     const hz = Math.max(0.01, Number(colliderComp.props?.sizeZ ?? 1)) / 2;
+    const ox = Number(colliderComp.props?.offsetX ?? 0);
+    const oy = Number(colliderComp.props?.offsetY ?? 0);
+    const oz = Number(colliderComp.props?.offsetZ ?? 0);
     return (
       <RigidBody ref={bodyRef} type={bodyType} colliders={false}
         position={t.pos} rotation={t.rot} scale={t.scl}>
-        <CuboidCollider args={[hx, hy, hz]} />
+        <CuboidCollider args={[hx, hy, hz]} position={[ox, oy, oz]} />
         {mesh}
       </RigidBody>
     );
@@ -3531,6 +3552,7 @@ export default function StudioCanvas() {
   function colliderAutoFit(compIdx: number) {
     if (!selectedId) return;
     let size: [number, number, number] = [1, 1, 1];
+    let offset: [number, number, number] = [0, 0, 0];
     const scene = threeSceneRef.current;
     if (scene) {
       let group: THREE.Object3D | undefined;
@@ -3554,8 +3576,11 @@ export default function StudioCanvas() {
         });
         if (!box.isEmpty()) {
           const s = box.getSize(new THREE.Vector3());
-          const round = (v: number) => Math.max(0.01, Math.round(v * 1000) / 1000);
-          size = [round(s.x), round(s.y), round(s.z)];
+          const c = box.getCenter(new THREE.Vector3());
+          const r  = (v: number) => Math.round(v * 1000) / 1000;
+          const rs = (v: number) => Math.max(0.01, r(v));
+          size = [rs(s.x), rs(s.y), rs(s.z)];
+          offset = [r(c.x), r(c.y), r(c.z)]; // 지오메트리 중심 → 콜라이더가 메시에 정렬되도록
         }
       }
     }
@@ -3564,7 +3589,7 @@ export default function StudioCanvas() {
       const next = [...(o.components ?? [])];
       const cur = next[compIdx];
       if (!cur || cur.type !== 'collider') return o;
-      next[compIdx] = { ...cur, props: { ...(cur.props ?? {}), sizeX: size[0], sizeY: size[1], sizeZ: size[2] } };
+      next[compIdx] = { ...cur, props: { ...(cur.props ?? {}), sizeX: size[0], sizeY: size[1], sizeZ: size[2], offsetX: offset[0], offsetY: offset[1], offsetZ: offset[2] } };
       return { ...o, components: next };
     }));
     pushHistory(objects);
