@@ -811,6 +811,24 @@ function GraphicsApplier({ shadowSize, shadowFilter, shadowRadius }: {
   return null;
 }
 
+/* ── 그림자맵 업데이트 throttle ──
+   매 프레임 큰(예: 4096) 그림자맵을 다시 렌더하는 게 작은 뷰포트에선 화면 렌더보다 큰 부하.
+   autoUpdate 를 끄고 ~30Hz 로만 갱신 → 그림자 비용 절반, 체감 품질 차이 거의 없음. */
+function ShadowUpdateThrottle({ hz = 30 }: { hz?: number }) {
+  const { gl } = useThree();
+  const acc = useRef(0);
+  useEffect(() => {
+    gl.shadowMap.autoUpdate = false;
+    gl.shadowMap.needsUpdate = true;
+    return () => { gl.shadowMap.autoUpdate = true; };
+  }, [gl]);
+  useFrame((_, dt) => {
+    acc.current += dt;
+    if (acc.current >= 1 / hz) { acc.current = 0; gl.shadowMap.needsUpdate = true; }
+  });
+  return null;
+}
+
 /* ── 모바일 터치 상태 싱글톤 ─────────────────────────────────────
    Player(Canvas 내부)와 MobileControls(Canvas 외부)가 ref 없이 공유.
    Canvas 외부 DOM에서 렌더링해야 drei Html의 transform 스케일 문제를 피할 수 있음. */
@@ -2942,6 +2960,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           shadowFilter={graphics.shadowFilter}
           shadowRadius={graphics.shadowRadius}
         />
+        {/* 그림자맵을 매 프레임이 아니라 ~30Hz 로만 갱신 → 큰 그림자맵 렌더 부하 절감 */}
+        {shadowsEnabled && <ShadowUpdateThrottle hz={30} />}
         <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
 
         {showSky && !hdriBackground && <Sky sunPosition={[25, 10, 15]} turbidity={0.4} rayleigh={0.25} />}
