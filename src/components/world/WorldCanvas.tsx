@@ -550,6 +550,8 @@ function LuaUpdateLoop({
   remoteGrabbedByRef: React.MutableRefObject<Map<string, string>>;
   /** 전체 오브젝트 (customObjects + runtime) — parent transform propagation 용 */
   allObjectsRef: React.MutableRefObject<UserMapObject[]>;
+  /** 조명 ref — 부모 따라 움직일 때 light.position 직접 갱신 */
+  lightRefs: React.MutableRefObject<Map<string, THREE.Light>>;
 }) {
   useFrame((_, dt) => {
     worldElapsed.current += dt;
@@ -560,15 +562,15 @@ function LuaUpdateLoop({
     }
 
     // ── 부모 → 자식 transform propagation ──
-    // 각 부모의 현재 world transform 을 자식의 local transform 과 곱해서 자식의 body/group 갱신.
-    // lights/spawn 은 flat 렌더라 propagation 제외. dynamic body 자식은 물리가 소유라 제외.
+    // 각 부모의 현재 world transform 을 자식의 local transform 과 곱해서 자식의 body/group/light 갱신.
+    // spawn 은 flat 렌더라 제외. dynamic body 자식도 물리 소유라 제외.
     {
       const allObjects = allObjectsRef.current;
       if (allObjects && allObjects.length > 0) {
         const childrenOf = new Map<string, UserMapObject[]>();
         for (const obj of allObjects) {
           if (!obj.parentId) continue;
-          if (obj.kind === 'pointlight' || obj.kind === 'spotlight' || obj.kind === 'dirlight' || obj.kind === 'spawn') continue;
+          if (obj.kind === 'spawn') continue;
           if (!childrenOf.has(obj.parentId)) childrenOf.set(obj.parentId, []);
           childrenOf.get(obj.parentId)!.push(obj);
         }
@@ -588,18 +590,28 @@ function LuaUpdateLoop({
               const childWorld = parentWorld.clone().multiply(childLocal);
               childWorld.decompose(_tmpPos, _tmpQuat, _tmpScl);
 
-              const ref = scriptBodyRefs.current.get(child.id);
-              if (ref?.body.current) {
-                // dynamic 은 물리 소유라 건들지 않음
-                const bodyType = (ref.body.current as RapierBodyApi & { bodyType?: () => number }).bodyType?.();
-                if (bodyType !== 0) { // 0 = Dynamic in Rapier
-                  ref.body.current.setTranslation({ x: _tmpPos.x, y: _tmpPos.y, z: _tmpPos.z }, true);
-                  ref.body.current.setRotation({ x: _tmpQuat.x, y: _tmpQuat.y, z: _tmpQuat.z, w: _tmpQuat.w }, true);
+              // 조명이면 lightRefs 사용 (별도 ref 맵)
+              const isLight = child.kind === 'pointlight' || child.kind === 'spotlight' || child.kind === 'dirlight';
+              if (isLight) {
+                const lr = lightRefs.current.get(child.id);
+                if (lr) {
+                  lr.position.set(_tmpPos.x, _tmpPos.y, _tmpPos.z);
+                  lr.quaternion.set(_tmpQuat.x, _tmpQuat.y, _tmpQuat.z, _tmpQuat.w);
                 }
-              } else if (ref?.group.current) {
-                ref.group.current.position.set(_tmpPos.x, _tmpPos.y, _tmpPos.z);
-                ref.group.current.quaternion.set(_tmpQuat.x, _tmpQuat.y, _tmpQuat.z, _tmpQuat.w);
-                ref.group.current.scale.set(_tmpScl.x, _tmpScl.y, _tmpScl.z);
+              } else {
+                const ref = scriptBodyRefs.current.get(child.id);
+                if (ref?.body.current) {
+                  // dynamic 은 물리 소유라 건들지 않음
+                  const bodyType = (ref.body.current as RapierBodyApi & { bodyType?: () => number }).bodyType?.();
+                  if (bodyType !== 0) { // 0 = Dynamic in Rapier
+                    ref.body.current.setTranslation({ x: _tmpPos.x, y: _tmpPos.y, z: _tmpPos.z }, true);
+                    ref.body.current.setRotation({ x: _tmpQuat.x, y: _tmpQuat.y, z: _tmpQuat.z, w: _tmpQuat.w }, true);
+                  }
+                } else if (ref?.group.current) {
+                  ref.group.current.position.set(_tmpPos.x, _tmpPos.y, _tmpPos.z);
+                  ref.group.current.quaternion.set(_tmpQuat.x, _tmpQuat.y, _tmpQuat.z, _tmpQuat.w);
+                  ref.group.current.scale.set(_tmpScl.x, _tmpScl.y, _tmpScl.z);
+                }
               }
               // 손자도 재귀
               propagate(child.id, childWorld);
@@ -2875,6 +2887,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           playerId={playerId}
           remoteGrabbedByRef={remoteGrabbedByRef}
           allObjectsRef={allObjectsRef}
+          lightRefs={lightRefs}
         />
 
         <Suspense fallback={null}>

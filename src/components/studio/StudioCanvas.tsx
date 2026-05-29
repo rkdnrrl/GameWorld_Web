@@ -1038,12 +1038,9 @@ function SceneNode({ obj, allObjects, selectedId, multiSelectedIds, onObjectClic
   myAssets: any[];
 }) {
   const isSelected = obj.id === selectedId || multiSelectedIds.has(obj.id);
-  // 자식 중 lights/spawn 은 루트 레벨에서 평탄 렌더되므로 여기서 제외 (중복 렌더 방지)
-  const children = allObjects.filter(c =>
-    c.parentId === obj.id
-    && c.kind !== 'pointlight' && c.kind !== 'spotlight' && c.kind !== 'dirlight'
-    && c.kind !== 'spawn'
-  );
+  // 자식 중 spawn 은 루트 레벨에서 평탄 렌더되므로 여기서 제외 (중복 렌더 방지).
+  // 조명은 nest 해서 부모 transform 자동 상속 (EDIT 모드 한정 — sim/world 는 propagation 으로 처리).
+  const children = allObjects.filter(c => c.parentId === obj.id && c.kind !== 'spawn');
 
   // 조명 오브젝트
   if (obj.kind === 'pointlight' || obj.kind === 'spotlight' || obj.kind === 'dirlight') {
@@ -1312,7 +1309,7 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs }: {
  *  메인 스크립트 + user 컴포넌트 VM 둘 다 dispatch. */
 function SimScriptLoop({
   luaScripts, componentScripts, worldElapsed,
-  allObjectsRef, scriptBodyRefs,
+  allObjectsRef, scriptBodyRefs, lightRefs,
 }: {
   luaScripts: React.MutableRefObject<Map<string, import('@/lib/world/jsRuntime').JsScript>>;
   componentScripts: React.MutableRefObject<Map<string, Array<{ vm: import('@/lib/world/jsRuntime').JsScript }>>>;
@@ -1320,6 +1317,7 @@ function SimScriptLoop({
   /** 전체 오브젝트 (saved + runtime) — parent transform propagation 용 */
   allObjectsRef: React.MutableRefObject<MapObject[]>;
   scriptBodyRefs: React.MutableRefObject<Map<string, SimBodyRefs>>;
+  lightRefs: React.MutableRefObject<Map<string, THREE.Light>>;
 }) {
   useFrame((_, dt) => {
     worldElapsed.current += dt;
@@ -1328,13 +1326,13 @@ function SimScriptLoop({
       for (const { vm } of arr) vm.callUpdate(dt);
     }
 
-    // 부모 → 자식 transform propagation. lights/spawn 제외, dynamic body 자식 제외.
+    // 부모 → 자식 transform propagation. spawn 제외, dynamic body 자식 제외. lights 는 lightRefs 갱신.
     const all = allObjectsRef.current;
     if (!all || all.length === 0) return;
     const childrenOf = new Map<string, MapObject[]>();
     for (const obj of all) {
       if (!obj.parentId) continue;
-      if (obj.kind === 'pointlight' || obj.kind === 'spotlight' || obj.kind === 'dirlight' || obj.kind === 'spawn') continue;
+      if (obj.kind === 'spawn') continue;
       if (!childrenOf.has(obj.parentId)) childrenOf.set(obj.parentId, []);
       childrenOf.get(obj.parentId)!.push(obj);
     }
@@ -1351,18 +1349,27 @@ function SimScriptLoop({
         );
         const childWorld = parentWorld.clone().multiply(childLocal);
         childWorld.decompose(_p, _q, _s);
-        const ref = scriptBodyRefs.current.get(child.id);
-        if (ref?.body.current) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const bodyType = (ref.body.current as any).bodyType?.();
-          if (bodyType !== 0) { // Dynamic 제외
-            ref.body.current.setTranslation({ x: _p.x, y: _p.y, z: _p.z }, true);
-            ref.body.current.setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w }, true);
+        const isLight = child.kind === 'pointlight' || child.kind === 'spotlight' || child.kind === 'dirlight';
+        if (isLight) {
+          const lr = lightRefs.current.get(child.id);
+          if (lr) {
+            lr.position.set(_p.x, _p.y, _p.z);
+            lr.quaternion.set(_q.x, _q.y, _q.z, _q.w);
           }
-        } else if (ref?.group.current) {
-          ref.group.current.position.set(_p.x, _p.y, _p.z);
-          ref.group.current.quaternion.set(_q.x, _q.y, _q.z, _q.w);
-          ref.group.current.scale.set(_s.x, _s.y, _s.z);
+        } else {
+          const ref = scriptBodyRefs.current.get(child.id);
+          if (ref?.body.current) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const bodyType = (ref.body.current as any).bodyType?.();
+            if (bodyType !== 0) { // Dynamic 제외
+              ref.body.current.setTranslation({ x: _p.x, y: _p.y, z: _p.z }, true);
+              ref.body.current.setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w }, true);
+            }
+          } else if (ref?.group.current) {
+            ref.group.current.position.set(_p.x, _p.y, _p.z);
+            ref.group.current.quaternion.set(_q.x, _q.y, _q.z, _q.w);
+            ref.group.current.scale.set(_s.x, _s.y, _s.z);
+          }
         }
         propagate(child.id, childWorld);
       }
@@ -1777,7 +1784,7 @@ function SimScene({ objects, transforms, myAssets }: {
   return (
     <>
       <SimScriptLoop luaScripts={luaScripts} componentScripts={componentScripts} worldElapsed={worldElapsed}
-        allObjectsRef={allObjectsRef} scriptBodyRefs={scriptBodyRefs} />
+        allObjectsRef={allObjectsRef} scriptBodyRefs={scriptBodyRefs} lightRefs={lightRefs} />
       {allObjects.map(obj => (
         <SimObject key={obj.id} obj={obj} transforms={transforms}
           myAssets={myAssets} scriptBodyRefs={scriptBodyRefs} lightRefs={lightRefs} />
@@ -3031,12 +3038,8 @@ export default function StudioCanvas() {
     const child = objects.find(o => o.id === childId);
     if (!child) return;
 
-    // 조명/스폰은 hierarchical transform 무의미 (월드/시뮬에서 평탄 렌더됨).
-    // position 변환하면 월드에서 0,0 근처로 떨어지는 버그 → parentId 만 변경, position world 유지.
-    const isFlatRendered = child.kind === 'pointlight' || child.kind === 'spotlight' || child.kind === 'dirlight' || child.kind === 'spawn';
-
-    if (isFlatRendered) {
-      // 현재 world position 유지. parentId 만 변경 (UI 트리 정리 목적).
+    // spawn 은 hierarchical transform 무의미 — parentId 만 변경, world position 유지.
+    if (child.kind === 'spawn') {
       const worldMat = computeWorldMatrix(childId, objects);
       const wp = new THREE.Vector3();
       const wq = new THREE.Quaternion();
@@ -3049,7 +3052,6 @@ export default function StudioCanvas() {
           parentId: newParentId ?? undefined,
           position: [wp.x, wp.y, wp.z] as [number,number,number],
           rotation: [we.x, we.y, we.z] as [number,number,number],
-          // scale 도 world (lights 는 1,1,1 유지)
           scale:    [ws.x, ws.y, ws.z] as [number,number,number],
         } : o);
         pushHistory(next);
@@ -3058,7 +3060,7 @@ export default function StudioCanvas() {
       return;
     }
 
-    // 일반 오브젝트 — 부모 공간 local 로 변환 (Three.js hierarchical transform 활용)
+    // 일반 오브젝트 + 조명 — 부모 공간 local 로 변환 (propagation 으로 부모 따라감)
     const childWorld = computeWorldMatrix(childId, objects);
     let localMat = childWorld.clone();
     if (newParentId) {
@@ -4168,13 +4170,8 @@ export default function StudioCanvas() {
           ) : (
             /* ── 편집 모드 ── */
             <>
-              {/* 루트 오브젝트 + 조명/스폰 (parentId 있어도 평탄 렌더 — hierarchical transform 무시).
-                  reparent 시 lights/spawn 은 position 을 world 로 유지하므로 평탄 렌더가 맞음. */}
-              {objects.filter(o => !o.hidden && (
-                !o.parentId
-                || o.kind === 'pointlight' || o.kind === 'spotlight' || o.kind === 'dirlight'
-                || o.kind === 'spawn'
-              )).map(obj => (
+              {/* 루트 오브젝트 + spawn (parentId 있어도 평탄 — spawn 은 world 좌표 유지) */}
+              {objects.filter(o => !o.hidden && (!o.parentId || o.kind === 'spawn')).map(obj => (
                 <SceneNode key={obj.id} obj={obj}
                   allObjects={objects.filter(o => !o.hidden)}
                   selectedId={selectedId}
