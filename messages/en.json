@@ -1298,7 +1298,9 @@
     "deleteFolderWithAssets": "Deleting \"{folder}\" will also permanently delete {count} asset(s) inside.\n\nContinue?",
     "deleteFolderEmpty": "Delete folder \"{folder}\"?",
     "mobileDup": "Duplicate",
-    "mobileDel": "Delete"
+    "mobileDel": "Delete",
+    "fullscreenEnter": "Fullscreen",
+    "fullscreenExit": "Exit fullscreen"
   },
   "Worlds": {
     "title": "Worlds",

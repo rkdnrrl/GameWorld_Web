@@ -2210,6 +2210,7 @@ export default function StudioCanvas() {
   const [dragOverTex, setDragOverTex] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const orbitRef = useRef<OrbitRef | null>(null);
   // 그리드 스냅
   const [snapEnabled, setSnapEnabled] = useState(false);
@@ -2463,6 +2464,24 @@ export default function StudioCanvas() {
       mql?.removeEventListener?.('change', check);
     };
   }, []);
+
+  // 전체화면 상태 동기화
+  useEffect(() => {
+    const sync = () => setIsFullscreen(!!document.fullscreenElement);
+    sync();
+    document.addEventListener('fullscreenchange', sync);
+    return () => document.removeEventListener('fullscreenchange', sync);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch { /* 일부 브라우저(iOS Safari)는 미지원 — 무시 */ }
+  };
 
   // KIND_LABELS / KIND_ICONS — 모듈 상단으로 이동됨
 
@@ -4495,6 +4514,25 @@ export default function StudioCanvas() {
               {t('emptyHint')}
             </div>
           </div>
+        )}
+
+        {/* 전체화면 토글 — 모바일 전용 (뷰포트 우상단) */}
+        {isMobile && (
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            title={isFullscreen ? t('fullscreenExit') : t('fullscreenEnter')}
+            style={{
+              position: 'absolute', top: 12, right: 12, zIndex: 218,
+              width: 40, height: 40, borderRadius: 10,
+              border: '1px solid rgba(255,255,255,0.18)',
+              background: 'rgba(2,6,23,0.78)', color: '#fff',
+              fontSize: 18, fontWeight: 700, backdropFilter: 'blur(8px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            {isFullscreen ? '🡼' : '⛶'}
+          </button>
         )}
 
         {/* 마퀴 셀렉션 사각형 */}

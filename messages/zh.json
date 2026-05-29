@@ -1298,7 +1298,9 @@
     "deleteFolderWithAssets": "删除 \"{folder}\" 将永久删除其中的 {count} 个资源。\n\n继续吗？",
     "deleteFolderEmpty": "删除文件夹 \"{folder}\"?",
     "mobileDup": "复制",
-    "mobileDel": "删除"
+    "mobileDel": "删除",
+    "fullscreenEnter": "全屏",
+    "fullscreenExit": "退出全屏"
   },
   "Worlds": {
     "title": "世界",

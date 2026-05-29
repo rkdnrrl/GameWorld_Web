@@ -1298,7 +1298,9 @@
     "deleteFolderWithAssets": "「{folder}」フォルダを削除すると、中の {count} 個のアセットも完全に削除されます。\n\n続行しますか？",
     "deleteFolderEmpty": "フォルダ「{folder}」を削除しますか？",
     "mobileDup": "複製",
-    "mobileDel": "削除"
+    "mobileDel": "削除",
+    "fullscreenEnter": "全画面",
+    "fullscreenExit": "全画面終了"
   },
   "Worlds": {
     "title": "ワールド",
