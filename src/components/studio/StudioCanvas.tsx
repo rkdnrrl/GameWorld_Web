@@ -83,6 +83,11 @@ function fixModelMaterials(mesh: THREE.Mesh) {
     const mat = m as THREE.MeshStandardMaterial;
     if (!mat) return;
     if (hasVColor && !mat.vertexColors) mat.vertexColors = true;
+    // colormap 텍스처가 linear 로 잡혀 어둡게 나오는 것 보정 → sRGB
+    if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
+    if (mat.emissiveMap) mat.emissiveMap.colorSpace = THREE.SRGBColorSpace;
+    // 텍스처가 있는데 베이스색이 너무 어두우면(검게 곱해짐) 흰색으로
+    if (mat.map && mat.color && mat.color.getHex() < 0x202020) mat.color.set('#ffffff');
     if (mat.transparent && (mat.opacity ?? 1) >= 0.99) {
       mat.transparent = false;
       mat.alphaTest = 0.5;

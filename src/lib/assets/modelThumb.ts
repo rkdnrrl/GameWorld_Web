@@ -112,18 +112,22 @@ async function renderThumb(url: string, config?: MaterialConfig | null): Promise
         mesh.material = built;
         return;
       }
-      // 원본 유지 — 정점색이 있으면 켜고(검게 나오지 않게 흰 베이스)
+      // 원본 유지 — 텍스처 colorSpace 보정 + 정점색 처리
       const hasVColor = !!mesh.geometry?.getAttribute?.('color');
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       mats.forEach(mt => {
-        const sm = mt as THREE.MeshStandardMaterial;
+        const sm = mt as THREE.MeshStandardMaterial & { emissiveMap?: THREE.Texture | null };
         if (!sm) return;
+        // FBXLoader 가 colormap 텍스처를 linear 로 잡아 어둡게 나오는 것 보정 → sRGB
+        if (sm.map) { sm.map.colorSpace = THREE.SRGBColorSpace; }
+        if (sm.emissiveMap) { sm.emissiveMap.colorSpace = THREE.SRGBColorSpace; }
+        // 텍스처가 있는데 베이스색이 어두우면(검게 곱해짐) 흰색으로 — 텍스처 색이 그대로 보이게
+        if (sm.map && sm.color && sm.color.getHex() < 0x202020) sm.color.set('#ffffff');
         if (hasVColor && !sm.vertexColors) {
           sm.vertexColors = true;
-          // 텍스처 없고 베이스색이 어두우면 흰색으로 (정점색이 곱해져 검게 죽는 것 방지)
-          if (!sm.map && sm.color) sm.color.set('#ffffff');
-          sm.needsUpdate = true;
+          if (!sm.map && sm.color) sm.color.set('#ffffff'); // 정점색만 있는 경우
         }
+        sm.needsUpdate = true;
       });
     });
     sc.add(model);
