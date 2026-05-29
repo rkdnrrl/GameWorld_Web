@@ -549,20 +549,50 @@ const OBJ_FALL_RESET = 50;
 /* ── 단일 축 숫자 입력 ──
    모바일에서 음수(-)를 못 치던 문제 수정: type="text"(전체 키보드) + 로컬 문자열 상태로
    입력 도중의 "-", "-." 같은 미완성 값이 0으로 버려지지 않게 함. */
-function AxisField({ color, axis, value, onChange, onCommit }: {
+function AxisField({ color, axis, value, onChange, onCommit, step = 0.1 }: {
   color: string;
   axis: string;
   value: number;
   onChange: (value: number) => void;
   onCommit: () => void;
+  step?: number;
 }) {
   const [text, setText] = useState(String(value));
   const focused = useRef(false);
-  // 외부(기즈모 드래그·선택 변경)에서 값이 바뀌면 포커스 없을 때만 동기화
-  useEffect(() => { if (!focused.current) setText(String(value)); }, [value]);
+  const scrub = useRef<{ active: boolean; acc: number }>({ active: false, acc: 0 });
+  // 외부(기즈모 드래그·선택 변경)에서 값이 바뀌면 포커스/스크럽 중이 아닐 때만 동기화
+  useEffect(() => { if (!focused.current && !scrub.current.active) setText(String(value)); }, [value]);
+
+  // 유니티식 라벨 드래그 스크럽 — 좌우로 끌면 값 증감 (Shift = 정밀)
+  const onLabelDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    scrub.current = { active: true, acc: value };
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* noop */ }
+  };
+  const onLabelMove = (e: React.PointerEvent) => {
+    if (!scrub.current.active) return;
+    const sens = e.shiftKey ? step * 0.1 : step;
+    scrub.current.acc += e.movementX * sens;
+    const n = Math.round(scrub.current.acc * 1000) / 1000;
+    setText(String(n));
+    onChange(n);
+  };
+  const onLabelUp = (e: React.PointerEvent) => {
+    if (!scrub.current.active) return;
+    scrub.current.active = false;
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* noop */ }
+    onCommit();
+  };
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 3, background: 'rgba(0,0,0,0.3)', borderRadius: 4, padding: '2px 4px' }}>
-      <span style={{ color, fontSize: 10, fontWeight: 700, width: 10 }}>{axis}</span>
+      <span
+        onPointerDown={onLabelDown}
+        onPointerMove={onLabelMove}
+        onPointerUp={onLabelUp}
+        onPointerCancel={onLabelUp}
+        title="드래그하여 값 조절"
+        style={{ color, fontSize: 10, fontWeight: 700, width: 12, textAlign: 'center', cursor: 'ew-resize', userSelect: 'none', touchAction: 'none' }}>{axis}</span>
       <input
         type="text"
         inputMode="text"
@@ -593,7 +623,7 @@ function AxisField({ color, axis, value, onChange, onCommit }: {
 }
 
 /* ── X/Y/Z 숫자 입력 행 ──────────────────── */
-function AxisInputRow({ label, values, onChange, onCommit }: {
+function AxisInputRow({ label, values, step, onChange, onCommit }: {
   label: string;
   values: [number, number, number];
   step: number;
@@ -611,6 +641,7 @@ function AxisInputRow({ label, values, onChange, onCommit }: {
             axis={axis}
             color={['#f87171','#4ade80','#60a5fa'][i]}
             value={values[i]}
+            step={step}
             onChange={v => onChange(i, v)}
             onCommit={onCommit}
           />
@@ -622,20 +653,56 @@ function AxisInputRow({ label, values, onChange, onCommit }: {
 
 /* ── 음수 입력 가능한 단일 숫자 입력 ──
    AxisField 와 동일 원리: type="text"(모바일 전체 키보드) + 로컬 문자열 상태. */
-function NumField({ value, onChange, onCommit, style }: {
+function NumField({ value, onChange, onCommit, style, step = 0.1 }: {
   value: number;
   onChange: (n: number) => void;
   onCommit: () => void;
   style?: React.CSSProperties;
+  step?: number;
 }) {
   const [text, setText] = useState(String(value));
   const focused = useRef(false);
-  useEffect(() => { if (!focused.current) setText(String(value)); }, [value]);
+  // 필드 가로 드래그 = 값 스크럽 (유니티식). 클릭(이동 없음)은 평소처럼 타이핑.
+  const scrub = useRef<{ down: boolean; active: boolean; acc: number }>({ down: false, active: false, acc: 0 });
+  useEffect(() => { if (!focused.current && !scrub.current.active) setText(String(value)); }, [value]);
+
+  const onDown = (e: React.PointerEvent) => {
+    if (focused.current) return;               // 타이핑 중엔 스크럽 안 함
+    scrub.current = { down: true, active: false, acc: value };
+  };
+  const onMove = (e: React.PointerEvent) => {
+    const s = scrub.current;
+    if (!s.down) return;
+    if (!s.active) {
+      if (Math.abs(e.movementX) < 1) return;   // 살짝 움직임 무시 (클릭 보호)
+      s.active = true;
+      try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* noop */ }
+      (e.currentTarget as HTMLInputElement).blur();
+    }
+    const sens = e.shiftKey ? step * 0.1 : step;
+    s.acc += e.movementX * sens;
+    const n = Math.round(s.acc * 1000) / 1000;
+    setText(String(n));
+    onChange(n);
+  };
+  const onUp = (e: React.PointerEvent) => {
+    const s = scrub.current;
+    if (s.active) {
+      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* noop */ }
+      onCommit();
+    }
+    scrub.current = { down: false, active: false, acc: 0 };
+  };
+
   return (
     <input
       type="text"
       inputMode="text"
       value={text}
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerCancel={onUp}
       onFocus={() => { focused.current = true; }}
       onChange={e => {
         const v = e.target.value;
@@ -643,7 +710,12 @@ function NumField({ value, onChange, onCommit, style }: {
         const n = parseFloat(v);
         if (Number.isFinite(n)) onChange(n);
       }}
-      onBlur={() => { focused.current = false; if (!Number.isFinite(parseFloat(text))) setText(String(value)); onCommit(); }}
+      onBlur={() => {
+        focused.current = false;
+        if (scrub.current.active) return;       // 스크럽 시작 시의 blur는 commit 생략(중복 방지)
+        if (!Number.isFinite(parseFloat(text))) setText(String(value));
+        onCommit();
+      }}
       onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
       style={style}
     />
@@ -2251,7 +2323,7 @@ function SelectedTransform({ targetId, mode, onChange, toLocal, onDragEnd, onDra
    Shift: 가속 (3배)
    OrbitControls의 target도 함께 이동시켜 회전 피벗이 따라가게 함
 */
-function WasdFlyCamera({ orbitRef }: { orbitRef: React.MutableRefObject<OrbitRef | null> }) {
+function WasdFlyCamera({ orbitRef, rmbHeldRef }: { orbitRef: React.MutableRefObject<OrbitRef | null>; rmbHeldRef: React.MutableRefObject<boolean> }) {
   const { camera, gl } = useThree();
   const keysRef = useRef<Set<string>>(new Set());
 
@@ -2279,6 +2351,8 @@ function WasdFlyCamera({ orbitRef }: { orbitRef: React.MutableRefObject<OrbitRef
   const move  = useRef(new THREE.Vector3());
 
   useFrame((_, delta) => {
+    // 우클릭(RMB) 누른 동안만 카메라 비행 — 평소엔 W/E/R 이 도구 단축키로 동작 (유니티식)
+    if (!rmbHeldRef.current) return;
     const keys = keysRef.current;
     if (keys.size === 0) return;
     const speed = (keys.has('shift') ? 18 : 6) * delta;
@@ -2619,12 +2693,29 @@ export default function StudioCanvas() {
   const selRef = useRef<{ sel: string | null; multi: Set<string> }>({ sel: null, multi: new Set() });
   selRef.current = { sel: selectedId, multi: multiSelectedIds };
 
+  // 우클릭(RMB) 누름 상태 — 누른 동안만 WASD/QE 카메라 비행(유니티식). 평소엔 W/E/R = 도구 단축키.
+  const rmbHeldRef = useRef(false);
+
   useEffect(() => {
     const dn = (e: KeyboardEvent) => { if (e.key === 'Shift') shiftHeldRef.current = true; };
     const up = (e: KeyboardEvent) => { if (e.key === 'Shift') shiftHeldRef.current = false; };
+    const mdn = (e: MouseEvent) => { if (e.button === 2) rmbHeldRef.current = true; };
+    const mup = (e: MouseEvent) => { if (e.button === 2) rmbHeldRef.current = false; };
+    // 자가 보정 — 네이티브 컨텍스트 메뉴 등으로 mouseup 을 놓쳐도 buttons 비트로 RMB 상태 복구
+    const mmv = (e: MouseEvent) => { rmbHeldRef.current = (e.buttons & 2) === 2; };
+    const blur = () => { shiftHeldRef.current = false; rmbHeldRef.current = false; };
     window.addEventListener('keydown', dn);
     window.addEventListener('keyup', up);
-    return () => { window.removeEventListener('keydown', dn); window.removeEventListener('keyup', up); };
+    window.addEventListener('mousedown', mdn);
+    window.addEventListener('mouseup', mup);
+    window.addEventListener('mousemove', mmv);
+    window.addEventListener('blur', blur);
+    return () => {
+      window.removeEventListener('keydown', dn); window.removeEventListener('keyup', up);
+      window.removeEventListener('mousedown', mdn); window.removeEventListener('mouseup', mup);
+      window.removeEventListener('mousemove', mmv);
+      window.removeEventListener('blur', blur);
+    };
   }, []);
   // HDRI 환경
   type HdriPreset = 'none' | 'apartment' | 'city' | 'dawn' | 'forest' | 'lobby' | 'night' | 'park' | 'studio' | 'sunset' | 'warehouse';
@@ -2819,9 +2910,11 @@ export default function StudioCanvas() {
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       if (e.key === 'Delete' || e.key === 'Backspace') {
         deleteSelected(); // 선택된 전부(다중 포함) 삭제 — 아무것도 없으면 no-op
-      } else if (e.key === 'g') setMode('translate');
-      else if (e.key === 'r') setMode('rotate');
-      else if (e.key === 's') setMode('scale');
+      }
+      // 변환 도구 단축키 (유니티식 W=이동 E=회전 R=스케일). RMB 비행 중엔 무시(카메라 입력 우선).
+      else if (!rmbHeldRef.current && (e.key === 'w' || e.key === 'W')) setMode('translate');
+      else if (!rmbHeldRef.current && (e.key === 'e' || e.key === 'E')) setMode('rotate');
+      else if (!rmbHeldRef.current && (e.key === 'r' || e.key === 'R')) setMode('scale');
       else if ((e.key === 'f' || e.key === 'F') && selectedId) focusObject(selectedId);
     };
     window.addEventListener('keydown', onKey);
@@ -5031,7 +5124,7 @@ export default function StudioCanvas() {
               />
               <DraggingDetector setOrbitEnabled={setOrbitEnabled} />
               {/* 키보드/마우스 전용 카메라 — 데스크톱만. 모바일은 OrbitControls 터치로 대체 */}
-              {!isMobile && <WasdFlyCamera orbitRef={orbitRef} />}
+              {!isMobile && <WasdFlyCamera orbitRef={orbitRef} rmbHeldRef={rmbHeldRef} />}
               {!isMobile && <RightClickLook orbitRef={orbitRef} />}
             </>
           )}
@@ -5162,8 +5255,8 @@ export default function StudioCanvas() {
         {!isMobile && (
         <div style={{ position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', pointerEvents: 'none' }}>
           {[
-            ['G', '이동'], ['R', '회전'], ['S', '스케일'],
-            ['WASD', '카메라'], ['QE', '상승/하강'], ['Shift', '가속'],
+            ['W', '이동'], ['E', '회전'], ['R', '스케일'],
+            ['우클릭+WASD', '카메라'], ['우클릭+QE', '상승/하강'], ['Shift', '가속'],
             ['F', '포커스'], ['Ctrl+D', '복제'], ['Ctrl+Z', '실행취소'], ['Del', '삭제'],
           ].map(([key, desc]) => (
             <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(0,0,0,0.5)', borderRadius: 6, padding: '3px 7px', backdropFilter: 'blur(6px)' }}>
