@@ -844,6 +844,7 @@ export function Player({
   onGrabClaim,
   onGrabRelease,
   remoteGrabbedByRef,
+  cameraControlEnabled = true,
   spawnPos = [0, 4, 0],
   spawnRotY = 0,
 }: {
@@ -874,6 +875,8 @@ export function Player({
   onGrabRelease?: (objectId: string) => void;
   /** 다른 클라가 1인칭 grab 중인 오브젝트 — E 키 grab 시 충돌 방지 + steal 감지용 */
   remoteGrabbedByRef?: React.MutableRefObject<Map<string, string>>;
+  /** false 면 카메라를 건드리지 않음 (스튜디오 자유시점 모드에서 외부 카메라가 제어) */
+  cameraControlEnabled?: boolean;
   /** 스폰 위치 — 월드의 spawn 오브젝트 중 하나. 없으면 기본 [0,4,0] */
   spawnPos?: [number, number, number];
   /** 스폰 시 카메라 초기 Y 회전 (라디안). spawn 의 rotation.y */
@@ -1204,7 +1207,9 @@ export function Player({
     const p = lastPos.current;
     // 자세에 따른 카메라 높이 배수 — 서있음 1.0, 앉기 0.55, 엎드리기 0.18
     const postureScale = proneRef.current ? 0.18 : crouchRef.current ? 0.55 : 1.0;
-    if (cameraMode === 'first') {
+    // 자유시점 모드 — 외부 카메라(WasdFly/Orbit)가 카메라 소유. Player 는 캐릭터 물리만 처리.
+    if (!cameraControlEnabled) { /* skip camera positioning */ }
+    else if (cameraMode === 'first') {
       // 1인칭: 캐릭터 눈 위치에 카메라.
       // 캐릭터는 autoNormalize 로 1.8m × modelScale 로 정규화됨, 발은 캡슐 바닥(p.y - 0.63)에 위치.
       // 눈높이 = 발 + 모델키 × 0.94 × postureScale (자세별 낮춤)

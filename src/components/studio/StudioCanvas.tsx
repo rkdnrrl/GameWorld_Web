@@ -1410,6 +1410,8 @@ function SimScene({ objects, transforms, myAssets, player }: {
     cameraMode: 'first' | 'third';
     onToggleCameraMode: () => void;
     onGrabUiChange: (state: 'idle' | 'aim' | 'grab') => void;
+    /** 'free' 자유시점 모드 — Player 입력/카메라 비활성 (외부 fly 카메라가 제어) */
+    freeCam: boolean;
     ownersRef: React.MutableRefObject<Map<string, string>>;
     grabbedStateRef: React.MutableRefObject<Map<string, string>>;
     grabbableIdsRef: React.MutableRefObject<Set<string>>;
@@ -1808,6 +1810,8 @@ function SimScene({ objects, transforms, myAssets, player }: {
         <Player
           character={player.character}
           onMove={() => {}}
+          inputLocked={player.freeCam}
+          cameraControlEnabled={!player.freeCam}
           cameraMode={player.cameraMode}
           onToggleCameraMode={player.onToggleCameraMode}
           onGrabUiChange={player.onGrabUiChange}
@@ -2095,6 +2099,8 @@ export default function StudioCanvas() {
   // 시뮬레이션 플레이어 — 본인 캐릭터로 직접 플레이 (월드와 동일 조작)
   const [simCharacter, setSimCharacter] = useState<Record<string, unknown> | null>(null);
   const [simCameraMode, setSimCameraMode] = useState<'first' | 'third'>('first');
+  // 시뮬레이션 카메라 모드 — 'follow'(캐릭터 빙의) / 'free'(자유시점, 언리얼 eject 같은)
+  const [simCamView, setSimCamView] = useState<'follow' | 'free'>('follow');
   // 1인칭 크로스헤어 상태 — idle/aim(잡을 수 있는 것 조준)/grab(잡는 중)
   const [simCrosshair, setSimCrosshair] = useState<'idle' | 'aim' | 'grab'>('idle');
   // Player 가 요구하는 ref 들 — 스튜디오엔 멀티/소유권 개념 없으니 빈 ref no-op
@@ -2370,8 +2376,15 @@ export default function StudioCanvas() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // 시뮬레이션 중: 나머지 단축키 무시 (WASD 등은 Player 로 전달).
-      // ESC — 포인터 락 중이면 락만 해제 (sim 유지), 락 없으면 sim 중지 (월드와 동일 UX).
       if (simulating) {
+        // F8 — 캐릭터 빙의(follow) ↔ 자유시점(free) 토글 (언리얼 eject 스타일)
+        if (e.key === 'F8') {
+          e.preventDefault();
+          setSimCamView(v => v === 'follow' ? 'free' : 'follow');
+          if (document.pointerLockElement) document.exitPointerLock();
+          return;
+        }
+        // ESC — 포인터 락 중이면 락만 해제 (sim 유지), 락 없으면 sim 중지 (월드와 동일 UX).
         if (e.key === 'Escape' && !document.pointerLockElement) stopSim();
         return;
       }
@@ -2586,6 +2599,7 @@ export default function StudioCanvas() {
       setSimCharacter({});
     }
     setSimCameraMode('first');
+    setSimCamView('follow');
     setSimulating(true);
   }
 
@@ -4248,6 +4262,7 @@ export default function StudioCanvas() {
                     cameraMode: simCameraMode,
                     onToggleCameraMode: () => setSimCameraMode(m => m === 'first' ? 'third' : 'first'),
                     onGrabUiChange: setSimCrosshair,
+                    freeCam: simCamView === 'free',
                     ownersRef: simOwnersRef,
                     grabbedStateRef: simGrabbedStateRef,
                     grabbableIdsRef: simGrabbableIdsRef,
@@ -4297,8 +4312,9 @@ export default function StudioCanvas() {
           )}
           <SceneRefCapture target={threeSceneRef} />
 
-          {/* 시뮬레이션 + 플레이어 활성 시엔 에디터 카메라 컨트롤 끔 (Player 가 카메라 소유) */}
-          {!(simulating && simCharacter) && (
+          {/* follow 모드(캐릭터 빙의)에선 Player 가 카메라 소유 → 에디터 카메라 끔.
+              free 모드(자유시점) 또는 편집 모드에선 OrbitControls/WasdFly 활성. */}
+          {!(simulating && simCharacter && simCamView === 'follow') && (
             <>
               <OrbitControls
                 ref={orbitRef}
@@ -4320,8 +4336,8 @@ export default function StudioCanvas() {
           <CameraRefCapture cameraRef={cameraRef} />
         </Canvas>
 
-        {/* 1인칭 시뮬레이션 크로스헤어 — 월드와 동일. idle=흰, aim=초록, grab=노랑 */}
-        {simulating && simCharacter && simCameraMode === 'first' && (
+        {/* 1인칭 시뮬레이션 크로스헤어 — follow 모드 + 1인칭일 때만. idle=흰, aim=초록, grab=노랑 */}
+        {simulating && simCharacter && simCamView === 'follow' && simCameraMode === 'first' && (
           <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
             <div style={{
               width: 14, height: 14, borderRadius: '50%',
@@ -4337,10 +4353,28 @@ export default function StudioCanvas() {
           </div>
         )}
 
+        {/* 시뮬레이션 카메라 모드 토글 (우상단) — 캐릭터 빙의 / 자유시점 */}
+        {simulating && simCharacter && (
+          <button
+            type="button"
+            onClick={() => { setSimCamView(v => v === 'follow' ? 'free' : 'follow'); if (document.pointerLockElement) document.exitPointerLock(); }}
+            style={{
+              position: 'absolute', top: 16, right: 16, zIndex: 25,
+              padding: '8px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)',
+              background: simCamView === 'free' ? 'rgba(16,185,129,0.85)' : 'rgba(99,102,241,0.85)',
+              color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', backdropFilter: 'blur(6px)',
+            }}
+          >
+            {simCamView === 'free' ? '🚁 자유시점' : '🎮 캐릭터 빙의'} (F8)
+          </button>
+        )}
+
         {/* 시뮬레이션 조작 안내 (하단) */}
         {simulating && simCharacter && (
           <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none', zIndex: 20, fontSize: 11, color: 'rgba(255,255,255,0.7)', background: 'rgba(0,0,0,0.45)', padding: '6px 14px', borderRadius: 8, backdropFilter: 'blur(6px)', whiteSpace: 'nowrap' }}>
-            클릭하여 마우스 잠금 · WASD 이동 · Shift 달리기 · Space 점프 · C 앉기 · Z 엎드리기 · V 시점 · E 잡기 · ESC 해제/중지
+            {simCamView === 'free'
+              ? '자유시점 · 우클릭 드래그 회전 · WASD/QE 이동 · F8 빙의 · ESC 중지'
+              : '클릭하여 마우스 잠금 · WASD 이동 · Shift 달리기 · Space 점프 · C 앉기 · Z 엎드리기 · V 시점 · E 잡기 · F8 자유시점 · ESC 해제/중지'}
           </div>
         )}
 
