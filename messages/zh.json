@@ -1296,7 +1296,9 @@
     "rootFolder": "(根目录)",
     "deleteAssetConfirm": "永久删除资源 \"{name}\"?",
     "deleteFolderWithAssets": "删除 \"{folder}\" 将永久删除其中的 {count} 个资源。\n\n继续吗？",
-    "deleteFolderEmpty": "删除文件夹 \"{folder}\"?"
+    "deleteFolderEmpty": "删除文件夹 \"{folder}\"?",
+    "mobileDup": "复制",
+    "mobileDel": "删除"
   },
   "Worlds": {
     "title": "世界",

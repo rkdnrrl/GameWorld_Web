@@ -3364,12 +3364,12 @@ export default function StudioCanvas() {
         onToggleLeft={() => setLeftPanelOpen(v => !v)}
         onToggleRight={() => setRightPanelOpen(v => !v)}
       />
-    <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative', paddingRight: rightPanelOpen ? 300 : 0 }}>
+    <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative', paddingRight: isMobile ? 0 : (rightPanelOpen ? 300 : 0) }}>
 
       {/* ── 좌측 패널 ── 항상 마운트, display 로만 토글 (mount/unmount race 회피).
           모바일에선 absolute 로 오버레이 ── */}
       <div style={{
-        display: leftPanelOpen ? 'flex' : 'none',
+        display: (isMobile ? mobilePanelOpen : leftPanelOpen) ? 'flex' : 'none',
         width: 250,
         flexShrink: 0,
         background: '#1e293b',
@@ -3866,17 +3866,29 @@ export default function StudioCanvas() {
       {/* ── 우측 패널: 인스펙터 — 항상 마운트, display 로만 토글.
           position:absolute 로 부모 우측에 핀 (flex order 트릭 의존 X) ── */}
       <div style={{
-        display: rightPanelOpen ? 'flex' : 'none',
+        display: (isMobile ? (rightPanelOpen && !!selectedId) : rightPanelOpen) ? 'flex' : 'none',
         position: 'absolute', right: 0, top: 0, bottom: 0,
-        width: 300,
+        width: isMobile ? 'min(300px, 88vw)' : 300,
         background: '#1e293b',
         borderLeft: '1px solid rgba(255,255,255,0.08)',
         color: '#fff',
         flexDirection: 'column',
         overflow: 'hidden',
         fontFamily: 'inherit',
-        zIndex: 50,
+        zIndex: isMobile ? 215 : 50,
       }}>
+        {/* 모바일 전용 인스펙터 닫기 버튼 (선택 해제) */}
+        {isMobile && (
+          <button type="button" onClick={() => setSelectedId(null)}
+            style={{
+              position: 'absolute', top: 6, right: 6, zIndex: 6,
+              width: 30, height: 30, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8,
+              background: 'rgba(255,255,255,0.08)', color: '#fff',
+              fontSize: 16, cursor: 'pointer', fontWeight: 700,
+            }}>
+            ×
+          </button>
+        )}
         {/* 데스크톱 전용 패널 닫기 버튼 (좌측 상단 corner) */}
         {!isMobile && (
           <button type="button" onClick={() => { console.log('[CLOSE-RIGHT] click'); setRightPanelOpen(false); }}
@@ -4389,6 +4401,9 @@ export default function StudioCanvas() {
                 enabled={orbitEnabled}
                 makeDefault
                 enableZoom={true}
+                // 모바일: 1손가락 회전 + 2손가락 핀치줌/팬. 데스크톱: 좌클릭은 선택/마키용으로 비움, 가운데=팬.
+                enableRotate={isMobile}
+                touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
                 mouseButtons={{
                   LEFT:   undefined as unknown as THREE.MOUSE,
                   MIDDLE: THREE.MOUSE.PAN,
@@ -4396,8 +4411,9 @@ export default function StudioCanvas() {
                 }}
               />
               <DraggingDetector setOrbitEnabled={setOrbitEnabled} />
-              <WasdFlyCamera orbitRef={orbitRef} />
-              <RightClickLook orbitRef={orbitRef} />
+              {/* 키보드/마우스 전용 카메라 — 데스크톱만. 모바일은 OrbitControls 터치로 대체 */}
+              {!isMobile && <WasdFlyCamera orbitRef={orbitRef} />}
+              {!isMobile && <RightClickLook orbitRef={orbitRef} />}
             </>
           )}
           <CanvasCapture captureFnRef={captureFnRef} />
@@ -4479,7 +4495,32 @@ export default function StudioCanvas() {
           }} />
         )}
 
-        {/* 단축키 힌트 */}
+        {/* 모바일 변환 툴바 — 키보드 없는 환경에서 이동/회전/스케일/복제/삭제 */}
+        {isMobile && !simulating && (
+          <div style={{ position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6, zIndex: 30, background: 'rgba(2,6,23,0.65)', borderRadius: 12, padding: 6, backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.12)' }}>
+            {([['translate','↔',t('modeTranslate')],['rotate','⟳',t('modeRotate')],['scale','⤢',t('modeScale')]] as const).map(([m, icon, label]) => (
+              <button key={m} type="button" onClick={() => setMode(m)}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, border: 'none', borderRadius: 8, padding: '7px 11px', cursor: 'pointer', background: mode === m ? 'rgba(99,102,241,0.85)' : 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 10, fontWeight: 700 }}>
+                <span style={{ fontSize: 16 }}>{icon}</span>{label}
+              </button>
+            ))}
+            {selectedId && (
+              <>
+                <button type="button" onClick={duplicate}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, border: 'none', borderRadius: 8, padding: '7px 11px', cursor: 'pointer', background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 10, fontWeight: 700 }}>
+                  <span style={{ fontSize: 16 }}>⎘</span>{t('mobileDup')}
+                </button>
+                <button type="button" onClick={() => { setObjects(prev => { const next = prev.filter(o => o.id !== selectedId); pushHistory(next); return next; }); setSelectedId(null); }}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, border: 'none', borderRadius: 8, padding: '7px 11px', cursor: 'pointer', background: 'rgba(239,68,68,0.25)', color: '#fca5a5', fontSize: 10, fontWeight: 700 }}>
+                  <span style={{ fontSize: 16 }}>🗑</span>{t('mobileDel')}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* 단축키 힌트 — 데스크톱만 (모바일은 키보드 없음) */}
+        {!isMobile && (
         <div style={{ position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', pointerEvents: 'none' }}>
           {[
             ['G', '이동'], ['R', '회전'], ['S', '스케일'],
@@ -4492,6 +4533,7 @@ export default function StudioCanvas() {
             </div>
           ))}
         </div>
+        )}
         {isMobile && (
           <button
             type="button"

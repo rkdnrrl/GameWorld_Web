@@ -1296,7 +1296,9 @@
     "rootFolder": "(Root)",
     "deleteAssetConfirm": "Permanently delete asset \"{name}\"?",
     "deleteFolderWithAssets": "Deleting \"{folder}\" will also permanently delete {count} asset(s) inside.\n\nContinue?",
-    "deleteFolderEmpty": "Delete folder \"{folder}\"?"
+    "deleteFolderEmpty": "Delete folder \"{folder}\"?",
+    "mobileDup": "Duplicate",
+    "mobileDel": "Delete"
   },
   "Worlds": {
     "title": "Worlds",

@@ -1296,7 +1296,9 @@
     "rootFolder": "(ルート)",
     "deleteAssetConfirm": "アセット「{name}」を完全に削除しますか？",
     "deleteFolderWithAssets": "「{folder}」フォルダを削除すると、中の {count} 個のアセットも完全に削除されます。\n\n続行しますか？",
-    "deleteFolderEmpty": "フォルダ「{folder}」を削除しますか？"
+    "deleteFolderEmpty": "フォルダ「{folder}」を削除しますか？",
+    "mobileDup": "複製",
+    "mobileDel": "削除"
   },
   "Worlds": {
     "title": "ワールド",
