@@ -2157,6 +2157,16 @@ function MobileControls({ inputLocked }: { inputLocked: boolean }) {
 export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId, sendObjClaim, sendObjRelease, objectOwnerRef, sendObjSpawn, sendObjDestroy, objSpawnRef, objDestroyRef, sendSceneRegister }: WorldCanvasProps) {
   const shadowsEnabled = graphics.shadowSize > 0;
   const shadowMapSize: [number, number] = [graphics.shadowSize || 1024, graphics.shadowSize || 1024];
+  // 같은 dpr 설정이라도 큰 창(PC)은 픽셀 수가 폭증해 fill-rate 렉 → 총 백버퍼 픽셀 예산으로 dpr 상한.
+  // 모바일(작은 화면)은 예산 안이라 설정 dpr 그대로, PC 큰 창에서만 자동으로 낮아짐.
+  const effectiveDpr = useMemo(() => {
+    if (typeof window === 'undefined') return graphics.dpr;
+    const w = window.innerWidth || 1280, h = window.innerHeight || 720;
+    const MAX_PX = 2_600_000;               // 약 1080p+ 수준 백버퍼 예산
+    const budget = Math.sqrt(MAX_PX / (w * h));
+    return Math.max(1, Math.min(graphics.dpr, budget));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graphics.dpr]);
   const ss = sceneSettings ?? {};
   const ambientIntensity = typeof ss.lightAmbient === 'number' ? ss.lightAmbient : 0.04;
   const dirIntensity     = typeof ss.lightDir     === 'number' ? ss.lightDir     : 0.0;
@@ -2895,7 +2905,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       <Canvas
         shadows={{ enabled: true, type: THREE.PCFShadowMap, autoUpdate: true }}
         camera={{ fov: 60, near: 0.3, far: graphics.farClip, position: [0, 8, 12] }}
-        dpr={graphics.dpr}
+        dpr={effectiveDpr}
         gl={{
           antialias: true, // 항상 켬 (런타임 변경 시 WebGL 컨텍스트 손실)
           powerPreference: 'high-performance',
