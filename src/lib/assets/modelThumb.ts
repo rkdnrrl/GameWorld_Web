@@ -3,12 +3,14 @@
  * PNG dataURL 로 한 번만 렌더해 캐시한다. 카드마다 라이브 캔버스를 띄우면
  * WebGL 컨텍스트 한계(~16) 를 넘겨 일부가 안 보이므로, 단일 렌더러로 순차 생성.
  *
- * - 저장된 materialConfig(텍스처/프리셋) 가 있으면 머티리얼 에디터와 동일하게 적용.
- * - getCachedThumb(url): 캐시된 dataURL (없으면 undefined)
- * - requestThumb(url, config): 캐시 우선, 없으면 큐에 넣어 순차 생성 → dataURL
+ * 검게 나오는 것 방지:
+ *  - 텍스처(colormap 등)는 비동기 로드 → 로드를 기다렸다가 다시 렌더 후 캡처
+ *  - 환경광(IBL, RoomEnvironment) → 금속(GLB metalness=1) 머티리얼이 검게 안 나옴
+ *  - 정점색(vertex color) 모델은 흰 베이스 + vertexColors 로 색 표시
+ *  - 저장된 materialConfig(텍스처/프리셋) 가 있으면 머티리얼 에디터와 동일하게 적용
  *
- * 클라이언트 전용 (WebGLRenderer 는 브라우저에서만). 렌더러는 lazy 생성 →
- * import 자체는 SSR-safe; requestThumb 는 useEffect 등 클라이언트에서만 호출.
+ * 클라이언트 전용. 렌더러는 lazy 생성 → import 자체는 SSR-safe; requestThumb 는
+ * useEffect 등 클라이언트에서만 호출.
  */
 import * as THREE from 'three';
 import { loadStaticModel } from '@/lib/world/modelLoader';
@@ -28,14 +30,27 @@ function ensureRenderer() {
   renderer.setSize(SIZE, SIZE);
   renderer.setPixelRatio(1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(42, 1, 0.01, 100);
   camera.position.set(1.1, 0.9, 1.55);
   camera.lookAt(0, 0, 0);
-  scene.add(new THREE.AmbientLight(0xffffff, 0.85));
-  const d1 = new THREE.DirectionalLight(0xffffff, 1.4); d1.position.set(5, 10, 5);
-  const d2 = new THREE.DirectionalLight(0xffffff, 0.5); d2.position.set(-4, 2, -3);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+  const d1 = new THREE.DirectionalLight(0xffffff, 1.3); d1.position.set(5, 10, 5);
+  const d2 = new THREE.DirectionalLight(0xffffff, 0.45); d2.position.set(-4, 2, -3);
   scene.add(d1, d2);
+}
+
+// 환경맵(IBL) — PBR/금속 머티리얼이 검게 나오지 않게. 첫 렌더 시 1회 생성.
+let envApplied = false;
+async function ensureEnv() {
+  if (envApplied || !renderer || !scene) return;
+  envApplied = true;
+  try {
+    const { RoomEnvironment } = await import('three/examples/jsm/environments/RoomEnvironment.js');
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  } catch { /* 환경맵 실패해도 라이트로 렌더 */ }
 }
 
 function disposeOriginal(obj: THREE.Object3D) {
@@ -48,8 +63,37 @@ function disposeOriginal(obj: THREE.Object3D) {
   });
 }
 
+/** 모델 머티리얼의 텍스처 이미지가 모두 로드될 때까지 대기 (최대 maxMs) */
+function waitForTextures(obj: THREE.Object3D, maxMs: number): Promise<void> {
+  const waits: Promise<void>[] = [];
+  obj.traverse(o => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const mats = Array.isArray(m.material) ? m.material : [m.material];
+    mats.forEach(mat => {
+      const sm = mat as THREE.MeshStandardMaterial & { emissiveMap?: THREE.Texture | null };
+      [sm?.map, sm?.normalMap, sm?.roughnessMap, sm?.emissiveMap].forEach(tex => {
+        const img = tex?.image as (HTMLImageElement | ImageBitmap | undefined);
+        if (img && 'complete' in img && !(img as HTMLImageElement).complete) {
+          const el = img as HTMLImageElement;
+          waits.push(new Promise<void>(res => {
+            el.addEventListener('load', () => res(), { once: true });
+            el.addEventListener('error', () => res(), { once: true });
+          }));
+        }
+      });
+    });
+  });
+  if (waits.length === 0) return Promise.resolve();
+  return Promise.race([
+    Promise.all(waits).then(() => { /* all loaded */ }),
+    new Promise<void>(res => setTimeout(res, maxMs)),
+  ]);
+}
+
 async function renderThumb(url: string, config?: MaterialConfig | null): Promise<string> {
   ensureRenderer();
+  await ensureEnv();
   const r = renderer!, sc = scene!, cam = camera!;
   const model = await loadStaticModel(url);
   const built = config ? buildMat(config) : null;
@@ -66,20 +110,26 @@ async function renderThumb(url: string, config?: MaterialConfig | null): Promise
       if (!mesh.isMesh) return;
       if (built) {
         mesh.material = built;
-      } else {
-        // 정점 색 모델(Quaternius 등) 검게 나오지 않게 vertexColors 켜기
-        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-        mats.forEach(mt => {
-          const sm = mt as THREE.MeshStandardMaterial;
-          if (sm && mesh.geometry?.getAttribute?.('color') && !sm.vertexColors) {
-            sm.vertexColors = true;
-            sm.needsUpdate = true;
-          }
-        });
+        return;
       }
+      // 원본 유지 — 정점색이 있으면 켜고(검게 나오지 않게 흰 베이스)
+      const hasVColor = !!mesh.geometry?.getAttribute?.('color');
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      mats.forEach(mt => {
+        const sm = mt as THREE.MeshStandardMaterial;
+        if (!sm) return;
+        if (hasVColor && !sm.vertexColors) {
+          sm.vertexColors = true;
+          // 텍스처 없고 베이스색이 어두우면 흰색으로 (정점색이 곱해져 검게 죽는 것 방지)
+          if (!sm.map && sm.color) sm.color.set('#ffffff');
+          sm.needsUpdate = true;
+        }
+      });
     });
     sc.add(model);
-    r.render(sc, cam);
+    r.render(sc, cam);                          // 1차 (텍스처 로딩 전일 수 있음)
+    await waitForTextures(model, 700);          // 텍스처 로드 대기
+    r.render(sc, cam);                          // 2차 — 텍스처 입혀진 상태로 캡처
     return r.domElement.toDataURL('image/png');
   } finally {
     sc.remove(model);
