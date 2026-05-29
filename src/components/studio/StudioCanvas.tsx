@@ -682,11 +682,12 @@ function findFolderNode(nodes: FolderNode[], path: string): FolderNode | null {
 }
 
 /* ── 그리드용 폴더 카드 ──────────────────── */
-function StudioFolderCard({ name, path, onNavigate, onFolderDrop }: {
+function StudioFolderCard({ name, path, onNavigate, onFolderDrop, onAssetDrop }: {
   name: string;
   path: string;
   onNavigate: (path: string) => void;
   onFolderDrop: (fromPath: string, toPath: string) => void;
+  onAssetDrop: (assetId: string, toPath: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -698,6 +699,10 @@ function StudioFolderCard({ name, path, onNavigate, onFolderDrop }: {
       onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
       onDrop={e => {
         e.preventDefault(); e.stopPropagation(); setDragOver(false);
+        // 에셋 파일 카드를 폴더 위에 놓으면 그 폴더로 이동
+        const assetId = e.dataTransfer.getData('text/plain');
+        if (assetId) { onAssetDrop(assetId, path); return; }
+        // 폴더를 폴더 위에 놓으면 폴더 이동 (자기 자신/자기 하위로는 금지)
         const fromPath = e.dataTransfer.getData('folderPath');
         if (fromPath && fromPath !== path && !path.startsWith(fromPath + '/')) onFolderDrop(fromPath, path);
       }}
@@ -2403,6 +2408,10 @@ export default function StudioCanvas() {
   const isMarqueeRef = useRef(false);
   const dragStartRef = useRef<Map<string, {p:[number,number,number];r:[number,number,number];s:[number,number,number]}>>(new Map());
   const shiftHeldRef = useRef(false);
+  // 트리 범위 선택용 앵커(마지막 단일 클릭 지점) + 키보드 핸들러에서 읽을 최신 선택 상태
+  const rangeAnchorRef = useRef<string | null>(null);
+  const selRef = useRef<{ sel: string | null; multi: Set<string> }>({ sel: null, multi: new Set() });
+  selRef.current = { sel: selectedId, multi: multiSelectedIds };
 
   useEffect(() => {
     const dn = (e: KeyboardEvent) => { if (e.key === 'Shift') shiftHeldRef.current = true; };
@@ -2602,13 +2611,8 @@ export default function StudioCanvas() {
       // 입력창에 포커스되어 있으면 단축키 무시
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
-        setObjects(prev => {
-          const next = prev.filter(o => o.id !== selectedId);
-          pushHistory(next);
-          return next;
-        });
-        setSelectedId(null);
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        deleteSelected(); // 선택된 전부(다중 포함) 삭제 — 아무것도 없으면 no-op
       } else if (e.key === 'g') setMode('translate');
       else if (e.key === 'r') setMode('rotate');
       else if (e.key === 's') setMode('scale');
@@ -3277,6 +3281,32 @@ export default function StudioCanvas() {
     });
   }
 
+  /** Shift+클릭 (트리) — 앵커부터 클릭 지점까지, 화면에 보이는 순서대로 사이의 노드 전부 선택.
+      순서는 DOM(data-node-id) 기준이라 접힘/필터 상태를 그대로 반영한다. */
+  function rangeSelectObject(id: string) {
+    setStudioMode('scene');
+    const el = treeScrollRef.current;
+    const order = el
+      ? Array.from(el.querySelectorAll('[data-node-id]'))
+          .map(n => n.getAttribute('data-node-id'))
+          .filter((v): v is string => !!v)
+      : [];
+    // 앵커: 마지막 단일 클릭 지점 (없거나 화면 밖이면 현재 primary 로 폴백)
+    let anchor = rangeAnchorRef.current;
+    if (!anchor || !order.includes(anchor)) anchor = selectedId;
+    const ai = anchor ? order.indexOf(anchor) : -1;
+    const bi = order.indexOf(id);
+    if (ai === -1 || bi === -1) {
+      // 순서를 못 구하면 단일 선택으로 폴백
+      setMultiSelectedIds(new Set([id]));
+      setSelectedId(id);
+      return;
+    }
+    const [lo, hi] = ai <= bi ? [ai, bi] : [bi, ai];
+    setMultiSelectedIds(new Set(order.slice(lo, hi + 1)));
+    setSelectedId(id); // primary = 마지막 클릭 (인스펙터 대상). 앵커는 그대로 유지해 확장/축소 가능.
+  }
+
   function onTransformDragStart() {
     // 드래그 시작 시 모든 선택 오브젝트의 transform 스냅샷
     const map = new Map<string, {p:[number,number,number];r:[number,number,number];s:[number,number,number]}>();
@@ -3336,63 +3366,6 @@ export default function StudioCanvas() {
    * AABB 안에 들어가 있으면 자동으로 그 오브젝트의 자식으로 reparent.
    * (씬 트리에서 드래그하지 않고도 3D 뷰포트에서 바로 부모 설정 가능)
    */
-  function autoParentOnDrop(movedId: string) {
-    const moved = objects.find(o => o.id === movedId);
-    if (!moved) return;
-    const movedWorld = computeWorldMatrix(movedId, objects);
-    const movedPos = new THREE.Vector3().setFromMatrixPosition(movedWorld);
-
-    // 후보 오브젝트들 중 movedId 의 world center 를 AABB 안에 포함하는 것 찾기.
-    // 가장 작은 오브젝트(가장 가까운 fit) 우선.
-    let bestId: string | null = null;
-    let bestVolume = Infinity;
-
-    for (const cand of objects) {
-      if (cand.id === movedId) continue;
-      // 조명/스폰/빈 오브젝트 같은 비-shape 은 부모 대상 제외 (geometric bounds 없음)
-      if (cand.kind === 'pointlight' || cand.kind === 'spotlight' || cand.kind === 'dirlight' || cand.kind === 'spawn' || cand.kind === 'empty') continue;
-
-      // moved 가 cand 의 조상이면 (순환) 제외
-      let p: string | null | undefined = cand.parentId;
-      let isCandDescendantOfMoved = false;
-      while (p) {
-        if (p === movedId) { isCandDescendantOfMoved = true; break; }
-        p = objects.find(o => o.id === p)?.parentId;
-      }
-      if (isCandDescendantOfMoved) continue;
-
-      // cand world transform — center + half extents
-      const candWorld = computeWorldMatrix(cand.id, objects);
-      const candPos = new THREE.Vector3();
-      const candQuat = new THREE.Quaternion();
-      const candScale = new THREE.Vector3();
-      candWorld.decompose(candPos, candQuat, candScale);
-
-      // primitive shape 의 unit half-extents (cube/sphere/cylinder/plane = 1x1x1 unit, plane Y=0)
-      const halfExt = new THREE.Vector3(
-        Math.abs(candScale.x) * 0.5,
-        cand.kind === 'plane' ? 0.05 : Math.abs(candScale.y) * 0.5,
-        Math.abs(candScale.z) * 0.5,
-      );
-
-      // moved center 를 cand 의 local 공간으로 변환 → AABB 검사
-      const localPos = movedPos.clone().applyMatrix4(candWorld.clone().invert());
-      const inside = Math.abs(localPos.x) <= 0.5
-                  && Math.abs(localPos.y) <= (cand.kind === 'plane' ? 0.1 : 0.5)
-                  && Math.abs(localPos.z) <= 0.5;
-      if (!inside) continue;
-
-      const volume = halfExt.x * halfExt.y * halfExt.z;
-      if (volume < bestVolume) { bestVolume = volume; bestId = cand.id; }
-    }
-
-    if (bestId && moved.parentId !== bestId) {
-      reparentObject(movedId, bestId);
-    } else if (!bestId && moved.parentId) {
-      // 어떤 부모 안에도 안 들어가 있고 현재 부모 있음 → 루트로 빼냄? (안전 위해 보류, 사용자 명시적 액션 필요)
-    }
-  }
-
   function reparentObject(childId: string, newParentId: string | null) {
     // 순환 방지
     const isDescendant = (targetId: string, ancestorId: string): boolean => {
@@ -3634,13 +3607,17 @@ export default function StudioCanvas() {
   }
 
   function deleteSelected() {
-    if (!selectedId) return;
+    // 다중 선택이 있으면 전부, 없으면 primary 하나. (selRef = 키보드 핸들러에서도 최신값)
+    const { sel, multi } = selRef.current;
+    const ids = new Set<string>(multi.size > 0 ? multi : sel ? [sel] : []);
+    if (ids.size === 0) return;
     setObjects(prev => {
-      const next = prev.filter(o => o.id !== selectedId);
+      const next = prev.filter(o => !ids.has(o.id));
       pushHistory(next);
       return next;
     });
     setSelectedId(null);
+    setMultiSelectedIds(new Set());
   }
 
   async function save() {
@@ -3935,9 +3912,10 @@ export default function StudioCanvas() {
                 onContextMenu={(objId, x, y) => setTreeCtxMenu({ x, y, objId })}
                 selectedCallback={id => {
                   if (shiftHeldRef.current) {
-                    shiftClickObject(id);
+                    rangeSelectObject(id);
                   } else {
                     setStudioMode('scene');
+                    rangeAnchorRef.current = id; // 다음 Shift+클릭의 범위 시작점
                     setMultiSelectedIds(new Set());
                     setSelectedId(id);
                   }
@@ -4769,8 +4747,8 @@ export default function StudioCanvas() {
                 onChange={updateObjectTransform}
                 onDragStart={onTransformDragStart}
                 onDragEnd={() => {
-                  // 이동 모드일 때만 자동 부모 체크 — 회전/스케일 끝났다고 부모 바꿀 필요 없음
-                  if (mode === 'translate' && selectedId) autoParentOnDrop(selectedId);
+                  // 기즈모 이동은 위치만 바꾼다 — 부모 설정은 씬 트리에서 드래그로 명시적으로만.
+                  // (예전엔 다른 오브젝트 AABB 안에 들어가면 자동 자식 편입했으나, 의도치 않은 부모편입이 잦아 제거)
                   pushHistory(objects);
                 }}
                 snapTranslate={snapEnabled ? snapSize : null}
@@ -4919,7 +4897,7 @@ export default function StudioCanvas() {
                   style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, minWidth: 54, height: 50, border: 'none', borderRadius: 10, cursor: 'pointer', background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 11, fontWeight: 700 }}>
                   <span style={{ fontSize: 19, lineHeight: 1 }}>⎘</span>{t('mobileDup')}
                 </button>
-                <button type="button" onClick={() => { setObjects(prev => { const next = prev.filter(o => o.id !== selectedId); pushHistory(next); return next; }); setSelectedId(null); }}
+                <button type="button" onClick={deleteSelected}
                   style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, minWidth: 54, height: 50, border: 'none', borderRadius: 10, cursor: 'pointer', background: 'rgba(239,68,68,0.22)', color: '#fca5a5', fontSize: 11, fontWeight: 700 }}>
                   <span style={{ fontSize: 19, lineHeight: 1 }}>🗑</span>{t('mobileDel')}
                 </button>
@@ -5107,6 +5085,7 @@ export default function StudioCanvas() {
                       path={n.path}
                       onNavigate={setSelectedFolder}
                       onFolderDrop={moveFolderTo}
+                      onAssetDrop={moveAssetToFolder}
                     />
                   ))}
                   {/* FBX 파일 카드 */}
@@ -5185,8 +5164,13 @@ export default function StudioCanvas() {
                   <button type="button" style={{ ...itemStyle, color: '#fca5a5' }} onMouseEnter={hover(true)} onMouseLeave={hover(false)}
                     onClick={() => {
                       const id = treeCtxMenu.objId!;
-                      setObjects(prev => { const next = prev.filter(o => o.id !== id); pushHistory(next); return next; });
-                      if (selectedId === id) setSelectedId(null);
+                      if (multiSelectedIds.has(id) && multiSelectedIds.size > 1) {
+                        // 다중 선택 안의 노드를 우클릭 → 선택 전체 삭제
+                        deleteSelected();
+                      } else {
+                        setObjects(prev => { const next = prev.filter(o => o.id !== id); pushHistory(next); return next; });
+                        if (selectedId === id) setSelectedId(null);
+                      }
                       setTreeCtxMenu(null);
                     }}>🗑 {t('mobileDel')}</button>
                 </>
