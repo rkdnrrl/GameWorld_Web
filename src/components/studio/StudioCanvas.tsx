@@ -2,7 +2,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, TransformControls, Grid, Sky, Environment } from '@react-three/drei';
-import { Physics, RigidBody } from '@react-three/rapier';
+import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
 import * as THREE from 'three';
 import { buildFolderTree, normalizeFolder } from '@/lib/assets/folders';
 import type { FolderNode } from '@/lib/assets/folders';
@@ -164,7 +164,7 @@ interface Asset {
 /* ── Unity 스타일 컴포넌트 섹션 (인스펙터) ──
    부착된 컴포넌트 카드 + "+ 컴포넌트 추가" 버튼. 각 카드는 props 편집 input 포함. */
 function ComponentsSection({
-  selected, setObjects, pushHistory, allObjects, openPicker, scriptComponents, officialScriptComponents,
+  selected, setObjects, pushHistory, allObjects, openPicker, scriptComponents, officialScriptComponents, onColliderAutoFit,
 }: {
   selected: MapObject;
   setObjects: (updater: (prev: MapObject[]) => MapObject[]) => void;
@@ -173,6 +173,7 @@ function ComponentsSection({
   openPicker: () => void;
   scriptComponents: ScriptComponent[];
   officialScriptComponents: ScriptComponent[];
+  onColliderAutoFit: (compIdx: number) => void;
 }) {
   const list = selected.components ?? [];
   // 레거시: grabbable 플래그도 가상 컴포넌트로 표시 (제거 시 plain false)
@@ -238,6 +239,19 @@ function ComponentsSection({
                 }));
               }}
               onPropsCommit={() => pushHistory(allObjects)}
+            />
+          );
+        }
+        // Collider — 전용 카드 (크기 입력 + 자동 맞춤 버튼)
+        if (c.type === 'collider') {
+          return (
+            <ColliderCard
+              key={idx}
+              instance={c}
+              onRemove={() => removeComponent(idx)}
+              onChange={(key, val) => updateProp(idx, key, val)}
+              onCommit={() => pushHistory(allObjects)}
+              onAutoFit={() => onColliderAutoFit(idx)}
             />
           );
         }
@@ -461,6 +475,36 @@ function ComponentCard({
       </div>
       {children}
     </div>
+  );
+}
+
+/* ── Collider 컴포넌트 전용 카드 — X/Y/Z 크기 입력 + "자동 맞춤" 버튼 ── */
+function ColliderCard({ instance, onRemove, onChange, onCommit, onAutoFit }: {
+  instance: ComponentInstance;
+  onRemove: () => void;
+  onChange: (key: string, val: number) => void;
+  onCommit: () => void;
+  onAutoFit: () => void;
+}) {
+  const sx = Number(instance.props?.sizeX ?? 1);
+  const sy = Number(instance.props?.sizeY ?? 1);
+  const sz = Number(instance.props?.sizeZ ?? 1);
+  const fieldStyle: React.CSSProperties = { background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' };
+  return (
+    <ComponentCard icon="🟩" name="Collider (충돌 박스)" onRemove={onRemove}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, marginTop: 4 }}>
+        {([['sizeX', 'X', sx], ['sizeY', 'Y', sy], ['sizeZ', 'Z', sz]] as const).map(([key, label, val]) => (
+          <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, opacity: 0.75 }}>
+            {label}
+            <NumField value={val} onChange={n => onChange(key, n)} onCommit={onCommit} style={fieldStyle} />
+          </label>
+        ))}
+      </div>
+      <button type="button" onClick={onAutoFit}
+        style={{ marginTop: 6, width: '100%', background: 'rgba(52,211,153,0.18)', border: '1px solid rgba(52,211,153,0.4)', color: '#6ee7b7', fontSize: 10, fontWeight: 700, padding: '4px', borderRadius: 5, cursor: 'pointer' }}>
+        📐 자동 맞춤 (오브젝트 크기에)
+      </button>
+    </ComponentCard>
   );
 }
 
@@ -1212,10 +1256,23 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
        myAssets.find((a: any) => a.modelUrl === obj.assetUrl)?.materialConfig ?? null)
     : undefined;
 
+  // Collider 컴포넌트 — 선택 시 충돌 박스를 초록 와이어프레임으로 표시 (크기 확인/조절용)
+  const colliderComp = obj.components?.find(c => c.type === 'collider');
+
   return (
     /* userData.id는 이 group에 → TransformControls이 이 group(월드 TRS)을 조작 */
     <group position={wpos} rotation={wrot} scale={wscale} userData={{ id: obj.id }}>
       <Mesh3D obj={obj} selected={isSelected} onClick={() => onObjectClick(obj.id)} assetConfig={assetConfig} noTransform />
+      {isSelected && colliderComp && (
+        <mesh userData={{ __collider: true }} raycast={() => null}>
+          <boxGeometry args={[
+            Math.max(0.01, Number(colliderComp.props?.sizeX ?? 1)),
+            Math.max(0.01, Number(colliderComp.props?.sizeY ?? 1)),
+            Math.max(0.01, Number(colliderComp.props?.sizeZ ?? 1)),
+          ]} />
+          <meshBasicMaterial color="#34d399" wireframe transparent opacity={0.85} depthTest={false} />
+        </mesh>
+      )}
     </group>
   );
 }
@@ -1416,16 +1473,33 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs }: {
   const phys: 'none' | 'fixed' | 'dynamic' = physicsComp
     ? (String(physicsComp.props?.mode ?? 'fixed') === 'dynamic' ? 'dynamic' : 'fixed')
     : (obj.physics ?? 'none');
+  // Collider 컴포넌트 — 있으면 명시적 박스 콜라이더 사용 (자동 콜라이더 대신)
+  const colliderComp = obj.components?.find(c => c.type === 'collider');
 
-  if (phys === 'none') {
+  // 물리도 콜라이더 컴포넌트도 없으면 충돌 X
+  if (phys === 'none' && !colliderComp) {
     return <group ref={groupRef} position={t.pos} rotation={t.rot} scale={t.scl}>{mesh}</group>;
+  }
+  // 콜라이더만 있고 physics 가 없으면 고정(fixed) 바디로 만들어 충돌만 시킴
+  const bodyType: 'fixed' | 'dynamic' = phys === 'dynamic' ? 'dynamic' : 'fixed';
+  if (colliderComp) {
+    const hx = Math.max(0.01, Number(colliderComp.props?.sizeX ?? 1)) / 2;
+    const hy = Math.max(0.01, Number(colliderComp.props?.sizeY ?? 1)) / 2;
+    const hz = Math.max(0.01, Number(colliderComp.props?.sizeZ ?? 1)) / 2;
+    return (
+      <RigidBody ref={bodyRef} type={bodyType} colliders={false}
+        position={t.pos} rotation={t.rot} scale={t.scl}>
+        <CuboidCollider args={[hx, hy, hz]} />
+        {mesh}
+      </RigidBody>
+    );
   }
   const colliders =
     obj.kind === 'sphere'  ? 'ball'    :
     obj.kind === 'asset'   ? (phys === 'dynamic' ? 'hull' : 'trimesh') :
                              'cuboid';
   return (
-    <RigidBody ref={bodyRef} type={phys} colliders={colliders}
+    <RigidBody ref={bodyRef} type={bodyType} colliders={colliders}
       position={t.pos} rotation={t.rot} scale={t.scl}>
       {mesh}
     </RigidBody>
@@ -3361,11 +3435,52 @@ export default function StudioCanvas() {
     return { p: [lp.x, lp.y, lp.z], r: [le.x, le.y, le.z], s: [ls.x, ls.y, ls.z] };
   }
 
-  /**
-   * 기즈모 드래그 끝나는 순간 — 옮긴 오브젝트의 world center 가 다른 오브젝트의
-   * AABB 안에 들어가 있으면 자동으로 그 오브젝트의 자식으로 reparent.
-   * (씬 트리에서 드래그하지 않고도 3D 뷰포트에서 바로 부모 설정 가능)
-   */
+  /** Collider 컴포넌트 "자동 맞춤" — 선택 오브젝트의 렌더 메시 로컬 경계를 측정해
+      collider 크기(sizeX/Y/Z)에 기록. 측정은 오브젝트 자신의 TRS 를 제외한 로컬 단위
+      (CuboidCollider args 와 같은 공간). 콜라이더 와이어프레임(__collider)은 제외. */
+  function colliderAutoFit(compIdx: number) {
+    if (!selectedId) return;
+    let size: [number, number, number] = [1, 1, 1];
+    const scene = threeSceneRef.current;
+    if (scene) {
+      let group: THREE.Object3D | undefined;
+      scene.traverse(o => { if (!group && o.userData?.id === selectedId) group = o; });
+      if (group) {
+        group.updateWorldMatrix(true, true);
+        const inv = group.matrixWorld.clone().invert();
+        const box = new THREE.Box3();
+        const tmp = new THREE.Box3();
+        const m = new THREE.Matrix4();
+        group.traverse(child => {
+          if (child.userData?.__collider) return;
+          const mesh = child as THREE.Mesh;
+          if (!mesh.isMesh || !mesh.geometry) return;
+          if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+          if (!mesh.geometry.boundingBox) return;
+          tmp.copy(mesh.geometry.boundingBox);
+          m.multiplyMatrices(inv, mesh.matrixWorld);
+          tmp.applyMatrix4(m);
+          box.union(tmp);
+        });
+        if (!box.isEmpty()) {
+          const s = box.getSize(new THREE.Vector3());
+          const round = (v: number) => Math.max(0.01, Math.round(v * 1000) / 1000);
+          size = [round(s.x), round(s.y), round(s.z)];
+        }
+      }
+    }
+    setObjects(prev => prev.map(o => {
+      if (o.id !== selectedId) return o;
+      const next = [...(o.components ?? [])];
+      const cur = next[compIdx];
+      if (!cur || cur.type !== 'collider') return o;
+      next[compIdx] = { ...cur, props: { ...(cur.props ?? {}), sizeX: size[0], sizeY: size[1], sizeZ: size[2] } };
+      return { ...o, components: next };
+    }));
+    pushHistory(objects);
+  }
+
+  /** 부모 변경 (순환 방지). newParentId=null 이면 루트로 빼냄. */
   function reparentObject(childId: string, newParentId: string | null) {
     // 순환 방지
     const isDescendant = (targetId: string, ancestorId: string): boolean => {
@@ -4378,6 +4493,7 @@ export default function StudioCanvas() {
                 openPicker={() => setComponentPickerOpen(true)}
                 scriptComponents={scriptComponents}
                 officialScriptComponents={officialScriptComponents}
+                onColliderAutoFit={colliderAutoFit}
               />
 
               {/* 조명 속성 (pointlight / spotlight 전용) */}

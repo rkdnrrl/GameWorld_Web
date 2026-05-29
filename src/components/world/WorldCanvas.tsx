@@ -2,7 +2,7 @@
 import React, { Suspense, useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Html, Sky, Text, Environment, useProgress } from '@react-three/drei';
-import { Physics, RigidBody, CapsuleCollider, useRapier } from '@react-three/rapier';
+import { Physics, RigidBody, CapsuleCollider, CuboidCollider, useRapier } from '@react-three/rapier';
 
 /** Rapier 강체 — 우리가 호출하는 메서드만 추린 미니 인터페이스 (버전 무관) */
 interface RapierBodyApi {
@@ -1888,6 +1888,17 @@ function UserMapObjectMesh({ obj, scriptBodyRefs, world }: {
   const physics: 'none' | 'fixed' | 'dynamic' = physicsComp
     ? (String(physicsComp.props?.mode ?? 'fixed') === 'dynamic' ? 'dynamic' : 'fixed')
     : (obj.physics ?? 'none');
+  // Collider 컴포넌트 — 있으면 명시적 박스 콜라이더 (자동 콜라이더 대신).
+  // physics 가 'none' 이어도 콜라이더가 있으면 고정(fixed) 바디로 충돌시킴.
+  const colliderComp = obj.components?.find(c => c.type === 'collider');
+  const bodyType: 'fixed' | 'dynamic' = physics === 'dynamic' ? 'dynamic' : 'fixed';
+  const colliderArgs: [number, number, number] | null = colliderComp
+    ? [
+        Math.max(0.01, Number(colliderComp.props?.sizeX ?? 1)) / 2,
+        Math.max(0.01, Number(colliderComp.props?.sizeY ?? 1)) / 2,
+        Math.max(0.01, Number(colliderComp.props?.sizeZ ?? 1)) / 2,
+      ]
+    : null;
   // 스크립트 있는 오브젝트는 ref를 registry에 등록
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bodyRef = useRef<any>(null);
@@ -1921,7 +1932,7 @@ function UserMapObjectMesh({ obj, scriptBodyRefs, world }: {
                               <boxGeometry args={[1, 1, 1]} />;
 
   if (obj.kind === 'asset' && obj.assetUrl) {
-    if (physics === 'none') {
+    if (physics === 'none' && !colliderArgs) {
       return (
         <group ref={groupRef} position={rPos} rotation={rRot} scale={rScale}>
           <UserAsset url={obj.assetUrl} matObj={obj} />
@@ -1929,13 +1940,14 @@ function UserMapObjectMesh({ obj, scriptBodyRefs, world }: {
       );
     }
     return (
-      <RigidBody ref={bodyRef} type={physics} colliders={physics === 'dynamic' ? 'hull' : 'trimesh'} position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }}>
+      <RigidBody ref={bodyRef} type={bodyType} colliders={colliderArgs ? false : (physics === 'dynamic' ? 'hull' : 'trimesh')} position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }}>
+        {colliderArgs && <CuboidCollider args={colliderArgs} />}
         <UserAsset url={obj.assetUrl} matObj={obj} />
       </RigidBody>
     );
   }
 
-  if (physics === 'none') {
+  if (physics === 'none' && !colliderArgs) {
     return (
       <group ref={groupRef} position={rPos} rotation={rRot} scale={rScale}>
         <PrimitiveMesh obj={obj} shape={shape} />
@@ -1944,7 +1956,8 @@ function UserMapObjectMesh({ obj, scriptBodyRefs, world }: {
   }
   const colliders = obj.kind === 'sphere' ? 'ball' : 'cuboid';
   return (
-    <RigidBody ref={bodyRef} type={physics} colliders={colliders} position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }}>
+    <RigidBody ref={bodyRef} type={bodyType} colliders={colliderArgs ? false : colliders} position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }}>
+      {colliderArgs && <CuboidCollider args={colliderArgs} />}
       <PrimitiveMesh obj={obj} shape={shape} />
     </RigidBody>
   );
