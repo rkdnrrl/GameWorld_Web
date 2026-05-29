@@ -1400,6 +1400,19 @@ function SimScriptLoop({
   return null;
 }
 
+/* 시뮬레이션 1인칭 시 카메라 near plane 을 키워서 머리/가까운 지오메트리 클리핑.
+   free cam / 편집 모드에선 기본값(0.1)로 복귀. */
+function SimCameraNear({ near }: { near: number }) {
+  const { camera } = useThree();
+  useEffect(() => {
+    const cam = camera as THREE.PerspectiveCamera;
+    cam.near = near;
+    cam.updateProjectionMatrix();
+    return () => { cam.near = 0.1; cam.updateProjectionMatrix(); };
+  }, [camera, near]);
+  return null;
+}
+
 function SimScene({ objects, transforms, myAssets, player }: {
   objects: MapObject[];
   transforms: SimTransforms;
@@ -1412,6 +1425,8 @@ function SimScene({ objects, transforms, myAssets, player }: {
     onGrabUiChange: (state: 'idle' | 'aim' | 'grab') => void;
     /** 'free' 자유시점 모드 — Player 입력/카메라 비활성 (외부 fly 카메라가 제어) */
     freeCam: boolean;
+    /** 점프력 (맵 설정) */
+    jumpPower: number;
     ownersRef: React.MutableRefObject<Map<string, string>>;
     grabbedStateRef: React.MutableRefObject<Map<string, string>>;
     grabbableIdsRef: React.MutableRefObject<Set<string>>;
@@ -1807,11 +1822,16 @@ function SimScene({ objects, transforms, myAssets, player }: {
       ))}
       {/* 시뮬레이션 플레이어 — 월드와 동일한 Player 컴포넌트 재사용. grab 은 sim 의 scriptBodyRefs/스크립트와 연동 */}
       {player && (
+        <SimCameraNear near={!player.freeCam && player.cameraMode === 'first' ? 0.45 : 0.1} />
+      )}
+      {player && (
         <Player
           character={player.character}
           onMove={() => {}}
           inputLocked={player.freeCam}
           cameraControlEnabled={!player.freeCam}
+          hideHeadOverride={false}
+          jumpPower={player.jumpPower}
           cameraMode={player.cameraMode}
           onToggleCameraMode={player.onToggleCameraMode}
           onGrabUiChange={player.onGrabUiChange}
@@ -2115,6 +2135,7 @@ export default function StudioCanvas() {
   const [componentPickerSearch, setComponentPickerSearch] = useState('');
   // 환경 (Sky/HDRI/ambient) 패널 토글
   const [envPanelOpen, setEnvPanelOpen] = useState(false);
+  const [physPanelOpen, setPhysPanelOpen] = useState(false);
   // 유저 정의 스크립트 컴포넌트 (DB) + 관리 모달
   const [scriptComponents, setScriptComponents] = useState<ScriptComponent[]>([]);
   // 공식 (운영자가 만든) 컴포넌트 — 모든 유저 picker 에 노출
@@ -2230,6 +2251,9 @@ export default function StudioCanvas() {
   const [hdriBackground, setHdriBackground] = useState(false); // HDRI를 배경으로 표시
   const [hdriIntensity, setHdriIntensity] = useState(1.0);     // HDRI 환경광 (IBL) 강도 — scene.environmentIntensity
   const [exposure, setExposure] = useState(0.7);   // tone mapping exposure — 너무 밝으면 낮춤
+  // 맵 물리 — 중력 Y (기본 -22), 점프력 (기본 7). 무중력 = gravityY 0.
+  const [gravityY, setGravityY]   = useState(-22);
+  const [jumpPower, setJumpPower] = useState(7);
   // 썸네일 캡처 함수 (Canvas 내부에서 등록)
   const captureFnRef = useRef<(() => string | null) | null>(null);
   const cameraRef    = useRef<THREE.Camera | null>(null);
@@ -2332,6 +2356,8 @@ export default function StudioCanvas() {
         if (ss.hdriUrl       !== undefined) setHdriUrl(ss.hdriUrl);
         if (ss.hdriBackground !== undefined) setHdriBackground(ss.hdriBackground);
         if (ss.hdriIntensity  !== undefined) setHdriIntensity(ss.hdriIntensity);
+        if (typeof ss.gravityY  === 'number') setGravityY(ss.gravityY);
+        if (typeof ss.jumpPower === 'number') setJumpPower(ss.jumpPower);
         if (ss.exposure       !== undefined) setExposure(ss.exposure);
         const objs = d.world.mapData?.objects || [];
         setObjects(objs);
@@ -3264,7 +3290,7 @@ export default function StudioCanvas() {
         }
       } catch { /* 썸네일 실패는 무시 */ }
 
-      const sceneSettings = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, hdriIntensity, exposure };
+      const sceneSettings = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, hdriIntensity, exposure, gravityY, jumpPower };
       const payload: Record<string, unknown> = { name, description, mapData: { objects, sceneSettings }, isPublic };
       if (thumbnailUrl) payload.thumbnailUrl = thumbnailUrl;
       const body = JSON.stringify(payload);
@@ -3304,11 +3330,11 @@ export default function StudioCanvas() {
   }, [selected, inspTab]);
 
   // dirty — 현재 상태가 저장된 상태와 다른가
-  const sceneSettingsForDirty = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, hdriIntensity, exposure };
+  const sceneSettingsForDirty = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, hdriIntensity, exposure, gravityY, jumpPower };
   const currentKey = useMemo(
     () => JSON.stringify({ name, objects, sceneSettings: sceneSettingsForDirty }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [name, objects, lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, exposure],
+    [name, objects, lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, exposure, gravityY, jumpPower],
   );
   const dirty = savedKey !== '' && currentKey !== savedKey;
 
@@ -3560,6 +3586,47 @@ export default function StudioCanvas() {
             </button>
           </div>
         )}
+        {/* 물리 (중력 / 점프력) — 맵 전역 설정. 시뮬레이션·월드 양쪽 적용 */}
+        <div style={{ marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 8 }}>
+          <button type="button" onClick={() => setPhysPanelOpen(v => !v)}
+            style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '4px 0', cursor: 'pointer', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>🪐 물리 / 중력</span>
+            <span>{physPanelOpen ? '▲' : '▼'}</span>
+          </button>
+          {physPanelOpen && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
+              {/* 중력 */}
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.75 }}>
+                중력 (gravity Y): {gravityY.toFixed(1)}
+                <input type="range" min={-40} max={0} step={0.5} value={gravityY}
+                  onChange={e => setGravityY(Number(e.target.value))}
+                  onMouseUp={() => pushHistory(objects)}
+                  style={{ accentColor: '#22d3ee' }} />
+                <span style={{ fontSize: 10, opacity: 0.5 }}>지구 ≈ -9.8 · 게임 기본 -22 · 0 = 무중력</span>
+              </label>
+              {/* 프리셋 버튼 */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
+                {([['무중력', 0], ['달', -1.6], ['지구', -9.8]] as const).map(([label, g]) => (
+                  <button key={label} type="button"
+                    onClick={() => { setGravityY(g); pushHistory(objects); }}
+                    style={{ background: Math.abs(gravityY - g) < 0.05 ? 'rgba(34,211,238,0.35)' : 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', borderRadius: 6, padding: '5px 0', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {/* 점프력 */}
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.75 }}>
+                점프력: {jumpPower.toFixed(1)}
+                <input type="range" min={0} max={25} step={0.5} value={jumpPower}
+                  onChange={e => setJumpPower(Number(e.target.value))}
+                  onMouseUp={() => pushHistory(objects)}
+                  style={{ accentColor: '#fbbf24' }} />
+                <span style={{ fontSize: 10, opacity: 0.5 }}>위로 주는 속도 (m/s). 기본 7 ≈ 1.1m (중력 -22 기준)</span>
+              </label>
+            </div>
+          )}
+        </div>
+
         {/* 환경 (Sky / HDRI / Ambient) */}
         <div style={{ marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 8 }}>
           <button type="button" onClick={() => setEnvPanelOpen(v => !v)}
@@ -4255,7 +4322,7 @@ export default function StudioCanvas() {
           {simulating ? (
             /* ── 시뮬레이션 모드 ── */
             <Suspense fallback={null}>
-              <Physics gravity={[0, -9.81, 0]} interpolate={false}>
+              <Physics gravity={[0, gravityY, 0]} interpolate={false}>
                 <SimScene objects={objects.filter(o => !o.hidden)} transforms={simTransforms} myAssets={myAssets}
                   player={simCharacter ? {
                     character: simCharacter,
@@ -4263,6 +4330,7 @@ export default function StudioCanvas() {
                     onToggleCameraMode: () => setSimCameraMode(m => m === 'first' ? 'third' : 'first'),
                     onGrabUiChange: setSimCrosshair,
                     freeCam: simCamView === 'free',
+                    jumpPower,
                     ownersRef: simOwnersRef,
                     grabbedStateRef: simGrabbedStateRef,
                     grabbableIdsRef: simGrabbableIdsRef,

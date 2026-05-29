@@ -845,6 +845,8 @@ export function Player({
   onGrabRelease,
   remoteGrabbedByRef,
   cameraControlEnabled = true,
+  hideHeadOverride,
+  jumpPower = 7,
   spawnPos = [0, 4, 0],
   spawnRotY = 0,
 }: {
@@ -877,6 +879,10 @@ export function Player({
   remoteGrabbedByRef?: React.MutableRefObject<Map<string, string>>;
   /** false 면 카메라를 건드리지 않음 (스튜디오 자유시점 모드에서 외부 카메라가 제어) */
   cameraControlEnabled?: boolean;
+  /** 머리 숨김 강제. undefined 면 기본(1인칭일 때 숨김). false 면 항상 표시(near 클리핑 의존). */
+  hideHeadOverride?: boolean;
+  /** 점프 시 위로 주는 속도 (m/s). 맵 설정으로 조절. 기본 7 (≈1.1m). */
+  jumpPower?: number;
   /** 스폰 위치 — 월드의 spawn 오브젝트 중 하나. 없으면 기본 [0,4,0] */
   spawnPos?: [number, number, number];
   /** 스폰 시 카메라 초기 Y 회전 (라디안). spawn 의 rotation.y */
@@ -1153,8 +1159,8 @@ export function Player({
       jumpPrev.current = jump;
       _mob.jumpQueued = false;
       if (jumpJustPressed && onGround && !isCrouch && !isProne) {
-        // 7 m/s → 약 1.1m 점프, 공중 체공 시간 ~0.64초
-        body.current.setLinvel({ x: vel.x, y: 7, z: vel.z }, true);
+        // 점프력 = 맵 설정 (기본 7 m/s → 약 1.1m @ 중력 -22)
+        body.current.setLinvel({ x: vel.x, y: jumpPower, z: vel.z }, true);
         // 애니메이션이 끊기지 않도록 최소 500ms 점프 상태 유지
         jumpHoldUntil.current = Date.now() + 500;
       }
@@ -1359,7 +1365,7 @@ export function Player({
       {/* 1인칭에서도 본인 메쉬 표시 — 아래 보면 다리/몸 보임.
           머리는 hideHead 로 본 스케일 0 / 블록 머리 미렌더 처리 */}
       <group ref={mesh} position={[0, PLAYER_MESH_Y, 0]}>
-        <CharacterMesh appearance={appearance} animStateRef={animStateRef} emoteOneShotOverride={emoteOneShotOverride} hideHead={cameraMode === 'first'} />
+        <CharacterMesh appearance={appearance} animStateRef={animStateRef} emoteOneShotOverride={emoteOneShotOverride} hideHead={hideHeadOverride ?? (cameraMode === 'first')} />
       </group>
       {bubble && (
         <Html position={[0, 1.95, 0]} center>
@@ -2079,6 +2085,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const hdriBackground   = typeof ss.hdriBackground === 'boolean' ? ss.hdriBackground : false;
   const exposure         = typeof ss.exposure === 'number' ? ss.exposure : 0.7;
   const hdriIntensity    = typeof ss.hdriIntensity === 'number' ? ss.hdriIntensity : 1.0;
+  // 맵 물리 설정 — 중력 Y (기본 -22), 점프력 (기본 7). 무중력은 gravityY=0.
+  const gravityY         = typeof ss.gravityY === 'number' ? ss.gravityY : -22;
+  const jumpPower        = typeof ss.jumpPower === 'number' ? ss.jumpPower : 7;
   const lightObjects = (customObjects ?? []).filter(
     (o: UserMapObject) => o.kind === 'pointlight' || o.kind === 'spotlight' || o.kind === 'dirlight'
   );
@@ -2897,7 +2906,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         />
 
         <Suspense fallback={null}>
-          <Physics gravity={[0, -22, 0]} interpolate={false}>
+          <Physics gravity={[0, gravityY, 0]} interpolate={false}>
             {customObjects !== undefined ? (
               // 유저 제작 월드 — 기본 그라운드 없음. 필요하면 평면 직접 배치
               // runtimeObjects: 스크립트 world.spawn() 으로 동적 생성된 것 (로컬 전용, 저장 안 됨)
@@ -2906,7 +2915,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}
