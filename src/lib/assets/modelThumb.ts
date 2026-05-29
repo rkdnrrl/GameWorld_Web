@@ -96,7 +96,14 @@ async function renderThumb(url: string, config?: MaterialConfig | null): Promise
   await ensureEnv();
   const r = renderer!, sc = scene!, cam = camera!;
   const model = await loadStaticModel(url);
-  const built = config ? buildMat(config) : null;
+  // config 텍스처는 비동기 로드 → onTexLoad 콜백으로 완료를 기다린다 (three 의 texture.image 는 로드 후에야 채워져서 waitForTextures 로는 못 잡음)
+  let resolveTex: () => void = () => {};
+  const texPromise = new Promise<void>(res => { resolveTex = res; });
+  let texExpected = 0, texLoaded = 0;
+  const onTexLoad = () => { if (++texLoaded >= texExpected) resolveTex(); };
+  const built = config ? buildMat(config, onTexLoad) : null;
+  texExpected = config ? [config.textureAlbedo, config.textureNormal, config.textureRoughness].filter(Boolean).length : 0;
+  if (texExpected === 0) resolveTex();
   try {
     model.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(model);
@@ -131,9 +138,10 @@ async function renderThumb(url: string, config?: MaterialConfig | null): Promise
       });
     });
     sc.add(model);
-    r.render(sc, cam);                          // 1차 (텍스처 로딩 전일 수 있음)
-    await waitForTextures(model, 700);          // 텍스처 로드 대기
-    r.render(sc, cam);                          // 2차 — 텍스처 입혀진 상태로 캡처
+    // config 텍스처(albedo 등) 로드 대기 + 임베디드 텍스처 로드 대기 → 입혀진 상태로 캡처
+    await Promise.race([texPromise, new Promise<void>(res => setTimeout(res, 900))]);
+    await waitForTextures(model, 500);
+    r.render(sc, cam);
     return r.domElement.toDataURL('image/png');
   } finally {
     sc.remove(model);

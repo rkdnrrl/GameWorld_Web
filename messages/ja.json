@@ -1380,6 +1380,8 @@
     "firstPerson": "一人称",
     "thirdPerson": "三人称",
     "viewModeHint": "ゲーム中 V キーでも切替可能",
+    "fov": "一人称 視野角 (FOV)",
+    "fovFirstOnly": "一人称視点でのみ適用されます",
     "graphics": "グラフィック",
     "escToToggle": "で開閉"
   },

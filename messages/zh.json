@@ -1380,6 +1380,8 @@
     "firstPerson": "第一人称",
     "thirdPerson": "第三人称",
     "viewModeHint": "游戏中按 V 键也可切换",
+    "fov": "第一人称视野 (FOV)",
+    "fovFirstOnly": "仅在第一人称视角下生效",
     "graphics": "图形",
     "escToToggle": "开关"
   },

@@ -113,6 +113,17 @@ export default function WorldPage() {
     setCameraMode(m);
     try { localStorage.setItem('alp_world_cameraMode', m); } catch { /* noop */ }
   }, []);
+  // 1인칭 시야각(FOV) — 50~110°, 기본 75
+  const [fpFov, setFpFov] = useState(75);
+  useEffect(() => {
+    const saved = typeof window !== 'undefined' ? Number(localStorage.getItem('alp_world_fpFov')) : NaN;
+    if (Number.isFinite(saved) && saved >= 50 && saved <= 110) setFpFov(saved);
+  }, []);
+  const changeFpFov = useCallback((v: number) => {
+    const clamped = Math.max(50, Math.min(110, Math.round(v)));
+    setFpFov(clamped);
+    try { localStorage.setItem('alp_world_fpFov', String(clamped)); } catch { /* noop */ }
+  }, []);
   // VRChat 식 포탈 — WorldCanvas 가 등록하는 API + 열린 포탈 배너 + 맵 피커 포탈 모드
   const portalApiRef = useRef<{ open: (worldId: string, name: string) => void; close: () => void } | null>(null);
   const [portalPickMode, setPortalPickMode] = useState(false);
@@ -589,6 +600,7 @@ export default function WorldPage() {
         onPortalEnter={enterPortal}
         cameraMode={cameraMode}
         onCameraModeChange={changeCameraMode}
+        firstPersonFov={fpFov}
       />
 
       {/* 우상단 단일 설정 버튼 — 클릭 또는 ESC 로 통합 모달 오픈 */}
@@ -699,6 +711,21 @@ export default function WorldPage() {
                     ))}
                   </div>
                   <div style={{ fontSize: 10, opacity: 0.45, marginTop: 6 }}>{t('viewModeHint')}</div>
+                  {/* 1인칭 시야각(FOV) */}
+                  <div style={{ marginTop: 12, opacity: cameraMode === 'first' ? 1 : 0.5 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700 }}>{t('fov')}</span>
+                      <span style={{ fontSize: 12, color: '#a5b4fc', fontWeight: 700 }}>{fpFov}°</span>
+                    </div>
+                    <input
+                      type="range" min={50} max={110} step={1} value={fpFov}
+                      onChange={(e) => changeFpFov(Number(e.target.value))}
+                      style={{ width: '100%', accentColor: '#6366f1' }}
+                    />
+                    {cameraMode !== 'first' && (
+                      <div style={{ fontSize: 10, opacity: 0.5, marginTop: 4 }}>{t('fovFirstOnly')}</div>
+                    )}
+                  </div>
                 </div>
 
                 {/* 허브 */}

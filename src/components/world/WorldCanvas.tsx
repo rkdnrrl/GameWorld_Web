@@ -926,6 +926,7 @@ export function Player({
   localPoseRef,
   portalRef,
   onPortalEnter,
+  firstPersonFov = 75,
 }: {
   character: Record<string, unknown>;
   bubble?: ChatBubble;
@@ -969,6 +970,8 @@ export function Player({
   /** 현재 열린 포탈 (없으면 null). 플레이어가 닿으면 onPortalEnter 호출 */
   portalRef?: React.MutableRefObject<PortalState | null>;
   onPortalEnter?: (worldId: string) => void;
+  /** 1인칭 시야각(FOV, degrees). 3인칭은 기본 60 사용. */
+  firstPersonFov?: number;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body      = useRef<any>(null);
@@ -1319,6 +1322,12 @@ export function Player({
     const p = lastPos.current;
     // 자세에 따른 카메라 높이 배수 — 서있음 1.0, 앉기 0.55, 엎드리기 0.18
     const postureScale = proneRef.current ? 0.18 : crouchRef.current ? 0.55 : 1.0;
+    // 시야각(FOV): 1인칭은 설정값, 3인칭은 기본 60. 값이 바뀔 때만 투영행렬 갱신.
+    if (cameraControlEnabled) {
+      const cam = camera as THREE.PerspectiveCamera;
+      const targetFov = cameraMode === 'first' ? firstPersonFov : 60;
+      if (cam.isPerspectiveCamera && cam.fov !== targetFov) { cam.fov = targetFov; cam.updateProjectionMatrix(); }
+    }
     // 자유시점 모드 — 외부 카메라(WasdFly/Orbit)가 카메라 소유. Player 는 캐릭터 물리만 처리.
     if (!cameraControlEnabled) { /* skip camera positioning */ }
     else if (cameraMode === 'first') {
@@ -2151,6 +2160,8 @@ interface WorldCanvasProps {
   // 카메라 시점 — 페이지(월드 설정)가 제어. 없으면 내부 상태(기본 3인칭) 사용.
   cameraMode?: CameraMode;
   onCameraModeChange?: (m: CameraMode) => void;
+  // 1인칭 시야각(FOV, degrees). 월드 설정에서 조절.
+  firstPersonFov?: number;
 }
 
 /** 런타임 포탈 상태 — 플레이어 앞에 떠 있는 워프 게이트 */
@@ -2357,7 +2368,7 @@ function MobileControls({ inputLocked }: { inputLocked: boolean }) {
   );
 }
 
-export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId, sendObjClaim, sendObjRelease, objectOwnerRef, sendObjSpawn, sendObjDestroy, objSpawnRef, objDestroyRef, sendSceneRegister, portalApiRef, onPortalEnter, cameraMode: cameraModeProp, onCameraModeChange }: WorldCanvasProps) {
+export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId, sendObjClaim, sendObjRelease, objectOwnerRef, sendObjSpawn, sendObjDestroy, objSpawnRef, objDestroyRef, sendSceneRegister, portalApiRef, onPortalEnter, cameraMode: cameraModeProp, onCameraModeChange, firstPersonFov = 75 }: WorldCanvasProps) {
   // ── VRChat 식 포탈 ──
   const [portal, setPortal] = useState<PortalState | null>(null);
   const portalRef = useRef<PortalState | null>(null);
@@ -3254,7 +3265,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} portalRef={portalRef} onPortalEnter={onPortalEnter} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}

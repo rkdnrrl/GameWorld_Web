@@ -1380,6 +1380,8 @@
     "firstPerson": "First-person",
     "thirdPerson": "Third-person",
     "viewModeHint": "Press V in-game to toggle too",
+    "fov": "First-person FOV",
+    "fovFirstOnly": "Applies in first-person view only",
     "graphics": "Graphics",
     "escToToggle": "to toggle"
   },

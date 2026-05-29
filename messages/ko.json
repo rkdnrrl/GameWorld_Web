@@ -1380,6 +1380,8 @@
     "firstPerson": "1인칭",
     "thirdPerson": "3인칭",
     "viewModeHint": "게임 중 V 키로도 전환 가능",
+    "fov": "1인칭 시야각 (FOV)",
+    "fovFirstOnly": "1인칭 시점에서만 적용됩니다",
     "graphics": "그래픽",
     "escToToggle": "로 열기/닫기"
   },
