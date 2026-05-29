@@ -2923,8 +2923,9 @@ export default function StudioCanvas() {
         id, kind: 'asset', label,
         assetUrl: asset.modelUrl,
         position,
-        rotation: [0, 0, 0],
-        scale:    [1, 1, 1],
+        // 모델은 최대 치수=1 단위로 정규화됨 → 스케일 1 이면 캐릭터(≈1.8)보다 작아 너무 작게 보임.
+        // 기본 3 단위로 생성 (필요시 인스펙터에서 조절). 스튜디오·월드 동일 정규화라 양쪽 일관.
+        scale:    [3, 3, 3],
         color:    '#fff',
         ...(getAssetMaterialConfig(asset) || {}),
       }];
