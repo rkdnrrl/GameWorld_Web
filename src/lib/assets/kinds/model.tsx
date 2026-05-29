@@ -12,47 +12,41 @@ const AssetMaterialEditor = dynamic(
   { ssr: false },
 );
 
-// FBX/GLB 등 — 저장된 썸네일이 없으면, 화면에 보일 때 오프스크린 렌더러로
-// 한 번 3D 미리보기 이미지를 생성·캐시해 항상 표시 (호버 불필요).
+// 라이브 3D 뷰어 — 화면에 보일 때만 로드/마운트
+const ModelThumbViewer = dynamic(
+  () => import('@/components/assets/ModelThumbViewer'),
+  { ssr: false },
+);
+
+// FBX/GLB 등 — 저장된 썸네일이 없으면, 카드가 화면에 보일 때만 라이브 3D 로 표시.
+// 화면 밖이면 언마운트해 WebGL 컨텍스트를 반납 → 한 화면 카드 수만큼만 동시 렌더(안전).
 function ModelThumbnail({ asset }: { asset: Asset }) {
-  const [thumb, setThumb] = useState<string | null>(null);
+  const [visible, setVisible] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (asset.thumbnailUrl) return;          // 서버 썸네일 우선
     const el = ref.current;
     if (!el) return;
-    let cancelled = false;
-    let started = false;
-    const start = () => {
-      if (started) return;
-      started = true;
-      import('@/lib/assets/modelThumb')
-        .then(({ requestThumb }) => requestThumb(asset.modelUrl))
-        .then(d => { if (!cancelled) setThumb(d); })
-        .catch(() => { /* 실패 시 아이콘 유지 */ });
-    };
-    // 화면에 들어오면 생성 (한꺼번에 다 만들지 않도록 lazy)
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some(e => e.isIntersecting)) { io.disconnect(); start(); }
-    }, { rootMargin: '300px' });
+    const io = new IntersectionObserver(
+      (entries) => setVisible(entries.some(e => e.isIntersecting)),
+      { rootMargin: '0px' },                 // 딱 보이는 화면까지만
+    );
     io.observe(el);
-    return () => { cancelled = true; io.disconnect(); };
-  }, [asset.modelUrl, asset.thumbnailUrl]);
+    return () => io.disconnect();
+  }, [asset.thumbnailUrl]);
 
   // 저장된 썸네일 이미지가 있으면 그대로 사용
   if (asset.thumbnailUrl) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={asset.thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />;
   }
-  if (thumb) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={thumb} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />;
-  }
-  // 생성 전 — 아이콘 placeholder (이 div 가 보이면 생성 트리거)
+  // 보이면 라이브 3D, 화면 밖이면 아이콘 (컨텍스트 반납)
   return (
     <div ref={ref} style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <span style={{ fontSize: 44, opacity: 0.4 }}>🎲</span>
+      {visible
+        ? <ModelThumbViewer url={asset.modelUrl} />
+        : <span style={{ fontSize: 44, opacity: 0.4 }}>🎲</span>}
     </div>
   );
 }
