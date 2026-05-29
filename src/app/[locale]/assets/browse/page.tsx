@@ -47,6 +47,14 @@ export default function AssetBrowsePage() {
   const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
   const [reportingAsset, setReportingAsset] = useState<Asset | null>(null);
   const [reportedIds, setReportedIds] = useState<Set<string>>(new Set());
+  // 반응형 — 좁은 화면에선 사이드바를 가로 카테고리 칩으로 전환
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   // 팩 탭 상태
   const [packs, setPacks] = useState<PackWithMeta[]>([]);
@@ -227,11 +235,16 @@ export default function AssetBrowsePage() {
         />
       )}
 
-      <div style={{ minHeight: '100vh', background: '#0f172a', color: '#fff', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif" }}>
-        {/* 헤더 */}
-        <div style={{ padding: '14px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 22 }}>🛒</span>
-          <h1 style={{ margin: 0, fontSize: 17, fontWeight: 800, flex: 1 }}>{t('marketTitle')}</h1>
+      <div style={{ minHeight: '100vh', background: '#0b1020', color: '#fff', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif" }}>
+        {/* 스티키 상단 바 */}
+        <header style={{
+          position: 'sticky', top: 0, zIndex: 30,
+          padding: '12px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex', alignItems: 'center', gap: 10,
+          background: 'rgba(11,16,32,0.85)', backdropFilter: 'blur(10px)',
+        }}>
+          <span style={{ fontSize: 20 }}>🛒</span>
+          <h1 style={{ margin: 0, fontSize: 16, fontWeight: 800, flex: 1 }}>{t('marketTitle')}</h1>
           <Link href="/assets/following" style={{
             fontSize: 12, color: '#a5b4fc', textDecoration: 'none',
             padding: '7px 14px', background: 'rgba(99,102,241,0.18)', borderRadius: 8,
@@ -244,202 +257,237 @@ export default function AssetBrowsePage() {
           }}>
             ← {t('marketBackToLibrary')}
           </Link>
-        </div>
+        </header>
 
-        <div style={{ maxWidth: 1680, margin: '0 auto', padding: '16px 24px 48px' }}>
-          {/* 탭 */}
-          <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-            <TabBtn active={tab === 'assets'} onClick={() => setQuery({ tab: null })}>
-              🎲 {t('tabAssets')}
-            </TabBtn>
-            <TabBtn active={tab === 'packs'} onClick={() => setQuery({ tab: 'packs' })}>
-              📦 {t('tabPacks')}
-            </TabBtn>
-          </div>
-
-          {/* 검색 + 필터 */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ position: 'relative', flex: '1 1 280px', maxWidth: 360 }}>
+        {/* 히어로 — 타이틀 + 서브 + 큰 검색창 */}
+        <div style={{
+          padding: '36px 24px 32px',
+          background: 'radial-gradient(1200px 300px at 50% -40%, rgba(129,140,248,0.28), transparent 70%), linear-gradient(180deg, rgba(99,102,241,0.12), transparent)',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+        }}>
+          <div style={{ maxWidth: 760, margin: '0 auto', textAlign: 'center' }}>
+            <h2 style={{ margin: 0, fontSize: 28, fontWeight: 900, letterSpacing: -0.5 }}>{t('marketTitle')}</h2>
+            <p style={{ margin: '8px 0 20px', fontSize: 14, color: 'rgba(255,255,255,0.6)' }}>{t('marketSubtitle')}</p>
+            <div style={{ position: 'relative', maxWidth: 560, margin: '0 auto' }}>
               <input
                 value={qInput}
                 onChange={e => setQInput(e.target.value)}
                 placeholder={t('searchPlaceholder')}
                 style={{
-                  width: '100%', padding: '8px 12px 8px 32px', fontSize: 13,
-                  background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 8, color: '#fff', outline: 'none',
+                  width: '100%', padding: '13px 16px 13px 44px', fontSize: 14,
+                  background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)',
+                  borderRadius: 12, color: '#fff', outline: 'none', boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
                 }}
               />
-              <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }}>🔍</span>
-            </div>
-
-            {/* kind 선택 */}
-            <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.05)', padding: 3, borderRadius: 9 }}>
-              <KindChip active={!kindSel} label={t('all')} onClick={() => setQuery({ kind: null })} />
-              {kinds.map(k => (
-                <KindChip key={k.id}
-                  active={kindSel === k.id}
-                  label={`${k.icon || ''} ${k.label}`.trim()}
-                  onClick={() => setQuery({ kind: k.id === kindSel ? null : k.id })} />
-              ))}
-            </div>
-
-            <select
-              value={sort}
-              onChange={e => setQuery({ sort: e.target.value === 'popular' ? null : e.target.value })}
-              style={{
-                padding: '7px 10px', fontSize: 12,
-                background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 8, color: '#fff', outline: 'none', cursor: 'pointer',
-              }}>
-              <option value="popular">{t('sortPopular')}</option>
-              <option value="recent">{t('sortRecent')}</option>
-              <option value="name">{t('sortName')}</option>
-            </select>
-
-            <div style={{ marginLeft: 'auto', fontSize: 12, opacity: 0.55 }}>
-              {t('marketTotalCount', { count: total })}
-              {activeKindDef && <> · {activeKindDef.label}</>}
-              {tagSel && <> · #{tagSel}</>}
+              <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', opacity: 0.45, fontSize: 16 }}>🔍</span>
             </div>
           </div>
+        </div>
 
-          {/* 태그 필터 칩 (선택돼 있을 때만) */}
-          {tagSel && (
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 12 }}>
-              <span style={{ fontSize: 11, opacity: 0.5 }}>{t('activeFilters')}:</span>
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                padding: '3px 4px 3px 8px', fontSize: 11,
-                background: 'rgba(99,102,241,0.18)', color: '#c7d2fe', borderRadius: 5,
+        {/* 본문 — 좌측 카테고리 사이드바 + 우측 그리드 (모바일은 세로 스택) */}
+        <div style={{ maxWidth: 1680, margin: '0 auto', padding: '20px 24px 56px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 14 : 24, alignItems: 'flex-start' }}>
+          {/* 사이드바 */}
+          <aside style={{ width: isMobile ? '100%' : 220, flexShrink: 0, position: isMobile ? 'static' : 'sticky', top: 72, alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: isMobile ? 10 : 16 }}>
+            {/* 콘텐츠 탭 (에셋 / 팩) */}
+            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: 4, gap: 4 }}>
+              <SegBtn active={tab === 'assets'} onClick={() => setQuery({ tab: null })}>🎲 {t('tabAssets')}</SegBtn>
+              <SegBtn active={tab === 'packs'} onClick={() => setQuery({ tab: 'packs' })}>📦 {t('tabPacks')}</SegBtn>
+            </div>
+
+            {/* 카테고리 (에셋 탭 전용) */}
+            {tab === 'assets' && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, color: 'rgba(255,255,255,0.4)', padding: '0 10px 8px' }}>
+                  {t('sidebarCategory')}
+                </div>
+                <nav style={{ display: 'flex', flexDirection: isMobile ? 'row' : 'column', gap: isMobile ? 6 : 2, overflowX: isMobile ? 'auto' : 'visible', paddingBottom: isMobile ? 4 : 0 }}>
+                  <SideCat active={!kindSel} icon="🗂️" label={t('all')} inline={isMobile} onClick={() => setQuery({ kind: null })} />
+                  {kinds.map(k => (
+                    <SideCat key={k.id}
+                      active={kindSel === k.id}
+                      icon={k.icon || '📄'}
+                      label={k.label}
+                      inline={isMobile}
+                      onClick={() => setQuery({ kind: k.id === kindSel ? null : k.id })} />
+                  ))}
+                </nav>
+
+                {/* 활성 태그 필터 */}
+                {tagSel && (
+                  <div style={{ marginTop: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, color: 'rgba(255,255,255,0.4)', padding: '0 10px 8px' }}>
+                      {t('activeFilters')}
+                    </div>
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4, margin: '0 10px',
+                      padding: '4px 4px 4px 10px', fontSize: 12,
+                      background: 'rgba(99,102,241,0.2)', color: '#c7d2fe', borderRadius: 7,
+                    }}>
+                      # {tagSel}
+                      <button onClick={() => setQuery({ tag: null })}
+                        style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13, padding: '0 3px' }}>
+                        ✕
+                      </button>
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </aside>
+
+          {/* 메인 */}
+          <main style={{ flex: 1, minWidth: 0 }}>
+            {/* 결과 툴바 — 개수 + 정렬 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>
+                {tab === 'assets' ? (
+                  <>{t('marketTotalCount', { count: total })}{activeKindDef && <span style={{ opacity: 0.55, fontWeight: 400 }}> · {activeKindDef.label}</span>}</>
+                ) : (
+                  <>{t('marketTotalCount', { count: packTotal })}</>
+                )}
+              </div>
+              <select
+                value={sort}
+                onChange={e => setQuery({ sort: e.target.value === 'popular' ? null : e.target.value })}
+                style={{
+                  marginLeft: 'auto', padding: '8px 12px', fontSize: 12.5,
+                  background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 9, color: '#fff', outline: 'none', cursor: 'pointer',
+                }}>
+                <option value="popular">{t('sortPopular')}</option>
+                <option value="recent">{t('sortRecent')}</option>
+                <option value="name">{t('sortName')}</option>
+              </select>
+            </div>
+
+            {error && (
+              <div style={{
+                background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
+                borderRadius: 10, padding: '10px 16px', color: '#fca5a5', fontSize: 13, marginBottom: 14,
               }}>
-                # {tagSel}
-                <button onClick={() => setQuery({ tag: null })}
-                  style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13, padding: '0 3px' }}>
-                  ✕
-                </button>
-              </span>
-            </div>
-          )}
+                ⚠️ {error}
+              </div>
+            )}
 
-          {error && (
-            <div style={{
-              background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
-              borderRadius: 10, padding: '10px 16px', color: '#fca5a5', fontSize: 13, marginBottom: 14,
-            }}>
-              ⚠️ {error}
-            </div>
-          )}
-
-          {/* 그리드 — 탭에 따라 분기 */}
-          {tab === 'assets' ? (
-            <>
-              {assets.length === 0 && !loading ? (
-                <div style={{ textAlign: 'center', opacity: 0.4, padding: '60px 0', fontSize: 14 }}>
-                  {t('marketEmpty')}
-                </div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(148px, 1fr))', gap: 12 }}>
-                  {assets.map(a => (
-                    <AssetMarketCard
-                      key={a.id}
-                      asset={a}
-                      kinds={kinds}
-                      importing={importingId === a.id}
-                      imported={importedIds.has(a.id)}
-                      liking={likingId === a.id}
-                      reported={reportedIds.has(a.id)}
-                      onPreview={setPreviewAsset}
-                      onImport={importAsset}
-                      onToggleLike={toggleLike}
-                      onReport={setReportingAsset}
-                    />
-                  ))}
-                </div>
-              )}
-              {hasMore && (
-                <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                  <button onClick={loadMore} disabled={loading}
-                    style={{
-                      padding: '10px 24px', fontSize: 13, fontWeight: 700,
-                      background: 'rgba(99,102,241,0.18)', color: '#c7d2fe',
-                      border: 'none', borderRadius: 8, cursor: 'pointer',
-                    }}>
-                    {loading ? t('marketLoading') : t('marketLoadMore')}
-                  </button>
-                </div>
-              )}
-              {!hasMore && assets.length > 0 && (
-                <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 11, opacity: 0.4 }}>
-                  {t('marketEndOfList')}
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              {packs.length === 0 && !packLoading ? (
-                <div style={{ textAlign: 'center', opacity: 0.4, padding: '60px 0', fontSize: 14 }}>
-                  {t('packMarketEmpty')}
-                </div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
-                  {packs.map(p => (
-                    <PackCard
-                      key={p.id}
-                      pack={p}
-                      importing={importingPackId === p.id}
-                      imported={importedPackIds.has(p.id)}
-                      onImport={importPack}
-                    />
-                  ))}
-                </div>
-              )}
-              {packHasMore && (
-                <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                  <button onClick={loadMorePacks} disabled={packLoading}
-                    style={{
-                      padding: '10px 24px', fontSize: 13, fontWeight: 700,
-                      background: 'rgba(99,102,241,0.18)', color: '#c7d2fe',
-                      border: 'none', borderRadius: 8, cursor: 'pointer',
-                    }}>
-                    {packLoading ? t('marketLoading') : t('marketLoadMore')}
-                  </button>
-                </div>
-              )}
-            </>
-          )}
+            {/* 그리드 — 탭에 따라 분기 */}
+            {tab === 'assets' ? (
+              <>
+                {assets.length === 0 && !loading ? (
+                  <div style={{ textAlign: 'center', opacity: 0.4, padding: '60px 0', fontSize: 14 }}>
+                    {t('marketEmpty')}
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
+                    {assets.map(a => (
+                      <AssetMarketCard
+                        key={a.id}
+                        asset={a}
+                        kinds={kinds}
+                        importing={importingId === a.id}
+                        imported={importedIds.has(a.id)}
+                        liking={likingId === a.id}
+                        reported={reportedIds.has(a.id)}
+                        onPreview={setPreviewAsset}
+                        onImport={importAsset}
+                        onToggleLike={toggleLike}
+                        onReport={setReportingAsset}
+                      />
+                    ))}
+                  </div>
+                )}
+                {hasMore && (
+                  <div style={{ textAlign: 'center', padding: '28px 0' }}>
+                    <button onClick={loadMore} disabled={loading}
+                      style={{
+                        padding: '11px 28px', fontSize: 13, fontWeight: 700,
+                        background: 'rgba(99,102,241,0.18)', color: '#c7d2fe',
+                        border: '1px solid rgba(99,102,241,0.3)', borderRadius: 10, cursor: 'pointer',
+                      }}>
+                      {loading ? t('marketLoading') : t('marketLoadMore')}
+                    </button>
+                  </div>
+                )}
+                {!hasMore && assets.length > 0 && (
+                  <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 11, opacity: 0.4 }}>
+                    {t('marketEndOfList')}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                {packs.length === 0 && !packLoading ? (
+                  <div style={{ textAlign: 'center', opacity: 0.4, padding: '60px 0', fontSize: 14 }}>
+                    {t('packMarketEmpty')}
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
+                    {packs.map(p => (
+                      <PackCard
+                        key={p.id}
+                        pack={p}
+                        importing={importingPackId === p.id}
+                        imported={importedPackIds.has(p.id)}
+                        onImport={importPack}
+                      />
+                    ))}
+                  </div>
+                )}
+                {packHasMore && (
+                  <div style={{ textAlign: 'center', padding: '28px 0' }}>
+                    <button onClick={loadMorePacks} disabled={packLoading}
+                      style={{
+                        padding: '11px 28px', fontSize: 13, fontWeight: 700,
+                        background: 'rgba(99,102,241,0.18)', color: '#c7d2fe',
+                        border: '1px solid rgba(99,102,241,0.3)', borderRadius: 10, cursor: 'pointer',
+                      }}>
+                      {packLoading ? t('marketLoading') : t('marketLoadMore')}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </main>
         </div>
       </div>
     </>
   );
 }
 
-function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+/* 사이드바 콘텐츠 탭 버튼 (에셋/팩) */
+function SegBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button onClick={onClick}
       style={{
-        padding: '10px 16px', fontSize: 13, fontWeight: active ? 700 : 500,
-        background: 'transparent', border: 'none', cursor: 'pointer',
-        color: active ? '#fff' : 'rgba(255,255,255,0.55)',
-        borderBottom: `2px solid ${active ? '#6366f1' : 'transparent'}`,
-        marginBottom: -1,
+        flex: 1, padding: '7px 8px', fontSize: 12.5, fontWeight: active ? 700 : 500,
+        border: 'none', borderRadius: 7, cursor: 'pointer',
+        background: active ? 'rgba(99,102,241,0.9)' : 'transparent',
+        color: active ? '#fff' : 'rgba(255,255,255,0.6)',
+        transition: 'all .12s',
       }}>
       {children}
     </button>
   );
 }
 
-function KindChip({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+/* 사이드바 카테고리 행 (데스크톱=세로 리스트 / 모바일 inline=가로 칩) */
+function SideCat({ active, icon, label, onClick, inline }: { active: boolean; icon: string; label: string; onClick: () => void; inline?: boolean }) {
   return (
     <button onClick={onClick}
       style={{
-        padding: '5px 11px', fontSize: 12, border: 'none', borderRadius: 6, cursor: 'pointer',
-        background: active ? 'rgba(99,102,241,0.35)' : 'transparent',
-        color: active ? '#fff' : 'rgba(255,255,255,0.55)',
-        fontWeight: active ? 700 : 500,
-        transition: 'all .12s',
-      }}>
-      {label}
+        textAlign: 'left', display: 'flex', alignItems: 'center', gap: 9,
+        padding: '8px 10px', borderRadius: 8, cursor: 'pointer',
+        background: active ? 'rgba(99,102,241,0.16)' : 'transparent',
+        color: active ? '#c7d2fe' : 'rgba(255,255,255,0.72)',
+        fontWeight: active ? 700 : 500, fontSize: 13,
+        transition: 'background .12s, color .12s',
+        ...(inline
+          ? { flexShrink: 0, whiteSpace: 'nowrap', border: `1px solid ${active ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}` }
+          : { width: '100%', border: 'none', borderLeft: `3px solid ${active ? '#6366f1' : 'transparent'}` }),
+      }}
+      onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+      onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}>
+      <span style={{ fontSize: 15, flexShrink: 0 }}>{icon}</span>
+      <span style={{ ...(inline ? {} : { flex: 1 }), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
     </button>
   );
 }
