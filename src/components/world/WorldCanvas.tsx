@@ -533,6 +533,7 @@ function LuaUpdateLoop({
   ownersRef,
   playerId,
   remoteGrabbedByRef,
+  allObjectsRef,
 }: {
   luaScripts: React.MutableRefObject<Map<string, import('@/lib/world/jsRuntime').JsScript>>;
   componentScripts: React.MutableRefObject<Map<string, Array<{ vm: import('@/lib/world/jsRuntime').JsScript; key: string }>>>;
@@ -547,6 +548,8 @@ function LuaUpdateLoop({
   playerId: string;
   /** 다른 클라가 1인칭 grab 중인 오브젝트 — 호스트 fallback skip 룰 완화에 사용 */
   remoteGrabbedByRef: React.MutableRefObject<Map<string, string>>;
+  /** 전체 오브젝트 (customObjects + runtime) — parent transform propagation 용 */
+  allObjectsRef: React.MutableRefObject<UserMapObject[]>;
 }) {
   useFrame((_, dt) => {
     worldElapsed.current += dt;
@@ -554,6 +557,81 @@ function LuaUpdateLoop({
     // 유저 정의 컴포넌트 VM 들도 매 프레임 onUpdate
     for (const arr of componentScripts.current.values()) {
       for (const { vm } of arr) vm.callUpdate(dt);
+    }
+
+    // ── 부모 → 자식 transform propagation ──
+    // 각 부모의 현재 world transform 을 자식의 local transform 과 곱해서 자식의 body/group 갱신.
+    // lights/spawn 은 flat 렌더라 propagation 제외. dynamic body 자식은 물리가 소유라 제외.
+    {
+      const allObjects = allObjectsRef.current;
+      if (allObjects && allObjects.length > 0) {
+        const childrenOf = new Map<string, UserMapObject[]>();
+        for (const obj of allObjects) {
+          if (!obj.parentId) continue;
+          if (obj.kind === 'pointlight' || obj.kind === 'spotlight' || obj.kind === 'dirlight' || obj.kind === 'spawn') continue;
+          if (!childrenOf.has(obj.parentId)) childrenOf.set(obj.parentId, []);
+          childrenOf.get(obj.parentId)!.push(obj);
+        }
+        if (childrenOf.size > 0) {
+          const _tmpPos = new THREE.Vector3();
+          const _tmpQuat = new THREE.Quaternion();
+          const _tmpScl = new THREE.Vector3();
+          const propagate = (parentId: string, parentWorld: THREE.Matrix4) => {
+            const kids = childrenOf.get(parentId);
+            if (!kids) return;
+            for (const child of kids) {
+              const childLocal = new THREE.Matrix4().compose(
+                new THREE.Vector3(child.position[0], child.position[1], child.position[2]),
+                new THREE.Quaternion().setFromEuler(new THREE.Euler(child.rotation[0], child.rotation[1], child.rotation[2], 'XYZ')),
+                new THREE.Vector3(child.scale[0], child.scale[1], child.scale[2]),
+              );
+              const childWorld = parentWorld.clone().multiply(childLocal);
+              childWorld.decompose(_tmpPos, _tmpQuat, _tmpScl);
+
+              const ref = scriptBodyRefs.current.get(child.id);
+              if (ref?.body.current) {
+                // dynamic 은 물리 소유라 건들지 않음
+                const bodyType = (ref.body.current as RapierBodyApi & { bodyType?: () => number }).bodyType?.();
+                if (bodyType !== 0) { // 0 = Dynamic in Rapier
+                  ref.body.current.setTranslation({ x: _tmpPos.x, y: _tmpPos.y, z: _tmpPos.z }, true);
+                  ref.body.current.setRotation({ x: _tmpQuat.x, y: _tmpQuat.y, z: _tmpQuat.z, w: _tmpQuat.w }, true);
+                }
+              } else if (ref?.group.current) {
+                ref.group.current.position.set(_tmpPos.x, _tmpPos.y, _tmpPos.z);
+                ref.group.current.quaternion.set(_tmpQuat.x, _tmpQuat.y, _tmpQuat.z, _tmpQuat.w);
+                ref.group.current.scale.set(_tmpScl.x, _tmpScl.y, _tmpScl.z);
+              }
+              // 손자도 재귀
+              propagate(child.id, childWorld);
+            }
+          };
+          // 루트 부모들 — childrenOf 의 key 중 자기 자신이 child 가 아닌 (= 트리 root) 만
+          // 단순화: 모든 부모에 대해 그 부모의 현재 world transform 으로 시작
+          for (const parentId of childrenOf.keys()) {
+            const ref = scriptBodyRefs.current.get(parentId);
+            const parentWorld = new THREE.Matrix4();
+            if (ref?.body.current) {
+              const t = ref.body.current.translation();
+              const r = ref.body.current.rotation();
+              // body 는 scale 정보 없음 → data 에서 가져옴
+              const parentObj = allObjects.find(o => o.id === parentId);
+              const sc = parentObj?.scale ?? [1, 1, 1];
+              parentWorld.compose(
+                new THREE.Vector3(t.x, t.y, t.z),
+                new THREE.Quaternion(r.x, r.y, r.z, r.w),
+                new THREE.Vector3(sc[0], sc[1], sc[2]),
+              );
+            } else if (ref?.group.current) {
+              ref.group.current.updateMatrix();
+              parentWorld.copy(ref.group.current.matrix);
+            } else {
+              continue;
+            }
+            // 부모 자신이 다른 부모의 자식이면 propagate 가 이미 그쪽에서 처리됨 — 중복 OK (부드럽게 덮어씀)
+            propagate(parentId, parentWorld);
+          }
+        }
+      }
     }
 
     // ── Client-side Prediction with Reconciliation ──
@@ -1517,6 +1595,9 @@ interface UserMapObject {
   scale:    [number, number, number];
   color:    string;
   hidden?:  boolean;   // Studio에서 숨김 처리된 오브젝트
+  // 부모 오브젝트 id — 부모 transform 따라 자식이 움직임 (매 프레임 propagate).
+  // lights/spawn 은 position 이 world 좌표 (flat 렌더). 일반 오브젝트는 local 좌표.
+  parentId?: string;
   // 머티리얼/텍스처 (선택)
   material?:        MaterialPreset;
   materialColor?:   string;
@@ -2032,6 +2113,11 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // 스크립트 콜백에서 stale state 피하려는 최신 ref
   const runtimeObjectsRef = useRef<UserMapObject[]>([]);
   useEffect(() => { runtimeObjectsRef.current = runtimeObjects; }, [runtimeObjects]);
+  // parent transform propagation 용 — customObjects + runtime 합쳐서 매 렌더 ref 갱신
+  const allObjectsRef = useRef<UserMapObject[]>([]);
+  useEffect(() => {
+    allObjectsRef.current = [...(customObjects ?? []), ...runtimeObjects];
+  }, [customObjects, runtimeObjects]);
   // 1인칭에서 잡을 수 있는 오브젝트 id 셋 — components 에 'grab' 있거나 grabbable 플래그(레거시) true
   const grabbableIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -2788,6 +2874,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           ownersRef={ownersRef}
           playerId={playerId}
           remoteGrabbedByRef={remoteGrabbedByRef}
+          allObjectsRef={allObjectsRef}
         />
 
         <Suspense fallback={null}>

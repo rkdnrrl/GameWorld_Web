@@ -1312,16 +1312,81 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs }: {
  *  메인 스크립트 + user 컴포넌트 VM 둘 다 dispatch. */
 function SimScriptLoop({
   luaScripts, componentScripts, worldElapsed,
+  allObjectsRef, scriptBodyRefs,
 }: {
   luaScripts: React.MutableRefObject<Map<string, import('@/lib/world/jsRuntime').JsScript>>;
   componentScripts: React.MutableRefObject<Map<string, Array<{ vm: import('@/lib/world/jsRuntime').JsScript }>>>;
   worldElapsed: React.MutableRefObject<number>;
+  /** 전체 오브젝트 (saved + runtime) — parent transform propagation 용 */
+  allObjectsRef: React.MutableRefObject<MapObject[]>;
+  scriptBodyRefs: React.MutableRefObject<Map<string, SimBodyRefs>>;
 }) {
   useFrame((_, dt) => {
     worldElapsed.current += dt;
     for (const vm of luaScripts.current.values()) vm.callUpdate(dt);
     for (const arr of componentScripts.current.values()) {
       for (const { vm } of arr) vm.callUpdate(dt);
+    }
+
+    // 부모 → 자식 transform propagation. lights/spawn 제외, dynamic body 자식 제외.
+    const all = allObjectsRef.current;
+    if (!all || all.length === 0) return;
+    const childrenOf = new Map<string, MapObject[]>();
+    for (const obj of all) {
+      if (!obj.parentId) continue;
+      if (obj.kind === 'pointlight' || obj.kind === 'spotlight' || obj.kind === 'dirlight' || obj.kind === 'spawn') continue;
+      if (!childrenOf.has(obj.parentId)) childrenOf.set(obj.parentId, []);
+      childrenOf.get(obj.parentId)!.push(obj);
+    }
+    if (childrenOf.size === 0) return;
+    const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3();
+    const propagate = (parentId: string, parentWorld: THREE.Matrix4) => {
+      const kids = childrenOf.get(parentId);
+      if (!kids) return;
+      for (const child of kids) {
+        const childLocal = new THREE.Matrix4().compose(
+          new THREE.Vector3(child.position[0], child.position[1], child.position[2]),
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(child.rotation[0], child.rotation[1], child.rotation[2], 'XYZ')),
+          new THREE.Vector3(child.scale[0], child.scale[1], child.scale[2]),
+        );
+        const childWorld = parentWorld.clone().multiply(childLocal);
+        childWorld.decompose(_p, _q, _s);
+        const ref = scriptBodyRefs.current.get(child.id);
+        if (ref?.body.current) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const bodyType = (ref.body.current as any).bodyType?.();
+          if (bodyType !== 0) { // Dynamic 제외
+            ref.body.current.setTranslation({ x: _p.x, y: _p.y, z: _p.z }, true);
+            ref.body.current.setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w }, true);
+          }
+        } else if (ref?.group.current) {
+          ref.group.current.position.set(_p.x, _p.y, _p.z);
+          ref.group.current.quaternion.set(_q.x, _q.y, _q.z, _q.w);
+          ref.group.current.scale.set(_s.x, _s.y, _s.z);
+        }
+        propagate(child.id, childWorld);
+      }
+    };
+    for (const parentId of childrenOf.keys()) {
+      const ref = scriptBodyRefs.current.get(parentId);
+      const parentWorld = new THREE.Matrix4();
+      if (ref?.body.current) {
+        const t = ref.body.current.translation();
+        const r = ref.body.current.rotation();
+        const parentObj = all.find(o => o.id === parentId);
+        const sc = parentObj?.scale ?? [1, 1, 1];
+        parentWorld.compose(
+          new THREE.Vector3(t.x, t.y, t.z),
+          new THREE.Quaternion(r.x, r.y, r.z, r.w),
+          new THREE.Vector3(sc[0], sc[1], sc[2]),
+        );
+      } else if (ref?.group.current) {
+        ref.group.current.updateMatrix();
+        parentWorld.copy(ref.group.current.matrix);
+      } else {
+        continue;
+      }
+      propagate(parentId, parentWorld);
     }
   });
   return null;
@@ -1393,6 +1458,9 @@ function SimScene({ objects, transforms, myAssets }: {
 
   // 렌더 대상: 원본 + 런타임 spawn된 것
   const allObjects = useMemo(() => [...objects, ...runtimeObjects], [objects, runtimeObjects]);
+  // parent transform propagation 용 ref — useFrame 안에서 최신 list 접근
+  const allObjectsRef = useRef<MapObject[]>([]);
+  useEffect(() => { allObjectsRef.current = allObjects; }, [allObjects]);
   // VM 재생성 키 — 원본 objects 의 script + components 변경 추적
   const scriptsKey = objects.map(o => o.id + '|' + (o.script ?? '') + '|' + JSON.stringify(o.components ?? [])).join(',');
 
@@ -1708,7 +1776,8 @@ function SimScene({ objects, transforms, myAssets }: {
 
   return (
     <>
-      <SimScriptLoop luaScripts={luaScripts} componentScripts={componentScripts} worldElapsed={worldElapsed} />
+      <SimScriptLoop luaScripts={luaScripts} componentScripts={componentScripts} worldElapsed={worldElapsed}
+        allObjectsRef={allObjectsRef} scriptBodyRefs={scriptBodyRefs} />
       {allObjects.map(obj => (
         <SimObject key={obj.id} obj={obj} transforms={transforms}
           myAssets={myAssets} scriptBodyRefs={scriptBodyRefs} lightRefs={lightRefs} />
