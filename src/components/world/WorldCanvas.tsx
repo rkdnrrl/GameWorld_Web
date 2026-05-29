@@ -1722,13 +1722,45 @@ function disposeMaterial(mat: THREE.MeshStandardMaterial) {
   mat.dispose();
 }
 
-function UserMapObjectMesh({ obj, scriptBodyRefs }: {
+/* 계층(부모) 변환을 합성해 오브젝트의 월드 TRS 계산.
+   플레이 모드는 물리 바디라 부모 중첩이 안 되므로, 정적 자식의 월드 스케일/위치/회전을
+   여기서 미리 구워(bake) 렌더한다. (부모가 스케일된 경우 자식이 얇게 나오던 버그 수정) */
+function composeLocalTRS(o: { position: [number,number,number]; rotation: [number,number,number]; scale: [number,number,number] }): THREE.Matrix4 {
+  return new THREE.Matrix4().compose(
+    new THREE.Vector3(o.position[0], o.position[1], o.position[2]),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(o.rotation[0], o.rotation[1], o.rotation[2], 'XYZ')),
+    new THREE.Vector3(o.scale[0], o.scale[1], o.scale[2]),
+  );
+}
+function computeWorldTRS(obj: UserMapObject, byId: Map<string, UserMapObject>): { position: [number,number,number]; rotation: [number,number,number]; scale: [number,number,number] } {
+  let mat = composeLocalTRS(obj);
+  let pid = obj.parentId;
+  const guard = new Set<string>();
+  while (pid && !guard.has(pid)) {
+    guard.add(pid);
+    const parent = byId.get(pid);
+    if (!parent) break;
+    mat = composeLocalTRS(parent).multiply(mat);
+    pid = parent.parentId;
+  }
+  const p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+  mat.decompose(p, q, s);
+  const e = new THREE.Euler().setFromQuaternion(q, 'XYZ');
+  return { position: [p.x, p.y, p.z], rotation: [e.x, e.y, e.z], scale: [s.x, s.y, s.z] };
+}
+
+function UserMapObjectMesh({ obj, scriptBodyRefs, world }: {
   obj: UserMapObject;
   scriptBodyRefs?: React.MutableRefObject<Map<string, {
     body: React.MutableRefObject<RapierBodyApi | null>;
     group: React.MutableRefObject<THREE.Group | null>;
   }>>;
+  // 부모 변환이 합성된 월드 TRS. 자식이면 전달됨. 루트면 undefined → local 사용.
+  world?: { position: [number,number,number]; rotation: [number,number,number]; scale: [number,number,number] };
 }) {
+  const rPos = world?.position ?? obj.position;
+  const rRot = world?.rotation ?? obj.rotation;
+  const rScale = world?.scale ?? obj.scale;
   // 물리 모드 결정 — Physics 컴포넌트 우선, 없으면 레거시 obj.physics 필드.
   // 둘 다 없으면 'none' (물리/콜라이더 X)
   const physicsComp = obj.components?.find(c => c.type === 'physics');
@@ -1751,7 +1783,7 @@ function UserMapObjectMesh({ obj, scriptBodyRefs }: {
   // customObjects 가 교체된 케이스를 처리. RigidBody position prop 은 초기값만 쓰이고
   // 이후 변경은 안 먹히기 때문에 명시적으로 setTranslation 호출.
   // (마운트 직후엔 RigidBody 가 이미 같은 위치에 만들어져 있어 사실상 no-op)
-  const px = obj.position[0], py = obj.position[1], pz = obj.position[2];
+  const px = rPos[0], py = rPos[1], pz = rPos[2];
   useEffect(() => {
     if (bodyRef.current) {
       bodyRef.current.setTranslation({ x: px, y: py, z: pz }, true);
@@ -1770,13 +1802,13 @@ function UserMapObjectMesh({ obj, scriptBodyRefs }: {
   if (obj.kind === 'asset' && obj.assetUrl) {
     if (physics === 'none') {
       return (
-        <group ref={groupRef} position={obj.position} rotation={obj.rotation} scale={obj.scale}>
+        <group ref={groupRef} position={rPos} rotation={rRot} scale={rScale}>
           <UserAsset url={obj.assetUrl} matObj={obj} />
         </group>
       );
     }
     return (
-      <RigidBody ref={bodyRef} type={physics} colliders={physics === 'dynamic' ? 'hull' : 'trimesh'} position={obj.position} rotation={obj.rotation} scale={obj.scale} userData={{ objectId: obj.id }}>
+      <RigidBody ref={bodyRef} type={physics} colliders={physics === 'dynamic' ? 'hull' : 'trimesh'} position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }}>
         <UserAsset url={obj.assetUrl} matObj={obj} />
       </RigidBody>
     );
@@ -1784,14 +1816,14 @@ function UserMapObjectMesh({ obj, scriptBodyRefs }: {
 
   if (physics === 'none') {
     return (
-      <group ref={groupRef} position={obj.position} rotation={obj.rotation} scale={obj.scale}>
+      <group ref={groupRef} position={rPos} rotation={rRot} scale={rScale}>
         <PrimitiveMesh obj={obj} shape={shape} />
       </group>
     );
   }
   const colliders = obj.kind === 'sphere' ? 'ball' : 'cuboid';
   return (
-    <RigidBody ref={bodyRef} type={physics} colliders={colliders} position={obj.position} rotation={obj.rotation} scale={obj.scale} userData={{ objectId: obj.id }}>
+    <RigidBody ref={bodyRef} type={physics} colliders={colliders} position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }}>
       <PrimitiveMesh obj={obj} shape={shape} />
     </RigidBody>
   );
@@ -2910,7 +2942,17 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             {customObjects !== undefined ? (
               // 유저 제작 월드 — 기본 그라운드 없음. 필요하면 평면 직접 배치
               // runtimeObjects: 스크립트 world.spawn() 으로 동적 생성된 것 (로컬 전용, 저장 안 됨)
-              <>{[...customObjects, ...runtimeObjects].filter(o => !o.hidden && o.kind !== 'pointlight' && o.kind !== 'spotlight' && o.kind !== 'dirlight' && o.kind !== 'spawn' && o.kind !== 'empty').map(obj => <UserMapObjectMesh key={obj.id} obj={obj} scriptBodyRefs={scriptBodyRefs} />)}</>
+              <>{(() => {
+                const list = [...customObjects, ...runtimeObjects];
+                const byId = new Map(list.map(o => [o.id, o]));
+                return list
+                  .filter(o => !o.hidden && o.kind !== 'pointlight' && o.kind !== 'spotlight' && o.kind !== 'dirlight' && o.kind !== 'spawn' && o.kind !== 'empty')
+                  .map(obj => (
+                    <UserMapObjectMesh key={obj.id} obj={obj}
+                      world={obj.parentId ? computeWorldTRS(obj, byId) : undefined}
+                      scriptBodyRefs={scriptBodyRefs} />
+                  ));
+              })()}</>
             ) : (
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />

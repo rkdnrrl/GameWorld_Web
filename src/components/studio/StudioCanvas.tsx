@@ -572,6 +572,7 @@ function StudioAssetCard({ asset, onDelete, onRename }: {
   onRename: (id: string, newName: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editVal, setEditVal] = useState('');
 
@@ -590,10 +591,17 @@ function StudioAssetCard({ asset, onDelete, onRename }: {
       <div
         tabIndex={0}
         draggable={!editing}
+        title={asset.name}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onKeyDown={e => {
+          // 선택(포커스) 후 F2 → 이름 변경
+          if (e.key === 'F2' && !editing) { e.preventDefault(); e.stopPropagation(); setEditVal(asset.name); setEditing(true); }
+        }}
         onDragStart={e => { e.dataTransfer.setData('text/plain', asset.id); e.dataTransfer.effectAllowed = 'move'; }}
         style={{
-          background: hovered ? 'rgba(129,140,248,0.2)' : 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.09)',
+          background: hovered || focused ? 'rgba(129,140,248,0.2)' : 'rgba(255,255,255,0.05)',
+          border: `1px solid ${focused ? '#818cf8' : 'rgba(255,255,255,0.09)'}`,
           borderRadius: 8, color: '#e2e8f0', fontSize: 11, padding: '8px 6px',
           cursor: editing ? 'default' : 'grab',
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
@@ -622,7 +630,7 @@ function StudioAssetCard({ asset, onDelete, onRename }: {
         ) : (
           <span
             onDoubleClick={e => { e.stopPropagation(); setEditVal(asset.name); setEditing(true); }}
-            title="더블클릭하여 이름 변경"
+            title={asset.name}
             style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: 'center', fontWeight: 500 }}>
             {asset.name}
           </span>
@@ -2321,6 +2329,8 @@ export default function StudioCanvas() {
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [dragOverPath, setDragOverPath] = useState<string | undefined>(undefined);
   const [dropZoneActive, setDropZoneActive] = useState(false);
+  // 에셋 그리드 빈 영역 우클릭 컨텍스트 메뉴 (폴더 만들기)
+  const [assetCtxMenu, setAssetCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [texPicker, setTexPicker] = useState<null | 'albedo' | 'normal' | 'roughness'>(null);
   const [dragOverTex, setDragOverTex] = useState<string | null>(null);
@@ -4858,6 +4868,7 @@ export default function StudioCanvas() {
               onDragOver={e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDropZoneActive(true); } }}
               onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropZoneActive(false); }}
               onDrop={e => { e.preventDefault(); setDropZoneActive(false); if (e.dataTransfer.files.length > 0) uploadFilesToFolder(e.dataTransfer.files); }}
+              onContextMenu={e => { e.preventDefault(); setAssetCtxMenu({ x: e.clientX, y: e.clientY }); }}
             >
               {/* 드롭 오버레이 */}
               {dropZoneActive && (
@@ -4903,6 +4914,32 @@ export default function StudioCanvas() {
           </div>
         </div>
       </div>
+
+      {/* 에셋 그리드 빈 영역 우클릭 → 폴더 만들기 컨텍스트 메뉴 */}
+      {assetCtxMenu && (
+        <>
+          <div
+            onClick={() => setAssetCtxMenu(null)}
+            onContextMenu={e => { e.preventDefault(); setAssetCtxMenu(null); }}
+            style={{ position: 'fixed', inset: 0, zIndex: 500 }}
+          />
+          <div style={{
+            position: 'fixed', left: assetCtxMenu.x, top: assetCtxMenu.y, zIndex: 501,
+            background: 'rgba(15,23,42,0.98)', border: '1px solid rgba(255,255,255,0.16)',
+            borderRadius: 8, boxShadow: '0 10px 30px rgba(0,0,0,0.55)', padding: 4, minWidth: 170,
+          }}>
+            <button
+              type="button"
+              onClick={() => { setShowNewFolder(true); setNewFolderName(''); setAssetCtxMenu(null); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', background: 'none', border: 'none', color: '#fff', fontSize: 12, fontWeight: 600, padding: '9px 11px', borderRadius: 6, cursor: 'pointer' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(129,140,248,0.22)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+            >
+              📁 {t('newFolder')}
+            </button>
+          </div>
+        </>
+      )}
 
       {/* AI 로 맵 만들기 가이드 */}
       <AiGuideModal
