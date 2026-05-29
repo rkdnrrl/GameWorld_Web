@@ -1193,7 +1193,7 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
 }
 
 /* ── 씬 목록 노드 (UI 계층 트리) ──────────── */
-function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, editingLabelId, editingLabelValue, setEditingLabelId, setEditingLabelValue, setObjects, selectedCallback, pushHistory, onReparent, onReorder, dragActive, onFocusObject, onContextMenu }: {
+function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, editingLabelId, editingLabelValue, setEditingLabelId, setEditingLabelValue, setObjects, selectedCallback, pushHistory, dragActive, overId, overMode, onNodePointerDown, onFocusObject, onContextMenu }: {
   obj: MapObject;
   allObjects: MapObject[];
   depth: number;
@@ -1206,32 +1206,28 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
   setObjects: React.Dispatch<React.SetStateAction<MapObject[]>>;
   selectedCallback: (id: string) => void;
   pushHistory: (objs: MapObject[]) => void;
-  onReparent: (childId: string, newParentId: string | null) => void;
-  onReorder: (draggedId: string, targetId: string, pos: 'before' | 'after') => void;
   dragActive: boolean;
+  overId: string | null;
+  overMode: 'reorder' | 'reparent' | null;
+  onNodePointerDown: (id: string, e: React.PointerEvent) => void;
   onFocusObject: (id: string) => void;
   onContextMenu: (objId: string, x: number, y: number) => void;
 }) {
   const [open, setOpen] = useState(true);
-  const [dragOver, setDragOver] = useState(false);
-  const [insertBefore, setInsertBefore] = useState(false);
   const children = allObjects.filter(c => c.parentId === obj.id);
   const hasChildren = children.length > 0;
   const isSel = obj.id === selectedId || multiSelectedIds.has(obj.id);
   const i = allObjects.findIndex(o => o.id === obj.id);
+  // 커스텀 포인터 드래그 — 드롭 표시는 부모가 내려준 overId/overMode 로 판단
+  const insertBefore = overMode === 'reorder' && overId === obj.id;
+  const dragOver = overMode === 'reparent' && overId === obj.id;
 
   return (
     <div>
-      {/* 순서 변경 드롭존 — 이 노드 "위"에 떨어뜨리면 형제로 앞에 삽입 (target 이 루트면 루트로 빼냄).
-          드래그 중엔 옅은 선으로 위치 표시, 호버 시 굵은 초록선. */}
+      {/* 순서 변경 드롭존 — 이 노드 "위"에 놓으면 형제로 앞에 삽입 (target 이 루트면 루트로 빼냄).
+          드래그 중엔 옅은 선으로 위치 표시, 호버 시 굵은 초록선. data-reorder-before 로 히트테스트. */}
       <div
-        onDragOver={e => { e.preventDefault(); e.stopPropagation(); setInsertBefore(true); }}
-        onDragLeave={() => setInsertBefore(false)}
-        onDrop={e => {
-          e.preventDefault(); e.stopPropagation(); setInsertBefore(false);
-          const id = e.dataTransfer.getData('sceneObjId');
-          if (id && id !== obj.id) onReorder(id, obj.id, 'before');
-        }}
+        data-reorder-before={obj.id}
         style={{ height: 12, margin: '-6px 0', display: 'flex', alignItems: 'center', position: 'relative', zIndex: 2, pointerEvents: dragActive ? 'auto' : 'none' }}
       >
         <div style={{
@@ -1242,15 +1238,8 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
         }} />
       </div>
       <div
-        draggable
-        onDragStart={e => { e.dataTransfer.setData('sceneObjId', obj.id); e.dataTransfer.effectAllowed = 'move'; }}
-        onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }}
-        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
-        onDrop={e => {
-          e.preventDefault(); e.stopPropagation(); setDragOver(false);
-          const childId = e.dataTransfer.getData('sceneObjId');
-          if (childId && childId !== obj.id) onReparent(childId, obj.id);
-        }}
+        data-node-id={obj.id}
+        onPointerDown={e => onNodePointerDown(obj.id, e)}
         onContextMenu={e => { e.preventDefault(); e.stopPropagation(); onContextMenu(obj.id, e.clientX, e.clientY); }}
         onClick={() => { if (editingLabelId !== obj.id) selectedCallback(obj.id); }}
         onDoubleClick={() => { if (editingLabelId !== obj.id) onFocusObject(obj.id); }}
@@ -1308,8 +1297,8 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
           editingLabelId={editingLabelId} editingLabelValue={editingLabelValue}
           setEditingLabelId={setEditingLabelId} setEditingLabelValue={setEditingLabelValue}
           setObjects={setObjects} selectedCallback={selectedCallback}
-          pushHistory={pushHistory} onReparent={onReparent} onReorder={onReorder}
-          dragActive={dragActive}
+          pushHistory={pushHistory}
+          dragActive={dragActive} overId={overId} overMode={overMode} onNodePointerDown={onNodePointerDown}
           onFocusObject={onFocusObject} onContextMenu={onContextMenu} />
       ))}
     </div>
@@ -2352,11 +2341,13 @@ export default function StudioCanvas() {
   const [assetCtxMenu, setAssetCtxMenu] = useState<{ x: number; y: number } | null>(null);
   // 씬 트리 우클릭 컨텍스트 메뉴 — objId=null 이면 빈 영역(추가), 있으면 노드(빼기/삭제)
   const [treeCtxMenu, setTreeCtxMenu] = useState<{ x: number; y: number; objId: string | null } | null>(null);
-  // 씬 트리 드래그 — 가장자리 자동 스크롤 + 순서 드롭존 표시
+  // 씬 트리 — 커스텀 포인터 드래그(네이티브 X → 드래그 중에도 휠 스크롤 동작) + 가장자리 자동 스크롤
   const treeScrollRef = useRef<HTMLDivElement | null>(null);
   const treeScrollVel = useRef(0);
   const treeScrollRAF = useRef<number | null>(null);
-  const [treeDragActive, setTreeDragActive] = useState(false);
+  const [treeDrag, setTreeDrag] = useState<{ id: string; x: number; y: number; overId: string | null; overMode: 'reorder' | 'reparent' | null } | null>(null);
+  const treeDragRef = useRef<{ id: string; startX: number; startY: number; active: boolean; pointerId: number } | null>(null);
+  const treeDragOverRef = useRef<{ overId: string | null; overMode: 'reorder' | 'reparent' | null }>({ overId: null, overMode: null });
   const [uploading, setUploading] = useState(false);
   const [texPicker, setTexPicker] = useState<null | 'albedo' | 'normal' | 'roughness'>(null);
   const [dragOverTex, setDragOverTex] = useState<string | null>(null);
@@ -3017,14 +3008,14 @@ export default function StudioCanvas() {
    * 뷰포트에 드롭된 위치에서 raycast 해서 가장 가까운 씬 오브젝트의 id 를 반환.
    * 없으면 null. 트리 노드 → 뷰포트 오브젝트로 드래그해서 부모 설정할 때 사용.
    */
-  function pickObjectIdFromEvent(e: React.DragEvent): string | null {
+  function pickObjectIdFromXY(clientX: number, clientY: number): string | null {
     const camera = cameraRef.current;
     const el = viewportRef.current;
     const scene = threeSceneRef.current;
     if (!camera || !el || !scene) return null;
     const rect = el.getBoundingClientRect();
-    const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    const nx = ((clientX - rect.left) / rect.width) * 2 - 1;
+    const ny = -((clientY - rect.top) / rect.height) * 2 + 1;
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
     // 씬 전체 raycast. 가장 가까운 hit 부터 userData.id 가 있는 조상 찾기.
@@ -3490,22 +3481,76 @@ export default function StudioCanvas() {
     if (el && treeScrollVel.current !== 0) el.scrollTop += treeScrollVel.current;
     treeScrollRAF.current = requestAnimationFrame(treeAutoScrollTick);
   };
-  const onTreeDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (!treeDragActive) setTreeDragActive(true);
-    if (treeScrollRAF.current == null) treeScrollRAF.current = requestAnimationFrame(treeAutoScrollTick);
-    const el = treeScrollRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const edge = 52, maxV = 16, y = e.clientY;
-    if (y < r.top + edge)       treeScrollVel.current = -Math.ceil(((r.top + edge - y) / edge) * maxV);
-    else if (y > r.bottom - edge) treeScrollVel.current = Math.ceil(((y - (r.bottom - edge)) / edge) * maxV);
-    else treeScrollVel.current = 0;
-  };
-  const endTreeDrag = () => {
+  const stopTreeAutoScroll = () => {
     treeScrollVel.current = 0;
     if (treeScrollRAF.current != null) { cancelAnimationFrame(treeScrollRAF.current); treeScrollRAF.current = null; }
-    if (treeDragActive) setTreeDragActive(false);
+  };
+  // 좌표로 드롭 대상 판정 (data 속성 히트테스트)
+  const findTreeDropTarget = (x: number, y: number): { overId: string | null; overMode: 'reorder' | 'reparent' | null } => {
+    const el = document.elementFromPoint(x, y) as HTMLElement | null;
+    if (!el) return { overId: null, overMode: null };
+    const strip = el.closest('[data-reorder-before]') as HTMLElement | null;
+    if (strip) return { overId: strip.getAttribute('data-reorder-before'), overMode: 'reorder' };
+    const row = el.closest('[data-node-id]') as HTMLElement | null;
+    if (row) return { overId: row.getAttribute('data-node-id'), overMode: 'reparent' };
+    return { overId: null, overMode: null };
+  };
+  // 노드에서 포인터 누름 → 드래그 후보 기록 (임계 이동 후 실제 드래그 시작)
+  const onTreeNodePointerDown = (id: string, e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('button, input')) return; // 아이콘/이름편집은 제외
+    treeDragRef.current = { id, startX: e.clientX, startY: e.clientY, active: false, pointerId: e.pointerId };
+  };
+  const onTreePointerMove = (e: React.PointerEvent) => {
+    const d = treeDragRef.current;
+    if (!d) return;
+    if (!d.active) {
+      if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 5) return;
+      d.active = true;
+      try { treeScrollRef.current?.setPointerCapture(d.pointerId); } catch { /* noop */ }
+    }
+    const over = findTreeDropTarget(e.clientX, e.clientY);
+    treeDragOverRef.current = over;
+    setTreeDrag({ id: d.id, x: e.clientX, y: e.clientY, overId: over.overId, overMode: over.overMode });
+    // 가장자리 자동 스크롤 — 포인터가 트리 가로 범위 안에 있을 때만 (뷰포트로 끌고 갈 땐 멈춤)
+    const sc = treeScrollRef.current;
+    if (sc) {
+      const r = sc.getBoundingClientRect();
+      const edge = 52, maxV = 16, y = e.clientY;
+      const overTreeX = e.clientX >= r.left && e.clientX <= r.right;
+      if (overTreeX && y < r.top + edge)        treeScrollVel.current = -Math.ceil(((r.top + edge - y) / edge) * maxV);
+      else if (overTreeX && y > r.bottom - edge) treeScrollVel.current = Math.ceil(((y - (r.bottom - edge)) / edge) * maxV);
+      else treeScrollVel.current = 0;
+      if (treeScrollRAF.current == null) treeScrollRAF.current = requestAnimationFrame(treeAutoScrollTick);
+    }
+  };
+  const onTreePointerUp = (e: React.PointerEvent) => {
+    const d = treeDragRef.current;
+    treeDragRef.current = null;
+    stopTreeAutoScroll();
+    if (d && d.active) {
+      try { treeScrollRef.current?.releasePointerCapture(d.pointerId); } catch { /* noop */ }
+      const dragged = d.id;
+      const overEl = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+      const vp = viewportRef.current;
+      if (vp && overEl && vp.contains(overEl)) {
+        // 뷰포트 위에 놓음 → 그 3D 오브젝트의 자식으로 (빈 곳이면 루트)
+        const targetId = pickObjectIdFromXY(e.clientX, e.clientY);
+        if (targetId && targetId !== dragged) reparentObject(dragged, targetId);
+        else if (!targetId) reparentObject(dragged, null);
+      } else {
+        const { overId, overMode } = treeDragOverRef.current;
+        if (overMode === 'reorder' && overId && overId !== dragged) reorderObject(dragged, overId, 'before');
+        else if (overMode === 'reparent' && overId && overId !== dragged) reparentObject(dragged, overId);
+        else if (!overMode) {
+          // 트리 빈 영역에 놓음 → 루트로 빼기
+          const sc = treeScrollRef.current;
+          if (sc && overEl && sc.contains(overEl)) reparentObject(dragged, null);
+        }
+      }
+    }
+    treeDragOverRef.current = { overId: null, overMode: null };
+    setTreeDrag(null);
   };
 
   function updateObjectTransform(id: string, t: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }) {
@@ -3817,10 +3862,9 @@ export default function StudioCanvas() {
         </div>
         <div
           ref={treeScrollRef}
-          onDragOverCapture={onTreeDragOver}
-          onDrop={e => { e.preventDefault(); endTreeDrag(); const id = e.dataTransfer.getData('sceneObjId'); if (id) reparentObject(id, null); }}
-          onDragEnd={endTreeDrag}
-          onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) endTreeDrag(); }}
+          onPointerMove={onTreePointerMove}
+          onPointerUp={onTreePointerUp}
+          onPointerCancel={() => { treeDragRef.current = null; stopTreeAutoScroll(); treeDragOverRef.current = { overId: null, overMode: null }; setTreeDrag(null); }}
           onContextMenu={e => { e.preventDefault(); setTreeCtxMenu({ x: e.clientX, y: e.clientY, objId: null }); }}
           style={{ overflowY: 'auto', flex: 1, padding: '0 8px 8px', display: 'flex', flexDirection: 'column', gap: 1 }}
         >
@@ -3855,9 +3899,10 @@ export default function StudioCanvas() {
                 editingLabelId={editingLabelId} editingLabelValue={editingLabelValue}
                 setEditingLabelId={setEditingLabelId} setEditingLabelValue={setEditingLabelValue}
                 setObjects={setObjects} pushHistory={pushHistory}
-                onReparent={reparentObject}
-                onReorder={reorderObject}
-                dragActive={treeDragActive}
+                dragActive={!!treeDrag}
+                overId={treeDrag?.overId ?? null}
+                overMode={treeDrag?.overMode ?? null}
+                onNodePointerDown={onTreeNodePointerDown}
                 onFocusObject={focusObject}
                 onContextMenu={(objId, x, y) => setTreeCtxMenu({ x, y, objId })}
                 selectedCallback={id => {
@@ -4594,7 +4639,7 @@ export default function StudioCanvas() {
           // (오브젝트 위가 아니라 빈 공간에 떨어지면 루트로 빼냄.)
           const sceneObjId = e.dataTransfer.getData('sceneObjId');
           if (sceneObjId) {
-            const targetId = pickObjectIdFromEvent(e);
+            const targetId = pickObjectIdFromXY(e.clientX, e.clientY);
             if (targetId && targetId !== sceneObjId) {
               reparentObject(sceneObjId, targetId);
             } else if (!targetId) {
@@ -5120,6 +5165,22 @@ export default function StudioCanvas() {
               )}
             </div>
           </>
+        );
+      })()}
+
+      {/* 트리 드래그 고스트 — 커서 따라다니는 이름표 */}
+      {treeDrag && (() => {
+        const o = objects.find(x => x.id === treeDrag.id);
+        if (!o) return null;
+        return (
+          <div style={{
+            position: 'fixed', left: treeDrag.x + 12, top: treeDrag.y + 8, zIndex: 600,
+            pointerEvents: 'none', background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(129,140,248,0.6)',
+            borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 700, color: '#c7d2fe',
+            boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
+          }}>
+            {KIND_ICONS[o.kind] ?? '❓'} {o.label || o.kind}
+          </div>
         );
       })()}
 
