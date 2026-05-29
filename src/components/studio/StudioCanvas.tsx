@@ -1409,6 +1409,7 @@ function SimScene({ objects, transforms, myAssets, player }: {
     character: Record<string, unknown>;
     cameraMode: 'first' | 'third';
     onToggleCameraMode: () => void;
+    onGrabUiChange: (state: 'idle' | 'aim' | 'grab') => void;
     ownersRef: React.MutableRefObject<Map<string, string>>;
     grabbedStateRef: React.MutableRefObject<Map<string, string>>;
     grabbableIdsRef: React.MutableRefObject<Set<string>>;
@@ -1809,6 +1810,7 @@ function SimScene({ objects, transforms, myAssets, player }: {
           onMove={() => {}}
           cameraMode={player.cameraMode}
           onToggleCameraMode={player.onToggleCameraMode}
+          onGrabUiChange={player.onGrabUiChange}
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           scriptBodyRefs={scriptBodyRefs as any}
           luaScripts={luaScripts}
@@ -2093,6 +2095,8 @@ export default function StudioCanvas() {
   // 시뮬레이션 플레이어 — 본인 캐릭터로 직접 플레이 (월드와 동일 조작)
   const [simCharacter, setSimCharacter] = useState<Record<string, unknown> | null>(null);
   const [simCameraMode, setSimCameraMode] = useState<'first' | 'third'>('first');
+  // 1인칭 크로스헤어 상태 — idle/aim(잡을 수 있는 것 조준)/grab(잡는 중)
+  const [simCrosshair, setSimCrosshair] = useState<'idle' | 'aim' | 'grab'>('idle');
   // Player 가 요구하는 ref 들 — 스튜디오엔 멀티/소유권 개념 없으니 빈 ref no-op
   const simOwnersRef       = useRef<Map<string, string>>(new Map());
   const simGrabbedStateRef = useRef<Map<string, string>>(new Map());
@@ -2589,6 +2593,7 @@ export default function StudioCanvas() {
     setSimulating(false);
     setSimTransforms({});
     setSimCharacter(null);
+    setSimCrosshair('idle');
   }
 
   // 스폰 위치 — spawn 오브젝트 중 하나 (랜덤). 없으면 기본 [0,4,0]. 시뮬 시작 시 고정.
@@ -4236,12 +4241,13 @@ export default function StudioCanvas() {
           {simulating ? (
             /* ── 시뮬레이션 모드 ── */
             <Suspense fallback={null}>
-              <Physics gravity={[0, -9.81, 0]}>
+              <Physics gravity={[0, -9.81, 0]} interpolate={false}>
                 <SimScene objects={objects.filter(o => !o.hidden)} transforms={simTransforms} myAssets={myAssets}
                   player={simCharacter ? {
                     character: simCharacter,
                     cameraMode: simCameraMode,
                     onToggleCameraMode: () => setSimCameraMode(m => m === 'first' ? 'third' : 'first'),
+                    onGrabUiChange: setSimCrosshair,
                     ownersRef: simOwnersRef,
                     grabbedStateRef: simGrabbedStateRef,
                     grabbableIdsRef: simGrabbableIdsRef,
@@ -4313,6 +4319,30 @@ export default function StudioCanvas() {
           <CanvasCapture captureFnRef={captureFnRef} />
           <CameraRefCapture cameraRef={cameraRef} />
         </Canvas>
+
+        {/* 1인칭 시뮬레이션 크로스헤어 — 월드와 동일. idle=흰, aim=초록, grab=노랑 */}
+        {simulating && simCharacter && simCameraMode === 'first' && (
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <div style={{
+              width: 14, height: 14, borderRadius: '50%',
+              border: `2px solid ${simCrosshair === 'grab' ? '#fbbf24' : simCrosshair === 'aim' ? '#4ade80' : 'rgba(255,255,255,0.85)'}`,
+              boxShadow: '0 0 4px rgba(0,0,0,0.6)',
+              transition: 'border-color .12s',
+            }} />
+            {simCrosshair !== 'idle' && (
+              <div style={{ fontSize: 11, color: '#fff', background: 'rgba(0,0,0,0.5)', padding: '3px 10px', borderRadius: 6, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                {simCrosshair === 'grab' ? 'E — 놓기 · 좌클릭 — 던지기 · 휠 — 거리' : 'E — 잡기'}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 시뮬레이션 조작 안내 (하단) */}
+        {simulating && simCharacter && (
+          <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none', zIndex: 20, fontSize: 11, color: 'rgba(255,255,255,0.7)', background: 'rgba(0,0,0,0.45)', padding: '6px 14px', borderRadius: 8, backdropFilter: 'blur(6px)', whiteSpace: 'nowrap' }}>
+            클릭하여 마우스 잠금 · WASD 이동 · Shift 달리기 · Space 점프 · C 앉기 · Z 엎드리기 · V 시점 · E 잡기 · ESC 해제/중지
+          </div>
+        )}
 
         {/* 시뮬레이션 시작/중지 버튼은 상단 툴바로 이동됨 */}
 
