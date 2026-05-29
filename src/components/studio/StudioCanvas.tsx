@@ -3389,14 +3389,17 @@ export default function StudioCanvas() {
       {/* ── 좌측 패널 ── 항상 마운트, display 로만 토글 (mount/unmount race 회피).
           모바일에선 absolute 로 오버레이 ── */}
       <div style={{
-        display: (isMobile ? mobilePanelOpen : leftPanelOpen) ? 'flex' : 'none',
-        // 모바일: 하단 바텀시트(풀폭·55vh) — 위쪽 뷰포트 보임 / 데스크톱: 좌측 250px 컬럼
+        display: isMobile ? 'flex' : (leftPanelOpen ? 'flex' : 'none'),
+        // 모바일: 하단 바텀시트(풀폭·58vh, 슬라이드업) — 위쪽 뷰포트 보임 / 데스크톱: 좌측 250px 컬럼
+        transform: isMobile ? (mobilePanelOpen ? 'translateY(0)' : 'translateY(120%)') : undefined,
+        transition: isMobile ? 'transform 0.32s cubic-bezier(0.32,0.72,0,1)' : undefined,
+        pointerEvents: isMobile && !mobilePanelOpen ? 'none' : undefined,
         width: isMobile ? '100%' : 250,
         flexShrink: 0,
-        background: '#1e293b',
+        background: isMobile ? '#172033' : '#1e293b',
         borderRight: isMobile ? 'none' : '1px solid rgba(255,255,255,0.08)',
-        borderTop: isMobile ? '1px solid rgba(129,140,248,0.35)' : undefined,
-        borderRadius: isMobile ? '16px 16px 0 0' : undefined,
+        borderTop: isMobile ? '1px solid rgba(129,140,248,0.3)' : undefined,
+        borderRadius: isMobile ? '20px 20px 0 0' : undefined,
         color: '#fff',
         flexDirection: 'column',
         overflowY: 'auto',    // 내부 섹션들이 합쳐서 패널보다 커지면 패널 자체가 세로 스크롤
@@ -3406,9 +3409,9 @@ export default function StudioCanvas() {
         right: isMobile ? 0 : undefined,
         top: isMobile ? 'auto' : undefined,
         bottom: isMobile ? 0 : undefined,
-        height: isMobile ? '55vh' : undefined,
+        height: isMobile ? '58vh' : undefined,
         zIndex: isMobile ? 220 : 50,
-        boxShadow: isMobile ? '0 -10px 34px rgba(2,6,23,0.7)' : undefined,
+        boxShadow: isMobile ? '0 -12px 40px rgba(0,0,0,0.55)' : undefined,
       }}>
       {/* 데스크톱 전용 패널 닫기 버튼 (우측 상단 corner) */}
       {!isMobile && (
@@ -3423,19 +3426,29 @@ export default function StudioCanvas() {
           ◀
         </button>
       )}
-      {/* 내부 스크롤 컨테이너로 감싸기 — 메타 + 씬 + 버튼 */}
-      <div style={{ padding: 14, overflowY: 'auto', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.08)', position: 'relative' }}>
-        {isMobile && (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+      {/* 모바일 바텀시트 헤더 — 그립 핸들 + 제목 + 닫기 (sticky) */}
+      {isMobile && (
+        <div style={{
+          position: 'sticky', top: 0, zIndex: 6, flexShrink: 0,
+          background: '#172033', borderRadius: '20px 20px 0 0',
+          padding: '10px 14px 8px', borderBottom: '1px solid rgba(255,255,255,0.07)',
+        }}>
+          <div style={{ width: 40, height: 5, borderRadius: 99, background: 'rgba(255,255,255,0.22)', margin: '0 auto 10px' }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 15, fontWeight: 800 }}>{t('scSceneObjects')}</span>
             <button
               type="button"
               onClick={() => setMobilePanelOpen(false)}
-              style={{ border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)', color: '#fff', borderRadius: 8, width: 32, height: 32, fontWeight: 700 }}
+              aria-label={t('mobileDel')}
+              style={{ border: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff', borderRadius: 999, width: 36, height: 36, fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               ×
             </button>
           </div>
-        )}
+        </div>
+      )}
+      {/* 내부 스크롤 컨테이너로 감싸기 — 메타 + 씬 + 버튼 */}
+      <div style={{ padding: 14, overflowY: 'auto', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.08)', position: 'relative' }}>
         <h2 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 800 }}>{t('title')}</h2>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12 }}>
           <button
@@ -3891,38 +3904,29 @@ export default function StudioCanvas() {
       {/* ── 우측 패널: 인스펙터 — 항상 마운트, display 로만 토글.
           position:absolute 로 부모 우측에 핀 (flex order 트릭 의존 X) ── */}
       <div style={{
-        display: (isMobile ? (rightPanelOpen && !!selectedId) : rightPanelOpen) ? 'flex' : 'none',
-        // 모바일: 하단 바텀시트(풀폭·55vh) / 데스크톱: 우측 300px 컬럼
+        display: isMobile ? 'flex' : (rightPanelOpen ? 'flex' : 'none'),
+        // 모바일: 하단 바텀시트(풀폭·58vh, 슬라이드업) / 데스크톱: 우측 300px 컬럼
+        transform: isMobile ? ((rightPanelOpen && selectedId) ? 'translateY(0)' : 'translateY(120%)') : undefined,
+        transition: isMobile ? 'transform 0.32s cubic-bezier(0.32,0.72,0,1)' : undefined,
+        pointerEvents: isMobile && !(rightPanelOpen && selectedId) ? 'none' : undefined,
         position: 'absolute',
         right: 0,
         top: isMobile ? 'auto' : 0,
         bottom: 0,
         left: isMobile ? 0 : undefined,
         width: isMobile ? '100%' : 300,
-        height: isMobile ? '55vh' : undefined,
-        background: '#1e293b',
+        height: isMobile ? '58vh' : undefined,
+        background: isMobile ? '#172033' : '#1e293b',
         borderLeft: isMobile ? 'none' : '1px solid rgba(255,255,255,0.08)',
-        borderTop: isMobile ? '1px solid rgba(129,140,248,0.35)' : undefined,
-        borderRadius: isMobile ? '16px 16px 0 0' : undefined,
+        borderTop: isMobile ? '1px solid rgba(129,140,248,0.3)' : undefined,
+        borderRadius: isMobile ? '20px 20px 0 0' : undefined,
         color: '#fff',
         flexDirection: 'column',
         overflow: 'hidden',
         fontFamily: 'inherit',
-        boxShadow: isMobile ? '0 -10px 34px rgba(2,6,23,0.7)' : undefined,
+        boxShadow: isMobile ? '0 -12px 40px rgba(0,0,0,0.55)' : undefined,
         zIndex: isMobile ? 216 : 50,
       }}>
-        {/* 모바일 전용 인스펙터 닫기 버튼 (선택 해제) */}
-        {isMobile && (
-          <button type="button" onClick={() => setSelectedId(null)}
-            style={{
-              position: 'absolute', top: 6, right: 6, zIndex: 6,
-              width: 30, height: 30, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8,
-              background: 'rgba(255,255,255,0.08)', color: '#fff',
-              fontSize: 16, cursor: 'pointer', fontWeight: 700,
-            }}>
-            ×
-          </button>
-        )}
         {/* 데스크톱 전용 패널 닫기 버튼 (좌측 상단 corner) */}
         {!isMobile && (
           <button type="button" onClick={() => { console.log('[CLOSE-RIGHT] click'); setRightPanelOpen(false); }}
@@ -3936,14 +3940,25 @@ export default function StudioCanvas() {
             ▶
           </button>
         )}
-        {/* 뒤로가기 — 모바일에서만 (데스크톱은 양쪽 동시 노출) */}
+        {/* 모바일 바텀시트 헤더 — 그립 핸들 + 선택 오브젝트명 + 닫기 (sticky) */}
         {isMobile && (
-          <div style={{ flexShrink: 0, padding: '8px 12px 6px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-            <button
-              onClick={() => { setStudioMode('settings'); setSelectedId(null); setMultiSelectedIds(new Set()); }}
-              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 3, fontWeight: 700 }}>
-              {t('inspBackToStudio')}
-            </button>
+          <div style={{
+            flexShrink: 0, background: '#172033', borderRadius: '20px 20px 0 0',
+            padding: '10px 14px 8px', borderBottom: '1px solid rgba(255,255,255,0.07)',
+          }}>
+            <div style={{ width: 40, height: 5, borderRadius: 99, background: 'rgba(255,255,255,0.22)', margin: '0 auto 10px' }} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <span style={{ fontSize: 15, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {selected ? `${KIND_ICONS[selected.kind] ?? ''} ${selected.label || selected.kind}` : ''}
+              </span>
+              <button
+                type="button"
+                onClick={() => { setSelectedId(null); setMultiSelectedIds(new Set()); }}
+                style={{ flexShrink: 0, border: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff', borderRadius: 999, width: 36, height: 36, fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                ×
+              </button>
+            </div>
           </div>
         )}
         {/* 씬 트리 + 추가 버튼은 좌측 패널로 이동됨 — 우측은 인스펙터 전용 */}
@@ -3955,9 +3970,11 @@ export default function StudioCanvas() {
             </div>
           ) : (
             <>
-              <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, marginBottom: 8, letterSpacing: 0.5 }}>
-                {KIND_ICONS[selected.kind] ?? '❓'} {selected.label || selected.kind}
-              </div>
+              {!isMobile && (
+                <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, marginBottom: 8, letterSpacing: 0.5 }}>
+                  {KIND_ICONS[selected.kind] ?? '❓'} {selected.label || selected.kind}
+                </div>
+              )}
 
               {/* 인스펙터 탭 (변환 / 재질) — 스크립트 탭은 컴포넌트 시스템으로 대체됨 */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, marginBottom: 10, background: 'rgba(0,0,0,0.25)', borderRadius: 7, padding: 2 }}>
@@ -4550,22 +4567,23 @@ export default function StudioCanvas() {
 
         {/* 모바일 변환 툴바 — 키보드 없는 환경에서 이동/회전/스케일/복제/삭제 */}
         {isMobile && !simulating && (
-          <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6, zIndex: 217, background: 'rgba(2,6,23,0.78)', borderRadius: 12, padding: 6, backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.12)' }}>
+          <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 4, zIndex: 217, background: 'rgba(10,15,30,0.82)', borderRadius: 14, padding: 5, backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 6px 24px rgba(0,0,0,0.4)' }}>
             {([['translate','↔',t('modeTranslate')],['rotate','⟳',t('modeRotate')],['scale','⤢',t('modeScale')]] as const).map(([m, icon, label]) => (
               <button key={m} type="button" onClick={() => setMode(m)}
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, border: 'none', borderRadius: 8, padding: '7px 11px', cursor: 'pointer', background: mode === m ? 'rgba(99,102,241,0.85)' : 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 10, fontWeight: 700 }}>
-                <span style={{ fontSize: 16 }}>{icon}</span>{label}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, minWidth: 54, height: 50, border: 'none', borderRadius: 10, cursor: 'pointer', background: mode === m ? 'rgba(99,102,241,0.9)' : 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 11, fontWeight: 700 }}>
+                <span style={{ fontSize: 19, lineHeight: 1 }}>{icon}</span>{label}
               </button>
             ))}
             {selectedId && (
               <>
+                <div style={{ width: 1, alignSelf: 'stretch', background: 'rgba(255,255,255,0.12)', margin: '4px 2px' }} />
                 <button type="button" onClick={duplicate}
-                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, border: 'none', borderRadius: 8, padding: '7px 11px', cursor: 'pointer', background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 10, fontWeight: 700 }}>
-                  <span style={{ fontSize: 16 }}>⎘</span>{t('mobileDup')}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, minWidth: 54, height: 50, border: 'none', borderRadius: 10, cursor: 'pointer', background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 11, fontWeight: 700 }}>
+                  <span style={{ fontSize: 19, lineHeight: 1 }}>⎘</span>{t('mobileDup')}
                 </button>
                 <button type="button" onClick={() => { setObjects(prev => { const next = prev.filter(o => o.id !== selectedId); pushHistory(next); return next; }); setSelectedId(null); }}
-                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, border: 'none', borderRadius: 8, padding: '7px 11px', cursor: 'pointer', background: 'rgba(239,68,68,0.25)', color: '#fca5a5', fontSize: 10, fontWeight: 700 }}>
-                  <span style={{ fontSize: 16 }}>🗑</span>{t('mobileDel')}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, minWidth: 54, height: 50, border: 'none', borderRadius: 10, cursor: 'pointer', background: 'rgba(239,68,68,0.22)', color: '#fca5a5', fontSize: 11, fontWeight: 700 }}>
+                  <span style={{ fontSize: 19, lineHeight: 1 }}>🗑</span>{t('mobileDel')}
                 </button>
               </>
             )}
