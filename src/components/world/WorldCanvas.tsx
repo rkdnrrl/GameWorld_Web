@@ -21,6 +21,7 @@ import type { GraphicsSettings } from '@/lib/world/graphicsSettings';
 import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
 import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
+import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 
 const PLAYER_CAPSULE_HALF_HEIGHT = 0.35;
 const PLAYER_CAPSULE_RADIUS = 0.28;
@@ -2404,6 +2405,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const lightObjects = (customObjects ?? []).filter(
     (o: UserMapObject) => o.kind === 'pointlight' || o.kind === 'spotlight' || o.kind === 'dirlight'
   );
+  // 후처리 볼륨 — postProcess 컴포넌트 설정
+  const postFX = useMemo(() => derivePostFX(customObjects ?? []), [customObjects]);
   // 스폰 포인트 — 여러 개 있으면 랜덤 선택. 없으면 기본 [0, 4, 0].
   const spawnObjects = (customObjects ?? []).filter((o: UserMapObject) => o.kind === 'spawn' && !o.hidden);
   // 컴포넌트 마운트 시 1회만 픽 (재렌더 시 점프 방지) — useMemo with stable dep
@@ -3247,6 +3250,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             {portal && <WorldPortal portal={portal} />}
           </Physics>
         </Suspense>
+        <PostFX s={postFX} />
       </Canvas>
       <MapLoadingOverlay />
     </>

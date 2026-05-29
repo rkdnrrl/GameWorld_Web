@@ -10,6 +10,7 @@ import { getKind } from '@/lib/assets/registry';
 import '@/lib/assets/kinds'; // kind 핸들러(Thumbnail/Preview) 등록 — 사이드이펙트
 import AssetPreviewModal from '@/components/assets/AssetPreviewModal';
 import type { Asset as RegistryAsset } from '@/lib/assets/types';
+import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import AiGuideModal from './AiGuideModal';
 import StudioTopBar from './StudioTopBar';
 import StudioShortcutsModal from './StudioShortcutsModal';
@@ -277,6 +278,7 @@ function ComponentsSection({
                     <NumField value={Number(val)}
                       onChange={n => updateProp(idx, p.key, n)}
                       onCommit={() => pushHistory(allObjects)}
+                      step={p.step ?? 0.1}
                       style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
                   </label>
                 );
@@ -2739,6 +2741,8 @@ export default function StudioCanvas() {
     }
     return { gravity: gravityY, jumpPower };
   }, [objects, gravityY, jumpPower]);
+  // 후처리 볼륨 — postProcess 컴포넌트 설정 (편집/시뮬 공통)
+  const postFX = useMemo(() => derivePostFX(objects), [objects]);
   // 썸네일 캡처 함수 (Canvas 내부에서 등록)
   const captureFnRef = useRef<(() => string | null) | null>(null);
   const cameraRef    = useRef<THREE.Camera | null>(null);
@@ -5130,6 +5134,7 @@ export default function StudioCanvas() {
           )}
           <CanvasCapture captureFnRef={captureFnRef} />
           <CameraRefCapture cameraRef={cameraRef} />
+          <PostFX s={postFX} />
         </Canvas>
 
         {/* 1인칭 시뮬레이션 크로스헤어 — follow 모드 + 1인칭일 때만. idle=흰, aim=초록, grab=노랑 */}
