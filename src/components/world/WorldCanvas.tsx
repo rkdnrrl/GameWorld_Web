@@ -26,6 +26,9 @@ const PLAYER_CAPSULE_HALF_HEIGHT = 0.35;
 const PLAYER_CAPSULE_RADIUS = 0.28;
 const PLAYER_MESH_Y = -(PLAYER_CAPSULE_HALF_HEIGHT + PLAYER_CAPSULE_RADIUS);
 
+// 동적 오브젝트가 스폰 높이 기준 이만큼 아래로 떨어지면 원위치로 복귀 (월드 밖 추락 방지)
+const OBJ_FALL_RESET = 50;
+
 // 멀티플레이 동기화 디버그 로그 — 기본 OFF. 매 프레임/충돌마다 console.log 하면
 // (특히 DevTools 열린 상태) 심각한 렉을 유발하므로 평소엔 끈다. 디버깅 시 true.
 const SYNC_DEBUG = false;
@@ -1957,6 +1960,22 @@ function UserMapObjectMesh({ obj, scriptBodyRefs, world }: {
       groupRef.current.position.set(px, py, pz);
     }
   }, [px, py, pz]);
+
+  // 월드 밖으로 일정 이상 떨어진 동적 오브젝트 → 원위치로 복귀 (플레이어 추락 복구와 동일).
+  // 스폰 높이 기준 OBJ_FALL_RESET 만큼 아래로 떨어지면 위치·속도·회전 리셋.
+  useFrame(() => {
+    if (physics !== 'dynamic') return;
+    const b = bodyRef.current;
+    if (!b) return;
+    const t = b.translation();
+    if (t.y < py - OBJ_FALL_RESET) {
+      b.setTranslation({ x: px, y: py, z: pz }, true);
+      b.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      b.setAngvel?.({ x: 0, y: 0, z: 0 }, true);
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rRot[0], rRot[1], rRot[2]));
+      b.setRotation?.({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+    }
+  });
 
   const shape =
     obj.kind === 'sphere'   ? <sphereGeometry args={[0.5, 24, 16]} /> :

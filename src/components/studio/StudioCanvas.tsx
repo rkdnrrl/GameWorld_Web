@@ -543,6 +543,9 @@ function getAssetMaterialConfig(a: Asset | undefined): any {
 
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
 
+// 시뮬레이션 중 동적 오브젝트가 스폰 높이 기준 이만큼 아래로 떨어지면 원위치 복귀
+const OBJ_FALL_RESET = 50;
+
 /* ── 단일 축 숫자 입력 ──
    모바일에서 음수(-)를 못 치던 문제 수정: type="text"(전체 키보드) + 로컬 문자열 상태로
    입력 도중의 "-", "-." 같은 미완성 값이 0으로 버려지지 않게 함. */
@@ -1546,6 +1549,24 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs }: {
     scriptBodyRefs.current.set(obj.id, { body: bodyRef, group: groupRef });
     return () => { scriptBodyRefs.current.delete(obj.id); };
   }, [obj.id, scriptBodyRefs]);
+
+  // 월드 밖으로 일정 이상 떨어진 동적 오브젝트 → 원위치로 복귀
+  useFrame(() => {
+    const b = bodyRef.current;
+    if (!b) return;
+    const comp = obj.components?.find(c => c.type === 'physics');
+    const isDyn = comp ? String(comp.props?.mode ?? 'fixed') === 'dynamic' : obj.physics === 'dynamic';
+    if (!isDyn) return;
+    const home = transforms[obj.id] ?? { pos: obj.position, rot: obj.rotation };
+    const tr = b.translation();
+    if (tr.y < home.pos[1] - OBJ_FALL_RESET) {
+      b.setTranslation({ x: home.pos[0], y: home.pos[1], z: home.pos[2] }, true);
+      b.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      b.setAngvel?.({ x: 0, y: 0, z: 0 }, true);
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(home.rot[0], home.rot[1], home.rot[2]));
+      b.setRotation?.({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+    }
+  });
 
   const t = transforms[obj.id] ?? { pos: obj.position, rot: obj.rotation, scl: obj.scale };
 
