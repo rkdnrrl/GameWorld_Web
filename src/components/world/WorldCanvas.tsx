@@ -1710,8 +1710,14 @@ export const MATERIAL_PRESETS: Record<Exclude<MaterialPreset, 'default'>, {
   emissive: { defaultColor: '#ffffff', metalness: 0,   roughness: 0.6, emissive: '#ffaa44', emissiveIntensity: 1.5 },
 };
 
-/* 텍스처 로딩 — 캐시/clone 없이 인스턴스별로 새로 로드 (needsUpdate 전파 보장) */
+/* 텍스처 로딩 — URL+컬러스페이스+타일링 단위로 캐시·공유.
+   같은 텍스처를 쓰는 바닥/벽 여러 개가 GPU에 한 번만 올라가 VRAM·로드 비용 급감.
+   (공유하므로 disposeMaterial 에서 텍스처는 dispose 하지 않음 — 캐시가 세션 동안 보유.) */
+const _texCache = new Map<string, THREE.Texture>();
 function loadFreshTexture(url: string, colorSpace: THREE.ColorSpace, tx: number, ty: number, onLoad: () => void): THREE.Texture {
+  const key = `${url}|${colorSpace}|${tx}|${ty}`;
+  const cached = _texCache.get(key);
+  if (cached) { onLoad(); return cached; }
   const loader = new THREE.TextureLoader();
   loader.setCrossOrigin('anonymous');
   const tex = loader.load(
@@ -1726,6 +1732,7 @@ function loadFreshTexture(url: string, colorSpace: THREE.ColorSpace, tx: number,
   tex.colorSpace = colorSpace;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(tx, ty);
+  _texCache.set(key, tex);
   return tex;
 }
 
@@ -1764,11 +1771,9 @@ function buildMaterial(obj: UserMapObject, fallbackColor?: string, onTextureLoad
   return mat;
 }
 
-/** 머티리얼이 사용 중인 텍스처까지 모두 dispose */
+/** 머티리얼만 dispose. 텍스처는 _texCache 가 공유·보유하므로 여기서 dispose 안 함
+   (dispose 하면 같은 텍스처를 쓰는 다른 벽/바닥이 깨짐). */
 function disposeMaterial(mat: THREE.MeshStandardMaterial) {
-  mat.map?.dispose();
-  mat.normalMap?.dispose();
-  mat.roughnessMap?.dispose();
   mat.dispose();
 }
 
