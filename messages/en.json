@@ -1300,7 +1300,8 @@
     "mobileDup": "Duplicate",
     "mobileDel": "Delete",
     "fullscreenEnter": "Fullscreen",
-    "fullscreenExit": "Exit fullscreen"
+    "fullscreenExit": "Exit fullscreen",
+    "addEmpty": "Add Empty"
   },
   "Worlds": {
     "title": "Worlds",

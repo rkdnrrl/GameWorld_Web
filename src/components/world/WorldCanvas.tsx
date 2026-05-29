@@ -571,7 +571,7 @@ function LuaUpdateLoop({
         const childrenOf = new Map<string, UserMapObject[]>();
         for (const obj of allObjects) {
           if (!obj.parentId) continue;
-          if (obj.kind === 'spawn') continue;
+          if (obj.kind === 'spawn' || obj.kind === 'empty') continue;
           if (!childrenOf.has(obj.parentId)) childrenOf.set(obj.parentId, []);
           childrenOf.get(obj.parentId)!.push(obj);
         }
@@ -1612,7 +1612,7 @@ export type MaterialPreset = 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 
 
 interface UserMapObject {
   id: string;
-  kind: 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight' | 'spawn';
+  kind: 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight' | 'spawn' | 'empty';
   assetUrl?: string;
   position: [number, number, number];
   rotation: [number, number, number];
@@ -2910,7 +2910,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             {customObjects !== undefined ? (
               // 유저 제작 월드 — 기본 그라운드 없음. 필요하면 평면 직접 배치
               // runtimeObjects: 스크립트 world.spawn() 으로 동적 생성된 것 (로컬 전용, 저장 안 됨)
-              <>{[...customObjects, ...runtimeObjects].filter(o => !o.hidden && o.kind !== 'pointlight' && o.kind !== 'spotlight' && o.kind !== 'dirlight' && o.kind !== 'spawn').map(obj => <UserMapObjectMesh key={obj.id} obj={obj} scriptBodyRefs={scriptBodyRefs} />)}</>
+              <>{[...customObjects, ...runtimeObjects].filter(o => !o.hidden && o.kind !== 'pointlight' && o.kind !== 'spotlight' && o.kind !== 'dirlight' && o.kind !== 'spawn' && o.kind !== 'empty').map(obj => <UserMapObjectMesh key={obj.id} obj={obj} scriptBodyRefs={scriptBodyRefs} />)}</>
             ) : (
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />

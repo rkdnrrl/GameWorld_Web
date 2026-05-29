@@ -10,11 +10,11 @@ import AiGuideModal from './AiGuideModal';
 import StudioTopBar from './StudioTopBar';
 import StudioShortcutsModal from './StudioShortcutsModal';
 import ScriptComponentsModal from './ScriptComponentsModal';
-import { COMPONENT_DEFS, getComponentDef, type ComponentInstance, type ComponentType } from '@/lib/world/components';
+import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, type ComponentInstance, type ComponentType } from '@/lib/world/components';
 import { Player } from '@/components/world/WorldCanvas';
 
-const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광', spawn: '스폰 포인트' };
-const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲', pointlight: '💡', spotlight: '🔦', dirlight: '☀', spawn: '🎯' };
+const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광', spawn: '스폰 포인트', empty: '빈 오브젝트' };
+const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲', pointlight: '💡', spotlight: '🔦', dirlight: '☀', spawn: '🎯', empty: '🔵' };
 
 /* ── 머티리얼 프리셋 (WorldCanvas와 동일) ── */
 const MAT_PRESETS: Record<string, { metalness: number; roughness: number; opacity?: number; transparent?: boolean; defaultColor: string; emissive?: string; emissiveIntensity?: number }> = {
@@ -88,7 +88,7 @@ type OrbitRef = any;
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
 /* ── 데이터 모델 ───────────────────────────── */
-type ObjectKind = 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight' | 'spawn';
+type ObjectKind = 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight' | 'spawn' | 'empty';
 
 type MaterialPreset = 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 'plastic' | 'emissive';
 
@@ -235,9 +235,9 @@ function ComponentsSection({
                 return (
                   <label key={p.key} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, opacity: 0.75, marginTop: 4 }}>
                     {p.label}
-                    <input type="number" value={Number(val)} step={p.step ?? 1} min={p.min} max={p.max}
-                      onChange={e => updateProp(idx, p.key, Number(e.target.value))}
-                      onBlur={() => pushHistory(allObjects)}
+                    <NumField value={Number(val)}
+                      onChange={n => updateProp(idx, p.key, n)}
+                      onCommit={() => pushHistory(allObjects)}
                       style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
                   </label>
                 );
@@ -337,8 +337,9 @@ function UserComponentCard({
           return (
             <label key={p.key} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, opacity: 0.75, marginTop: 5 }}>
               {p.label}
-              <input type="number" defaultValue={Number(cur)} step={p.step ?? 1} min={p.min} max={p.max}
+              <input type="text" inputMode="text" defaultValue={Number(cur)}
                 onBlur={e => { setPropTyped(p.key, Number(e.target.value)); onPropsCommit(); }}
+                onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                 style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
             </label>
           );
@@ -460,8 +461,54 @@ function getAssetMaterialConfig(a: Asset | undefined): any {
 
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
 
+/* ── 단일 축 숫자 입력 ──
+   모바일에서 음수(-)를 못 치던 문제 수정: type="text"(전체 키보드) + 로컬 문자열 상태로
+   입력 도중의 "-", "-." 같은 미완성 값이 0으로 버려지지 않게 함. */
+function AxisField({ color, axis, value, onChange, onCommit }: {
+  color: string;
+  axis: string;
+  value: number;
+  onChange: (value: number) => void;
+  onCommit: () => void;
+}) {
+  const [text, setText] = useState(String(value));
+  const focused = useRef(false);
+  // 외부(기즈모 드래그·선택 변경)에서 값이 바뀌면 포커스 없을 때만 동기화
+  useEffect(() => { if (!focused.current) setText(String(value)); }, [value]);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 3, background: 'rgba(0,0,0,0.3)', borderRadius: 4, padding: '2px 4px' }}>
+      <span style={{ color, fontSize: 10, fontWeight: 700, width: 10 }}>{axis}</span>
+      <input
+        type="text"
+        inputMode="text"
+        value={text}
+        onFocus={() => { focused.current = true; }}
+        onChange={e => {
+          const v = e.target.value;
+          setText(v);
+          const n = parseFloat(v);
+          if (Number.isFinite(n)) onChange(n);
+        }}
+        onBlur={() => {
+          focused.current = false;
+          const n = parseFloat(text);
+          setText(Number.isFinite(n) ? String(n) : String(value));
+          onCommit();
+        }}
+        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+        style={{
+          width: '100%', minWidth: 0,
+          background: 'transparent', border: 'none',
+          color: '#fff', fontSize: 11, padding: '2px 0',
+          outline: 'none', textAlign: 'right',
+        }}
+      />
+    </div>
+  );
+}
+
 /* ── X/Y/Z 숫자 입력 행 ──────────────────── */
-function AxisInputRow({ label, values, step, min, onChange, onCommit }: {
+function AxisInputRow({ label, values, onChange, onCommit }: {
   label: string;
   values: [number, number, number];
   step: number;
@@ -474,27 +521,47 @@ function AxisInputRow({ label, values, step, min, onChange, onCommit }: {
       <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4 }}>{label}</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
         {(['X','Y','Z'] as const).map((axis, i) => (
-          <div key={axis} style={{ display: 'flex', alignItems: 'center', gap: 3, background: 'rgba(0,0,0,0.3)', borderRadius: 4, padding: '2px 4px' }}>
-            <span style={{ color: ['#f87171','#4ade80','#60a5fa'][i], fontSize: 10, fontWeight: 700, width: 10 }}>{axis}</span>
-            <input
-              type="number"
-              value={values[i]}
-              step={step}
-              min={min}
-              onChange={e => onChange(i, Number(e.target.value))}
-              onBlur={onCommit}
-              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-              style={{
-                width: '100%', minWidth: 0,
-                background: 'transparent', border: 'none',
-                color: '#fff', fontSize: 11, padding: '2px 0',
-                outline: 'none', textAlign: 'right',
-              }}
-            />
-          </div>
+          <AxisField
+            key={axis}
+            axis={axis}
+            color={['#f87171','#4ade80','#60a5fa'][i]}
+            value={values[i]}
+            onChange={v => onChange(i, v)}
+            onCommit={onCommit}
+          />
         ))}
       </div>
     </div>
+  );
+}
+
+/* ── 음수 입력 가능한 단일 숫자 입력 ──
+   AxisField 와 동일 원리: type="text"(모바일 전체 키보드) + 로컬 문자열 상태. */
+function NumField({ value, onChange, onCommit, style }: {
+  value: number;
+  onChange: (n: number) => void;
+  onCommit: () => void;
+  style?: React.CSSProperties;
+}) {
+  const [text, setText] = useState(String(value));
+  const focused = useRef(false);
+  useEffect(() => { if (!focused.current) setText(String(value)); }, [value]);
+  return (
+    <input
+      type="text"
+      inputMode="text"
+      value={text}
+      onFocus={() => { focused.current = true; }}
+      onChange={e => {
+        const v = e.target.value;
+        setText(v);
+        const n = parseFloat(v);
+        if (Number.isFinite(n)) onChange(n);
+      }}
+      onBlur={() => { focused.current = false; if (!Number.isFinite(parseFloat(text))) setText(String(value)); onCommit(); }}
+      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+      style={style}
+    />
   );
 }
 
@@ -802,6 +869,23 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
         <mesh position={[0, 0, -1.0]} rotation={[Math.PI / 2, 0, 0]}>
           <coneGeometry args={[0.2, 0.5, 8]} />
           <meshStandardMaterial color={selected ? '#fbbf24' : '#34d399'} emissive={selected ? '#fbbf24' : '#10b981'} emissiveIntensity={1} />
+        </mesh>
+      </group>
+    );
+  }
+
+  // 빈 오브젝트 — 컴포넌트 홀더(예: World Physics). 에디터에서만 작은 와이어 구체로 표시, 플레이 시 안 보임.
+  if (obj.kind === 'empty') {
+    return (
+      <group
+        position={noTransform ? undefined : obj.position}
+        rotation={noTransform ? undefined : obj.rotation}
+        scale={noTransform ? undefined : obj.scale}
+        onClick={handle as unknown as React.MouseEventHandler}
+        userData={noTransform ? undefined : { id: obj.id }}>
+        <mesh>
+          <sphereGeometry args={[0.35, 16, 12]} />
+          <meshBasicMaterial color={selected ? '#fbbf24' : '#60a5fa'} wireframe transparent opacity={0.8} />
         </mesh>
       </group>
     );
@@ -1264,8 +1348,8 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs }: {
     else lightRefs.current.delete(obj.id);
   };
 
-  // 스폰 포인트 — 시뮬레이션에선 렌더 X (위치 표시만 했다가 사라짐)
-  if (obj.kind === 'spawn') return null;
+  // 스폰 포인트·빈 오브젝트 — 시뮬레이션에선 렌더 X (위치 표시만 했다가 사라짐)
+  if (obj.kind === 'spawn' || obj.kind === 'empty') return null;
 
   // 조명은 Three.js 라이트로 렌더링 (물리 없음)
   if (obj.kind === 'pointlight') return (
@@ -1892,6 +1976,7 @@ function SelectedTransform({ targetId, mode, onChange, onDragEnd, onDragStart, s
       ref={(tc: any) => { tcRef.current = tc || null; }}
       object={target}
       mode={mode}
+      space="local"
       translationSnap={snapTranslate ?? null}
       rotationSnap={snapRotate ?? null}
       scaleSnap={snapScale ?? null}
@@ -2167,7 +2252,6 @@ export default function StudioCanvas() {
   const [componentPickerSearch, setComponentPickerSearch] = useState('');
   // 환경 (Sky/HDRI/ambient) 패널 토글
   const [envPanelOpen, setEnvPanelOpen] = useState(false);
-  const [physPanelOpen, setPhysPanelOpen] = useState(false);
   // 유저 정의 스크립트 컴포넌트 (DB) + 관리 모달
   const [scriptComponents, setScriptComponents] = useState<ScriptComponent[]>([]);
   // 공식 (운영자가 만든) 컴포넌트 — 모든 유저 picker 에 노출
@@ -2284,9 +2368,21 @@ export default function StudioCanvas() {
   const [hdriBackground, setHdriBackground] = useState(false); // HDRI를 배경으로 표시
   const [hdriIntensity, setHdriIntensity] = useState(1.0);     // HDRI 환경광 (IBL) 강도 — scene.environmentIntensity
   const [exposure, setExposure] = useState(0.7);   // tone mapping exposure — 너무 밝으면 낮춤
-  // 맵 물리 — 중력 Y (기본 -22), 점프력 (기본 7). 무중력 = gravityY 0.
+  // 맵 물리 — 빈 오브젝트의 World Physics 컴포넌트가 소스. 아래 gravityY/jumpPower 는
+  // 구버전 맵(sceneSettings) 로드용 fallback. UI 패널은 제거됨(컴포넌트로 관리).
   const [gravityY, setGravityY]   = useState(-22);
   const [jumpPower, setJumpPower] = useState(7);
+  // 맵에 부착된 World Physics 컴포넌트에서 실효 중력/점프력 도출 (없으면 fallback).
+  const worldPhysics = useMemo(() => {
+    for (const o of objects) {
+      const inst = findComponent(o.components, 'worldPhysics');
+      if (inst) return {
+        gravity:   getProp(inst, 'gravity', gravityY),
+        jumpPower: getProp(inst, 'jumpPower', jumpPower),
+      };
+    }
+    return { gravity: gravityY, jumpPower };
+  }, [objects, gravityY, jumpPower]);
   // 썸네일 캡처 함수 (Canvas 내부에서 등록)
   const captureFnRef = useRef<(() => string | null) | null>(null);
   const cameraRef    = useRef<THREE.Camera | null>(null);
@@ -2772,6 +2868,26 @@ export default function StudioCanvas() {
     setStudioMode('scene');
   }
 
+  // 빈 오브젝트 — 컴포넌트(예: World Physics) 홀더. 기본으로 worldPhysics 컴포넌트 부착.
+  function addEmpty() {
+    const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const label = makeLabel('empty');
+    setObjects(prev => {
+      const next: MapObject[] = [...prev, {
+        id, kind: 'empty', label,
+        position: [0, 2, 0],
+        rotation: [0, 0, 0],
+        scale:    [1, 1, 1],
+        color:    '#60a5fa',
+        components: [{ type: 'worldPhysics', props: { gravity: -22, jumpPower: 7 } }],
+      }];
+      pushHistory(next);
+      return next;
+    });
+    setSelectedId(id);
+    setStudioMode('scene');
+  }
+
   function addAsset(asset: Asset, position: [number, number, number] = [0, 0, 0]) {
     const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const label = asset.name || makeLabel('asset');
@@ -3150,8 +3266,8 @@ export default function StudioCanvas() {
 
     for (const cand of objects) {
       if (cand.id === movedId) continue;
-      // 조명/스폰 같은 비-shape 은 부모 대상 제외 (geometric bounds 없음)
-      if (cand.kind === 'pointlight' || cand.kind === 'spotlight' || cand.kind === 'dirlight' || cand.kind === 'spawn') continue;
+      // 조명/스폰/빈 오브젝트 같은 비-shape 은 부모 대상 제외 (geometric bounds 없음)
+      if (cand.kind === 'pointlight' || cand.kind === 'spotlight' || cand.kind === 'dirlight' || cand.kind === 'spawn' || cand.kind === 'empty') continue;
 
       // moved 가 cand 의 조상이면 (순환) 제외
       let p: string | null | undefined = cand.parentId;
@@ -3207,8 +3323,8 @@ export default function StudioCanvas() {
     const child = objects.find(o => o.id === childId);
     if (!child) return;
 
-    // spawn 은 hierarchical transform 무의미 — parentId 만 변경, world position 유지.
-    if (child.kind === 'spawn') {
+    // spawn·empty 는 hierarchical transform 무의미 — parentId 만 변경, world position 유지.
+    if (child.kind === 'spawn' || child.kind === 'empty') {
       const worldMat = computeWorldMatrix(childId, objects);
       const wp = new THREE.Vector3();
       const wq = new THREE.Quaternion();
@@ -3341,7 +3457,8 @@ export default function StudioCanvas() {
         }
       } catch { /* 썸네일 실패는 무시 */ }
 
-      const sceneSettings = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, hdriIntensity, exposure, gravityY, jumpPower };
+      // 중력/점프력은 World Physics 컴포넌트가 소스 — 저장 시 sceneSettings 에 반영해 월드 플레이에 적용
+      const sceneSettings = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, hdriIntensity, exposure, gravityY: worldPhysics.gravity, jumpPower: worldPhysics.jumpPower };
       const payload: Record<string, unknown> = { name, description, mapData: { objects, sceneSettings }, isPublic };
       if (thumbnailUrl) payload.thumbnailUrl = thumbnailUrl;
       const body = JSON.stringify(payload);
@@ -3637,6 +3754,12 @@ export default function StudioCanvas() {
           style={{ width: '100%', textAlign: 'left', background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 6, color: '#86efac', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 700, marginBottom: 4 }}>
           🎯 스폰 포인트 추가
         </button>
+        {/* 🔵 빈 오브젝트 추가 — World Physics(중력/점프력) 컴포넌트 홀더 (기본 부착). */}
+        <button type="button" onClick={addEmpty}
+          title="빈 오브젝트. 컴포넌트(예: World Physics 중력/점프력)를 부착해 관리. 플레이 시 안 보임."
+          style={{ width: '100%', textAlign: 'left', background: 'rgba(96,165,250,0.12)', border: '1px solid rgba(96,165,250,0.35)', borderRadius: 6, color: '#93c5fd', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 700, marginBottom: 4 }}>
+          🔵 {t('addEmpty')}
+        </button>
         <button type="button" onClick={() => setLightAddPanelOpen(v => !v)}
           style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '4px 8px', cursor: 'pointer', fontWeight: 600 }}>
           💡 조명 추가 {lightAddPanelOpen ? '▲' : '▼'}
@@ -3657,46 +3780,6 @@ export default function StudioCanvas() {
             </button>
           </div>
         )}
-        {/* 물리 (중력 / 점프력) — 맵 전역 설정. 시뮬레이션·월드 양쪽 적용 */}
-        <div style={{ marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 8 }}>
-          <button type="button" onClick={() => setPhysPanelOpen(v => !v)}
-            style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '4px 0', cursor: 'pointer', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>🪐 물리 / 중력</span>
-            <span>{physPanelOpen ? '▲' : '▼'}</span>
-          </button>
-          {physPanelOpen && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
-              {/* 중력 */}
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.75 }}>
-                중력 (gravity Y): {gravityY.toFixed(1)}
-                <input type="range" min={-40} max={0} step={0.5} value={gravityY}
-                  onChange={e => setGravityY(Number(e.target.value))}
-                  onMouseUp={() => pushHistory(objects)}
-                  style={{ accentColor: '#22d3ee' }} />
-                <span style={{ fontSize: 10, opacity: 0.5 }}>지구 ≈ -9.8 · 게임 기본 -22 · 0 = 무중력</span>
-              </label>
-              {/* 프리셋 버튼 */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
-                {([['무중력', 0], ['달', -1.6], ['지구', -9.8]] as const).map(([label, g]) => (
-                  <button key={label} type="button"
-                    onClick={() => { setGravityY(g); pushHistory(objects); }}
-                    style={{ background: Math.abs(gravityY - g) < 0.05 ? 'rgba(34,211,238,0.35)' : 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', borderRadius: 6, padding: '5px 0', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-              {/* 점프력 */}
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.75 }}>
-                점프력: {jumpPower.toFixed(1)}
-                <input type="range" min={0} max={25} step={0.5} value={jumpPower}
-                  onChange={e => setJumpPower(Number(e.target.value))}
-                  onMouseUp={() => pushHistory(objects)}
-                  style={{ accentColor: '#fbbf24' }} />
-                <span style={{ fontSize: 10, opacity: 0.5 }}>위로 주는 속도 (m/s). 기본 7 ≈ 1.1m (중력 -22 기준)</span>
-              </label>
-            </div>
-          )}
-        </div>
 
         {/* 환경 (Sky / HDRI / Ambient) */}
         <div style={{ marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 8 }}>
@@ -4013,8 +4096,8 @@ export default function StudioCanvas() {
               {/* 인스펙터 탭 (변환 / 재질) — 스크립트 탭은 컴포넌트 시스템으로 대체됨 */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, marginBottom: 10, background: 'rgba(0,0,0,0.25)', borderRadius: 7, padding: 2 }}>
                 {(['transform','material'] as const).map(tab => {
-                  const isLight = selected.kind === 'pointlight' || selected.kind === 'spotlight' || selected.kind === 'dirlight';
-                  const disabled = isLight && tab === 'material';
+                  const noMaterial = selected.kind === 'pointlight' || selected.kind === 'spotlight' || selected.kind === 'dirlight' || selected.kind === 'empty' || selected.kind === 'spawn';
+                  const disabled = noMaterial && tab === 'material';
                   return (
                     <button key={tab} disabled={disabled} onClick={() => setInspTab(tab)}
                       style={{
@@ -4419,7 +4502,7 @@ export default function StudioCanvas() {
           {simulating ? (
             /* ── 시뮬레이션 모드 ── */
             <Suspense fallback={null}>
-              <Physics gravity={[0, gravityY, 0]} interpolate={false}>
+              <Physics gravity={[0, worldPhysics.gravity, 0]} interpolate={false}>
                 <SimScene objects={objects.filter(o => !o.hidden)} transforms={simTransforms} myAssets={myAssets}
                   player={simCharacter ? {
                     character: simCharacter,
@@ -4427,7 +4510,7 @@ export default function StudioCanvas() {
                     onToggleCameraMode: () => setSimCameraMode(m => m === 'first' ? 'third' : 'first'),
                     onGrabUiChange: setSimCrosshair,
                     freeCam: simCamView === 'free',
-                    jumpPower,
+                    jumpPower: worldPhysics.jumpPower,
                     ownersRef: simOwnersRef,
                     grabbedStateRef: simGrabbedStateRef,
                     grabbableIdsRef: simGrabbableIdsRef,

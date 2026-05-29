@@ -1300,7 +1300,8 @@
     "mobileDup": "複製",
     "mobileDel": "削除",
     "fullscreenEnter": "全画面",
-    "fullscreenExit": "全画面終了"
+    "fullscreenExit": "全画面終了",
+    "addEmpty": "空オブジェクト追加"
   },
   "Worlds": {
     "title": "ワールド",

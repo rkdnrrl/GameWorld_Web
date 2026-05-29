@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -45,6 +45,16 @@ export interface ComponentDef {
 }
 
 export const COMPONENT_DEFS: ComponentDef[] = [
+  {
+    type: 'worldPhysics',
+    name: 'World Physics (맵 중력)',
+    icon: '🌍',
+    description: '맵 전역 중력/점프력 설정. 빈 오브젝트에 부착해 관리. 여러 개면 첫 번째만 적용. gravity 0 = 무중력 (지구 ≈ -9.8, 게임 기본 -22).',
+    props: [
+      { key: 'gravity',   label: '중력 Y (gravity)',  type: 'number', default: -22, min: -40, max: 0,  step: 0.5 },
+      { key: 'jumpPower', label: '점프력 (jumpPower)', type: 'number', default: 7,   min: 0,   max: 25, step: 0.5 },
+    ],
+  },
   {
     type: 'physics',
     name: 'Physics (물리)',

@@ -1300,7 +1300,8 @@
     "mobileDup": "복제",
     "mobileDel": "삭제",
     "fullscreenEnter": "전체화면",
-    "fullscreenExit": "전체화면 종료"
+    "fullscreenExit": "전체화면 종료",
+    "addEmpty": "빈 오브젝트 추가"
   },
   "Worlds": {
     "title": "월드",
