@@ -913,6 +913,8 @@ export function Player({
   const proneRef  = useRef(false);
   // 점프 상태 최소 유지 시간 (애니메이션 재생 보장)
   const jumpHoldUntil = useRef(0);
+  // 3인칭 카메라 충돌(스프링암) — 벽에 막히면 당겨졌다가, 트이면 부드럽게 복귀하는 실효 비율(0~1)
+  const camCollideRef = useRef(1);
   // ── 1인칭 grab (Unreal physics handle) ──
   const grabbedIdRef = useRef<string | null>(null);
   const grabDistRef  = useRef(2.5); // 카메라 앞 m
@@ -1235,8 +1237,33 @@ export function Player({
       const yOffset = (dist <= 2.2 ? 0.25 : 0.5) * postureScale;
       const ty = p.y + dist * Math.sin(_mob.camV) + yOffset - (1 - postureScale) * 0.6;
       const tz = p.z + dist * Math.cos(_mob.camH) * Math.cos(_mob.camV);
-      camera.position.set(tx, ty, tz);
       const lookY = (dist <= 2.2 ? p.y + 0.45 : p.y + 0.7) - (1 - postureScale) * 0.6;
+
+      // ── 카메라 충돌(스프링암): 시선점 → 원하는 카메라 위치로 레이캐스트.
+      //    벽에 막히면 그 앞까지 당기고(즉시), 트이면 부드럽게 복귀. ──
+      const ox = tx - p.x, oy = ty - lookY, oz = tz - p.z;       // 시선점 기준 카메라 오프셋 벡터
+      const fullLen = Math.hypot(ox, oy, oz);
+      let ratio = 1;
+      if (fullLen > 0.01) {
+        const ir = 1 / fullLen;
+        const ray = new rapier.Ray(
+          { x: p.x, y: lookY, z: p.z },
+          { x: ox * ir, y: oy * ir, z: oz * ir },
+        );
+        // 자기 캡슐 제외. solid=true. 벽까지 거리(timeOfImpact) 안에서 막힘.
+        const hit = rWorld.castRay(ray, fullLen, true, undefined, undefined, undefined, body.current ?? undefined);
+        if (hit) {
+          const margin = 0.35;                                   // 벽에서 살짝 떨어뜨려 클리핑 방지
+          const allowed = Math.max(0.35, hit.timeOfImpact - margin);
+          ratio = Math.min(1, allowed / fullLen);
+        }
+      }
+      // 당길 땐 즉시(벽 뚫기 방지), 복귀는 부드럽게(dt 기반 보간)
+      const prev = camCollideRef.current;
+      camCollideRef.current = ratio < prev ? ratio : prev + (ratio - prev) * Math.min(1, dt * 6);
+      const r = camCollideRef.current;
+
+      camera.position.set(p.x + ox * r, lookY + oy * r, p.z + oz * r);
       camera.lookAt(p.x, lookY, p.z);
     }
 
