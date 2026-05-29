@@ -2104,9 +2104,41 @@ function silenceConsoleSpam() {
   };
 }
 
+// 모바일 바텀시트 드래그 — 그립을 끌어올리면 커지고 내리면 줄어듦 (스냅 포인트)
+const SHEET_SNAPS = [40, 62, 90]; // vh
+function useSheetDrag(initial = 62) {
+  const [heightVh, setHeightVh] = useState(initial);
+  const [dragging, setDragging] = useState(false);
+  const startRef = useRef<{ y: number; h: number } | null>(null);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return; // 닫기 버튼 등은 드래그 제외
+    startRef.current = { y: e.clientY, h: heightVh };
+    setDragging(true);
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!startRef.current) return;
+    const dy = startRef.current.y - e.clientY; // 위로 끌면 양수
+    const h = startRef.current.h + (dy / window.innerHeight) * 100;
+    setHeightVh(Math.max(22, Math.min(92, h)));
+  };
+  const endDrag = (e: React.PointerEvent) => {
+    if (!startRef.current) return;
+    startRef.current = null;
+    setDragging(false);
+    (e.currentTarget as Element).releasePointerCapture?.(e.pointerId);
+    setHeightVh(h => SHEET_SNAPS.reduce((a, b) => (Math.abs(b - h) < Math.abs(a - h) ? b : a)));
+  };
+  const gripHandlers = { onPointerDown, onPointerMove, onPointerUp: endDrag, onPointerCancel: endDrag };
+  return { heightVh, dragging, gripHandlers };
+}
+
 export default function StudioCanvas() {
   useEffect(() => { silenceConsoleSpam(); }, []);
   const t            = useTranslations('Studio');
+  const leftSheet    = useSheetDrag(62);
+  const rightSheet   = useSheetDrag(62);
   const router       = useRouter();
   const searchParams = useSearchParams();
   const editingId    = searchParams.get('id') || null;
@@ -3392,7 +3424,7 @@ export default function StudioCanvas() {
         display: isMobile ? 'flex' : (leftPanelOpen ? 'flex' : 'none'),
         // 모바일: 하단 바텀시트(풀폭·58vh, 슬라이드업) — 위쪽 뷰포트 보임 / 데스크톱: 좌측 250px 컬럼
         transform: isMobile ? (mobilePanelOpen ? 'translateY(0)' : 'translateY(120%)') : undefined,
-        transition: isMobile ? 'transform 0.32s cubic-bezier(0.32,0.72,0,1)' : undefined,
+        transition: isMobile ? (leftSheet.dragging ? 'none' : 'transform 0.32s cubic-bezier(0.32,0.72,0,1), height 0.25s cubic-bezier(0.32,0.72,0,1)') : undefined,
         pointerEvents: isMobile && !mobilePanelOpen ? 'none' : undefined,
         width: isMobile ? '100%' : 250,
         flexShrink: 0,
@@ -3409,7 +3441,7 @@ export default function StudioCanvas() {
         right: isMobile ? 0 : undefined,
         top: isMobile ? 'auto' : undefined,
         bottom: isMobile ? 0 : undefined,
-        height: isMobile ? '58vh' : undefined,
+        height: isMobile ? `${leftSheet.heightVh}vh` : undefined,
         zIndex: isMobile ? 220 : 50,
         boxShadow: isMobile ? '0 -12px 40px rgba(0,0,0,0.55)' : undefined,
       }}>
@@ -3426,14 +3458,15 @@ export default function StudioCanvas() {
           ◀
         </button>
       )}
-      {/* 모바일 바텀시트 헤더 — 그립 핸들 + 제목 + 닫기 (sticky) */}
+      {/* 모바일 바텀시트 헤더 — 그립 핸들(드래그로 높이조절) + 제목 + 닫기 (sticky) */}
       {isMobile && (
-        <div style={{
+        <div {...leftSheet.gripHandlers} style={{
           position: 'sticky', top: 0, zIndex: 6, flexShrink: 0,
           background: '#172033', borderRadius: '20px 20px 0 0',
           padding: '10px 14px 8px', borderBottom: '1px solid rgba(255,255,255,0.07)',
+          touchAction: 'none', cursor: 'grab',
         }}>
-          <div style={{ width: 40, height: 5, borderRadius: 99, background: 'rgba(255,255,255,0.22)', margin: '0 auto 10px' }} />
+          <div style={{ width: 40, height: 5, borderRadius: 99, background: 'rgba(255,255,255,0.28)', margin: '0 auto 10px' }} />
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 15, fontWeight: 800 }}>{t('scSceneObjects')}</span>
             <button
@@ -3907,7 +3940,7 @@ export default function StudioCanvas() {
         display: isMobile ? 'flex' : (rightPanelOpen ? 'flex' : 'none'),
         // 모바일: 하단 바텀시트(풀폭·58vh, 슬라이드업) / 데스크톱: 우측 300px 컬럼
         transform: isMobile ? ((rightPanelOpen && selectedId) ? 'translateY(0)' : 'translateY(120%)') : undefined,
-        transition: isMobile ? 'transform 0.32s cubic-bezier(0.32,0.72,0,1)' : undefined,
+        transition: isMobile ? (rightSheet.dragging ? 'none' : 'transform 0.32s cubic-bezier(0.32,0.72,0,1), height 0.25s cubic-bezier(0.32,0.72,0,1)') : undefined,
         pointerEvents: isMobile && !(rightPanelOpen && selectedId) ? 'none' : undefined,
         position: 'absolute',
         right: 0,
@@ -3915,7 +3948,7 @@ export default function StudioCanvas() {
         bottom: 0,
         left: isMobile ? 0 : undefined,
         width: isMobile ? '100%' : 300,
-        height: isMobile ? '58vh' : undefined,
+        height: isMobile ? `${rightSheet.heightVh}vh` : undefined,
         background: isMobile ? '#172033' : '#1e293b',
         borderLeft: isMobile ? 'none' : '1px solid rgba(255,255,255,0.08)',
         borderTop: isMobile ? '1px solid rgba(129,140,248,0.3)' : undefined,
@@ -3940,13 +3973,14 @@ export default function StudioCanvas() {
             ▶
           </button>
         )}
-        {/* 모바일 바텀시트 헤더 — 그립 핸들 + 선택 오브젝트명 + 닫기 (sticky) */}
+        {/* 모바일 바텀시트 헤더 — 그립 핸들(드래그로 높이조절) + 선택 오브젝트명 + 닫기 */}
         {isMobile && (
-          <div style={{
+          <div {...rightSheet.gripHandlers} style={{
             flexShrink: 0, background: '#172033', borderRadius: '20px 20px 0 0',
             padding: '10px 14px 8px', borderBottom: '1px solid rgba(255,255,255,0.07)',
+            touchAction: 'none', cursor: 'grab',
           }}>
-            <div style={{ width: 40, height: 5, borderRadius: 99, background: 'rgba(255,255,255,0.22)', margin: '0 auto 10px' }} />
+            <div style={{ width: 40, height: 5, borderRadius: 99, background: 'rgba(255,255,255,0.28)', margin: '0 auto 10px' }} />
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <span style={{ fontSize: 15, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {selected ? `${KIND_ICONS[selected.kind] ?? ''} ${selected.label || selected.kind}` : ''}
