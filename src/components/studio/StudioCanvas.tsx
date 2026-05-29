@@ -3371,20 +3371,25 @@ export default function StudioCanvas() {
           모바일에선 absolute 로 오버레이 ── */}
       <div style={{
         display: (isMobile ? mobilePanelOpen : leftPanelOpen) ? 'flex' : 'none',
-        width: isMobile ? 'min(86vw, 340px)' : 250,
+        // 모바일: 하단 바텀시트(풀폭·55vh) — 위쪽 뷰포트 보임 / 데스크톱: 좌측 250px 컬럼
+        width: isMobile ? '100%' : 250,
         flexShrink: 0,
         background: '#1e293b',
-        borderRight: '1px solid rgba(255,255,255,0.08)',
+        borderRight: isMobile ? 'none' : '1px solid rgba(255,255,255,0.08)',
+        borderTop: isMobile ? '1px solid rgba(129,140,248,0.35)' : undefined,
+        borderRadius: isMobile ? '16px 16px 0 0' : undefined,
         color: '#fff',
         flexDirection: 'column',
         overflowY: 'auto',    // 내부 섹션들이 합쳐서 패널보다 커지면 패널 자체가 세로 스크롤
         overflowX: 'hidden',
         position: isMobile ? 'absolute' : 'relative',
         left: isMobile ? 0 : undefined,
-        top: isMobile ? 0 : undefined,
+        right: isMobile ? 0 : undefined,
+        top: isMobile ? 'auto' : undefined,
         bottom: isMobile ? 0 : undefined,
+        height: isMobile ? '55vh' : undefined,
         zIndex: isMobile ? 220 : 50,
-        boxShadow: isMobile ? '0 0 0 1px rgba(255,255,255,0.1), 8px 0 30px rgba(2,6,23,0.6)' : undefined,
+        boxShadow: isMobile ? '0 -10px 34px rgba(2,6,23,0.7)' : undefined,
       }}>
       {/* 데스크톱 전용 패널 닫기 버튼 (우측 상단 corner) */}
       {!isMobile && (
@@ -3868,15 +3873,24 @@ export default function StudioCanvas() {
           position:absolute 로 부모 우측에 핀 (flex order 트릭 의존 X) ── */}
       <div style={{
         display: (isMobile ? (rightPanelOpen && !!selectedId) : rightPanelOpen) ? 'flex' : 'none',
-        position: 'absolute', right: 0, top: 0, bottom: 0,
-        width: isMobile ? 'min(300px, 88vw)' : 300,
+        // 모바일: 하단 바텀시트(풀폭·55vh) / 데스크톱: 우측 300px 컬럼
+        position: 'absolute',
+        right: 0,
+        top: isMobile ? 'auto' : 0,
+        bottom: 0,
+        left: isMobile ? 0 : undefined,
+        width: isMobile ? '100%' : 300,
+        height: isMobile ? '55vh' : undefined,
         background: '#1e293b',
-        borderLeft: '1px solid rgba(255,255,255,0.08)',
+        borderLeft: isMobile ? 'none' : '1px solid rgba(255,255,255,0.08)',
+        borderTop: isMobile ? '1px solid rgba(129,140,248,0.35)' : undefined,
+        borderRadius: isMobile ? '16px 16px 0 0' : undefined,
         color: '#fff',
         flexDirection: 'column',
         overflow: 'hidden',
         fontFamily: 'inherit',
-        zIndex: isMobile ? 215 : 50,
+        boxShadow: isMobile ? '0 -10px 34px rgba(2,6,23,0.7)' : undefined,
+        zIndex: isMobile ? 216 : 50,
       }}>
         {/* 모바일 전용 인스펙터 닫기 버튼 (선택 해제) */}
         {isMobile && (
@@ -4498,7 +4512,7 @@ export default function StudioCanvas() {
 
         {/* 모바일 변환 툴바 — 키보드 없는 환경에서 이동/회전/스케일/복제/삭제 */}
         {isMobile && !simulating && (
-          <div style={{ position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6, zIndex: 30, background: 'rgba(2,6,23,0.65)', borderRadius: 12, padding: 6, backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.12)' }}>
+          <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6, zIndex: 217, background: 'rgba(2,6,23,0.78)', borderRadius: 12, padding: 6, backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.12)' }}>
             {([['translate','↔',t('modeTranslate')],['rotate','⟳',t('modeRotate')],['scale','⤢',t('modeScale')]] as const).map(([m, icon, label]) => (
               <button key={m} type="button" onClick={() => setMode(m)}
                 style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, border: 'none', borderRadius: 8, padding: '7px 11px', cursor: 'pointer', background: mode === m ? 'rgba(99,102,241,0.85)' : 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 10, fontWeight: 700 }}>
