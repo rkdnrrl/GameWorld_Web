@@ -2922,12 +2922,16 @@ export default function StudioCanvas() {
       const next: MapObject[] = [...prev, {
         id, kind: 'asset', label,
         assetUrl: asset.modelUrl,
+        // materialConfig 를 먼저 펼쳐서 머티리얼/텍스처만 가져오고, transform(위치/회전/스케일)은
+        // 항상 아래 기본값이 이기게 한다. (materialConfig 에 transform 키가 섞여 있어도 rotation 이
+        // undefined 가 되어 인스펙터에서 .map 크래시 나는 것 방지)
+        ...(getAssetMaterialConfig(asset) || {}),
         position,
         // 모델은 최대 치수=1 단위로 정규화됨 → 스케일 1 이면 캐릭터(≈1.8)보다 작아 너무 작게 보임.
         // 기본 3 단위로 생성 (필요시 인스펙터에서 조절). 스튜디오·월드 동일 정규화라 양쪽 일관.
+        rotation: [0, 0, 0],
         scale:    [3, 3, 3],
         color:    '#fff',
-        ...(getAssetMaterialConfig(asset) || {}),
       }];
       pushHistory(next);
       return next;
@@ -4331,9 +4335,9 @@ export default function StudioCanvas() {
               <AxisInputRow
                 label={mode === 'translate' ? t('position') : mode === 'rotate' ? t('rotation') : t('scale')}
                 values={
-                  mode === 'translate' ? selected.position :
-                  mode === 'rotate'    ? selected.rotation.map(r => Math.round(r * 180 / Math.PI)) as [number,number,number] :
-                                         selected.scale
+                  mode === 'translate' ? (selected.position ?? [0, 0, 0]) :
+                  mode === 'rotate'    ? ((selected.rotation ?? [0, 0, 0]).map(r => Math.round(r * 180 / Math.PI)) as [number,number,number]) :
+                                         (selected.scale ?? [1, 1, 1])
                 }
                 step={mode === 'rotate' ? 1 : 0.1}
                 min={mode === 'scale' ? 0.01 : undefined}
