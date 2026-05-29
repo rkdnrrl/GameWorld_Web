@@ -26,6 +26,11 @@ const PLAYER_CAPSULE_HALF_HEIGHT = 0.35;
 const PLAYER_CAPSULE_RADIUS = 0.28;
 const PLAYER_MESH_Y = -(PLAYER_CAPSULE_HALF_HEIGHT + PLAYER_CAPSULE_RADIUS);
 
+// 멀티플레이 동기화 디버그 로그 — 기본 OFF. 매 프레임/충돌마다 console.log 하면
+// (특히 DevTools 열린 상태) 심각한 렉을 유발하므로 평소엔 끈다. 디버깅 시 true.
+const SYNC_DEBUG = false;
+const slog = (...args: unknown[]) => { if (SYNC_DEBUG) console.log(...args); };
+
 /** 두 각도 간 짧은 방향으로 보간 (-π~π 경계 넘어가도 한바퀴 안 돔) */
 function lerpAngle(current: number, target: number, t: number): number {
   const TAU = Math.PI * 2;
@@ -1279,7 +1284,7 @@ export function Player({
         const newOwner = ownersRef.current.get(grabId);
         if (newOwner) {
           // 다른 사람이 뺏어감 — 깔끔하게 해제 (spring force 안 보냄, 핑퐁 안 함)
-          console.log('[ALP-SYNC] grab released — taken by', newOwner);
+          slog('[ALP-SYNC] grab released — taken by', newOwner);
           grabbedIdRef.current = null;
           grabbedStateRef?.current.delete(grabId);
           onGrabRelease?.(grabId);
@@ -1296,7 +1301,7 @@ export function Player({
             ownersRef.current.set(grabId, playerId);
             onGrabClaim?.(grabId);
             grabReclaimAtRef.current.set(grabId, now);
-            console.log('[ALP-SYNC] grab reclaim', grabId);
+            slog('[ALP-SYNC] grab reclaim', grabId);
           }
         }
       }
@@ -2245,7 +2250,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     if (!objectStatesRef) return;
     objectStatesRef.current = (states) => {
       const now = performance.now();
-      if (Math.random() < 0.05) console.log('[ALP-SYNC] recv states', states.length, states.map(s => s.id));
+      if (SYNC_DEBUG && Math.random() < 0.05) console.log('[ALP-SYNC] recv states', states.length, states.map(s => s.id));
       for (const s of states) {
         // grabbedBy 추적 — broadcast 마다 갱신 (null/없음 = 안 들고 있음)
         if (s.grabbedBy) remoteGrabbedByRef.current.set(s.id, s.grabbedBy);
@@ -2273,7 +2278,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   useEffect(() => {
     if (!objectOwnerRef) return;
     objectOwnerRef.current = (objectId, ownerId) => {
-      console.log('[ALP-SYNC] owner changed', objectId, '→', ownerId, '(me:', playerId, ')');
+      slog('[ALP-SYNC] owner changed', objectId, '→', ownerId, '(me:', playerId, ')');
       if (ownerId) ownersRef.current.set(objectId, ownerId);
       else ownersRef.current.delete(objectId);
     };
@@ -2362,20 +2367,20 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // (충돌 ownership 과 같은 흐름. grab 은 가만히 있는 오브젝트도 잡으므로 충돌 경로만으론 부족함.)
   const onGrabClaim = useCallback((objectId: string) => {
     if (!playerId) return;
-    console.log('[ALP-SYNC] grab attempt', objectId, 'currentOwner:', ownersRef.current.get(objectId), 'me:', playerId);
+    slog('[ALP-SYNC] grab attempt', objectId, 'currentOwner:', ownersRef.current.get(objectId), 'me:', playerId);
     // grab 은 충돌과 달리 항상 ownership 강제 — 이미 본인 owner 여도 sendObjClaim 으로 서버에 재확인 보냄.
     // 이전엔 "이미 내거면 skip" 했지만, 그 경우 다른 클라가 옛 ownership 정보를 가지고 있으면 sync 안 됨.
     ownersRef.current.set(objectId, playerId);
     syncTargets.current.delete(objectId);
     sendObjClaim?.(objectId);
-    console.log('[ALP-SYNC] grab claimed', objectId);
+    slog('[ALP-SYNC] grab claimed', objectId);
     // grab 중에는 1.5s 자동 해제 타이머가 끼어들지 못하게 touching 으로 표시
     touchingRef.current.add(objectId);
     releaseTimerRef.current.delete(objectId);
   }, [playerId, sendObjClaim]);
 
   const onGrabRelease = useCallback((objectId: string) => {
-    console.log('[ALP-SYNC] grab release', objectId);
+    slog('[ALP-SYNC] grab release', objectId);
     // grab 종료 — 1.5s 후 자동 release (충돌 grace period 와 동일 흐름)
     touchingRef.current.delete(objectId);
     releaseTimerRef.current.set(objectId, Date.now() + 1500);
@@ -2386,12 +2391,12 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     if (type === 'enter') {
       touchingRef.current.add(objectId);
       releaseTimerRef.current.delete(objectId);
-      console.log('[ALP-SYNC] collide enter', objectId, 'prev owner:', ownersRef.current.get(objectId), 'me:', playerId);
+      slog('[ALP-SYNC] collide enter', objectId, 'prev owner:', ownersRef.current.get(objectId), 'me:', playerId);
       // 누가 1인칭 grab 중이면 ownership 빼앗지 않음 (grabber 가 권위자 유지)
       const remoteGrabber = remoteGrabbedByRef.current.get(objectId);
       const selfGrabbing  = grabbedStateRef.current.has(objectId);
       if (remoteGrabber && remoteGrabber !== playerId) {
-        console.log('[ALP-SYNC] skip claim — grabbed by', remoteGrabber);
+        slog('[ALP-SYNC] skip claim — grabbed by', remoteGrabber);
         return;
       }
       if (selfGrabbing) return; // 본인이 들고 있음 — 이미 owner
@@ -2403,7 +2408,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         syncTargets.current.delete(objectId);
         // 3) 서버에 claim 전송
         sendObjClaim?.(objectId);
-        console.log('[ALP-SYNC] claimed', objectId);
+        slog('[ALP-SYNC] claimed', objectId);
       }
     } else {
       touchingRef.current.delete(objectId);
@@ -2538,7 +2543,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       }
       if (states.length > 0) {
         sendObjectStates(states);
-        if (Math.random() < 0.05) console.log('[ALP-SYNC] sent states', states.length, states.map(s => s.id));
+        if (SYNC_DEBUG && Math.random() < 0.05) console.log('[ALP-SYNC] sent states', states.length, states.map(s => s.id));
       }
     }, 25); // 40Hz — 권한 이전 시 빠른 수렴
     return () => clearInterval(interval);
