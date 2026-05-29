@@ -21,6 +21,7 @@ interface StudioTopBarProps {
   rightPanelOpen: boolean;
   onToggleLeft: () => void;
   onToggleRight: () => void;
+  isMobile?: boolean;
 }
 
 export default function StudioTopBar({
@@ -29,6 +30,7 @@ export default function StudioTopBar({
   canUndo, canRedo, onUndo, onRedo,
   simulating, onStartSim, onStopSim,
   leftPanelOpen, rightPanelOpen, onToggleLeft, onToggleRight,
+  isMobile = false,
 }: StudioTopBarProps) {
   const t = useTranslations('Studio');
   const router = useRouter();
@@ -37,6 +39,47 @@ export default function StudioTopBar({
     if (dirty && !confirm(`${t('tbDirty')}\n\n${t('tbExitTooltip')}`)) return;
     router.push('/world');
   };
+
+  // ── 모바일 컴팩트 툴바 — 핵심 버튼만, 모두 축소/가변폭으로 절대 안 잘림 ──
+  if (isMobile) {
+    const mBtn = (bg: string, disabled = false): React.CSSProperties => ({
+      width: 34, height: 34, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: bg, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8,
+      color: disabled ? 'rgba(255,255,255,0.25)' : '#fff', fontSize: 15,
+      cursor: disabled ? 'default' : 'pointer', fontWeight: 700, padding: 0,
+    });
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        height: 48, padding: '0 8px',
+        background: 'linear-gradient(180deg, rgba(15,23,42,0.98), rgba(10,15,30,0.98))',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
+        flexShrink: 0, zIndex: 100,
+      }}>
+        <button onClick={confirmAndExit} title={t('tbExit')} style={mBtn('rgba(255,255,255,0.06)')}>←</button>
+        <button onClick={onToggleLeft} title={t('scSceneObjects')}
+          style={mBtn(leftPanelOpen ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.06)')}>☰</button>
+        <input
+          value={name}
+          onChange={e => onNameChange(e.target.value)}
+          placeholder={t('tbNamePlaceholder')}
+          maxLength={100}
+          style={{
+            flex: '1 1 auto', minWidth: 0, width: '100%',
+            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600,
+            padding: '7px 10px', outline: 'none',
+          }}
+        />
+        <button onClick={onUndo} disabled={!canUndo} title={t('tbUndoTooltip')} style={mBtn('rgba(255,255,255,0.05)', !canUndo)}>↶</button>
+        <button onClick={onRedo} disabled={!canRedo} title={t('tbRedoTooltip')} style={mBtn('rgba(255,255,255,0.05)', !canRedo)}>↷</button>
+        <button onClick={simulating ? onStopSim : onStartSim} title={simulating ? t('tbStop') : t('tbPlay')}
+          style={mBtn(simulating ? 'rgba(239,68,68,0.85)' : 'rgba(34,197,94,0.85)')}>{simulating ? '■' : '▶'}</button>
+        <button onClick={onSave} disabled={saving} title={t('tbSave')}
+          style={mBtn('rgba(16,185,129,0.85)', saving)}>{saving ? '…' : '💾'}</button>
+      </div>
+    );
+  }
 
   // 저장 상태 배지
   const statusBadge = saving

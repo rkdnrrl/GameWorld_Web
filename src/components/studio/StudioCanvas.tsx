@@ -3361,8 +3361,9 @@ export default function StudioCanvas() {
         onStopSim={stopSim}
         leftPanelOpen={leftPanelOpen}
         rightPanelOpen={rightPanelOpen}
-        onToggleLeft={() => setLeftPanelOpen(v => !v)}
+        onToggleLeft={() => isMobile ? setMobilePanelOpen(v => !v) : setLeftPanelOpen(v => !v)}
         onToggleRight={() => setRightPanelOpen(v => !v)}
+        isMobile={isMobile}
       />
     <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative', paddingRight: isMobile ? 0 : (rightPanelOpen ? 300 : 0) }}>
 
@@ -3370,7 +3371,7 @@ export default function StudioCanvas() {
           모바일에선 absolute 로 오버레이 ── */}
       <div style={{
         display: (isMobile ? mobilePanelOpen : leftPanelOpen) ? 'flex' : 'none',
-        width: 250,
+        width: isMobile ? 'min(86vw, 340px)' : 250,
         flexShrink: 0,
         background: '#1e293b',
         borderRight: '1px solid rgba(255,255,255,0.08)',
@@ -4534,29 +4535,6 @@ export default function StudioCanvas() {
           ))}
         </div>
         )}
-        {isMobile && (
-          <button
-            type="button"
-            onClick={() => setMobilePanelOpen(true)}
-            style={{
-              position: 'absolute',
-              top: 16,
-              left: 16,
-              width: 40,
-              height: 40,
-              borderRadius: 10,
-              border: '1px solid rgba(255,255,255,0.2)',
-              background: 'rgba(2,6,23,0.55)',
-              color: '#fff',
-              fontSize: 20,
-              fontWeight: 700,
-              zIndex: 230,
-            }}
-          >
-            ☰
-          </button>
-        )}
-
         {texPicker && (
           <TexturePickerModal
             assets={myAssets}
@@ -4594,8 +4572,8 @@ export default function StudioCanvas() {
           onDrop={e => { e.stopPropagation(); }}
           style={{
           position: 'absolute', bottom: 0, left: 0,
-          // 인스펙터 열림: 300px, 닫힘: strip 40px — 어떤 상황에도 우측 가려지지 않음
-          right: rightPanelOpen ? 300 : 40,
+          // 인스펙터 열림: 300px, 닫힘: strip 40px — 어떤 상황에도 우측 가려지지 않음 (모바일은 풀폭)
+          right: isMobile ? 0 : (rightPanelOpen ? 300 : 40),
           zIndex: 14,
           background: 'rgba(2,6,23,0.93)',
           borderTop: '1px solid rgba(129,140,248,0.25)',
