@@ -1301,7 +1301,9 @@
     "mobileDel": "Delete",
     "fullscreenEnter": "Fullscreen",
     "fullscreenExit": "Exit fullscreen",
-    "addEmpty": "Add Empty"
+    "addEmpty": "Add Empty",
+    "addSpawn": "Add Spawn Point",
+    "unparent": "Move out of parent"
   },
   "Worlds": {
     "title": "Worlds",

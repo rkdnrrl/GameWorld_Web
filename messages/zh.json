@@ -1301,7 +1301,9 @@
     "mobileDel": "删除",
     "fullscreenEnter": "全屏",
     "fullscreenExit": "退出全屏",
-    "addEmpty": "添加空对象"
+    "addEmpty": "添加空对象",
+    "addSpawn": "添加出生点",
+    "unparent": "移出父级"
   },
   "Worlds": {
     "title": "世界",

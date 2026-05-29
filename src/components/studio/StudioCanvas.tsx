@@ -1202,7 +1202,7 @@ function SceneNode({ obj, allObjects, selectedId, multiSelectedIds, onObjectClic
 }
 
 /* ── 씬 목록 노드 (UI 계층 트리) ──────────── */
-function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, editingLabelId, editingLabelValue, setEditingLabelId, setEditingLabelValue, setObjects, selectedCallback, pushHistory, onReparent, onFocusObject }: {
+function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, editingLabelId, editingLabelValue, setEditingLabelId, setEditingLabelValue, setObjects, selectedCallback, pushHistory, onReparent, onReorder, onFocusObject, onContextMenu }: {
   obj: MapObject;
   allObjects: MapObject[];
   depth: number;
@@ -1216,10 +1216,13 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
   selectedCallback: (id: string) => void;
   pushHistory: (objs: MapObject[]) => void;
   onReparent: (childId: string, newParentId: string | null) => void;
+  onReorder: (draggedId: string, targetId: string, pos: 'before' | 'after') => void;
   onFocusObject: (id: string) => void;
+  onContextMenu: (objId: string, x: number, y: number) => void;
 }) {
   const [open, setOpen] = useState(true);
   const [dragOver, setDragOver] = useState(false);
+  const [insertBefore, setInsertBefore] = useState(false);
   const children = allObjects.filter(c => c.parentId === obj.id);
   const hasChildren = children.length > 0;
   const isSel = obj.id === selectedId || multiSelectedIds.has(obj.id);
@@ -1227,6 +1230,17 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
 
   return (
     <div>
+      {/* 순서 변경 드롭존 — 이 노드 "위"에 떨어뜨리면 형제로 앞에 삽입 (target 이 루트면 루트로 빼냄) */}
+      <div
+        onDragOver={e => { e.preventDefault(); e.stopPropagation(); setInsertBefore(true); }}
+        onDragLeave={() => setInsertBefore(false)}
+        onDrop={e => {
+          e.preventDefault(); e.stopPropagation(); setInsertBefore(false);
+          const id = e.dataTransfer.getData('sceneObjId');
+          if (id && id !== obj.id) onReorder(id, obj.id, 'before');
+        }}
+        style={{ height: 6, margin: '-3px 0', borderRadius: 2, background: insertBefore ? '#34d399' : 'transparent' }}
+      />
       <div
         draggable
         onDragStart={e => { e.dataTransfer.setData('sceneObjId', obj.id); e.dataTransfer.effectAllowed = 'move'; }}
@@ -1237,6 +1251,7 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
           const childId = e.dataTransfer.getData('sceneObjId');
           if (childId && childId !== obj.id) onReparent(childId, obj.id);
         }}
+        onContextMenu={e => { e.preventDefault(); e.stopPropagation(); onContextMenu(obj.id, e.clientX, e.clientY); }}
         onClick={() => { if (editingLabelId !== obj.id) selectedCallback(obj.id); }}
         onDoubleClick={() => { if (editingLabelId !== obj.id) onFocusObject(obj.id); }}
         style={{
@@ -1293,7 +1308,8 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
           editingLabelId={editingLabelId} editingLabelValue={editingLabelValue}
           setEditingLabelId={setEditingLabelId} setEditingLabelValue={setEditingLabelValue}
           setObjects={setObjects} selectedCallback={selectedCallback}
-          pushHistory={pushHistory} onReparent={onReparent} onFocusObject={onFocusObject} />
+          pushHistory={pushHistory} onReparent={onReparent} onReorder={onReorder}
+          onFocusObject={onFocusObject} onContextMenu={onContextMenu} />
       ))}
     </div>
   );
@@ -2331,6 +2347,8 @@ export default function StudioCanvas() {
   const [dropZoneActive, setDropZoneActive] = useState(false);
   // 에셋 그리드 빈 영역 우클릭 컨텍스트 메뉴 (폴더 만들기)
   const [assetCtxMenu, setAssetCtxMenu] = useState<{ x: number; y: number } | null>(null);
+  // 씬 트리 우클릭 컨텍스트 메뉴 — objId=null 이면 빈 영역(추가), 있으면 노드(빼기/삭제)
+  const [treeCtxMenu, setTreeCtxMenu] = useState<{ x: number; y: number; objId: string | null } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [texPicker, setTexPicker] = useState<null | 'albedo' | 'normal' | 'roughness'>(null);
   const [dragOverTex, setDragOverTex] = useState<string | null>(null);
@@ -3381,6 +3399,55 @@ export default function StudioCanvas() {
     });
   }
 
+  /** 트리에서 순서 변경 — dragged 를 target 의 형제로 만들어 앞/뒤에 배치.
+   *  target 이 루트면 dragged 도 루트가 됨(= 자식 밖으로 빼기). 부모 바뀌면 world 좌표 유지. */
+  function reorderObject(draggedId: string, targetId: string, pos: 'before' | 'after') {
+    if (draggedId === targetId) return;
+    const dragged = objects.find(o => o.id === draggedId);
+    const target = objects.find(o => o.id === targetId);
+    if (!dragged || !target) return;
+    const newParentId = target.parentId ?? null;
+    // 순환 방지: 새 부모가 dragged 의 자손이면 취소
+    const isDescendant = (tid: string | null | undefined, anc: string): boolean => {
+      let p = tid;
+      while (p) { if (p === anc) return true; p = objects.find(o => o.id === p)?.parentId; }
+      return false;
+    };
+    if (newParentId && isDescendant(newParentId, draggedId)) return;
+
+    // 부모가 바뀌면 world 좌표 유지하도록 변환
+    let patch: Partial<MapObject> = {};
+    if ((dragged.parentId ?? null) !== newParentId) {
+      const childWorld = computeWorldMatrix(draggedId, objects);
+      if (dragged.kind === 'spawn' || dragged.kind === 'empty') {
+        const wp = new THREE.Vector3(), wq = new THREE.Quaternion(), ws = new THREE.Vector3();
+        childWorld.decompose(wp, wq, ws);
+        const we = new THREE.Euler().setFromQuaternion(wq, 'XYZ');
+        patch = { parentId: newParentId ?? undefined, position: [wp.x,wp.y,wp.z], rotation: [we.x,we.y,we.z], scale: [ws.x,ws.y,ws.z] };
+      } else {
+        let localMat = childWorld.clone();
+        if (newParentId) localMat = computeWorldMatrix(newParentId, objects).clone().invert().multiply(childWorld);
+        const lp = new THREE.Vector3(), lq = new THREE.Quaternion(), ls = new THREE.Vector3();
+        localMat.decompose(lp, lq, ls);
+        const le = new THREE.Euler().setFromQuaternion(lq, 'XYZ');
+        patch = { parentId: newParentId ?? undefined, position: [lp.x,lp.y,lp.z], rotation: [le.x,le.y,le.z], scale: [ls.x,ls.y,ls.z] };
+      }
+    }
+
+    setObjects(prev => {
+      const cur = prev.find(o => o.id === draggedId);
+      if (!cur) return prev;
+      const moved = { ...cur, ...patch };
+      const without = prev.filter(o => o.id !== draggedId);
+      const idx = without.findIndex(o => o.id === targetId);
+      if (idx === -1) return prev;
+      const insertIdx = pos === 'before' ? idx : idx + 1;
+      const next = [...without.slice(0, insertIdx), moved, ...without.slice(insertIdx)];
+      pushHistory(next);
+      return next;
+    });
+  }
+
   function updateObjectTransform(id: string, t: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }) {
     const start = dragStartRef.current;
     const primaryStart = start.get(id);
@@ -3659,7 +3726,7 @@ export default function StudioCanvas() {
       </div>{/* /내부 스크롤 컨테이너 (메타) */}
 
       {/* ── 씬 계층 ── 좌측 패널 메인 영역. minHeight 로 너무 작아지지 않게 보장. */}
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 180 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 320 }}>
         <div style={{ padding: '8px 12px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, letterSpacing: 0.5 }}>{t('scSceneObjects')}</span>
           <span style={{ fontSize: 10, opacity: 0.35, background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '1px 7px' }}>{objects.length}</span>
@@ -3691,6 +3758,7 @@ export default function StudioCanvas() {
         <div
           onDragOver={e => { e.preventDefault(); }}
           onDrop={e => { e.preventDefault(); const id = e.dataTransfer.getData('sceneObjId'); if (id) reparentObject(id, null); }}
+          onContextMenu={e => { e.preventDefault(); setTreeCtxMenu({ x: e.clientX, y: e.clientY, objId: null }); }}
           style={{ overflowY: 'auto', flex: 1, padding: '0 8px 8px', display: 'flex', flexDirection: 'column', gap: 1 }}
         >
           {(() => {
@@ -3725,7 +3793,9 @@ export default function StudioCanvas() {
                 setEditingLabelId={setEditingLabelId} setEditingLabelValue={setEditingLabelValue}
                 setObjects={setObjects} pushHistory={pushHistory}
                 onReparent={reparentObject}
+                onReorder={reorderObject}
                 onFocusObject={focusObject}
+                onContextMenu={(objId, x, y) => setTreeCtxMenu({ x, y, objId })}
                 selectedCallback={id => {
                   if (shiftHeldRef.current) {
                     shiftClickObject(id);
@@ -4940,6 +5010,50 @@ export default function StudioCanvas() {
           </div>
         </>
       )}
+
+      {/* 씬 트리 우클릭 컨텍스트 메뉴 */}
+      {treeCtxMenu && (() => {
+        const node = treeCtxMenu.objId ? objects.find(o => o.id === treeCtxMenu.objId) : null;
+        const itemStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', background: 'none', border: 'none', color: '#fff', fontSize: 12, fontWeight: 600, padding: '9px 11px', borderRadius: 6, cursor: 'pointer' };
+        const hover = (on: boolean) => (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.background = on ? 'rgba(129,140,248,0.22)' : 'none'; };
+        return (
+          <>
+            <div
+              onClick={() => setTreeCtxMenu(null)}
+              onContextMenu={e => { e.preventDefault(); setTreeCtxMenu(null); }}
+              style={{ position: 'fixed', inset: 0, zIndex: 500 }}
+            />
+            <div style={{
+              position: 'fixed', left: treeCtxMenu.x, top: treeCtxMenu.y, zIndex: 501,
+              background: 'rgba(15,23,42,0.98)', border: '1px solid rgba(255,255,255,0.16)',
+              borderRadius: 8, boxShadow: '0 10px 30px rgba(0,0,0,0.55)', padding: 4, minWidth: 180,
+            }}>
+              {treeCtxMenu.objId === null ? (
+                <>
+                  <button type="button" style={itemStyle} onMouseEnter={hover(true)} onMouseLeave={hover(false)}
+                    onClick={() => { addEmpty(); setTreeCtxMenu(null); }}>🔵 {t('addEmpty')}</button>
+                  <button type="button" style={itemStyle} onMouseEnter={hover(true)} onMouseLeave={hover(false)}
+                    onClick={() => { addSpawn(); setTreeCtxMenu(null); }}>🎯 {t('addSpawn')}</button>
+                </>
+              ) : (
+                <>
+                  {node?.parentId && (
+                    <button type="button" style={itemStyle} onMouseEnter={hover(true)} onMouseLeave={hover(false)}
+                      onClick={() => { reparentObject(treeCtxMenu.objId!, null); setTreeCtxMenu(null); }}>⤴ {t('unparent')}</button>
+                  )}
+                  <button type="button" style={{ ...itemStyle, color: '#fca5a5' }} onMouseEnter={hover(true)} onMouseLeave={hover(false)}
+                    onClick={() => {
+                      const id = treeCtxMenu.objId!;
+                      setObjects(prev => { const next = prev.filter(o => o.id !== id); pushHistory(next); return next; });
+                      if (selectedId === id) setSelectedId(null);
+                      setTreeCtxMenu(null);
+                    }}>🗑 {t('mobileDel')}</button>
+                </>
+              )}
+            </div>
+          </>
+        );
+      })()}
 
       {/* AI 로 맵 만들기 가이드 */}
       <AiGuideModal
