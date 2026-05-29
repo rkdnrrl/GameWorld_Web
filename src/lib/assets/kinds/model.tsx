@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState } from 'react';
 import { registerKind } from '../registry';
 import type { Asset } from '../types';
+import { getMaterialConfig } from '../types';
 
 const AssetMaterialEditor = dynamic(
   () => import('@/components/assets/AssetMaterialEditor'),
@@ -45,7 +46,7 @@ function ModelThumbnail({ asset }: { asset: Asset }) {
   return (
     <div ref={ref} style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       {visible
-        ? <ModelThumbViewer url={asset.modelUrl} />
+        ? <ModelThumbViewer url={asset.modelUrl} config={getMaterialConfig(asset)} />
         : <span style={{ fontSize: 44, opacity: 0.4 }}>🎲</span>}
     </div>
   );
