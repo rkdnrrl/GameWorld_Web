@@ -1172,12 +1172,12 @@ export function Player({
         jumpHoldUntil.current = Date.now() + 500;
       }
 
-      // 캐릭터 회전 — 1인칭은 항상 카메라 방향, 3인칭은 이동 방향
-      if (mesh.current && !isProne) {
+      // 캐릭터 회전 — 1인칭은 항상 카메라 방향(엎드림 포함), 3인칭은 이동 방향(엎드림 제외)
+      if (mesh.current) {
         if (cameraMode === 'first') {
-          // FP: 캐릭터 몸이 항상 카메라 보는 방향과 일치 (즉시 동기)
+          // FP: 캐릭터 몸이 항상 카메라 보는 방향과 일치 (즉시 동기). 엎드린 상태에서도 같이 돎.
           mesh.current.rotation.y = _mob.camH + Math.PI;
-        } else if (len > 0) {
+        } else if (!isProne && len > 0) {
           const target = Math.atan2(mx, mz);
           mesh.current.rotation.y = lerpAngle(mesh.current.rotation.y, target, Math.min(1, 12 * dt));
         }
