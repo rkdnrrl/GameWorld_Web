@@ -172,8 +172,10 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
   const src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=1&rel=0&playsinline=1`;
   // occlude="blending": 깊이 버퍼 기반 가림 — 앞에 있는 오브젝트(캐릭터/벽 등)가 영상을
   // 픽셀 단위로 정상적으로 가림. (raycast 방식은 중심이 가려지면 통째로 사라져서 부적합)
+  // pointerEvents:none — 영상 위를 클릭해도 캔버스로 통과 → 1인칭 포인터락/카메라 회전 정상.
+  // (YT 컨트롤 직접 클릭은 막히지만 1인칭에선 어차피 불가, 자동재생+동기화로 충분)
   return (
-    <Html transform occlude="blending" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center>
+    <Html transform occlude="blending" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center style={{ pointerEvents: 'none' }}>
       <iframe
         ref={iframeRef}
         width={YT_IFRAME_W}
@@ -183,7 +185,7 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
         frameBorder={0}
         allow="autoplay; encrypted-media; picture-in-picture"
         allowFullScreen
-        style={{ border: 'none', display: 'block', background: '#000' }}
+        style={{ border: 'none', display: 'block', background: '#000', pointerEvents: 'none' }}
       />
     </Html>
   );
