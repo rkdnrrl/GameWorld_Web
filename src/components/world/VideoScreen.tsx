@@ -154,15 +154,16 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
   // 동기화 핸들 등록
   useEffect(() => {
     if (!registry || !objId) return;
+    console.log('[YT] register handle', objId);
     const handle: VideoHandle = {
       getTime: () => playerRef.current?.getCurrentTime?.() ?? 0,
-      seek: (t) => { try { playerRef.current?.seekTo?.(t, true); } catch { /* noop */ } },
+      seek: (t) => { console.log('[YT] seek', objId, '→', t); try { playerRef.current?.seekTo?.(t, true); } catch { /* noop */ } },
       duration: () => playerRef.current?.getDuration?.() ?? 0,
-      setPlaying: (p) => { try { p ? playerRef.current?.playVideo?.() : playerRef.current?.pauseVideo?.(); } catch { /* noop */ } },
+      setPlaying: (p) => { console.log('[YT] setPlaying', objId, '→', p); try { p ? playerRef.current?.playVideo?.() : playerRef.current?.pauseVideo?.(); } catch { /* noop */ } },
       paused: () => (playerRef.current?.getPlayerState?.() ?? 1) !== 1,  // 1 = playing
     };
     registry.current.set(objId, handle);
-    return () => { registry.current.delete(objId); };
+    return () => { console.log('[YT] unregister handle', objId); registry.current.delete(objId); };
   }, [registry, objId]);
 
   // 소리 — 사용자 제스처마다 음소거 해제 시도 (once X — player 준비 전 첫 클릭이 헛돌아도

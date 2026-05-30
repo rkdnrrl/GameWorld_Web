@@ -2762,6 +2762,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       }
       // 비디오 스크린 동기화 — 호스트가 보낸 재생시각을 비호스트가 자기 영상에 반영 (watch party)
       if (event === VIDEO_SYNC_EVENT) {
+        console.log('[VID] recv SYNC', objectId, 'from', fromId, 'data', data, 'isHost', isHostRef.current);
         if (isHostRef.current) return;            // 호스트는 권위자 — 수신 무시
         const v = videoRegistry.current.get(objectId);
         if (v) applyVideoSync(v, data as { t?: number; playing?: boolean });
@@ -2769,6 +2770,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       }
       // 비디오 컨트롤 명령(앞/뒤 5초·URL 변경) — 호스트 포함 모든 클라가 반영 (누가 눌러도 동기화)
       if (event === VIDEO_CTL_EVENT) {
+        console.log('[VID] recv CTL', objectId, 'from', fromId, 'data', data);
         const d = data as VideoControlCmd;
         if (typeof d.seekTo === 'number') videoRegistry.current.get(objectId)?.seek(d.seekTo);
         if (typeof d.playing === 'boolean') videoRegistry.current.get(objectId)?.setPlaying(d.playing);
