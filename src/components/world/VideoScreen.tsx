@@ -131,6 +131,7 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
 
   // 플레이어 생성 (IFrame API)
   useEffect(() => {
+    console.log('[YT] mount/effect player', videoId, objId);
     let cancelled = false;
     loadYTApi().then(() => {
       if (cancelled || !iframeRef.current) return;
@@ -141,7 +142,13 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
         events: { onReady: (e: any) => { try { e.target.mute(); e.target.playVideo(); } catch { /* noop */ } } },
       });
     });
-    return () => { cancelled = true; try { playerRef.current?.destroy?.(); } catch { /* noop */ } playerRef.current = null; };
+    return () => {
+      console.log('[YT] cleanup/destroy player', videoId, objId);
+      cancelled = true;
+      try { playerRef.current?.destroy?.(); } catch { /* noop */ }
+      playerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
 
   // 동기화 핸들 등록
