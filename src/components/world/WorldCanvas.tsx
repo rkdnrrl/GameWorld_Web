@@ -2762,8 +2762,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       }
       // 비디오 스크린 동기화 — 호스트가 보낸 재생시각을 비호스트가 자기 영상에 반영 (watch party)
       if (event === VIDEO_SYNC_EVENT) {
-        console.log('[VID] recv SYNC', objectId, 'from', fromId, 'data', data, 'isHost', isHostRef.current);
+        console.log('[VID] recv SYNC', objectId, 'from', fromId, 'data', data, 'isHost', isHostRef.current, 'hostIdRef', hostIdRef.current);
         if (isHostRef.current) return;            // 호스트는 권위자 — 수신 무시
+        // 진짜 호스트가 보낸 것만 적용 — 들어온 사람이 hostId 초기값으로 자기를 호스트로 잘못 판정하고
+        // broadcast 하는 케이스 차단 (그 sync 가 비호스트한테 seek 호출해 영상 reset 시킴)
+        if (!fromId || (hostIdRef.current && fromId !== hostIdRef.current)) {
+          console.log('[VID] SYNC rejected — sender not real host', { fromId, realHost: hostIdRef.current });
+          return;
+        }
         const v = videoRegistry.current.get(objectId);
         if (v) applyVideoSync(v, data as { t?: number; playing?: boolean });
         return;
@@ -2999,10 +3005,15 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // 스크립트 closure 에서 항상 최신 isHost 값 읽으려고 ref 로 유지
   const isHostRef = useRef(isHost);
   useEffect(() => { isHostRef.current = isHost; }, [isHost]);
+  // SYNC 수신 필터용 — 진짜 호스트 id (가짜 호스트 broadcast 차단)
+  const hostIdRef = useRef(hostId);
+  useEffect(() => { hostIdRef.current = hostId; }, [hostId]);
 
   // 호스트: 비디오 스크린 재생시각을 2초마다 broadcast → 비호스트가 같은 시점으로 맞춤 (watch party)
+  // 가드: hostId 가 명시적으로 본인이고 다른 player 가 있을 때만. (들어온 사람이 처음 hostId 초기값으로
+  // 자기를 호스트로 오판정해 broadcast 하는 케이스 방지)
   useEffect(() => {
-    if (!isHost || !sendScriptEvent) return;
+    if (!isHost || !sendScriptEvent || !hostId || hostId !== playerId) return;
     const iv = setInterval(() => {
       for (const [objId, v] of videoRegistry.current) {
         const t = v.getTime();
@@ -3011,7 +3022,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       }
     }, 2000);
     return () => clearInterval(iv);
-  }, [isHost, sendScriptEvent]);
+  }, [isHost, sendScriptEvent, hostId, playerId]);
 
   // 호스트: 게임 상태+HUD 가 바뀌면 200ms 주기로 전원에게 스냅샷 broadcast → 비호스트도 HUD 표시.
   useEffect(() => {
