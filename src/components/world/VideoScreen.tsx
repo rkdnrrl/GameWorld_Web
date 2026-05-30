@@ -138,8 +138,16 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const YT = (window as any).YT;
       playerRef.current = new YT.Player(iframeRef.current, {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        events: { onReady: (e: any) => { try { e.target.mute(); e.target.playVideo(); } catch { /* noop */ } } },
+        events: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onReady: (e: any) => { console.log('[YT] onReady', objId); try { e.target.mute(); e.target.playVideo(); } catch { /* noop */ } },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onStateChange: (e: any) => {
+            // -1 unstarted, 0 ended, 1 playing, 2 paused, 3 buffering, 5 cued
+            const t = (() => { try { return e.target.getCurrentTime?.() ?? '?'; } catch { return '?'; } })();
+            console.log('[YT] state', objId, 'state', e.data, 'time', t);
+          },
+        },
       });
     });
     return () => {
