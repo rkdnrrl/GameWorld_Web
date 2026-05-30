@@ -2092,6 +2092,9 @@ function UserAsset({ url, matObj }: { url: string; matObj: UserMapObject }) {
           if (m.isMesh) {
             m.castShadow = true;
             m.receiveShadow = true;
+            // 스킨드(캐릭터) 메시는 바운딩 구가 본 변형을 반영 못해 화면 안인데도 컬링되어
+            // 사라지는 문제가 있음 → 컬링 끔. (정적 에셋도 무해)
+            m.frustumCulled = false;
             fixModelMaterials(m);
             originalMats.current.set(m, m.material);
           }

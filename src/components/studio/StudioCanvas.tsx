@@ -1377,6 +1377,8 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }:
           if (m.isMesh) {
             m.castShadow = true;
             m.receiveShadow = true;
+            // 스킨드(캐릭터) 메시 컬링 버그 방지 — 화면 안인데도 사라지는 문제 (플레이/시뮬과 일치)
+            m.frustumCulled = false;
             fixModelMaterials(m);
             origMap.set(m, m.material);
           }
