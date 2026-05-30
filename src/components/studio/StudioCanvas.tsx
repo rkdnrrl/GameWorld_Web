@@ -2894,7 +2894,7 @@ export default function StudioCanvas() {
   const [componentPickerOpen, setComponentPickerOpen] = useState(false);
   const [componentPickerSearch, setComponentPickerSearch] = useState('');
   // 환경 (Sky/HDRI/ambient) 패널 토글
-  const [envPanelOpen, setEnvPanelOpen] = useState(false);
+  const [envPanelOpen, setEnvPanelOpen] = useState(true);
   // 유저 정의 스크립트 컴포넌트 (DB) + 관리 모달
   const [scriptComponents, setScriptComponents] = useState<ScriptComponent[]>([]);
   // 공식 (운영자가 만든) 컴포넌트 — 모든 유저 picker 에 노출
@@ -2942,6 +2942,30 @@ export default function StudioCanvas() {
   // 데스크톱 좌/우 패널 접기 (모바일은 기존 studioMode 토글 사용)
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  // 패널 크기 조절 (드래그) — 좌측 너비 / 에셋 드로어 높이. (데스크톱)
+  const [leftWidth, setLeftWidth] = useState(280);
+  const [assetH, setAssetH] = useState(340);
+  // 좌측 패널 탭 — 한 컬럼에 다 쌓지 않고 전환. '씬'=계층+추가, '환경'=HDRI, '프리팹'
+  const [leftTab, setLeftTab] = useState<'scene' | 'env' | 'prefab'>('scene');
+  // 드래그 리사이즈 — axis x(가로)/y(세로), dir +1/-1(드래그 방향→증가), from=시작값, set=상태 setter.
+  const beginResize = (e: React.PointerEvent, o: { axis: 'x' | 'y'; from: number; dir: 1 | -1; min: number; max: number; set: (n: number) => void }) => {
+    e.preventDefault();
+    const start = o.axis === 'x' ? e.clientX : e.clientY;
+    const move = (ev: PointerEvent) => {
+      const delta = ((o.axis === 'x' ? ev.clientX : ev.clientY) - start) * o.dir;
+      o.set(Math.max(o.min, Math.min(o.max, o.from + delta)));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = o.axis === 'x' ? 'ew-resize' : 'ns-resize';
+  };
   // [DEBUG] panel state 변화 추적 — 사용자가 strip 클릭해도 패널이 안 열리는 버그 진단용
   useEffect(() => {
     console.log('[PANEL STATE] leftPanelOpen=', leftPanelOpen, 'rightPanelOpen=', rightPanelOpen);
@@ -4670,7 +4694,7 @@ export default function StudioCanvas() {
         transform: isMobile ? (mobilePanelOpen ? 'translateY(0)' : 'translateY(120%)') : undefined,
         transition: isMobile ? (leftSheet.dragging ? 'none' : 'transform 0.32s cubic-bezier(0.32,0.72,0,1), height 0.25s cubic-bezier(0.32,0.72,0,1)') : undefined,
         pointerEvents: isMobile && !mobilePanelOpen ? 'none' : undefined,
-        width: isMobile ? '100%' : 250,
+        width: isMobile ? '100%' : leftWidth,
         flexShrink: 0,
         background: isMobile ? '#172033' : '#1e293b',
         borderRight: isMobile ? 'none' : '1px solid rgba(255,255,255,0.08)',
@@ -4689,6 +4713,16 @@ export default function StudioCanvas() {
         zIndex: isMobile ? 220 : 50,
         boxShadow: isMobile ? '0 -12px 40px rgba(0,0,0,0.55)' : undefined,
       }}>
+      {/* 너비 리사이즈 핸들 (우측 가장자리 드래그) — 데스크톱만 */}
+      {!isMobile && (
+        <div
+          onPointerDown={e => beginResize(e, { axis: 'x', from: leftWidth, dir: 1, min: 220, max: 600, set: setLeftWidth })}
+          title="드래그로 패널 너비 조절"
+          style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 7, cursor: 'ew-resize', zIndex: 4 }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(129,140,248,0.35)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+        />
+      )}
       {/* 데스크톱 전용 패널 닫기 버튼 (우측 상단 corner) */}
       {!isMobile && (
         <button type="button" onClick={() => { console.log('[CLOSE-LEFT] click'); setLeftPanelOpen(false); }}
@@ -4775,8 +4809,23 @@ export default function StudioCanvas() {
         </button>
       </div>{/* /내부 스크롤 컨테이너 (메타) */}
 
+      {/* 좌측 패널 탭 — 한 컬럼에 다 쌓지 않고 전환 (씬=트리+추가 / 환경 / 프리팹) */}
+      {!isMobile && (
+        <div style={{ display: 'flex', gap: 3, padding: '6px 10px', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          {([['scene', '🧩 씬'], ['env', '🌐 환경'], ['prefab', '💾 프리팹']] as const).map(([id, label]) => (
+            <button key={id} type="button" onClick={() => setLeftTab(id)}
+              style={{ flex: 1, padding: '6px 4px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                background: leftTab === id ? 'rgba(99,102,241,0.28)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${leftTab === id ? 'rgba(99,102,241,0.55)' : 'rgba(255,255,255,0.08)'}`,
+                borderRadius: 6, color: leftTab === id ? '#c7d2fe' : 'rgba(255,255,255,0.5)' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* ── 씬 계층 ── 좌측 패널 메인 영역. minHeight 로 너무 작아지지 않게 보장. */}
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 320 }}>
+      <div style={{ display: (!isMobile && leftTab !== 'scene') ? 'none' : 'flex', flexDirection: 'column', flex: 1, minHeight: 320 }}>
         <div style={{ padding: '8px 12px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, letterSpacing: 0.5 }}>{t('scSceneObjects')}</span>
           <span style={{ fontSize: 10, opacity: 0.35, background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '1px 7px' }}>{objects.length}</span>
@@ -4872,8 +4921,9 @@ export default function StudioCanvas() {
 
       {/* ── 추가 버튼 (좌측 하단 고정) ── 자기 컨텐츠 크기 유지, 넘치면 자체 스크롤.
           씬 트리 보장은 위 minHeight: 180 으로 처리됨. */}
-      <div style={{ flexShrink: 0, borderTop: '1px solid rgba(255,255,255,0.08)', padding: '8px 10px 10px', maxHeight: '65vh', overflowY: 'auto' }}>
-        {/* '추가' 그룹 — 도형/스폰/빈/조명을 한 묶음으로 (일관 스타일) */}
+      <div style={{ flexShrink: 0, borderTop: (!isMobile && leftTab !== 'scene') ? 'none' : '1px solid rgba(255,255,255,0.08)', padding: '8px 10px 10px', maxHeight: '65vh', overflowY: 'auto' }}>
+        {/* '추가' 그룹 — 씬 탭에서만 (도형/스폰/빈/조명, 일관 스타일) */}
+        <div style={{ display: (!isMobile && leftTab !== 'scene') ? 'none' : 'block' }}>
         <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.6, color: 'rgba(255,255,255,0.38)', textTransform: 'uppercase', margin: '0 0 6px 2px' }}>+ 추가</div>
         <button type="button" onClick={() => setShapePanelOpen(v => !v)}
           style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.8)', fontSize: 11, padding: '6px 9px', cursor: 'pointer', fontWeight: 600, marginBottom: 4 }}>
@@ -4921,9 +4971,15 @@ export default function StudioCanvas() {
             </button>
           </div>
         )}
+        </div>{/* /추가 그룹 (씬 탭) */}
 
-        {/* 환경 (Sky / HDRI / Ambient) */}
-        <div style={{ marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 8 }}>
+        {/* 환경 (Sky / HDRI / Ambient) — 환경 탭에서만 */}
+        <div style={{
+          display: (!isMobile && leftTab !== 'env') ? 'none' : 'block',
+          marginTop: (!isMobile) ? 0 : 10,
+          borderTop: (!isMobile) ? 'none' : '1px solid rgba(255,255,255,0.08)',
+          paddingTop: (!isMobile) ? 0 : 8,
+        }}>
           <button type="button" onClick={() => setEnvPanelOpen(v => !v)}
             style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '4px 0', cursor: 'pointer', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>🌐 환경 / HDRI</span>
@@ -5020,8 +5076,13 @@ export default function StudioCanvas() {
           )}
         </div>
 
-        {/* 프리팹 라이브러리 — 드래그해서 뷰포트에 인스턴스화 */}
-        <div style={{ marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 8 }}>
+        {/* 프리팹 라이브러리 — 프리팹 탭에서만 */}
+        <div style={{
+          display: (!isMobile && leftTab !== 'prefab') ? 'none' : 'block',
+          marginTop: (!isMobile) ? 0 : 10,
+          borderTop: (!isMobile) ? 'none' : '1px solid rgba(255,255,255,0.08)',
+          paddingTop: (!isMobile) ? 0 : 8,
+        }}>
           <button type="button" onClick={() => setPrefabPanelOpen(v => !v)}
             style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '4px 0', cursor: 'pointer', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>💾 프리팹 ({prefabs.length})</span>
@@ -5972,9 +6033,17 @@ export default function StudioCanvas() {
           backdropFilter: 'blur(14px)',
           transform: `translateY(${activeAssetPicker ? '0%' : '100%'})`,
           transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1), right 0.2s ease',
-          height: 340,
+          height: assetH,
           display: 'flex', flexDirection: 'column',
         }}>
+          {/* 높이 리사이즈 핸들 (위쪽 가장자리 드래그 ↑ 크게) */}
+          <div
+            onPointerDown={e => beginResize(e, { axis: 'y', from: assetH, dir: -1, min: 180, max: Math.round((typeof window !== 'undefined' ? window.innerHeight : 900) * 0.8), set: setAssetH })}
+            title="드래그로 높이 조절"
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 7, cursor: 'ns-resize', zIndex: 2 }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(129,140,248,0.35)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+          />
           {/* 헤더 */}
           <div style={{ padding: '9px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#a5b4fc' }}>
