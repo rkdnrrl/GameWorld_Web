@@ -4,7 +4,7 @@
  * 내 스크립트 컴포넌트 관리 모달.
  * 새 컴포넌트 만들기 / 편집 / 삭제. 부착은 인스펙터의 컴포넌트 picker 에서.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { api, session, type ScriptComponent, type ScriptComponentPropDef } from '@/lib/api';
 import PropsSchemaEditor, { normalizePropsSchema } from './PropsSchemaEditor';
 
@@ -13,6 +13,8 @@ interface Props {
   onClose: () => void;
   components: ScriptComponent[];
   onChanged: (next: ScriptComponent[]) => void; // 목록 갱신 시 부모에 통보
+  /** 지정 시 열릴 때 해당 컴포넌트 편집 화면으로 바로 진입 */
+  editId?: string | null;
 }
 
 const DEFAULT_CODE = `// 부착된 오브젝트에 자동 호출되는 라이프사이클 함수들.
@@ -39,7 +41,7 @@ function onRelease(grabberId) {
 }
 `;
 
-export default function ScriptComponentsModal({ open, onClose, components, onChanged }: Props) {
+export default function ScriptComponentsModal({ open, onClose, components, onChanged, editId }: Props) {
   // 'list' = 목록, 'edit' = 새/편집 폼
   const [view, setView] = useState<'list' | 'edit'>('list');
   const [editing, setEditing] = useState<ScriptComponent | null>(null); // null = 새로 만들기
@@ -51,6 +53,24 @@ export default function ScriptComponentsModal({ open, onClose, components, onCha
   const [code, setCode]               = useState(DEFAULT_CODE);
   const [propsSchema, setPropsSchema] = useState<ScriptComponentPropDef[]>([]);
   const [saving, setSaving]           = useState(false);
+
+  // 열릴 때 — editId 가 있으면(인스펙터 카드 'edit') 그 컴포넌트 편집으로 바로 진입, 없으면 목록부터.
+  // (모달이 마운트 유지되어 view 상태가 남기 때문에 열 때마다 정리)
+  useEffect(() => {
+    if (!open) return;
+    if (editId) {
+      const c = components.find(x => x.id === editId);
+      if (c) {
+        setEditing(c);
+        setName(c.name); setIcon(c.icon || ''); setDescription(c.description || ''); setCode(c.code);
+        setPropsSchema(c.propsSchema ?? []);
+        setView('edit');
+        return;
+      }
+    }
+    setView('list');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editId]);
 
   if (!open) return null;
 

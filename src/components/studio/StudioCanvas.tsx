@@ -178,7 +178,7 @@ interface Asset {
 /* ── Unity 스타일 컴포넌트 섹션 (인스펙터) ──
    부착된 컴포넌트 카드 + "+ 컴포넌트 추가" 버튼. 각 카드는 props 편집 input 포함. */
 function ComponentsSection({
-  selected, setObjects, pushHistory, allObjects, openPicker, scriptComponents, officialScriptComponents, onColliderAutoFit,
+  selected, setObjects, pushHistory, allObjects, openPicker, scriptComponents, officialScriptComponents, onColliderAutoFit, onEditScriptComponent,
 }: {
   selected: MapObject;
   setObjects: (updater: (prev: MapObject[]) => MapObject[]) => void;
@@ -188,6 +188,8 @@ function ComponentsSection({
   scriptComponents: ScriptComponent[];
   officialScriptComponents: ScriptComponent[];
   onColliderAutoFit: (compIdx: number) => void;
+  /** 내가 만든 스크립트 컴포넌트 코드 편집 (그 id 의 컴포넌트 편집 모달 오픈) */
+  onEditScriptComponent: (scriptComponentId: string) => void;
 }) {
   const list = selected.components ?? [];
   // 레거시: grabbable 플래그도 가상 컴포넌트로 표시 (제거 시 plain false)
@@ -238,11 +240,14 @@ function ComponentsSection({
           const userId = c.type.slice(5);
           const sc = scriptComponents.find(s => s.id === userId)
                   ?? officialScriptComponents.find(s => s.id === userId);
+          // 내가 만든 컴포넌트(scriptComponents)면 코드 편집 가능. 공식 컴포넌트는 불가.
+          const isOwn = scriptComponents.some(s => s.id === userId);
           return (
             <UserComponentCard
               key={idx}
               instance={c}
               scriptComponent={sc}
+              onEdit={isOwn ? () => onEditScriptComponent(userId) : undefined}
               objectId={selected.id}
               componentIdx={idx}
               allObjects={allObjects}
@@ -363,7 +368,7 @@ function ComponentsSection({
 
 /* 유저 정의 컴포넌트 카드 — schema 가 있으면 타입별 input, 없으면 자유 key:value 편집 */
 function UserComponentCard({
-  instance, scriptComponent, onRemove, onPropsChange, onPropsCommit, objectId, componentIdx, allObjects,
+  instance, scriptComponent, onRemove, onPropsChange, onPropsCommit, objectId, componentIdx, allObjects, onEdit,
 }: {
   instance: ComponentInstance;
   scriptComponent: ScriptComponent | undefined;
@@ -373,6 +378,8 @@ function UserComponentCard({
   objectId: string;
   componentIdx: number;
   allObjects: MapObject[];
+  /** 내가 만든 컴포넌트면 코드 편집 — 있으면 헤더에 edit 버튼 노출 */
+  onEdit?: () => void;
 }) {
   const props = (instance.props ?? {}) as Record<string, number | string | boolean>;
   const [open, setOpen] = useState(true);
@@ -418,6 +425,12 @@ function UserComponentCard({
             {scriptComponent?.icon || '🧩'} {scriptComponent?.name || '(삭제된 컴포넌트)'}
           </span>
         </button>
+        {onEdit && (
+          <button type="button" onClick={onEdit} title="코드 편집"
+            style={{ background: 'rgba(99,102,241,0.18)', border: '1px solid rgba(99,102,241,0.4)', color: '#a5b4fc', fontSize: 10, fontWeight: 700, cursor: 'pointer', padding: '2px 6px', borderRadius: 4, lineHeight: 1, flexShrink: 0 }}>
+            ✎ edit
+          </button>
+        )}
         <button type="button" onClick={onRemove} title="제거"
           style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontSize: 12, cursor: 'pointer', padding: '0 4px', lineHeight: 1, flexShrink: 0 }}>
           ✕
@@ -2767,6 +2780,8 @@ export default function StudioCanvas() {
   // 공식 (운영자가 만든) 컴포넌트 — 모든 유저 picker 에 노출
   const [officialScriptComponents, setOfficialScriptComponents] = useState<ScriptComponent[]>([]);
   const [scriptComponentsModalOpen, setScriptComponentsModalOpen] = useState(false);
+  // 인스펙터 컴포넌트 카드의 'edit' → 이 id 의 스크립트 컴포넌트 편집으로 모달 오픈
+  const [scriptEditId, setScriptEditId] = useState<string | null>(null);
   useEffect(() => {
     const tok = session.getToken();
     // 내 컴포넌트 (로그인 필요)
@@ -4990,6 +5005,7 @@ export default function StudioCanvas() {
                 scriptComponents={scriptComponents}
                 officialScriptComponents={officialScriptComponents}
                 onColliderAutoFit={colliderAutoFit}
+                onEditScriptComponent={(id) => { setScriptEditId(id); setScriptComponentsModalOpen(true); }}
               />
 
               {/* 조명 속성 (pointlight / spotlight 전용) */}
@@ -5843,7 +5859,8 @@ export default function StudioCanvas() {
       {/* 내 스크립트 컴포넌트 관리 */}
       <ScriptComponentsModal
         open={scriptComponentsModalOpen}
-        onClose={() => setScriptComponentsModalOpen(false)}
+        editId={scriptEditId}
+        onClose={() => { setScriptComponentsModalOpen(false); setScriptEditId(null); }}
         components={scriptComponents}
         onChanged={setScriptComponents}
       />
