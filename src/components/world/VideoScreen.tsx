@@ -172,11 +172,12 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
   const src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=1&rel=0&playsinline=1`;
   // occlude="blending": 깊이 버퍼 기반 가림 — 앞에 있는 오브젝트(캐릭터/벽 등)가 영상을
   // 픽셀 단위로 정상적으로 가림. (raycast 방식은 중심이 가려지면 통째로 사라져서 부적합)
-  // 래퍼(Html)는 pointerEvents:none → iframe 바깥(빈 곳) 클릭은 캔버스로 통과 → 포인터락(화면 회전).
-  // iframe 만 pointerEvents:auto → 영상 영역 클릭은 iframe 이 잡아서 잠금 안 됨 + YouTube 조작 가능.
-  // (occlude 는 pointerEvents 를 자체 관리해 위 동작과 충돌 → 사용 안 함. 앞 오브젝트 가림은 미적용)
+  // occlude="blending" 이 깊이 가림(앞 오브젝트가 영상 가림) + 클릭 영역 관리를 함께 처리:
+  //  - 보이는 영상 영역만 클릭 잡음(YouTube 조작, 잠금 안 됨)
+  //  - 가려지거나 영상 밖 클릭은 캔버스로 통과 → 포인터락(화면 회전)
+  // 수동 pointerEvents 를 주면 이 관리와 충돌하므로 주지 않는다.
   return (
-    <Html transform position={[0, 0, 0.05]} scale={[sx, sy, 1]} center style={{ pointerEvents: 'none' }}>
+    <Html transform occlude="blending" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center>
       <iframe
         ref={iframeRef}
         width={YT_IFRAME_W}
@@ -186,7 +187,7 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
         frameBorder={0}
         allow="autoplay; encrypted-media; picture-in-picture"
         allowFullScreen
-        style={{ border: 'none', display: 'block', background: '#000', pointerEvents: 'auto' }}
+        style={{ border: 'none', display: 'block', background: '#000' }}
       />
     </Html>
   );
