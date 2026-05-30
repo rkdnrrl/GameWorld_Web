@@ -872,9 +872,26 @@ function PreviewModel({ url }: { url: string }) {
   return <primitive object={obj} />;
 }
 
-function StudioAssetPreview({ asset, onClose }: { asset: Asset; onClose: () => void }) {
+function StudioAssetPreview({ asset, allAssets, onClose, onSaved }: {
+  asset: Asset;
+  allAssets: Asset[];
+  onClose: () => void;
+  onSaved: (a: Asset) => void;
+}) {
   const handler = getKind(inferKindId(asset));
   const regAsset = asset as unknown as RegistryAsset;
+  // 모델 — 머티리얼 에디터(/assets 와 동일: 재질·텍스처 편집 + 저장, 텍스처 입혀진 채 표시)
+  if (handler?.Editor) {
+    const E = handler.Editor;
+    return (
+      <E
+        asset={regAsset}
+        allAssets={allAssets as unknown as RegistryAsset[]}
+        onClose={onClose}
+        onSaved={(u) => onSaved(u as unknown as Asset)}
+      />
+    );
+  }
   // image/audio/video — 등록된 Preview(라이트박스/플레이어) 사용
   if (handler?.Preview) {
     const P = handler.Preview;
@@ -5462,7 +5479,12 @@ export default function StudioCanvas() {
 
       {/* 내 에셋 미리보기 모달 */}
       {pickerPreview && (
-        <StudioAssetPreview asset={pickerPreview} onClose={() => setPickerPreview(null)} />
+        <StudioAssetPreview
+          asset={pickerPreview}
+          allAssets={myAssets}
+          onClose={() => setPickerPreview(null)}
+          onSaved={(updated) => setMyAssets(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a))}
+        />
       )}
 
       {/* 에셋 그리드 빈 영역 우클릭 → 폴더 만들기 컨텍스트 메뉴 */}

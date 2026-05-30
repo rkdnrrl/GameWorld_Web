@@ -158,16 +158,18 @@ export function getCachedThumb(url: string): string | undefined {
 }
 
 export function requestThumb(url: string, config?: MaterialConfig | null): Promise<string> {
-  const hit = cache.get(url);
+  // 머티리얼 설정이 바뀌면 다른 썸네일 → 캐시 키에 config 포함
+  const key = url + '|' + (config ? JSON.stringify(config) : '');
+  const hit = cache.get(key);
   if (hit) return Promise.resolve(hit);
-  const existing = inflight.get(url);
+  const existing = inflight.get(key);
   if (existing) return existing;
 
   const p = chain.then(() => renderThumb(url, config)).then(
-    (dataUrl) => { cache.set(url, dataUrl); inflight.delete(url); return dataUrl; },
-    (err) => { inflight.delete(url); throw err; },
+    (dataUrl) => { cache.set(key, dataUrl); inflight.delete(key); return dataUrl; },
+    (err) => { inflight.delete(key); throw err; },
   );
-  inflight.set(url, p);
+  inflight.set(key, p);
   chain = p.catch(() => { /* 실패해도 다음 작업 이어지게 */ });
   return p;
 }
