@@ -161,8 +161,10 @@ export function YouTubeOverlay({ videoId, objId }: { videoId: string; objId?: st
   }, [withSound]);
 
   const src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=1&rel=0&playsinline=1`;
+  // occlude/zIndexRange 없이 — iframe 을 화면 위에 확실히 표시 (검게 안 나오게).
+  // 벽 뒤 가림은 일단 포기(보이는 게 우선). z 를 0.05 로 살짝 앞에.
   return (
-    <Html transform occlude position={[0, 0, 0.02]} scale={1 / YT_IFRAME_W} zIndexRange={[10, 0]}>
+    <Html transform position={[0, 0, 0.05]} scale={1 / YT_IFRAME_W} center>
       <iframe
         ref={iframeRef}
         width={YT_IFRAME_W}
@@ -182,9 +184,8 @@ export function YouTubeOverlay({ videoId, objId }: { videoId: string; objId?: st
 export function YouTubeMeshMaterial({ videoId, selected, side = THREE.FrontSide }: {
   videoId: string; selected?: boolean; side?: THREE.Side;
 }) {
-  const { live } = useContext(VideoScreenCtx);
-  // live(시뮬/월드): iframe 이 덮으므로 검은 면. 편집: 썸네일.
-  if (live) return <meshBasicMaterial color="#000000" toneMapped={false} side={side} />;
+  // 항상 썸네일 — live(시뮬/월드)에선 그 위에 iframe 이 덮어 재생. iframe 이 안 떠도
+  // 검은 화면 대신 썸네일이 보이게 (폴백).
   return <YouTubeThumbMaterial videoId={videoId} selected={selected} side={side} />;
 }
 export function YouTubeMaybeOverlay({ videoId, objId }: { videoId: string; objId?: string }) {
