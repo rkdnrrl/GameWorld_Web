@@ -75,9 +75,9 @@ export function VideoScreenMaterial({ url, objId, selected, side = THREE.FrontSi
   }, [registry, objId, video]);
 
   useEffect(() => {
-    if (!withSound || !video.muted) return;
+    if (!withSound) return;
     const onGesture = () => { video.muted = false; video.play().catch(() => {}); };
-    window.addEventListener('pointerdown', onGesture, { once: true });
+    window.addEventListener('pointerdown', onGesture);
     return () => window.removeEventListener('pointerdown', onGesture);
   }, [withSound, video]);
 
@@ -116,8 +116,9 @@ function loadYTApi(): Promise<void> {
 }
 
 /* ── 3) YouTube — 실제 재생 오버레이 (live=true). drei Html iframe + IFrame API ── */
-const YT_IFRAME_W = 640;   // iframe 픽셀 폭 (16:9). scale 로 1 유닛에 맞춤.
-export function YouTubeOverlay({ videoId, objId }: { videoId: string; objId?: string }) {
+const YT_IFRAME_W = 640;   // iframe 픽셀 폭 (16:9). scale 로 평면 너비에 맞춤.
+// drei <Html transform> 은 부모 스케일을 무시(위치·회전만 따름)하므로 평면 월드 너비를 직접 받아 스케일링.
+export function YouTubeOverlay({ videoId, objId, planeW = 2 }: { videoId: string; objId?: string; planeW?: number }) {
   const { withSound, registry } = useContext(VideoScreenCtx);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -152,19 +153,21 @@ export function YouTubeOverlay({ videoId, objId }: { videoId: string; objId?: st
     return () => { registry.current.delete(objId); };
   }, [registry, objId]);
 
-  // 소리 — 첫 제스처에 음소거 해제
+  // 소리 — 사용자 제스처마다 음소거 해제 시도 (once X — player 준비 전 첫 클릭이 헛돌아도
+  // 준비된 뒤 다음 클릭에 켜지게). 이미 소리 켜져 있으면 무해.
   useEffect(() => {
     if (!withSound) return;
     const onGesture = () => { try { playerRef.current?.unMute?.(); playerRef.current?.playVideo?.(); } catch { /* noop */ } };
-    window.addEventListener('pointerdown', onGesture, { once: true });
+    window.addEventListener('pointerdown', onGesture);
     return () => window.removeEventListener('pointerdown', onGesture);
   }, [withSound]);
 
+  const htmlScale = Math.max(0.01, planeW) / YT_IFRAME_W;   // iframe 너비 = planeW (평면 월드 너비)
   const src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=1&rel=0&playsinline=1`;
   // occlude/zIndexRange 없이 — iframe 을 화면 위에 확실히 표시 (검게 안 나오게).
   // 벽 뒤 가림은 일단 포기(보이는 게 우선). z 를 0.05 로 살짝 앞에.
   return (
-    <Html transform position={[0, 0, 0.05]} scale={1 / YT_IFRAME_W} center>
+    <Html transform position={[0, 0, 0.05]} scale={htmlScale} center>
       <iframe
         ref={iframeRef}
         width={YT_IFRAME_W}
@@ -188,9 +191,9 @@ export function YouTubeMeshMaterial({ videoId, selected, side = THREE.FrontSide 
   // 검은 화면 대신 썸네일이 보이게 (폴백).
   return <YouTubeThumbMaterial videoId={videoId} selected={selected} side={side} />;
 }
-export function YouTubeMaybeOverlay({ videoId, objId }: { videoId: string; objId?: string }) {
+export function YouTubeMaybeOverlay({ videoId, objId, planeW }: { videoId: string; objId?: string; planeW?: number }) {
   const { live } = useContext(VideoScreenCtx);
-  return live ? <YouTubeOverlay videoId={videoId} objId={objId} /> : null;
+  return live ? <YouTubeOverlay videoId={videoId} objId={objId} planeW={planeW} /> : null;
 }
 
 /* ── 멀티 동기화 — 호스트가 보낸 시각을 핸들에 반영 (0.5초 이상 차이날 때만 seek) ── */

@@ -1343,7 +1343,7 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
             ? <VideoScreenMaterial url={obj.videoUrl} objId={obj.id} selected={selected} side={vidSide} />
             : <PrimitiveMaterial obj={obj} selected={selected} />}
       </mesh>
-      {ytId && <YouTubeMaybeOverlay videoId={ytId} objId={obj.id} />}
+      {ytId && <YouTubeMaybeOverlay videoId={ytId} objId={obj.id} planeW={obj.scale[0]} />}
     </>
   );
 }
