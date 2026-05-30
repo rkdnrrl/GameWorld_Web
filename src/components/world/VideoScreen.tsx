@@ -14,7 +14,6 @@
  */
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Html } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 export const VIDEO_SYNC_EVENT = '__video__';
@@ -167,23 +166,6 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
     return () => window.removeEventListener('pointerdown', onGesture);
   }, [withSound]);
 
-  // 핵심 가림 트릭: drei portal 의 모든 wrapper div 들을 매 프레임 zIndex=-1 로 강제 → 캔버스(16777271)
-  // 뒤로 보냄. 그러면 캔버스의 영상 mesh 가 alpha=0 으로 뚫은 구멍을 통해서만 iframe 이 비치고, 캐릭터가
-  // 앞에 있으면 캔버스 캐릭터 픽셀이 iframe 을 가림 → 오브젝트가 영상을 정확히 픽셀 단위로 가림.
-  // drei transform 모드는 portal div(el) 안에 transformOuter/Inner div 두 겹을 추가하므로 iframe 부모
-  // 사슬을 위로 거슬러 모두 zIndex=-1 강제. drei 가 매 프레임 갱신(~8388634)하므로 useFrame 사용.
-  useFrame(() => {
-    const els: HTMLElement[] = [];
-    const start = iframeRef.current?.parentElement;
-    if (start) els.push(start);
-    for (let i = 0; i < 4; i++) {
-      const last = els[els.length - 1];
-      const p = last?.parentElement;
-      if (p && p.tagName !== 'BODY') els.push(p);
-    }
-    els.forEach(el => { if (el.style.zIndex !== '-1') el.style.zIndex = '-1'; });
-  });
-
   // drei <Html transform> 의 px→월드 환산이 작아서(scale 1 에서 640px ≈ 64유닛, 경험치).
   // 가로·세로 각각 평면 크기에 맞춰 비균등 스케일 → iframe 이 평면을 꽉 채움(16:9 아니어도).
   // 전체가 안 맞으면 PX_TO_UNIT 만 조절.
@@ -192,15 +174,12 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
   const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);   // 세로 → planeH
   // controls=0/disablekb=1/fs=0 → YouTube 자체 UI 제거(유저가 직접 못 건드림). 재생 제어는 별도 버튼이 IFrame API 로 함.
   const src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`;
-  // occlude="blending": 깊이 버퍼 기반 픽셀 단위 가림 — 앞 오브젝트(캐릭터/벽)가 영상을 픽셀 정확히 가림.
-  //   동작 조건: 캔버스가 투명(gl alpha:true + CSS background 없음)이어야 occlusion mesh 의 alpha-0
-  //   구멍 사이로 뒤에 있는 iframe 이 보임. 캔버스에 솔리드 배경이 깔리면 구멍이 막혀 가림이 깨짐.
-  //   WorldCanvas 는 alpha:true + 별도 배경 div(z-index:-1) 로 이 조건을 충족함.
-  // pointerEvents="none": iframe 을 완전 비상호작용(클릭 통과)으로 → 유저가 YouTube 를 못 건드리고,
-  //   클릭은 그대로 캔버스로 통과해 포인터락(화면 회전)이 정상 동작. 조작은 별도 컨트롤 바가 담당.
-  // (주의: blending 은 캔버스 pointerEvents 를 none 으로 만들어 → WorldCanvas 가 매 프레임 auto 로 복원)
+  // occlude="raycast": 화면 중심이 앞 오브젝트(캐릭터/벽 등)에 가리면 iframe 전체를 숨김(display:none).
+  //   픽셀 단위 가림은 YouTube iframe 의 본질적 한계로 불가 — blending 은 drei transform 모드에서
+  //   빌보드 셰이더 + 캔버스/iframe z-index 충돌로 정상 동작 안 함. raycast 가 가장 안정적인 동작.
+  // pointerEvents="none": iframe 을 완전 비상호작용(클릭 통과). 조작은 별도 리모컨 패널이 담당.
   return (
-    <Html transform occlude="blending" pointerEvents="none" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center>
+    <Html transform occlude="raycast" pointerEvents="none" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center>
       <iframe
         ref={iframeRef}
         width={YT_IFRAME_W}
@@ -215,32 +194,12 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
   );
 }
 
-/* ── 알파 0 출력 셰이더 — 캔버스에 영상 평면 모양의 투명 구멍을 뚫음.
-   캔버스 zIndex(16777271) > iframe zIndex(~8388634)라 구멍을 통해 뒤의 iframe 이 비침.
-   transparent:false + depthTest:true 라 캐릭터가 mesh 앞에 있으면 깊이 테스트 실패 → mesh 안 그려짐
-   → 캔버스에 캐릭터 픽셀(alpha=1) 유지 → 캐릭터가 영상 위로 정상 표시됨. */
-function makeYouTubeOccluderMaterial(side: THREE.Side): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    vertexShader: `void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-    fragmentShader: `void main() { gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0); }`,
-    side,
-    transparent: false,
-    depthTest: true,
-    depthWrite: true,
-  });
-}
-
 /* ── 호출부 편의 — context.live 에 따라 재질/오버레이 자동 선택 ── */
 export function YouTubeMeshMaterial({ videoId, selected, side = THREE.FrontSide }: {
   videoId: string; selected?: boolean; side?: THREE.Side;
 }) {
-  const { live } = useContext(VideoScreenCtx);
-  // live(월드/시뮬)면 mesh 를 alpha=0 셰이더로 → 캔버스에 영상 모양 구멍을 뚫어 뒤의 iframe 이 보임 +
-  //   캐릭터가 앞에 있으면 깊이 테스트로 mesh 가 안 그려져 캐릭터 정상 표시.
-  // 편집(non-live)이면 썸네일 표시.
-  const occluder = useMemo(() => live ? makeYouTubeOccluderMaterial(side) : null, [live, side]);
-  useEffect(() => () => { occluder?.dispose(); }, [occluder]);
-  if (live && occluder) return <primitive object={occluder} attach="material" />;
+  // 항상 썸네일 — live(시뮬/월드)에선 그 위에 iframe 이 덮어 재생. iframe 이 안 떠도
+  // 검은 화면 대신 썸네일이 보이게 (폴백).
   return <YouTubeThumbMaterial videoId={videoId} selected={selected} side={side} />;
 }
 export function YouTubeMaybeOverlay({ videoId, objId, planeW, planeH }: { videoId: string; objId?: string; planeW?: number; planeH?: number }) {
