@@ -1755,9 +1755,23 @@ type SimBodyRefs = {
 
 /** 콜라이더 충돌/트리거 이벤트 종류 */
 type ColliderEventKind = 'triggerEnter' | 'triggerExit' | 'collisionEnter' | 'collisionExit';
+type ColliderHit = { other: { rigidBodyObject?: THREE.Object3D | null } };
+type ColliderEvents = {
+  onIntersectionEnter?: (p: ColliderHit) => void; onIntersectionExit?: (p: ColliderHit) => void;
+  onCollisionEnter?: (p: ColliderHit) => void; onCollisionExit?: (p: ColliderHit) => void;
+};
 /** rapier 충돌 페이로드에서 상대 오브젝트 id 추출 (오브젝트는 userData.objectId, 그 외=플레이어로 간주) */
-function colliderOtherId(p: { other: { rigidBodyObject?: THREE.Object3D | null } }): string {
+function colliderOtherId(p: ColliderHit): string {
   return (p.other.rigidBodyObject?.userData as { objectId?: string } | undefined)?.objectId ?? 'player';
+}
+/** trigger 면 intersection(센서) 이벤트, 아니면 collision 이벤트를 오브젝트 스크립트로 디스패치 */
+function buildColliderEvents(objId: string, trig: boolean, onColliderEvent?: (objId: string, otherId: string, kind: ColliderEventKind) => void): ColliderEvents {
+  if (!onColliderEvent) return {};
+  return trig
+    ? { onIntersectionEnter: (p) => onColliderEvent(objId, colliderOtherId(p), 'triggerEnter'),
+        onIntersectionExit:  (p) => onColliderEvent(objId, colliderOtherId(p), 'triggerExit') }
+    : { onCollisionEnter: (p) => onColliderEvent(objId, colliderOtherId(p), 'collisionEnter'),
+        onCollisionExit:  (p) => onColliderEvent(objId, colliderOtherId(p), 'collisionExit') };
 }
 
 /** 오브젝트 1개 렌더 + body/light ref 등록 (스크립트에서 제어 가능하도록) */
@@ -1803,8 +1817,29 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
     else lightRefs.current.delete(obj.id);
   };
 
-  // 스폰 포인트·빈 오브젝트 — 시뮬레이션에선 렌더 X (위치 표시만 했다가 사라짐)
-  if (obj.kind === 'spawn' || obj.kind === 'empty') return null;
+  // Collider 컴포넌트 (트리거/충돌). 빈 오브젝트(트리거 존 등)도 콜라이더가 있으면 바디를 렌더한다.
+  const colliderComp = obj.components?.find(c => c.type === 'collider');
+  const trig = !!colliderComp?.props?.trigger;
+  const colliderEvents = buildColliderEvents(obj.id, trig, onColliderEvent);
+  const colliderBox = colliderComp ? {
+    hx: Math.max(0.01, Number(colliderComp.props?.sizeX ?? 1)) / 2,
+    hy: Math.max(0.01, Number(colliderComp.props?.sizeY ?? 1)) / 2,
+    hz: Math.max(0.01, Number(colliderComp.props?.sizeZ ?? 1)) / 2,
+    ox: Number(colliderComp.props?.offsetX ?? 0),
+    oy: Number(colliderComp.props?.offsetY ?? 0),
+    oz: Number(colliderComp.props?.offsetZ ?? 0),
+  } : null;
+
+  // 스폰·빈 오브젝트 — 메시는 없지만 콜라이더(트리거 존 등)가 있으면 콜라이더 바디만 렌더(트리거 발동용), 없으면 렌더 X.
+  if (obj.kind === 'spawn' || obj.kind === 'empty') {
+    if (!colliderBox) return null;
+    return (
+      <RigidBody ref={bodyRef} type="fixed" colliders={false}
+        position={t.pos} rotation={t.rot} scale={t.scl} {...colliderEvents}>
+        <CuboidCollider args={[colliderBox.hx, colliderBox.hy, colliderBox.hz]} position={[colliderBox.ox, colliderBox.oy, colliderBox.oz]} sensor={trig} />
+      </RigidBody>
+    );
+  }
 
   // 조명은 Three.js 라이트로 렌더링 (물리 없음)
   if (obj.kind === 'pointlight') return (
@@ -1833,44 +1868,18 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
   const phys: 'none' | 'fixed' | 'dynamic' = physicsComp
     ? (String(physicsComp.props?.mode ?? 'fixed') === 'dynamic' ? 'dynamic' : 'fixed')
     : (obj.physics ?? 'none');
-  // Collider 컴포넌트 — 있으면 명시적 박스 콜라이더 사용 (자동 콜라이더 대신)
-  const colliderComp = obj.components?.find(c => c.type === 'collider');
-
-  // 콜라이더 충돌/트리거 이벤트 → 이 오브젝트 스크립트로 디스패치 (유니티 OnTriggerEnter/OnCollisionEnter)
-  const trig = !!colliderComp?.props?.trigger;
-  type Hit = { other: { rigidBodyObject?: THREE.Object3D | null } };
-  const colliderEvents: {
-    onIntersectionEnter?: (p: Hit) => void; onIntersectionExit?: (p: Hit) => void;
-    onCollisionEnter?: (p: Hit) => void; onCollisionExit?: (p: Hit) => void;
-  } = (colliderComp && onColliderEvent)
-    ? (trig
-        ? {
-            onIntersectionEnter: (p) => onColliderEvent(obj.id, colliderOtherId(p), 'triggerEnter'),
-            onIntersectionExit:  (p) => onColliderEvent(obj.id, colliderOtherId(p), 'triggerExit'),
-          }
-        : {
-            onCollisionEnter: (p) => onColliderEvent(obj.id, colliderOtherId(p), 'collisionEnter'),
-            onCollisionExit:  (p) => onColliderEvent(obj.id, colliderOtherId(p), 'collisionExit'),
-          })
-    : {};
-
+  // colliderComp / trig / colliderEvents / colliderBox 는 위(빈 오브젝트 처리 전)에서 이미 계산됨.
   // 물리도 콜라이더 컴포넌트도 없으면 충돌 X
   if (phys === 'none' && !colliderComp) {
     return <group ref={groupRef} position={t.pos} rotation={t.rot} scale={t.scl}>{mesh}</group>;
   }
   // 콜라이더만 있고 physics 가 없으면 고정(fixed) 바디로 만들어 충돌만 시킴
   const bodyType: 'fixed' | 'dynamic' = phys === 'dynamic' ? 'dynamic' : 'fixed';
-  if (colliderComp) {
-    const hx = Math.max(0.01, Number(colliderComp.props?.sizeX ?? 1)) / 2;
-    const hy = Math.max(0.01, Number(colliderComp.props?.sizeY ?? 1)) / 2;
-    const hz = Math.max(0.01, Number(colliderComp.props?.sizeZ ?? 1)) / 2;
-    const ox = Number(colliderComp.props?.offsetX ?? 0);
-    const oy = Number(colliderComp.props?.offsetY ?? 0);
-    const oz = Number(colliderComp.props?.offsetZ ?? 0);
+  if (colliderComp && colliderBox) {
     return (
       <RigidBody ref={bodyRef} type={bodyType} colliders={false}
         position={t.pos} rotation={t.rot} scale={t.scl} {...colliderEvents}>
-        <CuboidCollider args={[hx, hy, hz]} position={[ox, oy, oz]} sensor={trig} />
+        <CuboidCollider args={[colliderBox.hx, colliderBox.hy, colliderBox.hz]} position={[colliderBox.ox, colliderBox.oy, colliderBox.oz]} sensor={trig} />
         {mesh}
       </RigidBody>
     );

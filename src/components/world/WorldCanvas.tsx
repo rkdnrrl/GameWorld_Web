@@ -2015,6 +2015,17 @@ function UserMapObjectMesh({ obj, scriptBodyRefs, world, onColliderEvent }: {
     }
   });
 
+  // 빈 오브젝트 — 메시 없이 콜라이더 바디만 렌더 (트리거 존 등). 콜라이더 없는 empty 는 위 필터에서 제외됨.
+  if (obj.kind === 'empty') {
+    if (!colliderArgs) return null;
+    return (
+      <RigidBody ref={bodyRef} type={bodyType} colliders={false}
+        position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }} {...colliderEvents}>
+        <CuboidCollider args={colliderArgs} position={colliderOffset} sensor={trig} />
+      </RigidBody>
+    );
+  }
+
   const shape =
     obj.kind === 'sphere'   ? <sphereGeometry args={[0.5, 24, 16]} /> :
     obj.kind === 'cylinder' ? <cylinderGeometry args={[0.5, 0.5, 1, 16]} /> :
@@ -3297,7 +3308,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                 const list = [...customObjects, ...runtimeObjects];
                 const byId = new Map(list.map(o => [o.id, o]));
                 const meshes = list
-                  .filter(o => !o.hidden && o.kind !== 'pointlight' && o.kind !== 'spotlight' && o.kind !== 'dirlight' && o.kind !== 'spawn' && o.kind !== 'empty')
+                  .filter(o => !o.hidden && o.kind !== 'pointlight' && o.kind !== 'spotlight' && o.kind !== 'dirlight' && o.kind !== 'spawn'
+                    && (o.kind !== 'empty' || o.components?.some(c => c.type === 'collider')))   // 콜라이더 있는 빈 오브젝트(트리거 존)는 렌더
                   .map(obj => (
                     <UserMapObjectMesh key={obj.id} obj={obj}
                       world={obj.parentId ? computeWorldTRS(obj, byId) : undefined}
