@@ -2487,7 +2487,7 @@ function SimScene({ objects, transforms, myAssets, player }: {
 function SelectedTransform({ targetId, mode, onChange, toLocal, onDragEnd, onDragStart, snapTranslate, snapRotate, snapScale }: {
   targetId: string | null;
   mode: 'translate' | 'rotate' | 'scale';
-  onChange: (id: string, t: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }) => void;
+  onChange: (id: string, t: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }, mode: 'translate' | 'rotate' | 'scale') => void;
   toLocal: (id: string, w: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }) => { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] };
   onDragEnd: () => void;
   onDragStart?: () => void;
@@ -2529,12 +2529,13 @@ function SelectedTransform({ targetId, mode, onChange, toLocal, onDragEnd, onDra
       scaleSnap={snapScale ?? null}
       onObjectChange={() => {
         const o = target;
-        // 평탄 렌더라 o 의 transform 은 월드 — 부모 기준 로컬로 변환해 저장
+        // 평탄 렌더라 o 의 transform 은 월드 — 부모 기준 로컬로 변환해 저장.
+        // mode 를 함께 넘겨, 해당 모드 축만 갱신(비균등 스케일 부모 밑 자식 이동 시 스케일 폭발 방지).
         onChange(targetId!, toLocal(targetId!, {
           p: [o.position.x, o.position.y, o.position.z],
           r: [o.rotation.x, o.rotation.y, o.rotation.z],
           s: [o.scale.x,    o.scale.y,    o.scale.z],
-        }));
+        }), mode);
       }}
       onMouseDown={onDragStart}
       onMouseUp={onDragEnd}
@@ -4198,36 +4199,43 @@ export default function StudioCanvas() {
     setTreeDrag(null);
   };
 
-  function updateObjectTransform(id: string, t: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }) {
+  function updateObjectTransform(id: string, t: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }, mode: 'translate' | 'rotate' | 'scale') {
     const start = dragStartRef.current;
     const primaryStart = start.get(id);
 
+    // 기즈모 모드에 해당하는 축만 갱신한다. (위치 이동인데 회전·스케일까지 매 프레임
+    // 월드→로컬 decompose 로 다시 쓰면, 비균등 스케일 부모 밑 자식에서 전단으로 스케일이
+    // 부풀어 폭발함 → translate 는 position 만, rotate 는 rotation 만, scale 은 scale 만 쓴다.)
     if (!primaryStart || multiSelectedIds.size <= 1) {
-      // 단일 선택 — 그대로
-      setObjects(prev => prev.map(o => o.id === id ? { ...o, position: t.p, rotation: t.r, scale: t.s } : o));
+      // 단일 선택
+      setObjects(prev => prev.map(o => {
+        if (o.id !== id) return o;
+        if (mode === 'rotate') return { ...o, rotation: t.r };
+        if (mode === 'scale')  return { ...o, scale: t.s };
+        return { ...o, position: t.p };  // translate (기본)
+      }));
       return;
     }
 
-    // delta 계산 (start 기준)
-    const dp: [number,number,number] = [t.p[0]-primaryStart.p[0], t.p[1]-primaryStart.p[1], t.p[2]-primaryStart.p[2]];
-    const dr: [number,number,number] = [t.r[0]-primaryStart.r[0], t.r[1]-primaryStart.r[1], t.r[2]-primaryStart.r[2]];
-    const ds: [number,number,number] = [
-      primaryStart.s[0] !== 0 ? t.s[0]/primaryStart.s[0] : 1,
-      primaryStart.s[1] !== 0 ? t.s[1]/primaryStart.s[1] : 1,
-      primaryStart.s[2] !== 0 ? t.s[2]/primaryStart.s[2] : 1,
-    ];
-
+    // 다중 선택 — start 스냅샷 기준 delta 를, 해당 모드 축에만 적용
     setObjects(prev => prev.map(o => {
-      if (o.id === id) return { ...o, position: t.p, rotation: t.r, scale: t.s };
-      if (!multiSelectedIds.has(o.id)) return o;
-      const os = start.get(o.id);
+      if (o.id !== id && !multiSelectedIds.has(o.id)) return o;
+      const os = o.id === id ? primaryStart : start.get(o.id);
       if (!os) return o;
-      return {
-        ...o,
-        position: [os.p[0]+dp[0], os.p[1]+dp[1], os.p[2]+dp[2]] as [number,number,number],
-        rotation: [os.r[0]+dr[0], os.r[1]+dr[1], os.r[2]+dr[2]] as [number,number,number],
-        scale:    [os.s[0]*ds[0], os.s[1]*ds[1], os.s[2]*ds[2]] as [number,number,number],
-      };
+      if (mode === 'rotate') {
+        const dr: [number,number,number] = [t.r[0]-primaryStart.r[0], t.r[1]-primaryStart.r[1], t.r[2]-primaryStart.r[2]];
+        return { ...o, rotation: (o.id === id ? t.r : [os.r[0]+dr[0], os.r[1]+dr[1], os.r[2]+dr[2]]) as [number,number,number] };
+      }
+      if (mode === 'scale') {
+        const ds: [number,number,number] = [
+          primaryStart.s[0] !== 0 ? t.s[0]/primaryStart.s[0] : 1,
+          primaryStart.s[1] !== 0 ? t.s[1]/primaryStart.s[1] : 1,
+          primaryStart.s[2] !== 0 ? t.s[2]/primaryStart.s[2] : 1,
+        ];
+        return { ...o, scale: (o.id === id ? t.s : [os.s[0]*ds[0], os.s[1]*ds[1], os.s[2]*ds[2]]) as [number,number,number] };
+      }
+      const dp: [number,number,number] = [t.p[0]-primaryStart.p[0], t.p[1]-primaryStart.p[1], t.p[2]-primaryStart.p[2]];
+      return { ...o, position: (o.id === id ? t.p : [os.p[0]+dp[0], os.p[1]+dp[1], os.p[2]+dp[2]]) as [number,number,number] };
     }));
   }
 
