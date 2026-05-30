@@ -1083,6 +1083,8 @@ export class JsScript {
   /** 단단한 콜라이더 충돌 시작/끝 — 유니티 OnCollisionEnter/Exit */
   callCollisionEnter(otherId: string): void { this.dispatch('onCollisionEnter', [otherId]); }
   callCollisionExit(otherId: string): void { this.dispatch('onCollisionExit', [otherId]); }
+  /** 1인칭에서 이 오브젝트를 클릭(정조준 후 좌클릭) — onClick(clicker) */
+  callClick(clickerId: string): void { this.dispatch('onClick', [clickerId]); }
 
   /** 사용자 정의 이벤트 함수가 있으면 호출 (없으면 무시). 에러는 중복 없이 누적. */
   private dispatch(fnName: string, args: unknown[]): void {

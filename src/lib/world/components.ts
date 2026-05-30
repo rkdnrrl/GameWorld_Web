@@ -105,8 +105,9 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     type: 'particle',
     name: '파티클 (눈/연기/불)',
     icon: '❄️',
-    description: '오브젝트 위치에서 파티클을 방출. 프리셋(눈·연기·불·비·반짝임) 선택 후 개수·크기·속도·범위·색을 조절. 빈 오브젝트에 붙여 방출기로 쓰기 좋음. 편집·시뮬·플레이 모두 반영.',
+    description: '오브젝트 위치에서 파티클을 방출. 방식=continuous 면 계속 방출(눈·연기 등), click 이면 1인칭에서 그 오브젝트를 클릭할 때마다 한 번 터지는 효과. 프리셋·개수·크기·속도·범위·색·텍스처를 조절. 빈 오브젝트에 붙여 방출기로 쓰기 좋음. 편집·시뮬·플레이 모두 반영.',
     props: [
+      { key: 'mode',    label: '방식 (continuous=계속 / click=클릭시 터짐)', type: 'enum', default: 'continuous', options: ['continuous', 'click'] },
       { key: 'preset',  label: '프리셋',              type: 'enum',   default: 'snow', options: ['snow', 'smoke', 'fire', 'rain', 'sparkles'] },
       { key: 'count',   label: '개수',                type: 'number', default: 300,  min: 1,   max: 3000, step: 10 },
       { key: 'size',    label: '입자 크기 (배율)',    type: 'number', default: 1,    min: 0.1, max: 5,    step: 0.1 },
@@ -115,6 +116,7 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'height',  label: '높이 범위',           type: 'number', default: 8,    min: 0.5, max: 40,   step: 0.5 },
       { key: 'opacity', label: '투명도',              type: 'number', default: 0.85, min: 0,   max: 1,    step: 0.05 },
       { key: 'color',   label: '색 (흰색=프리셋 기본)', type: 'color',  default: '#ffffff' },
+      { key: 'texture', label: '텍스처 URL (비우면 기본 원형)', type: 'string', default: '' },
     ],
   },
   {

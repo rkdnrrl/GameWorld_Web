@@ -928,6 +928,7 @@ export function Player({
   portalRef,
   onPortalEnter,
   firstPersonFov = 75,
+  onObjectClick,
 }: {
   character: Record<string, unknown>;
   bubble?: ChatBubble;
@@ -973,6 +974,8 @@ export function Player({
   onPortalEnter?: (worldId: string) => void;
   /** 1인칭 시야각(FOV, degrees). 3인칭은 기본 60 사용. */
   firstPersonFov?: number;
+  /** 1인칭에서 정조준한 오브젝트를 좌클릭 시 호출 — 클릭 파티클 버스트 트리거 등 */
+  onObjectClick?: (objectId: string) => void;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body      = useRef<any>(null);
@@ -1130,6 +1133,31 @@ export function Player({
         onGrabRelease?.(grabId);
         if (playerId) luaScripts?.current.get(grabId)?.callRelease(playerId);
         return;
+      }
+      // 1인칭 + 포인터 락 + (잡고 있지 않음) → 정조준한 오브젝트 클릭 (onClick 스크립트 + 파티클 버스트)
+      if (cameraModeRef.current === 'first' && isLocked.current && !grabbedIdRef.current) {
+        try {
+          const camPos = camera.position;
+          const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
+          const fy = -Math.sin(_mob.camV);
+          const fz = -Math.cos(_mob.camH) * Math.cos(_mob.camV);
+          const ray = new rapier.Ray({ x: camPos.x, y: camPos.y, z: camPos.z }, { x: fx, y: fy, z: fz });
+          const hit = rWorld.castRay(ray, 6.0, true, undefined, undefined, undefined, body.current ?? undefined);
+          const hitBody = hit?.collider?.parent();
+          if (hitBody && scriptBodyRefs) {
+            let clickedId: string | null = null;
+            for (const [id, ref] of scriptBodyRefs.current) {
+              if (ref.body.current === hitBody) { clickedId = id; break; }
+            }
+            if (clickedId) {
+              const clicker = playerId || 'player';
+              luaScripts?.current.get(clickedId)?.callClick(clicker);
+              componentScripts?.current.get(clickedId)?.forEach(({ vm }) => vm.callClick(clicker));
+              onObjectClick?.(clickedId);
+              return;  // 클릭 소비 — 포인터락 유지
+            }
+          }
+        } catch { /* Rapier 초기화 중 무시 */ }
       }
       tryLockPointer();
     };
@@ -2478,6 +2506,11 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const luaScripts = useRef<Map<string, import('@/lib/world/jsRuntime').JsScript>>(new Map());
   // 유저 정의 컴포넌트 — objectId → 부착된 VM 들 (오브젝트당 여러 부착 가능)
   const componentScripts = useRef<Map<string, Array<{ vm: import('@/lib/world/jsRuntime').JsScript; key: string }>>>(new Map());
+  // 클릭 파티클 버스트 — objectId → nonce. Player 클릭 시 +1, Particles(click 모드)가 폴링해 재생.
+  const clickBurstRef = useRef<Map<string, number>>(new Map());
+  const triggerClickBurst = useCallback((objectId: string) => {
+    clickBurstRef.current.set(objectId, (clickBurstRef.current.get(objectId) ?? 0) + 1);
+  }, []);
   // 콜라이더 충돌/트리거 이벤트 → 해당 오브젝트의 메인 스크립트 + user 컴포넌트 스크립트로 디스패치
   const dispatchColliderEvent = useCallback((objId: string, otherId: string, kind: ColliderEventKind) => {
     const fire = (vm: import('@/lib/world/jsRuntime').JsScript) => {
@@ -3323,7 +3356,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                     const w = obj.parentId ? computeWorldTRS(obj, byId) : { position: obj.position, rotation: obj.rotation, scale: obj.scale };
                     return (
                       <group key={'pfx-' + obj.id} position={w.position} rotation={w.rotation} scale={w.scale}>
-                        <Particles s={deriveParticleSettings(inst)} />
+                        <Particles s={deriveParticleSettings(inst)} objId={obj.id} burstRef={clickBurstRef} />
                       </group>
                     );
                   });
@@ -3333,7 +3366,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={triggerClickBurst} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}

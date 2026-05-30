@@ -2041,6 +2041,11 @@ function SimScene({ objects, transforms, myAssets, player }: {
   const luaScripts = useRef<Map<string, import('@/lib/world/jsRuntime').JsScript>>(new Map());
   // user 컴포넌트 VM 들 — objectId → 배열 (오브젝트당 여러 부착 가능)
   const componentScripts = useRef<Map<string, Array<{ vm: import('@/lib/world/jsRuntime').JsScript }>>>(new Map());
+  // 클릭 파티클 버스트 — objectId → nonce. 1인칭 클릭 시 +1, Particles(click 모드)가 폴링.
+  const clickBurstRef = useRef<Map<string, number>>(new Map());
+  const triggerClickBurst = useCallback((objectId: string) => {
+    clickBurstRef.current.set(objectId, (clickBurstRef.current.get(objectId) ?? 0) + 1);
+  }, []);
   // user 컴포넌트 코드 캐시 — id → ScriptComponent
   const scriptComponentDefsRef = useRef<Map<string, ScriptComponent>>(new Map());
   const [scriptCompsLoaded, setScriptCompsLoaded] = useState(0);
@@ -2440,7 +2445,7 @@ function SimScene({ objects, transforms, myAssets, player }: {
         const tr = transforms[obj.id] ?? { pos: obj.position, rot: obj.rotation, scl: obj.scale };
         return (
           <group key={'pfx-' + obj.id} position={tr.pos} rotation={tr.rot} scale={tr.scl ?? obj.scale}>
-            <Particles s={deriveParticleSettings(inst)} />
+            <Particles s={deriveParticleSettings(inst)} objId={obj.id} burstRef={clickBurstRef} />
           </group>
         );
       })}
@@ -2466,6 +2471,7 @@ function SimScene({ objects, transforms, myAssets, player }: {
           componentScripts={componentScripts as any}
           ownersRef={player.ownersRef}
           playerId="__sim_player__"
+          onObjectClick={triggerClickBurst}
           grabbedStateRef={player.grabbedStateRef}
           grabbableIdsRef={player.grabbableIdsRef}
           remoteGrabbedByRef={player.remoteGrabbedByRef}
