@@ -197,12 +197,32 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
   );
 }
 
+/* ── 알파 0 출력 셰이더 — 캔버스에 영상 평면 모양의 투명 구멍을 뚫음.
+   캔버스 zIndex(16777271) > iframe zIndex(~8388634)라 구멍을 통해 뒤의 iframe 이 비침.
+   transparent:false + depthTest:true 라 캐릭터가 mesh 앞에 있으면 깊이 테스트 실패 → mesh 안 그려짐
+   → 캔버스에 캐릭터 픽셀(alpha=1) 유지 → 캐릭터가 영상 위로 정상 표시됨. */
+function makeYouTubeOccluderMaterial(side: THREE.Side): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    vertexShader: `void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `void main() { gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0); }`,
+    side,
+    transparent: false,
+    depthTest: true,
+    depthWrite: true,
+  });
+}
+
 /* ── 호출부 편의 — context.live 에 따라 재질/오버레이 자동 선택 ── */
 export function YouTubeMeshMaterial({ videoId, selected, side = THREE.FrontSide }: {
   videoId: string; selected?: boolean; side?: THREE.Side;
 }) {
-  // 항상 썸네일 — live(시뮬/월드)에선 그 위에 iframe 이 덮어 재생. iframe 이 안 떠도
-  // 검은 화면 대신 썸네일이 보이게 (폴백).
+  const { live } = useContext(VideoScreenCtx);
+  // live(월드/시뮬)면 mesh 를 alpha=0 셰이더로 → 캔버스에 영상 모양 구멍을 뚫어 뒤의 iframe 이 보임 +
+  //   캐릭터가 앞에 있으면 깊이 테스트로 mesh 가 안 그려져 캐릭터 정상 표시.
+  // 편집(non-live)이면 썸네일 표시.
+  const occluder = useMemo(() => live ? makeYouTubeOccluderMaterial(side) : null, [live, side]);
+  useEffect(() => () => { occluder?.dispose(); }, [occluder]);
+  if (live && occluder) return <primitive object={occluder} attach="material" />;
   return <YouTubeThumbMaterial videoId={videoId} selected={selected} side={side} />;
 }
 export function YouTubeMaybeOverlay({ videoId, objId, planeW, planeH }: { videoId: string; objId?: string; planeW?: number; planeH?: number }) {
