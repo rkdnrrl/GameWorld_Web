@@ -1048,6 +1048,17 @@ export function Player({
       if (e.code === 'KeyC') { crouchRef.current = !crouchRef.current; if (crouchRef.current) proneRef.current = false; }
       if (e.code === 'KeyZ') { proneRef.current  = !proneRef.current;  if (proneRef.current)  crouchRef.current = false; }
       if (e.code === 'KeyV') { onToggleCameraMode(); }
+      // Tab: 마우스 커서 토글(포인터락 on/off). 키 입력이라 브라우저가 lock 제스처로 허용 → 클릭/영상과 충돌 없음.
+      if (e.code === 'Tab') {
+        e.preventDefault();
+        if (document.pointerLockElement) {
+          document.exitPointerLock();
+        } else {
+          // 최신 브라우저는 Promise 반환 — 연속 토글 시 쿨다운으로 reject 될 수 있어 조용히 무시.
+          const r = gl.domElement.requestPointerLock() as unknown;
+          if (r && typeof (r as Promise<void>).catch === 'function') (r as Promise<void>).catch(() => {});
+        }
+      }
       // ── E: 1인칭 grab/release 토글 ──
       if (e.code === 'KeyE' && cameraModeRef.current === 'first') {
         if (grabbedIdRef.current) {
@@ -1193,20 +1204,6 @@ export function Player({
       el.removeEventListener('pointerdown', onPointerDown);
     };
   }, [gl, inputLocked, onToggleCameraMode]);
-
-  // 크로스헤어(화면 중앙)가 YouTube 영상에 닿으면 포인터락 해제 → 커서가 나와 영상 조작 가능.
-  // (다시 잠그는 건 빈 곳 클릭 — 브라우저가 사용자 제스처 없이 자동 lock 을 막음)
-  // armed: 영상 밖을 한 번 본 뒤에만 다시 해제 → 잠근 직후 영상을 보고 있어도 바로 안 풀려 카메라를 돌릴 수 있음.
-  useEffect(() => {
-    let armed = false;
-    const iv = setInterval(() => {
-      const el = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2) as HTMLElement | null;
-      const onVideo = !!el?.closest?.('[data-yt-screen]');
-      if (!onVideo) { armed = true; return; }
-      if (document.pointerLockElement && armed) { document.exitPointerLock(); armed = false; }
-    }, 120);
-    return () => clearInterval(iv);
-  }, []);
 
   useEffect(() => {
     if (!inputLocked) return;
@@ -3300,6 +3297,24 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     <>
       {/* ── 모바일 컨트롤: Canvas 완전 바깥의 position:fixed DOM ── */}
       {isMobile && <MobileControls inputLocked={chatInputActive} />}
+
+      {/* Tab 안내: 마우스 커서 켜기(영상·UI 클릭) ↔ 끄기(화면 회전). 데스크톱만. */}
+      {!isMobile && !chatInputActive && (
+        <div style={{
+          position: 'fixed', bottom: 14, left: '50%', transform: 'translateX(-50%)',
+          pointerEvents: 'none', zIndex: 1000,
+          fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: 600,
+          background: 'rgba(0,0,0,0.4)', padding: '4px 10px', borderRadius: 999,
+          textShadow: '0 1px 2px rgba(0,0,0,0.7)', whiteSpace: 'nowrap',
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <kbd style={{
+            background: 'rgba(255,255,255,0.18)', borderRadius: 4, padding: '1px 6px',
+            fontFamily: 'inherit', fontSize: 10.5, fontWeight: 700,
+          }}>Tab</kbd>
+          마우스 커서 켜기/끄기 (영상 클릭 ↔ 화면 회전)
+        </div>
+      )}
 
       {/* 1인칭 크로스헤어 */}
       {cameraMode === 'first' && (() => {
