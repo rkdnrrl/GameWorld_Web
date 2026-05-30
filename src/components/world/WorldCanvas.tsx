@@ -2870,6 +2870,10 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     if (!isHost || !customObjects || !sendSceneRegister) return;
     const build = () => {
       const snapshot = customObjects.map(obj => {
+        // 부모가 있는 자식은 position 이 "부모 기준 로컬" 좌표다. body 의 월드 위치로 덮어쓰면
+        // 수신측 computeWorldTRS 가 부모를 또 합성해 이중 변환(자식이 멀어짐)되므로 원본(로컬) 유지.
+        // 정적 자식(벽 등)은 안 움직이니 로컬이 정확하고, 부모가 움직여도 자식은 부모를 따라 합성됨.
+        if (obj.parentId) return obj;
         const ref = scriptBodyRefs.current.get(obj.id);
         if (ref?.body.current) {
           const t = ref.body.current.translation();
