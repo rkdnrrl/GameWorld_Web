@@ -14,6 +14,7 @@
  */
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Html } from '@react-three/drei';
+import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 
 export const VIDEO_SYNC_EVENT = '__video__';
@@ -425,30 +426,59 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, he
     return () => clearInterval(iv);
   }, [canvas, texture, registry, targetId, shownTitle]);
 
+  // 클릭 처리 공용 (uv → 버튼 분기). 마우스 클릭(R3F)·1인칭 크로스헤어 양쪽에서 사용.
+  const handleUv = (uv: { x: number; y: number }) => {
+    const px = uv.x * CAN_W;
+    const py = (1 - uv.y) * CAN_H;
+    const hit = hitTest(px, py);
+    if (hit === 'prev')      onSeekBy(-5);
+    else if (hit === 'next') onSeekBy(5);
+    else if (hit === 'play') {
+      const h = registry.current.get(targetId);
+      onTogglePlay(h?.paused() ?? true);
+    }
+    else if (hit === 'url')  onChangeUrl();
+    else if (hit === 'scrub') {
+      const h = registry.current.get(targetId);
+      const dur = h?.duration() || 0;
+      if (dur > 0) {
+        const ratio = Math.max(0, Math.min(1, (px - HIT.scrub.x) / HIT.scrub.w));
+        onSeekTo(ratio * dur);
+      }
+    }
+  };
+
+  // 1인칭 크로스헤어 클릭 — pointer lock 상태에서 화면 중앙으로 raycaster 쏴 이 mesh hit 시 처리.
+  // R3F 의 onPointerDown 은 마우스 좌표 기반이라 lock 중엔 안 잡힘 → 직접 window listener.
+  const meshRef = useRef<THREE.Mesh>(null);
+  const { camera } = useThree();
+  useEffect(() => {
+    if (!interactive) return;
+    const onClick = (e: PointerEvent) => {
+      if (!document.pointerLockElement) return;   // lock 안 됐으면 R3F 일반 클릭이 처리
+      if (e.button !== 0) return;
+      if (!meshRef.current) return;
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);   // 화면 중앙
+      const hits = raycaster.intersectObject(meshRef.current);
+      if (hits.length > 0 && hits[0].uv) {
+        handleUv(hits[0].uv);
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener('pointerdown', onClick, true);
+    return () => window.removeEventListener('pointerdown', onClick, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interactive, camera, targetId]);
+
   return (
     <mesh
+      ref={meshRef}
       position={[0, offsetY, 0]}
       onPointerDown={interactive ? (e) => {
         e.stopPropagation();
         if (!e.uv) return;
-        const px = e.uv.x * CAN_W;
-        const py = (1 - e.uv.y) * CAN_H;
-        const hit = hitTest(px, py);
-        if (hit === 'prev')      onSeekBy(-5);
-        else if (hit === 'next') onSeekBy(5);
-        else if (hit === 'play') {
-          const h = registry.current.get(targetId);
-          onTogglePlay(h?.paused() ?? true);
-        }
-        else if (hit === 'url')  onChangeUrl();
-        else if (hit === 'scrub') {
-          const h = registry.current.get(targetId);
-          const dur = h?.duration() || 0;
-          if (dur > 0) {
-            const ratio = Math.max(0, Math.min(1, (px - HIT.scrub.x) / HIT.scrub.w));
-            onSeekTo(ratio * dur);
-          }
-        }
+        handleUv(e.uv);
       } : undefined}
     >
       <planeGeometry args={[width, height]} />
