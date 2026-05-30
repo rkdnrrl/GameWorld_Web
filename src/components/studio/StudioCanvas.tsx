@@ -3764,9 +3764,10 @@ export default function StudioCanvas() {
     return local;
   }
 
-  // 평탄 렌더용 — 오브젝트의 월드 TRS 계산. spawn/empty 는 저장값이 곧 월드라 그대로.
+  // 평탄 렌더용 — 오브젝트의 월드 TRS 계산 (부모 체인 합성). empty 도 일반 자식처럼 부모를 따름.
+  // spawn 은 플레이어 스폰 기준점이라 월드 절대값을 유지(부모 합성 X) → 플레이/시뮬의 스폰 위치와 일치.
   function worldTRSFor(o: MapObject): { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] } {
-    if (!o.parentId || o.kind === 'spawn' || o.kind === 'empty') {
+    if (!o.parentId || o.kind === 'spawn') {
       return { p: o.position, r: o.rotation, s: o.scale };
     }
     const m = computeWorldMatrix(o.id, objects);
@@ -3779,7 +3780,7 @@ export default function StudioCanvas() {
   // 기즈모가 만든 월드 TRS 를 부모 기준 로컬로 변환해 저장 (평탄 렌더라 기즈모는 월드를 만짐)
   function worldTRSToLocal(id: string, w: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }): { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] } {
     const obj = objects.find(o => o.id === id);
-    if (!obj || !obj.parentId || obj.kind === 'spawn' || obj.kind === 'empty') return w;
+    if (!obj || !obj.parentId || obj.kind === 'spawn') return w;
     const worldMat = new THREE.Matrix4().compose(
       new THREE.Vector3(w.p[0], w.p[1], w.p[2]),
       new THREE.Quaternion().setFromEuler(new THREE.Euler(w.r[0], w.r[1], w.r[2], 'XYZ')),
@@ -3855,8 +3856,9 @@ export default function StudioCanvas() {
     const child = objects.find(o => o.id === childId);
     if (!child) return;
 
-    // spawn·empty 는 hierarchical transform 무의미 — parentId 만 변경, world position 유지.
-    if (child.kind === 'spawn' || child.kind === 'empty') {
+    // spawn 은 플레이어 스폰 기준점이라 hierarchical transform 무의미 — parentId 만 변경, world position 유지.
+    // (empty 는 일반 오브젝트처럼 부모 공간 local 로 변환 → 아래 분기 사용)
+    if (child.kind === 'spawn') {
       const worldMat = computeWorldMatrix(childId, objects);
       const wp = new THREE.Vector3();
       const wq = new THREE.Quaternion();
@@ -3923,7 +3925,7 @@ export default function StudioCanvas() {
     let patch: Partial<MapObject> = {};
     if ((dragged.parentId ?? null) !== newParentId) {
       const childWorld = computeWorldMatrix(draggedId, objects);
-      if (dragged.kind === 'spawn' || dragged.kind === 'empty') {
+      if (dragged.kind === 'spawn') {
         const wp = new THREE.Vector3(), wq = new THREE.Quaternion(), ws = new THREE.Vector3();
         childWorld.decompose(wp, wq, ws);
         const we = new THREE.Euler().setFromQuaternion(wq, 'XYZ');
