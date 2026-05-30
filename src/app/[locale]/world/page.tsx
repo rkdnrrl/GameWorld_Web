@@ -328,7 +328,11 @@ export default function WorldPage() {
       objDestroyRef.current?.(objectId);
     },
     onSceneSnapshot: (objects) => {
-      setSceneFromHost(objects as MapObject[]);
+      // 첫 스냅샷만 적용. 후속 스냅샷(예: 새 플레이어 입장 broadcast)은 무시 — 매번 새 array ref 로
+      // customObjects 가 갈아엎혀 영상 mesh 자식 컴포넌트들이 reconcile 되며 iframe player 가 재생성됨
+      // (영상 처음부터 + registry 핸들 잠깐 비어 리모컨 무반응). 동적 transform 은 별도 sendObjectStates
+      // 채널로 처리되므로 첫 스냅샷만으로 콘텐츠 동기화 충분.
+      setSceneFromHost(prev => prev ? prev : (objects as MapObject[]));
     },
   });
 
