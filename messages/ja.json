@@ -1477,6 +1477,7 @@
     "referencedHint": "マーケットから取得した参照アセットのため、公開/非公開は変更できません",
     "detailMyAsset": "自分のアセット",
     "detailPreview": "プレビュー",
+    "detailDragHint": "ドラッグで回転・ホイール/ピンチで拡大",
     "detailCreatedAt": "登録日",
     "detailClose": "閉じる",
     "detailMakingPrivate": "非公開にしています…",

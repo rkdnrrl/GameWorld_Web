@@ -1477,6 +1477,7 @@
     "referencedHint": "从市场获取的引用素材，无法切换公开/私有",
     "detailMyAsset": "我的素材",
     "detailPreview": "预览",
+    "detailDragHint": "拖动旋转 · 滚轮/双指缩放",
     "detailCreatedAt": "上传日期",
     "detailClose": "关闭",
     "detailMakingPrivate": "正在设为私有…",

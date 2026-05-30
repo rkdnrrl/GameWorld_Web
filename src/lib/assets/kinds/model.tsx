@@ -19,6 +19,8 @@ const AssetMaterialEditor = dynamic(
 function ModelThumbnail({ asset }: { asset: Asset }) {
   const [thumb, setThumb] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  // 현재 화면에 보이는지 — 보이는 동안에만 생성하고, 밖으로 나가면 생성을 취소(유니티식)
+  const visibleRef = useRef(false);
   // 머티리얼 설정이 바뀌면(에디터에서 텍스처 저장 등) 썸네일 재생성
   const cfgKey = JSON.stringify(getMaterialConfig(asset) ?? null);
 
@@ -28,16 +30,29 @@ function ModelThumbnail({ asset }: { asset: Asset }) {
     const el = ref.current;
     if (!el) return;
     let cancelled = false;
+    visibleRef.current = false;
+
+    // 보이는 동안에만 생성. isWanted 로 큐 처리 시점에 화면 밖이면 렌더 스킵.
+    const run = () => {
+      if (cancelled || !visibleRef.current) return;
+      import('@/lib/assets/modelThumb').then(({ requestThumb }) => {
+        if (cancelled || !visibleRef.current) return;
+        requestThumb(asset.modelUrl, getMaterialConfig(asset), () => !cancelled && visibleRef.current)
+          .then(d => {
+            if (cancelled) return;
+            if (d) setThumb(d);
+            else if (visibleRef.current) setTimeout(run, 60);  // 스킵됐는데 아직 보이면 재시도
+          })
+          .catch(() => { /* 실패 시 아이콘 유지 */ });
+      });
+    };
+
     const io = new IntersectionObserver((entries) => {
-      if (!entries.some(e => e.isIntersecting)) return;
-      io.disconnect();
-      import('@/lib/assets/modelThumb')
-        .then(({ requestThumb }) => requestThumb(asset.modelUrl, getMaterialConfig(asset)))
-        .then(d => { if (!cancelled) setThumb(d); })
-        .catch(() => { /* 실패 시 아이콘 유지 */ });
-    }, { rootMargin: '200px' });
+      visibleRef.current = entries.some(e => e.isIntersecting);
+      if (visibleRef.current) run();
+    }, { rootMargin: '120px' });
     io.observe(el);
-    return () => { cancelled = true; io.disconnect(); };
+    return () => { cancelled = true; visibleRef.current = false; io.disconnect(); };
   }, [asset.modelUrl, asset.thumbnailUrl, cfgKey]);
 
   // 저장된 썸네일 이미지가 있으면 그대로 사용

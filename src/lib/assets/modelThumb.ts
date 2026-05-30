@@ -17,8 +17,8 @@ import { loadStaticModel } from '@/lib/world/modelLoader';
 import { buildMat, disposeMat, type MaterialConfig } from '@/lib/assets/material';
 
 const SIZE = 320;
-const cache    = new Map<string, string>();           // url -> dataURL
-const inflight = new Map<string, Promise<string>>();
+const cache    = new Map<string, string>();                 // key -> dataURL
+const inflight = new Map<string, Promise<string | null>>(); // 진행 중 (null = 화면 밖이라 스킵)
 
 let renderer: THREE.WebGLRenderer | null = null;
 let scene: THREE.Scene | null = null;
@@ -179,7 +179,16 @@ export function getCachedThumb(url: string): string | undefined {
   return cache.get(url);
 }
 
-export function requestThumb(url: string, config?: MaterialConfig | null): Promise<string> {
+/**
+ * 썸네일 요청. isWanted: 큐에서 차례가 됐을 때 호출 — false 면 렌더를 건너뛴다(null 반환).
+ * 스크롤로 화면 밖에 나간 카드의 생성을 취소해, 현재 보이는 카드만 실제로 렌더(유니티식).
+ * 스킵(null)은 캐시하지 않으므로 다시 보이면 재요청으로 생성된다.
+ */
+export function requestThumb(
+  url: string,
+  config?: MaterialConfig | null,
+  isWanted?: () => boolean,
+): Promise<string | null> {
   // 머티리얼 설정이 바뀌면 다른 썸네일 → 캐시 키에 config 포함
   const key = url + '|' + (config ? JSON.stringify(config) : '');
   const hit = cache.get(key);
@@ -187,8 +196,12 @@ export function requestThumb(url: string, config?: MaterialConfig | null): Promi
   const existing = inflight.get(key);
   if (existing) return existing;
 
-  const p = chain.then(() => renderThumb(url, config)).then(
-    (dataUrl) => { cache.set(key, dataUrl); inflight.delete(key); return dataUrl; },
+  const p = chain.then(() => {
+    // 차례가 왔을 때 더 이상 화면에 없으면 렌더 스킵 → 무거운 작업 없이 다음으로
+    if (isWanted && !isWanted()) return null;
+    return renderThumb(url, config);
+  }).then(
+    (dataUrl) => { inflight.delete(key); if (dataUrl) cache.set(key, dataUrl); return dataUrl; },
     (err) => { inflight.delete(key); throw err; },
   );
   inflight.set(key, p);

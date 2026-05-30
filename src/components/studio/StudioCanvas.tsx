@@ -4037,6 +4037,37 @@ export default function StudioCanvas() {
     setMultiSelectedIds(new Set());
   }
 
+  // 컴포넌트 추가 대상 — 다중 선택이면 전부, 없으면 primary 하나 (deleteSelected 와 동일 규약)
+  function componentTargetIds(): Set<string> {
+    const { sel, multi } = selRef.current;
+    return new Set<string>(multi.size > 0 ? multi : sel ? [sel] : []);
+  }
+  // 선택된 오브젝트 전부에 컴포넌트 추가. build 는 오브젝트마다 새 인스턴스 생성.
+  // skipIfHas=true 면 이미 같은 type 이 있는 오브젝트는 건너뜀(빌트인=유일). false 면 중복 허용(유저/공식).
+  function addComponentToSelection(build: () => ComponentInstance, skipIfHas: boolean) {
+    const ids = componentTargetIds();
+    if (ids.size === 0) return;
+    setObjects(prev => prev.map(o => {
+      if (!ids.has(o.id)) return o;
+      const inst = build();
+      if (skipIfHas && (o.components ?? []).some(c => c.type === inst.type)) return o;
+      return { ...o, components: [...(o.components ?? []), inst] };
+    }));
+    pushHistory(objects);
+    setComponentPickerOpen(false);
+    setComponentPickerSearch('');
+  }
+  // 선택된 오브젝트가 "전부" 해당 컴포넌트를 가지고 있는지 (빌트인 버튼 비활성화 판단용)
+  function allSelectedHaveComponent(type: string): boolean {
+    const ids = componentTargetIds();
+    if (ids.size === 0) return false;
+    for (const id of ids) {
+      const o = objects.find(x => x.id === id);
+      if (!o?.components?.some(c => c.type === type)) return false;
+    }
+    return true;
+  }
+
   async function save() {
     if (saving) return;
     setSaving(true);
@@ -5684,23 +5715,22 @@ export default function StudioCanvas() {
                   return def.type.toLowerCase().includes(q) || def.name.toLowerCase().includes(q);
                 })
                 .map(def => {
-                  const alreadyHas = (selected.components ?? []).some(c => c.type === def.type);
+                  // 선택된 것 전부가 이미 가지고 있을 때만 비활성화 (일부만 있으면 나머지에 추가 가능)
+                  const alreadyHas = allSelectedHaveComponent(def.type);
                   return (
                     <button key={def.type} type="button"
                       disabled={alreadyHas}
                       onClick={() => {
                         if (alreadyHas) return;
-                        const newInst: ComponentInstance = { type: def.type as ComponentType };
-                        if (def.props) {
-                          newInst.props = {};
-                          def.props.forEach(p => { newInst.props![p.key] = p.default; });
-                        }
-                        setObjects(prev => prev.map(o => o.id === selected.id
-                          ? { ...o, components: [...(o.components ?? []), newInst] }
-                          : o));
-                        pushHistory(objects);
-                        setComponentPickerOpen(false);
-                        setComponentPickerSearch('');
+                        // 선택된 오브젝트 전부에 추가 (이미 있는 건 스킵 — 빌트인은 유일)
+                        addComponentToSelection(() => {
+                          const inst: ComponentInstance = { type: def.type as ComponentType };
+                          if (def.props) {
+                            inst.props = {};
+                            def.props.forEach(p => { inst.props![p.key] = p.default; });
+                          }
+                          return inst;
+                        }, true);
                       }}
                       style={{
                         textAlign: 'left',
@@ -5735,16 +5765,12 @@ export default function StudioCanvas() {
                   return (
                     <button key={c.id} type="button"
                       onClick={() => {
-                        // schema 기본값으로 props 미리 채우기
-                        const initProps: Record<string, number | string | boolean> = {};
-                        (c.propsSchema ?? []).forEach(p => { initProps[p.key] = p.default; });
-                        const newInst: ComponentInstance = { type: type as ComponentType, props: initProps };
-                        setObjects(prev => prev.map(o => o.id === selected.id
-                          ? { ...o, components: [...(o.components ?? []), newInst] }
-                          : o));
-                        pushHistory(objects);
-                        setComponentPickerOpen(false);
-                        setComponentPickerSearch('');
+                        // 선택된 오브젝트 전부에 추가 (유저/공식은 중복 부착 허용)
+                        addComponentToSelection(() => {
+                          const initProps: Record<string, number | string | boolean> = {};
+                          (c.propsSchema ?? []).forEach(p => { initProps[p.key] = p.default; });
+                          return { type: type as ComponentType, props: initProps };
+                        }, false);
                       }}
                       style={{
                         textAlign: 'left',
@@ -5789,16 +5815,12 @@ export default function StudioCanvas() {
                   return (
                     <button key={c.id} type="button"
                       onClick={() => {
-                        // schema 기본값으로 props 미리 채우기
-                        const initProps: Record<string, number | string | boolean> = {};
-                        (c.propsSchema ?? []).forEach(p => { initProps[p.key] = p.default; });
-                        const newInst: ComponentInstance = { type: type as ComponentType, props: initProps };
-                        setObjects(prev => prev.map(o => o.id === selected.id
-                          ? { ...o, components: [...(o.components ?? []), newInst] }
-                          : o));
-                        pushHistory(objects);
-                        setComponentPickerOpen(false);
-                        setComponentPickerSearch('');
+                        // 선택된 오브젝트 전부에 추가 (유저/공식은 중복 부착 허용)
+                        addComponentToSelection(() => {
+                          const initProps: Record<string, number | string | boolean> = {};
+                          (c.propsSchema ?? []).forEach(p => { initProps[p.key] = p.default; });
+                          return { type: type as ComponentType, props: initProps };
+                        }, false);
                       }}
                       style={{
                         textAlign: 'left',

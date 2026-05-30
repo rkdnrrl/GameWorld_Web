@@ -6,12 +6,16 @@
  *  미디어(이미지·오디오·비디오)는 썸네일 클릭으로 미리보기(onPreview) 열기.
  */
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import type { Asset, AssetKind } from '@/lib/assets/types';
 import { detectKindFromUrl } from '@/lib/assets/types';
 import { getKind } from '@/lib/assets/registry';
 import { session } from '@/lib/api';
+
+// 라이브 3D 뷰어(드래그 회전·확대·터치) — 모달에서만 띄우므로 컨텍스트 한계 무관. SSR 제외.
+const Asset3DViewer = dynamic(() => import('./Asset3DViewer'), { ssr: false });
 
 interface DetailAsset extends Asset {
   creatorId?: string;
@@ -62,6 +66,7 @@ export default function AssetDetailModal({
   const handler = getKind(kindId);
   const Thumb   = handler?.Thumbnail;
   const canMediaPreview = !!handler?.Preview && !!onPreview;
+  const isModel = kindId === 'model';   // 3D 모델 → 정적 썸네일 대신 라이브 뷰어
 
   const username = asset.creator?.username || null;
   const isOwn = !!me && !!asset.creatorId && asset.creatorId === me.id;
@@ -93,7 +98,7 @@ export default function AssetDetailModal({
           boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
           display: 'flex', flexWrap: 'wrap',
         }}>
-        {/* 썸네일 / 미디어 미리보기 진입 */}
+        {/* 썸네일 / 3D 뷰어 / 미디어 미리보기 진입 */}
         <div
           onClick={() => { if (canMediaPreview) onPreview!(asset); }}
           style={{
@@ -101,11 +106,23 @@ export default function AssetDetailModal({
             background: 'radial-gradient(circle at 50% 35%, #25304a, #0e1424)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             position: 'relative', overflow: 'hidden',
-            cursor: canMediaPreview ? 'zoom-in' : 'default',
+            cursor: isModel ? 'grab' : canMediaPreview ? 'zoom-in' : 'default',
           }}>
-          {Thumb
-            ? <Thumb asset={asset} />
-            : <span style={{ fontSize: 64, opacity: 0.35 }}>{kindDef?.icon || '📄'}</span>}
+          {isModel
+            ? <Asset3DViewer url={asset.modelUrl} />
+            : Thumb
+              ? <Thumb asset={asset} />
+              : <span style={{ fontSize: 64, opacity: 0.35 }}>{kindDef?.icon || '📄'}</span>}
+          {isModel && (
+            <span style={{
+              position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)',
+              fontSize: 11, fontWeight: 600, padding: '4px 10px', whiteSpace: 'nowrap',
+              background: 'rgba(0,0,0,0.5)', borderRadius: 8, color: 'rgba(255,255,255,0.85)',
+              backdropFilter: 'blur(4px)', pointerEvents: 'none',
+            }}>
+              🖱️ {t('detailDragHint')}
+            </span>
+          )}
           {canMediaPreview && (
             <span style={{
               position: 'absolute', bottom: 10, right: 10, fontSize: 11, fontWeight: 600,

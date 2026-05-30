@@ -1477,6 +1477,7 @@
     "referencedHint": "마켓에서 가져온 참조 에셋이라 공개/비공개 전환이 불가합니다",
     "detailMyAsset": "내 에셋",
     "detailPreview": "미리보기",
+    "detailDragHint": "드래그로 회전 · 휠/핀치로 확대",
     "detailCreatedAt": "등록일",
     "detailClose": "닫기",
     "detailMakingPrivate": "비공개 처리 중…",

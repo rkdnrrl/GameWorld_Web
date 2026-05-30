@@ -1477,6 +1477,7 @@
     "referencedHint": "Imported from the marketplace (reference) — visibility can't be changed",
     "detailMyAsset": "My asset",
     "detailPreview": "Preview",
+    "detailDragHint": "Drag to rotate · scroll/pinch to zoom",
     "detailCreatedAt": "Uploaded",
     "detailClose": "Close",
     "detailMakingPrivate": "Making private…",
