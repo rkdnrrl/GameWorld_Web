@@ -2116,7 +2116,7 @@ function PrimitiveMesh({ obj, shape }: { obj: UserMapObject; shape: React.ReactE
             {shape}
             <YouTubeMeshMaterial videoId={ytId} side={vidSide} />
           </mesh>
-          <YouTubeMaybeOverlay videoId={ytId} objId={obj.id} planeW={obj.scale[0]} />
+          <YouTubeMaybeOverlay videoId={ytId} objId={obj.id} planeW={obj.scale[0]} planeH={obj.scale[1]} />
         </>
       );
     }
