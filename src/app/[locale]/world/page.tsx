@@ -340,9 +340,18 @@ export default function WorldPage() {
     if (!sceneFromHost) return customObjects;
     if (!customObjects) return sceneFromHost;
     const apiById = new Map(customObjects.map(o => [o.id, o]));
+    const sameTRS = (a: [number, number, number], b: [number, number, number]) =>
+      a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
     const merged = sceneFromHost.map(snap => {
       const api = apiById.get(snap.id);
-      return api ? { ...api, position: snap.position, rotation: snap.rotation, scale: snap.scale } : snap;
+      if (!api) return snap;
+      // transform 이 변하지 않았으면 **api 객체 ref 그대로** — 새 객체 만들면 React reconcile 시
+      // 영상 mesh 자식(YouTube iframe) 의 useEffect 가 같은 dep 라도 props 변경으로 stale 폐기 →
+      // iframe player 재생성 = 영상 처음부터 + registry 핸들 잠깐 비어 리모컨 먹통.
+      if (sameTRS(api.position, snap.position) && sameTRS(api.rotation, snap.rotation) && sameTRS(api.scale, snap.scale)) {
+        return api;
+      }
+      return { ...api, position: snap.position, rotation: snap.rotation, scale: snap.scale };
     });
     const snapIds = new Set(sceneFromHost.map(o => o.id));
     for (const o of customObjects) if (!snapIds.has(o.id)) merged.push(o);  // 스냅샷이 누락한 것 보강
