@@ -113,7 +113,8 @@ function isGizmoActive(): boolean {
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { session, api } from '@/lib/api';
-import type { Prefab, ScriptComponent } from '@/lib/api';
+import type { Prefab, ScriptComponent, ScriptComponentPropDef } from '@/lib/api';
+import { extractScriptVars } from '@/lib/world/jsRuntime';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type OrbitRef = any;
 
@@ -159,6 +160,8 @@ interface MapObject {
   components?: import('@/lib/world/components').ComponentInstance[];
   // JavaScript 스크립트
   script?: string;
+  // 스크립트 인스펙터 변수 오버라이드 (유니티 직렬화 필드처럼) — 코드의 top-level 변수 기본값을 덮어씀
+  scriptVars?: Record<string, number | string | boolean>;
 }
 
 interface Asset {
@@ -366,7 +369,16 @@ function UserComponentCard({
   onPropsCommit: () => void;
 }) {
   const props = (instance.props ?? {}) as Record<string, number | string | boolean>;
-  const schema = scriptComponent?.propsSchema ?? [];
+  const propsSchema = scriptComponent?.propsSchema ?? [];
+  // 유니티식 — 코드에 선언한 top-level 변수(let x = 5)를 자동 감지해 인스펙터에 노출.
+  // 수동 propsSchema 에 이미 있는 키는 그쪽(라벨·min/max 등 풍부) 우선, 없는 것만 자동 추가.
+  const autoVars = useMemo(() => scriptComponent?.code ? extractScriptVars(scriptComponent.code) : [], [scriptComponent?.code]);
+  const schema: ScriptComponentPropDef[] = [
+    ...propsSchema,
+    ...autoVars
+      .filter(v => !propsSchema.some(p => p.key === v.key))
+      .map(v => ({ key: v.key, label: v.key, type: v.type, default: v.default }) as ScriptComponentPropDef),
+  ];
   const hasSchema = schema.length > 0;
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');
@@ -530,10 +542,11 @@ function ComponentCard({
 function ColliderCard({ instance, onRemove, onChange, onCommit, onAutoFit }: {
   instance: ComponentInstance;
   onRemove: () => void;
-  onChange: (key: string, val: number) => void;
+  onChange: (key: string, val: number | boolean) => void;
   onCommit: () => void;
   onAutoFit: () => void;
 }) {
+  const trig = !!instance.props?.trigger;
   const sx = Number(instance.props?.sizeX ?? 1);
   const sy = Number(instance.props?.sizeY ?? 1);
   const sz = Number(instance.props?.sizeZ ?? 1);
@@ -565,6 +578,11 @@ function ColliderCard({ instance, onRemove, onChange, onCommit, onAutoFit }: {
         style={{ marginTop: 6, width: '100%', background: 'rgba(52,211,153,0.18)', border: '1px solid rgba(52,211,153,0.4)', color: '#6ee7b7', fontSize: 10, fontWeight: 700, padding: '4px', borderRadius: 5, cursor: 'pointer' }}>
         📐 자동 맞춤 (크기 + 위치)
       </button>
+      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 10, opacity: 0.85, marginTop: 8, cursor: 'pointer', lineHeight: 1.3 }}>
+        <input type="checkbox" checked={trig} style={{ marginTop: 1 }}
+          onChange={e => { onChange('trigger', e.target.checked); onCommit(); }} />
+        <span>트리거(센서) — 막지 않고 통과, 닿으면 <code>onTriggerEnter</code></span>
+      </label>
     </ComponentCard>
   );
 }
@@ -1666,13 +1684,21 @@ type SimBodyRefs = {
   group: React.MutableRefObject<THREE.Group | null>;
 };
 
+/** 콜라이더 충돌/트리거 이벤트 종류 */
+type ColliderEventKind = 'triggerEnter' | 'triggerExit' | 'collisionEnter' | 'collisionExit';
+/** rapier 충돌 페이로드에서 상대 오브젝트 id 추출 (오브젝트는 userData.objectId, 그 외=플레이어로 간주) */
+function colliderOtherId(p: { other: { rigidBodyObject?: THREE.Object3D | null } }): string {
+  return (p.other.rigidBodyObject?.userData as { objectId?: string } | undefined)?.objectId ?? 'player';
+}
+
 /** 오브젝트 1개 렌더 + body/light ref 등록 (스크립트에서 제어 가능하도록) */
-function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs }: {
+function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onColliderEvent }: {
   obj: MapObject;
   transforms: SimTransforms;
   myAssets: Asset[];
   scriptBodyRefs: React.MutableRefObject<Map<string, SimBodyRefs>>;
   lightRefs: React.MutableRefObject<Map<string, THREE.Light>>;
+  onColliderEvent?: (objId: string, otherId: string, kind: ColliderEventKind) => void;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bodyRef = useRef<any>(null);
@@ -1737,6 +1763,24 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs }: {
   // Collider 컴포넌트 — 있으면 명시적 박스 콜라이더 사용 (자동 콜라이더 대신)
   const colliderComp = obj.components?.find(c => c.type === 'collider');
 
+  // 콜라이더 충돌/트리거 이벤트 → 이 오브젝트 스크립트로 디스패치 (유니티 OnTriggerEnter/OnCollisionEnter)
+  const trig = !!colliderComp?.props?.trigger;
+  type Hit = { other: { rigidBodyObject?: THREE.Object3D | null } };
+  const colliderEvents: {
+    onIntersectionEnter?: (p: Hit) => void; onIntersectionExit?: (p: Hit) => void;
+    onCollisionEnter?: (p: Hit) => void; onCollisionExit?: (p: Hit) => void;
+  } = (colliderComp && onColliderEvent)
+    ? (trig
+        ? {
+            onIntersectionEnter: (p) => onColliderEvent(obj.id, colliderOtherId(p), 'triggerEnter'),
+            onIntersectionExit:  (p) => onColliderEvent(obj.id, colliderOtherId(p), 'triggerExit'),
+          }
+        : {
+            onCollisionEnter: (p) => onColliderEvent(obj.id, colliderOtherId(p), 'collisionEnter'),
+            onCollisionExit:  (p) => onColliderEvent(obj.id, colliderOtherId(p), 'collisionExit'),
+          })
+    : {};
+
   // 물리도 콜라이더 컴포넌트도 없으면 충돌 X
   if (phys === 'none' && !colliderComp) {
     return <group ref={groupRef} position={t.pos} rotation={t.rot} scale={t.scl}>{mesh}</group>;
@@ -1752,8 +1796,8 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs }: {
     const oz = Number(colliderComp.props?.offsetZ ?? 0);
     return (
       <RigidBody ref={bodyRef} type={bodyType} colliders={false}
-        position={t.pos} rotation={t.rot} scale={t.scl}>
-        <CuboidCollider args={[hx, hy, hz]} position={[ox, oy, oz]} />
+        position={t.pos} rotation={t.rot} scale={t.scl} {...colliderEvents}>
+        <CuboidCollider args={[hx, hy, hz]} position={[ox, oy, oz]} sensor={trig} />
         {mesh}
       </RigidBody>
     );
@@ -1964,7 +2008,7 @@ function SimScene({ objects, transforms, myAssets, player }: {
   const allObjectsRef = useRef<MapObject[]>([]);
   useEffect(() => { allObjectsRef.current = allObjects; }, [allObjects]);
   // VM 재생성 키 — 원본 objects 의 script + components 변경 추적
-  const scriptsKey = objects.map(o => o.id + '|' + (o.script ?? '') + '|' + JSON.stringify(o.components ?? [])).join(',');
+  const scriptsKey = objects.map(o => o.id + '|' + (o.script ?? '') + '|' + JSON.stringify(o.components ?? []) + '|' + JSON.stringify(o.scriptVars ?? {})).join(',');
 
   useEffect(() => {
     const scripted = objects.filter(o => o.script);
@@ -2105,7 +2149,7 @@ function SimScene({ objects, transforms, myAssets, player }: {
       };
 
       luaScripts.current.set(obj.id, vm);
-      vm.init(obj.script!, objectAPI, worldAPI, netAPI);
+      vm.init(obj.script!, objectAPI, worldAPI, netAPI, undefined, obj.scriptVars);
       vm.callStart(); // 스튜디오는 단일 클라 — 즉시 시작
     }
 
@@ -2258,7 +2302,8 @@ function SimScene({ objects, transforms, myAssets, player }: {
           continue;
         }
         const vm2 = new JsScript2();
-        vm2.init(def.code, objAPI, worldAPI2, netAPI2, inst.props ?? {});
+        // props 를 props 글로벌 + 변수 오버라이드 둘 다로 전달 → 코드에서 props.speed 또는 let speed 둘 다 동작
+        vm2.init(def.code, objAPI, worldAPI2, netAPI2, inst.props ?? {}, inst.props ?? {});
         vm2.callStart();
         vms.push({ vm: vm2 });
       }
@@ -2276,13 +2321,26 @@ function SimScene({ objects, transforms, myAssets, player }: {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scriptsKey, scriptCompsLoaded]);
 
+  // 콜라이더 충돌/트리거 이벤트 → 해당 오브젝트의 메인 스크립트 + user 컴포넌트 스크립트로 디스패치
+  const dispatchColliderEvent = useCallback((objId: string, otherId: string, kind: ColliderEventKind) => {
+    const fire = (vm: import('@/lib/world/jsRuntime').JsScript) => {
+      if (kind === 'triggerEnter') vm.callTriggerEnter(otherId);
+      else if (kind === 'triggerExit') vm.callTriggerExit(otherId);
+      else if (kind === 'collisionEnter') vm.callCollisionEnter(otherId);
+      else vm.callCollisionExit(otherId);
+    };
+    const main = luaScripts.current.get(objId); if (main) fire(main);
+    componentScripts.current.get(objId)?.forEach(({ vm }) => fire(vm));
+  }, []);
+
   return (
     <>
       <SimScriptLoop luaScripts={luaScripts} componentScripts={componentScripts} worldElapsed={worldElapsed}
         allObjectsRef={allObjectsRef} scriptBodyRefs={scriptBodyRefs} lightRefs={lightRefs} />
       {allObjects.map(obj => (
         <SimObject key={obj.id} obj={obj} transforms={transforms}
-          myAssets={myAssets} scriptBodyRefs={scriptBodyRefs} lightRefs={lightRefs} />
+          myAssets={myAssets} scriptBodyRefs={scriptBodyRefs} lightRefs={lightRefs}
+          onColliderEvent={dispatchColliderEvent} />
       ))}
       {/* 파티클 레이어 — 빈 오브젝트 포함 모든 kind. 물리 바디 밖에 두어 충돌에 영향 X */}
       {allObjects.filter(o => o.components?.some(c => c.type === 'particle')).map(obj => {
@@ -3242,6 +3300,7 @@ export default function StudioCanvas() {
       lightPenumbra:   typeof o.lightPenumbra === 'number'  ? o.lightPenumbra  : undefined,
       castShadow:      typeof o.castShadow === 'boolean'    ? o.castShadow     : undefined,
       script:          typeof o.script === 'string' ? o.script : undefined,
+      scriptVars:      o.scriptVars && typeof o.scriptVars === 'object' ? o.scriptVars : undefined,
     }));
     setObjects(prev => {
       const next = mode === 'replace' ? normalized : [...prev, ...normalized];

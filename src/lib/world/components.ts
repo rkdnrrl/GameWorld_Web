@@ -77,6 +77,7 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'offsetX', label: '오프셋 X', type: 'number', default: 0, step: 0.1 },
       { key: 'offsetY', label: '오프셋 Y', type: 'number', default: 0, step: 0.1 },
       { key: 'offsetZ', label: '오프셋 Z', type: 'number', default: 0, step: 0.1 },
+      { key: 'trigger', label: '트리거(센서) — 막지 않고 통과, 닿으면 onTriggerEnter', type: 'boolean', default: false },
     ],
   },
   {

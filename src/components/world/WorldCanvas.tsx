@@ -1786,6 +1786,8 @@ interface UserMapObject {
   components?: import('@/lib/world/components').ComponentInstance[];
   // JavaScript 스크립트
   script?: string;
+  // 스크립트 인스펙터 변수 오버라이드 (유니티 직렬화 필드처럼)
+  scriptVars?: Record<string, number | string | boolean>;
 }
 
 /* 머티리얼 프리셋 정의 (PBR 파라미터) */
@@ -1918,7 +1920,14 @@ function computeWorldTRS(obj: UserMapObject, byId: Map<string, UserMapObject>): 
   return { position: [p.x, p.y, p.z], rotation: [e.x, e.y, e.z], scale: [s.x, s.y, s.z] };
 }
 
-function UserMapObjectMesh({ obj, scriptBodyRefs, world }: {
+/** 콜라이더 충돌/트리거 이벤트 종류 */
+type ColliderEventKind = 'triggerEnter' | 'triggerExit' | 'collisionEnter' | 'collisionExit';
+/** rapier 충돌 페이로드에서 상대 오브젝트 id 추출 (오브젝트는 userData.objectId, 그 외=플레이어로 간주) */
+function colliderOtherId(p: { other: { rigidBodyObject?: THREE.Object3D | null } }): string {
+  return (p.other.rigidBodyObject?.userData as { objectId?: string } | undefined)?.objectId ?? 'player';
+}
+
+function UserMapObjectMesh({ obj, scriptBodyRefs, world, onColliderEvent }: {
   obj: UserMapObject;
   scriptBodyRefs?: React.MutableRefObject<Map<string, {
     body: React.MutableRefObject<RapierBodyApi | null>;
@@ -1926,6 +1935,7 @@ function UserMapObjectMesh({ obj, scriptBodyRefs, world }: {
   }>>;
   // 부모 변환이 합성된 월드 TRS. 자식이면 전달됨. 루트면 undefined → local 사용.
   world?: { position: [number,number,number]; rotation: [number,number,number]; scale: [number,number,number] };
+  onColliderEvent?: (objId: string, otherId: string, kind: ColliderEventKind) => void;
 }) {
   const rPos = world?.position ?? obj.position;
   const rRot = world?.rotation ?? obj.rotation;
@@ -1950,6 +1960,19 @@ function UserMapObjectMesh({ obj, scriptBodyRefs, world }: {
   const colliderOffset: [number, number, number] = colliderComp
     ? [Number(colliderComp.props?.offsetX ?? 0), Number(colliderComp.props?.offsetY ?? 0), Number(colliderComp.props?.offsetZ ?? 0)]
     : [0, 0, 0];
+  // 트리거(센서) 여부 + 충돌/트리거 이벤트 → 이 오브젝트 스크립트로 디스패치 (유니티 OnTriggerEnter/OnCollisionEnter)
+  const trig = !!colliderComp?.props?.trigger;
+  type Hit = { other: { rigidBodyObject?: THREE.Object3D | null } };
+  const colliderEvents: {
+    onIntersectionEnter?: (p: Hit) => void; onIntersectionExit?: (p: Hit) => void;
+    onCollisionEnter?: (p: Hit) => void; onCollisionExit?: (p: Hit) => void;
+  } = (colliderComp && onColliderEvent)
+    ? (trig
+        ? { onIntersectionEnter: (p) => onColliderEvent(obj.id, colliderOtherId(p), 'triggerEnter'),
+            onIntersectionExit:  (p) => onColliderEvent(obj.id, colliderOtherId(p), 'triggerExit') }
+        : { onCollisionEnter: (p) => onColliderEvent(obj.id, colliderOtherId(p), 'collisionEnter'),
+            onCollisionExit:  (p) => onColliderEvent(obj.id, colliderOtherId(p), 'collisionExit') })
+    : {};
   // 스크립트 있는 오브젝트는 ref를 registry에 등록
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bodyRef = useRef<any>(null);
@@ -2007,8 +2030,8 @@ function UserMapObjectMesh({ obj, scriptBodyRefs, world }: {
       );
     }
     return (
-      <RigidBody ref={bodyRef} type={bodyType} colliders={colliderArgs ? false : (physics === 'dynamic' ? 'hull' : 'trimesh')} position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }}>
-        {colliderArgs && <CuboidCollider args={colliderArgs} position={colliderOffset} />}
+      <RigidBody ref={bodyRef} type={bodyType} colliders={colliderArgs ? false : (physics === 'dynamic' ? 'hull' : 'trimesh')} position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }} {...colliderEvents}>
+        {colliderArgs && <CuboidCollider args={colliderArgs} position={colliderOffset} sensor={trig} />}
         <UserAsset url={obj.assetUrl} matObj={obj} />
       </RigidBody>
     );
@@ -2023,8 +2046,8 @@ function UserMapObjectMesh({ obj, scriptBodyRefs, world }: {
   }
   const colliders = obj.kind === 'sphere' ? 'ball' : 'cuboid';
   return (
-    <RigidBody ref={bodyRef} type={bodyType} colliders={colliderArgs ? false : colliders} position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }}>
-      {colliderArgs && <CuboidCollider args={colliderArgs} />}
+    <RigidBody ref={bodyRef} type={bodyType} colliders={colliderArgs ? false : colliders} position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }} {...colliderEvents}>
+      {colliderArgs && <CuboidCollider args={colliderArgs} sensor={trig} />}
       <PrimitiveMesh obj={obj} shape={shape} />
     </RigidBody>
   );
@@ -2441,6 +2464,17 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const luaScripts = useRef<Map<string, import('@/lib/world/jsRuntime').JsScript>>(new Map());
   // 유저 정의 컴포넌트 — objectId → 부착된 VM 들 (오브젝트당 여러 부착 가능)
   const componentScripts = useRef<Map<string, Array<{ vm: import('@/lib/world/jsRuntime').JsScript; key: string }>>>(new Map());
+  // 콜라이더 충돌/트리거 이벤트 → 해당 오브젝트의 메인 스크립트 + user 컴포넌트 스크립트로 디스패치
+  const dispatchColliderEvent = useCallback((objId: string, otherId: string, kind: ColliderEventKind) => {
+    const fire = (vm: import('@/lib/world/jsRuntime').JsScript) => {
+      if (kind === 'triggerEnter') vm.callTriggerEnter(otherId);
+      else if (kind === 'triggerExit') vm.callTriggerExit(otherId);
+      else if (kind === 'collisionEnter') vm.callCollisionEnter(otherId);
+      else vm.callCollisionExit(otherId);
+    };
+    const main = luaScripts.current.get(objId); if (main) fire(main);
+    componentScripts.current.get(objId)?.forEach(({ vm }) => fire(vm));
+  }, []);
   // 유저 정의 컴포넌트 코드 캐시 — id → ScriptComponent (코드/이름)
   const scriptComponentDefsRef = useRef<Map<string, import('@/lib/api').ScriptComponent>>(new Map());
   // 컴포넌트 코드 변경 감지용 (state — 변경되면 VM 재생성 트리거)
@@ -3013,7 +3047,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         sendTo: (pid, event, data) => sendScriptEvent?.(obj.id, event, data, pid),
       };
       luaScripts.current.set(obj.id, vm);
-      vm.init(obj.script!, objectAPI, worldAPI, netAPI);
+      vm.init(obj.script!, objectAPI, worldAPI, netAPI, undefined, obj.scriptVars);
       if (hostId !== null) vm.callStart();
       else pendingStartRef.current.add(vm);
     }
@@ -3048,7 +3082,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           continue;
         }
         const vm2 = new JsScript();
-        vm2.init(def.code, objAPI, worldAPI, userNetAPI, inst.props ?? {});
+        // props 를 props 글로벌 + 변수 오버라이드 둘 다로 전달 → 코드에서 props.speed 또는 let speed 둘 다 동작
+        vm2.init(def.code, objAPI, worldAPI, userNetAPI, inst.props ?? {}, inst.props ?? {});
         if (hostId !== null) vm2.callStart();
         else pendingStartRef.current.add(vm2);
         vms.push({ vm: vm2, key: `${obj.id}::${idx}::${compId}` });
@@ -3259,7 +3294,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                   .map(obj => (
                     <UserMapObjectMesh key={obj.id} obj={obj}
                       world={obj.parentId ? computeWorldTRS(obj, byId) : undefined}
-                      scriptBodyRefs={scriptBodyRefs} />
+                      scriptBodyRefs={scriptBodyRefs} onColliderEvent={dispatchColliderEvent} />
                   ));
                 // 파티클 레이어 — 빈 오브젝트 포함 모든 kind (물리 바디 밖, 메시 렌더와 별개)
                 const particles = list

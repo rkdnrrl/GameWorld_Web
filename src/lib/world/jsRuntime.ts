@@ -32,6 +32,12 @@
  *   function onNetEvent(event, data, fromId)
  *   function onGrab(grabberId)      — 누가 1인칭에서 이 오브젝트를 잡았을 때
  *   function onRelease(grabberId)   — 잡힌 상태에서 풀려났을 때
+ *   function onTriggerEnter(otherId) / onTriggerExit(otherId)     — Collider(trigger=on)에 들어옴/나감. otherId='player' 또는 오브젝트 id
+ *   function onCollisionEnter(otherId) / onCollisionExit(otherId) — Collider(trigger=off) 단단한 충돌 시작/끝
+ *
+ * 인스펙터 변수 (유니티 직렬화 필드처럼):
+ *   top-level `let speed = 5;` 처럼 리터럴(숫자/문자열/불리언)로 선언하면 인스펙터에 자동 노출되어
+ *   값을 조정할 수 있다. 코드의 값은 기본값, 인스펙터 값이 우선. (`_`로 시작하면 숨김)
  *
  * 안전 장치:
  *   - 무한 루프 방지 (반복문당 최대 10,000회)
@@ -857,7 +863,7 @@ export class JsScript {
   readonly logs: string[] = [];
   readonly errors: string[] = [];
 
-  init(source: string, obj: JsObjectAPI, worldApi: JsWorldAPI, netApi: JsNetAPI, props?: Record<string, unknown>): void {
+  init(source: string, obj: JsObjectAPI, worldApi: JsWorldAPI, netApi: JsNetAPI, props?: Record<string, unknown>, vars?: Record<string, unknown>): void {
     try {
       const print = (...args: unknown[]) => {
         const line = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
@@ -986,6 +992,15 @@ export class JsScript {
       const parser = new Parser(tokens);
       const program = parser.parseProgram();
       this.interp.run(program);
+      // 인스펙터에서 설정한 변수 오버라이드 — 스크립트가 선언한 top-level 변수 기본값 위에 덮어씀.
+      // (유니티의 직렬화 필드처럼: 코드의 기본값 vs 인스펙터에서 조정한 값)
+      if (vars) {
+        for (const k of Object.keys(vars)) {
+          if (this.interp.globalEnv.has(k)) {
+            try { this.interp.globalEnv.set(k, vars[k]); } catch { /* ignore */ }
+          }
+        }
+      }
       this.ready = true;
     } catch (e) {
       const msg = String((e as Error).message ?? e);
@@ -1050,8 +1065,62 @@ export class JsScript {
     }
   }
 
+  /** 트리거(센서) 콜라이더에 다른 것이 들어옴/나감 — 유니티 OnTriggerEnter/Exit */
+  callTriggerEnter(otherId: string): void { this.dispatch('onTriggerEnter', [otherId]); }
+  callTriggerExit(otherId: string): void { this.dispatch('onTriggerExit', [otherId]); }
+  /** 단단한 콜라이더 충돌 시작/끝 — 유니티 OnCollisionEnter/Exit */
+  callCollisionEnter(otherId: string): void { this.dispatch('onCollisionEnter', [otherId]); }
+  callCollisionExit(otherId: string): void { this.dispatch('onCollisionExit', [otherId]); }
+
+  /** 사용자 정의 이벤트 함수가 있으면 호출 (없으면 무시). 에러는 중복 없이 누적. */
+  private dispatch(fnName: string, args: unknown[]): void {
+    if (!this.ready || !this.interp) return;
+    try {
+      this.interp.callFunction(fnName, args);
+    } catch (e) {
+      const msg = String((e as Error).message ?? e);
+      if (!this.errors.includes(msg)) this.errors.push(msg);
+    }
+  }
+
   destroy(): void {
     this.interp = null;
     this.ready = false;
+  }
+}
+
+/* ─────────────────────────────────────────────
+   인스펙터 변수 추출 — 스크립트의 top-level 변수(리터럴 초기값)를
+   유니티의 직렬화 필드처럼 인스펙터에 노출하기 위한 메타데이터.
+   예) `let speed = 5;`  → { key:'speed', type:'number', default:5 }
+       `let name = "go";` → { key:'name',  type:'string', default:'go' }
+       `let on = true;`    → { key:'on',    type:'boolean', default:true }
+   - 초기값이 리터럴(숫자/문자열/불리언)인 것만 노출 (계산식·함수는 제외).
+   - `_` 로 시작하는 이름은 비공개로 간주해 제외.
+   ───────────────────────────────────────────── */
+export interface ScriptVarDef {
+  key: string;
+  type: 'number' | 'string' | 'boolean';
+  default: number | string | boolean;
+}
+
+export function extractScriptVars(source: string): ScriptVarDef[] {
+  if (!source || !source.trim()) return [];
+  try {
+    const program = new Parser(tokenize(source)).parseProgram();
+    const out: ScriptVarDef[] = [];
+    const seen = new Set<string>();
+    for (const stmt of (program.body as Node[])) {
+      if (!stmt || stmt.type !== 'VarDecl') continue;
+      const name: string = stmt.name;
+      const v = stmt.value;
+      if (!name || name.startsWith('_') || seen.has(name) || !v) continue;
+      if (v.type === 'Num')       { out.push({ key: name, type: 'number',  default: Number(v.value) });   seen.add(name); }
+      else if (v.type === 'Str')  { out.push({ key: name, type: 'string',  default: String(v.value) });   seen.add(name); }
+      else if (v.type === 'Bool') { out.push({ key: name, type: 'boolean', default: Boolean(v.value) }); seen.add(name); }
+    }
+    return out;
+  } catch {
+    return [];
   }
 }
