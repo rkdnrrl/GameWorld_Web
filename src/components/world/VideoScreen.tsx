@@ -172,12 +172,11 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
   const src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=1&rel=0&playsinline=1`;
   // occlude="blending": 깊이 버퍼 기반 가림 — 앞에 있는 오브젝트(캐릭터/벽 등)가 영상을
   // 픽셀 단위로 정상적으로 가림. (raycast 방식은 중심이 가려지면 통째로 사라져서 부적합)
-  // occlude="blending" → 깊이 가림(앞 오브젝트가 영상을 가림).
-  // 수동 pointerEvents 가 drei 의 occlude 클릭관리를 덮어쓰므로 클릭 동작은 그대로 유지:
-  //  - 래퍼=none → 빈 곳·바닥 클릭은 캔버스로 통과 → 포인터락(커서 숨김+회전)
-  //  - iframe=auto → 영상 영역 클릭은 iframe 이 잡음(커서 유지 + YouTube 조작)
+  // 래퍼(Html)=pointerEvents:none → 빈 곳·바닥 클릭은 캔버스로 통과 → 포인터락(커서 숨김+회전).
+  // iframe=auto → 영상 영역만 클릭 잡음(커서 유지 + YouTube 조작) + elementFromPoint 로 크로스헤어 감지 가능.
+  // ※ occlude 는 iframe pointerEvents 를 drei 가 자체 관리해 포인터락·크로스헤어 감지를 깨므로 사용 안 함.
   return (
-    <Html transform occlude="blending" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center style={{ pointerEvents: 'none' }}>
+    <Html transform position={[0, 0, 0.05]} scale={[sx, sy, 1]} center style={{ pointerEvents: 'none' }}>
       <iframe
         ref={iframeRef}
         data-yt-screen=""
