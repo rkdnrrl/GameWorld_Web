@@ -12,7 +12,7 @@
  *
  * 파일영상과 YouTube 를 같은 VideoHandle 인터페이스로 묶어 동기화 코드를 공유.
  */
-import { createContext, useContext, useEffect, useMemo, useRef } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -163,6 +163,17 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
     return () => window.removeEventListener('pointerdown', onGesture);
   }, [withSound]);
 
+  // 포인터락 상태 추적 — 락 중(마우스 숨김)이면 클릭을 캔버스로 통과(카메라 조작),
+  // 락 해제(마우스 보임)면 iframe 클릭 가능(YouTube 컨트롤).
+  const [locked, setLocked] = useState(false);
+  useEffect(() => {
+    const onChange = () => setLocked(!!document.pointerLockElement);
+    document.addEventListener('pointerlockchange', onChange);
+    onChange();
+    return () => document.removeEventListener('pointerlockchange', onChange);
+  }, []);
+  const pe: 'none' | 'auto' = locked ? 'none' : 'auto';
+
   // drei <Html transform> 의 px→월드 환산이 작아서(scale 1 에서 640px ≈ 64유닛, 경험치).
   // 가로·세로 각각 평면 크기에 맞춰 비균등 스케일 → iframe 이 평면을 꽉 채움(16:9 아니어도).
   // 전체가 안 맞으면 PX_TO_UNIT 만 조절.
@@ -172,10 +183,10 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
   const src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=1&rel=0&playsinline=1`;
   // occlude="blending": 깊이 버퍼 기반 가림 — 앞에 있는 오브젝트(캐릭터/벽 등)가 영상을
   // 픽셀 단위로 정상적으로 가림. (raycast 방식은 중심이 가려지면 통째로 사라져서 부적합)
-  // pointerEvents:none — 영상 위를 클릭해도 캔버스로 통과 → 1인칭 포인터락/카메라 회전 정상.
-  // (YT 컨트롤 직접 클릭은 막히지만 1인칭에선 어차피 불가, 자동재생+동기화로 충분)
+  // 락 중이면 pointerEvents:none → 클릭이 캔버스로 통과(카메라 회전). 락 해제면 auto → YT 컨트롤 클릭 가능.
+  // (락 걸려면 영상 아닌 빈 곳을 클릭, 영상 클릭은 YT 조작)
   return (
-    <Html transform occlude="blending" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center style={{ pointerEvents: 'none' }}>
+    <Html transform occlude="blending" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center style={{ pointerEvents: pe }}>
       <iframe
         ref={iframeRef}
         width={YT_IFRAME_W}
@@ -185,7 +196,7 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
         frameBorder={0}
         allow="autoplay; encrypted-media; picture-in-picture"
         allowFullScreen
-        style={{ border: 'none', display: 'block', background: '#000', pointerEvents: 'none' }}
+        style={{ border: 'none', display: 'block', background: '#000', pointerEvents: pe }}
       />
     </Html>
   );
