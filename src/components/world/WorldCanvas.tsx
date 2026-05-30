@@ -23,7 +23,7 @@ import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
-import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, VideoControlBar, VideoRemotePanel, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
+import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, VideoRemotePanel, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
 import { createGameRuntime, GAME_SYNC_EVENT, GAME_SOUND_EVENT, type GameSnapshot } from '@/lib/world/gameRuntime';
 import GameHud from './GameHud';
 
@@ -3464,23 +3464,6 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             fontFamily: 'inherit', fontSize: 10.5, fontWeight: 700,
           }}>Tab</kbd>
           마우스 커서 켜기/끄기 (버튼·UI 클릭 ↔ 화면 회전)
-        </div>
-      )}
-
-      {/* 영상 컨트롤 바 — 영상 화면이 있을 때만. 스크러버/재생·정지/±5초/URL. 동기화(__videoctl__).
-          화면 자체는 비상호작용이라 이 바로만 조작. 클릭하려면 Tab 으로 커서를 켤 것. */}
-      {customObjects?.some(o => o.videoUrl) && !chatInputActive && (
-        <div style={{ position: 'fixed', bottom: 16, left: 16, pointerEvents: 'auto', zIndex: 1001 }}>
-          <VideoControlBar
-            registry={videoRegistry}
-            onSeekBy={(d) => runVideoControl({ seekBy: d })}
-            onSeekTo={(t) => runVideoControl({ seekTo: t })}
-            onTogglePlay={(p) => runVideoControl({ playing: p })}
-            onChangeUrl={() => {
-              const url = window.prompt('새 유튜브 URL (또는 영상 파일 URL)', '');
-              if (url && url.trim()) runVideoControl({ url: url.trim() });
-            }}
-          />
         </div>
       )}
 

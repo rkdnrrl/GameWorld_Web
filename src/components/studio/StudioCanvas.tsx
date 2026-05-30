@@ -15,7 +15,7 @@ import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { createGameRuntime } from '@/lib/world/gameRuntime';
 import GameHud from '@/components/world/GameHud';
-import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, VideoScreenCtx, parseYouTubeId, VideoControlBar, VideoRemotePanel, type VideoRegistry, type VideoHandle } from '@/components/world/VideoScreen';
+import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, VideoScreenCtx, parseYouTubeId, VideoRemotePanel, type VideoRegistry, type VideoHandle } from '@/components/world/VideoScreen';
 import AiGuideModal from './AiGuideModal';
 import StudioTopBar from './StudioTopBar';
 import StudioShortcutsModal from './StudioShortcutsModal';
@@ -5897,18 +5897,6 @@ export default function StudioCanvas() {
 
         {/* 게임 HUD — 스크립트 ui.text/ui.bar 가 그림. 시뮬레이션 중에만 뷰포트 위에 오버레이. */}
         {simulating && <GameHud runtime={simGameRuntime} />}
-
-        {/* 영상 컨트롤 바 — 시뮬 중 영상 화면이 있으면 (스크러버/재생·정지/±5초, 로컬 조작) */}
-        {simulating && objects.some(o => o.videoUrl) && (
-          <div style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 16, pointerEvents: 'auto' }}>
-            <VideoControlBar
-              registry={simVideoRegistry}
-              onSeekBy={(d) => runSimVideoControl({ seekBy: d })}
-              onSeekTo={(t) => runSimVideoControl({ seekTo: t })}
-              onTogglePlay={(p) => runSimVideoControl({ playing: p })}
-            />
-          </div>
-        )}
 
         {/* 1인칭 시뮬레이션 크로스헤어 — follow 모드 + 1인칭일 때만. idle=흰, aim=초록, grab=노랑 */}
         {simulating && simCharacter && simCamView === 'follow' && simCameraMode === 'first' && (

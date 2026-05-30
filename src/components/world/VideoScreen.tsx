@@ -288,9 +288,10 @@ export function VideoControlBar({ registry, targetId, onSeekBy, onSeekTo, onTogg
 
 /* ── 비디오 리모컨 — 씬에 놓는 3D 조작 패널 (videoRemote 컴포넌트). 오브젝트 위치에 떠서
    현재 영상 이름 + URL 변경 + 스크러버/재생을 보여줌. 특정 영상(targetId)만 조작.
-   부모 <group position> 안에 두면 그 위치에 앵커됨. <Html> 비-transform + distanceFactor 로
-   항상 정면·읽기 좋은 크기(거리에 따라 축소). 클릭 가능(pe auto). */
-export function VideoRemotePanel({ registry, targetId, videoUrl, onSeekBy, onSeekTo, onTogglePlay, onChangeUrl, distanceFactor = 8 }: {
+   부모 <group position> 안에 두면 그 위치에 앵커됨. <Html> 비-transform: 항상 정면·고정 크기라
+   거리와 무관하게 읽기/클릭 좋음. zIndexRange 를 최댓값에 고정(거리에 따라 안 변함) → 영상 화면
+   iframe(blending z-index ~8.3M)·다른 Html 보다 **항상 위로** 떠서 절대 안 가려짐. 클릭 가능(pe auto). */
+export function VideoRemotePanel({ registry, targetId, videoUrl, onSeekBy, onSeekTo, onTogglePlay, onChangeUrl }: {
   registry: VideoRegistry;
   targetId: string;
   videoUrl: string;
@@ -298,7 +299,6 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, onSeekBy, onSee
   onSeekTo: (t: number) => void;
   onTogglePlay: (play: boolean) => void;
   onChangeUrl: () => void;
-  distanceFactor?: number;
 }) {
   // 유튜브 제목 best-effort (oEmbed). url 과 함께 저장해, url 바뀌면 자동으로 폴백(파생값)으로.
   const [titled, setTitled] = useState<{ url: string; title: string }>({ url: '', title: '' });
@@ -320,7 +320,7 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, onSeekBy, onSee
   const shown = (titled.url === videoUrl && titled.title) || fallback;
 
   return (
-    <Html center distanceFactor={distanceFactor} zIndexRange={[20, 0]} style={{ pointerEvents: 'auto' }}>
+    <Html center zIndexRange={[16777271, 16777271]} style={{ pointerEvents: 'auto' }}>
       <div style={{
         display: 'flex', flexDirection: 'column', gap: 6, width: 280,
         background: 'rgba(10,12,20,0.82)', padding: 10, borderRadius: 12,
