@@ -3516,18 +3516,22 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         {cameraMode === 'first' ? '👁 1인칭' : '🎥 3인칭'} (V)
       </button>
 
+      {/* blending occlude 용 배경 — 캔버스가 투명(alpha)이라 이 div 가 대신 배경색 제공.
+          iframe 은 캔버스와 배경 사이(z-index 기준)에 위치하여 오브젝트에 가려짐. */}
+      <div style={{ position: 'fixed', inset: 0, background: showSky ? '#87ceeb' : '#0a0a0f', zIndex: -1 }} />
       <Canvas
         shadows={{ enabled: true, type: THREE.PCFShadowMap, autoUpdate: true }}
         camera={{ fov: 60, near: 0.3, far: graphics.farClip, position: [0, 8, 12] }}
         dpr={effectiveDpr}
         gl={{
-          antialias: true, // 항상 켬 (런타임 변경 시 WebGL 컨텍스트 손실)
+          alpha: true,
+          antialias: true,
           powerPreference: 'high-performance',
           stencil: false,
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 0.7,
         }}
-        style={{ width: '100vw', height: '100vh', display: 'block', background: showSky ? '#87ceeb' : '#0a0a0f', transform: 'translateZ(0)', willChange: 'transform' }}
+        style={{ width: '100vw', height: '100vh', display: 'block', transform: 'translateZ(0)', willChange: 'transform' }}
       >
         {/* 조명 — sceneSettings 기반 */}
         <ambientLight intensity={ambientIntensity} />

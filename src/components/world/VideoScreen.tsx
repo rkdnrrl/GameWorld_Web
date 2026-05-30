@@ -174,13 +174,15 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
   const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);   // 세로 → planeH
   // controls=0/disablekb=1/fs=0 → YouTube 자체 UI 제거(유저가 직접 못 건드림). 재생 제어는 별도 버튼이 IFrame API 로 함.
   const src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`;
-  // occlude="raycast": 오브젝트 순서(깊이)를 따름 — 앞 오브젝트(캐릭터/벽)가 화면 중심을 가리면 영상을
-  //   숨김(display:none). blending(픽셀 단위)은 캔버스에 솔리드 background 가 깔려 있어 작동 못 해서
-  //   raycast 로 전환(화면 전체 단위 가림). 영상 *파일*(VideoTexture)은 진짜 3D 메시라 자연히 픽셀 가림.
+  // occlude="blending": 깊이 버퍼 기반 픽셀 단위 가림 — 앞 오브젝트(캐릭터/벽)가 영상을 픽셀 정확히 가림.
+  //   동작 조건: 캔버스가 투명(gl alpha:true + CSS background 없음)이어야 occlusion mesh 의 alpha-0
+  //   구멍 사이로 뒤에 있는 iframe 이 보임. 캔버스에 솔리드 배경이 깔리면 구멍이 막혀 가림이 깨짐.
+  //   WorldCanvas 는 alpha:true + 별도 배경 div(z-index:-1) 로 이 조건을 충족함.
   // pointerEvents="none": iframe 을 완전 비상호작용(클릭 통과)으로 → 유저가 YouTube 를 못 건드리고,
   //   클릭은 그대로 캔버스로 통과해 포인터락(화면 회전)이 정상 동작. 조작은 별도 컨트롤 바가 담당.
+  // (주의: blending 은 캔버스 pointerEvents 를 none 으로 만들어 → WorldCanvas 가 매 프레임 auto 로 복원)
   return (
-    <Html transform occlude="raycast" pointerEvents="none" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center>
+    <Html transform occlude="blending" pointerEvents="none" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center>
       <iframe
         ref={iframeRef}
         width={YT_IFRAME_W}
