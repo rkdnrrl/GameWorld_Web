@@ -1758,7 +1758,11 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
   );
   if (obj.kind === 'dirlight') return (
     <directionalLight ref={lightRefCb} position={t.pos} color={obj.lightColor || '#ffffff'}
-      intensity={obj.lightIntensity ?? 1} castShadow={obj.castShadow ?? false} />
+      intensity={obj.lightIntensity ?? 1} castShadow={obj.castShadow ?? false}
+      shadow-mapSize={[2048, 2048]}
+      shadow-camera-left={-80} shadow-camera-right={80}
+      shadow-camera-top={80} shadow-camera-bottom={-80}
+      shadow-camera-near={0.1} shadow-camera-far={200} />
   );
   if (obj.kind === 'spotlight') return (
     <spotLight ref={lightRefCb} position={t.pos} color={obj.lightColor || '#ffffff'}
