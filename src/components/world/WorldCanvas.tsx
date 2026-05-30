@@ -3382,7 +3382,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         <ambientLight intensity={ambientIntensity} />
         {dirIntensity > 0 && (
           <directionalLight
-            position={[25, 40, 15]}
+            position={[20, 30, 10]}
             intensity={dirIntensity}
             castShadow={shadowsEnabled}
             shadow-mapSize={shadowMapSize}
@@ -3437,7 +3437,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         {shadowsEnabled && <ShadowUpdateThrottle hz={30} />}
         <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
 
-        {showSky && !hdriBackground && <Sky sunPosition={[25, 10, 15]} turbidity={0.4} rayleigh={0.25} />}
+        {/* 스튜디오 시뮬레이션과 동일한 Sky 파라미터(기본 turbidity/rayleigh) — WYSIWYG 일치 */}
+        {showSky && !hdriBackground && <Sky sunPosition={[20, 10, 10]} />}
         {/* HDRI 환경맵 — 커스텀 URL 우선, 없으면 프리셋, none 이면 미사용 */}
         {hdriUrl.trim() ? (
           <Environment files={hdriUrl.trim()} background={hdriBackground} />
