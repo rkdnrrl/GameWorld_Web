@@ -19,10 +19,13 @@
 
 export interface HudElement {
   id: string;
-  type: 'text' | 'bar';
+  type: 'text' | 'bar' | 'image';
   text?: string;
   value?: number;     // bar: 현재값
   max?: number;       // bar: 최대값
+  url?: string;       // image: 이미지 URL
+  w?: number;         // image: 가로 px
+  h?: number;         // image: 세로 px
   x: number;          // 0~1 화면 가로 비율 (앵커)
   y: number;          // 0~1 화면 세로 비율 (앵커)
   size?: number;      // text: 폰트 px / bar: 높이 px
@@ -30,6 +33,16 @@ export interface HudElement {
   bg?: string;        // 배경(text) / 바 트랙색(bar)
   align?: 'left' | 'center' | 'right';
 }
+
+/** 멀티 동기화용 — 호스트가 전원에게 보내는 상태+HUD 전체 스냅샷. */
+export interface GameSnapshot {
+  state: Array<[string, unknown]>;
+  hud: HudElement[];
+}
+
+/** 멀티 동기화 스크립트 이벤트 (sendScriptEvent 채널, objectId 는 '__game__' 센티넬). */
+export const GAME_SYNC_EVENT = '__gamesync__';   // 호스트→전원: 상태+HUD 스냅샷
+export const GAME_SOUND_EVENT = '__gamesound__'; // 호스트→전원: 사운드 재생
 
 /** 스크립트 런타임에 주입되는 게임 API (jsRuntime 이 game/ui/world.playSound 로 감싸 노출). */
 export interface JsGameAPI {
@@ -50,41 +63,72 @@ export interface GameRuntimeStore {
   subscribe(listener: () => void): () => void;
   /** 시뮬레이션 시작/종료 시 상태·HUD 초기화. */
   reset(): void;
+  // ── 멀티 동기화 (월드 호스트만 사용; 스튜디오 시뮬은 안 씀) ──
+  /** 마지막 takeSnapshot 이후 상태/HUD 가 바뀌었는지. */
+  isDirty(): boolean;
+  /** 강제로 dirty 표시 (새 플레이어 입장 시 재전송용). */
+  markDirty(): void;
+  /** 현재 상태+HUD 스냅샷 반환 + dirty 클리어 (호스트 broadcast). */
+  takeSnapshot(): GameSnapshot;
+  /** 수신한 스냅샷 적용 — 상태+HUD 교체, 재전송 안 함 (비호스트). */
+  applySnapshot(snap: GameSnapshot): void;
+  /** 수신한 사운드 로컬 재생 (비호스트). */
+  playRemoteSound(url: string, opts?: { volume?: number; loop?: boolean }): void;
 }
 
-/** 게임 상태 + HUD + 사운드를 담는 스토어 1개 생성 (월드/시뮬당 1개). */
-export function createGameRuntime(): GameRuntimeStore {
+/**
+ * 게임 상태 + HUD + 사운드를 담는 스토어 1개 생성 (월드/시뮬당 1개).
+ * opts.onSound: 스크립트가 world.playSound 를 호출할 때마다 불림 — 호스트가 전원에게 broadcast 하는 용도.
+ *   (비호스트는 스크립트가 안 도므로 playSound 가 안 불림 → onSound 도 안 불림.)
+ */
+export function createGameRuntime(opts?: {
+  onSound?: (url: string, o?: { volume?: number; loop?: boolean }) => void;
+}): GameRuntimeStore {
   const state = new Map<string, unknown>();
   const hud = new Map<string, HudElement>();
   const listeners = new Set<() => void>();
+  let dirty = false;
   const notify = () => { for (const l of listeners) l(); };
+
+  const playLocal = (url: string, o?: { volume?: number; loop?: boolean }) => {
+    if (!url || typeof window === 'undefined') return;
+    try {
+      const a = new Audio(url);
+      a.volume = Math.max(0, Math.min(1, o?.volume ?? 1));
+      a.loop = Boolean(o?.loop);
+      a.play().catch(() => { /* 브라우저 자동재생 정책 — 사용자 제스처 후엔 정상 재생 */ });
+    } catch { /* noop */ }
+  };
 
   const api: JsGameAPI = {
     stateGet: (k) => state.get(k),
-    stateSet: (k, v) => { state.set(k, v); },
+    stateSet: (k, v) => { state.set(k, v); dirty = true; },
     stateAdd: (k, d) => {
       const v = (Number(state.get(k)) || 0) + (Number(d) || 0);
-      state.set(k, v);
+      state.set(k, v); dirty = true;
       return v;
     },
-    hudSet: (el) => { hud.set(el.id, el); notify(); },
-    hudClear: (id) => { if (hud.delete(id)) notify(); },
-    hudClearAll: () => { if (hud.size) { hud.clear(); notify(); } },
-    playSound: (url, opts) => {
-      if (!url || typeof window === 'undefined') return;
-      try {
-        const a = new Audio(url);
-        a.volume = Math.max(0, Math.min(1, opts?.volume ?? 1));
-        a.loop = Boolean(opts?.loop);
-        a.play().catch(() => { /* 브라우저 자동재생 정책 — 사용자 제스처 후엔 정상 재생 */ });
-      } catch { /* noop */ }
-    },
+    hudSet: (el) => { hud.set(el.id, el); dirty = true; notify(); },
+    hudClear: (id) => { if (hud.delete(id)) { dirty = true; notify(); } },
+    hudClearAll: () => { if (hud.size) { hud.clear(); dirty = true; notify(); } },
+    playSound: (url, o) => { playLocal(String(url), o); opts?.onSound?.(String(url), o); },
   };
 
   return {
     api,
     getHud: () => hud,
     subscribe: (l) => { listeners.add(l); return () => { listeners.delete(l); }; },
-    reset: () => { state.clear(); hud.clear(); notify(); },
+    reset: () => { state.clear(); hud.clear(); dirty = true; notify(); },
+    isDirty: () => dirty,
+    markDirty: () => { dirty = true; },
+    takeSnapshot: () => { dirty = false; return { state: [...state.entries()], hud: [...hud.values()] }; },
+    applySnapshot: (snap) => {
+      state.clear();
+      for (const [k, v] of snap.state || []) state.set(k, v);
+      hud.clear();
+      for (const el of snap.hud || []) if (el && el.id) hud.set(el.id, el);
+      notify();
+    },
+    playRemoteSound: (url, o) => playLocal(String(url), o),
   };
 }

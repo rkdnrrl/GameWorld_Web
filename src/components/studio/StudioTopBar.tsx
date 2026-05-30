@@ -117,25 +117,30 @@ export default function StudioTopBar({
         {t('tbExit')}
       </button>
 
-      {/* 좌·우 패널 토글 — 상단 바에서 항상 접근 가능 */}
-      <button onClick={onToggleLeft} title="좌측 패널 (씬·도구)"
-        style={{
-          width: 32, height: 32, flexShrink: 0,
-          background: leftPanelOpen ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.06)',
-          border: `1px solid ${leftPanelOpen ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`,
-          borderRadius: 6, color: '#fff', fontSize: 14, cursor: 'pointer', fontWeight: 700,
-        }}>
-        ⬛◧
-      </button>
-      <button onClick={onToggleRight} title="우측 패널 (인스펙터)"
-        style={{
-          width: 32, height: 32, flexShrink: 0,
-          background: rightPanelOpen ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.06)',
-          border: `1px solid ${rightPanelOpen ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`,
-          borderRadius: 6, color: '#fff', fontSize: 14, cursor: 'pointer', fontWeight: 700,
-        }}>
-        ◨⬛
-      </button>
+      {/* 좌·우 패널 토글 — 한 쌍(뷰 컨트롤)으로 묶음 */}
+      <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+        <button onClick={onToggleLeft} title="좌측 패널 (씬·도구)"
+          style={{
+            width: 32, height: 32, flexShrink: 0,
+            background: leftPanelOpen ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.06)',
+            border: `1px solid ${leftPanelOpen ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`,
+            borderRadius: 6, color: '#fff', fontSize: 14, cursor: 'pointer', fontWeight: 700,
+          }}>
+          ⬛◧
+        </button>
+        <button onClick={onToggleRight} title="우측 패널 (인스펙터)"
+          style={{
+            width: 32, height: 32, flexShrink: 0,
+            background: rightPanelOpen ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.06)',
+            border: `1px solid ${rightPanelOpen ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`,
+            borderRadius: 6, color: '#fff', fontSize: 14, cursor: 'pointer', fontWeight: 700,
+          }}>
+          ◨⬛
+        </button>
+      </div>
+
+      {/* 뷰 컨트롤 ↔ 맵 이름/상태 구분 */}
+      <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.1)', flexShrink: 0 }} />
 
       <input
         value={name}

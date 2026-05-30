@@ -24,7 +24,7 @@ import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimati
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
-import { createGameRuntime } from '@/lib/world/gameRuntime';
+import { createGameRuntime, GAME_SYNC_EVENT, GAME_SOUND_EVENT, type GameSnapshot } from '@/lib/world/gameRuntime';
 import GameHud from './GameHud';
 
 const PLAYER_CAPSULE_HALF_HEIGHT = 0.35;
@@ -915,6 +915,13 @@ const _mob = {
 
 export type CameraMode = 'first' | 'third';
 
+/** 스크립트 플레이어 제어 핸들 — Player 가 등록, worldAPI(world.teleport/respawn/setSpeed/setJump) 가 호출. */
+export interface PlayerControl {
+  teleport: (x: number, y: number, z: number) => void;
+  setSpeed: (mult: number) => void;
+  setJump: (power: number) => void;
+}
+
 /* ── 로컬 플레이어 컨트롤러 ─────────────── */
 export function Player({
   character,
@@ -947,6 +954,8 @@ export function Player({
   onPortalEnter,
   firstPersonFov = 75,
   onObjectClick,
+  playerCtlRef,
+  spawnRef,
 }: {
   character: Record<string, unknown>;
   bubble?: ChatBubble;
@@ -994,9 +1003,15 @@ export function Player({
   firstPersonFov?: number;
   /** 1인칭에서 정조준한 오브젝트를 좌클릭 시 호출 — 클릭 파티클 버스트 트리거 등 */
   onObjectClick?: (objectId: string) => void;
+  /** 스크립트 world.teleport/respawn/setSpeed/setJump 용 — Player 가 제어 함수를 등록. */
+  playerCtlRef?: React.MutableRefObject<PlayerControl | null>;
+  /** 현재 리스폰 지점 — world.setSpawn 으로 갱신. 낙사/respawn 시 여기로. */
+  spawnRef?: React.MutableRefObject<[number, number, number]>;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body      = useRef<any>(null);
+  const speedMulRef     = useRef(1);            // world.setSpeed — 이동 속도 배수
+  const jumpOverrideRef = useRef<number | null>(null);  // world.setJump — 점프력 덮어쓰기 (null=맵 기본)
   const mesh      = useRef<THREE.Group>(null);
   const portalTriggered = useRef(false);   // 같은 포탈 중복 발동 방지
   const lastPortalId    = useRef<string | null>(null);
@@ -1012,6 +1027,18 @@ export function Player({
   const lastPos  = useRef(new THREE.Vector3(spawnPos[0], spawnPos[1], spawnPos[2]));
   // 마운트 시 1회 — 카메라 H 회전을 스폰 포인트의 Y 회전으로 (마운트 후엔 마우스로 자유)
   useEffect(() => { _mob.camH = spawnRotY; /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  // 스크립트 world.teleport/respawn/setSpeed/setJump 용 — 자기 제어 함수를 등록.
+  useEffect(() => {
+    if (!playerCtlRef) return;
+    playerCtlRef.current = {
+      teleport: (x: number, y: number, z: number) => {
+        try { body.current?.setTranslation({ x, y, z }, true); } catch { /* noop */ }
+      },
+      setSpeed: (mult: number) => { speedMulRef.current = Number.isFinite(mult) ? Math.max(0, mult) : 1; },
+      setJump:  (power: number) => { jumpOverrideRef.current = Number.isFinite(power) ? power : null; },
+    };
+    return () => { if (playerCtlRef) playerCtlRef.current = null; };
+  }, [playerCtlRef]);
   // 현재 애니메이션 상태 (CustomModel이 참조)
   const animStateRef = useRef<AnimState>('idle');
   // 이모트(커스텀 애니메이션) 오버라이드 — idle 상태일 때만 적용
@@ -1264,11 +1291,12 @@ export function Player({
       // 상태 기반 속도
       const isCrouch = crouchRef.current;
       const isProne  = proneRef.current;
-      const SPEED    = isProne ? 1.0 : isCrouch ? 2.5 : sprint ? 9 : 5;
+      const SPEED    = (isProne ? 1.0 : isCrouch ? 2.5 : sprint ? 9 : 5) * speedMulRef.current;
 
       // 추락 방지: y가 너무 낮으면 스폰 위치로 복귀
       if (posT.y < -50) {
-        body.current.setTranslation({ x: spawnPos[0], y: spawnPos[1] + 1, z: spawnPos[2] }, true);
+        const sp = spawnRef?.current ?? spawnPos;   // world.setSpawn 으로 바뀐 체크포인트 우선
+        body.current.setTranslation({ x: sp[0], y: sp[1] + 1, z: sp[2] }, true);
         body.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
         return;
       }
@@ -1305,7 +1333,7 @@ export function Player({
       _mob.jumpQueued = false;
       if (jumpJustPressed && onGround && !isCrouch && !isProne) {
         // 점프력 = 맵 설정 (기본 7 m/s → 약 1.1m @ 중력 -22)
-        body.current.setLinvel({ x: vel.x, y: jumpPower, z: vel.z }, true);
+        body.current.setLinvel({ x: vel.x, y: jumpOverrideRef.current ?? jumpPower, z: vel.z }, true);
         // 애니메이션이 끊기지 않도록 최소 500ms 점프 상태 유지
         jumpHoldUntil.current = Date.now() + 500;
       }
@@ -1545,6 +1573,7 @@ export function Player({
       mass={1}
       lockRotations
       position={spawnPos}
+      userData={{ playerId: 'player' }}
       linearDamping={0.6}
       onCollisionEnter={(p) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1663,6 +1692,7 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow }: {
       type="kinematicPosition"
       colliders={false}
       position={initPos}
+      userData={{ playerId: player.id }}
     >
       <CapsuleCollider args={[PLAYER_CAPSULE_HALF_HEIGHT, PLAYER_CAPSULE_RADIUS]} />
       <group ref={meshRef} position={[0, PLAYER_MESH_Y, 0]}>
@@ -1980,7 +2010,9 @@ function computeWorldTRS(obj: UserMapObject, byId: Map<string, UserMapObject>): 
 type ColliderEventKind = 'triggerEnter' | 'triggerExit' | 'collisionEnter' | 'collisionExit';
 /** rapier 충돌 페이로드에서 상대 오브젝트 id 추출 (오브젝트는 userData.objectId, 그 외=플레이어로 간주) */
 function colliderOtherId(p: { other: { rigidBodyObject?: THREE.Object3D | null } }): string {
-  return (p.other.rigidBodyObject?.userData as { objectId?: string } | undefined)?.objectId ?? 'player';
+  // 오브젝트는 objectId, 플레이어는 playerId(per-player 제어용), 둘 다 없으면 'player' 폴백.
+  const ud = p.other.rigidBodyObject?.userData as { objectId?: string; playerId?: string } | undefined;
+  return ud?.objectId ?? ud?.playerId ?? 'player';
 }
 
 function UserMapObjectMesh({ obj, scriptBodyRefs, world, onColliderEvent }: {
@@ -2555,6 +2587,17 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spawnObjects.map(s => s.id).join(',')]);
 
+  // 플레이어 제어 — Player 가 텔레포트 함수를 등록(playerCtlRef), 리스폰 지점은 spawnRef(world.setSpawn 으로 갱신).
+  const playerCtlRef = useRef<PlayerControl | null>(null);
+  const spawnRef = useRef<[number, number, number]>(spawnPick.pos);
+  useEffect(() => { spawnRef.current = spawnPick.pos; }, [spawnPick]);
+  // per-player 제어 명령을 "내 로컬 플레이어"에 적용 (직접 호출 또는 __pctl__ 수신 시).
+  const applyPlayerCmd = useCallback((cmd: { t?: string; x?: number; y?: number; z?: number }) => {
+    if (cmd.t === 'tp') playerCtlRef.current?.teleport(Number(cmd.x), Number(cmd.y), Number(cmd.z));
+    else if (cmd.t === 'respawn') { const [x, y, z] = spawnRef.current; playerCtlRef.current?.teleport(x, y + 1, z); }
+    else if (cmd.t === 'setspawn') spawnRef.current = [Number(cmd.x), Number(cmd.y), Number(cmd.z)];
+  }, []);
+
   // ── JS 스크립트 관리 ──────────────────────────────────────
   // objectId → JsScript 인스턴스 (자체 구현 인터프리터). selected.script (메인 스크립트) 용.
   const luaScripts = useRef<Map<string, import('@/lib/world/jsRuntime').JsScript>>(new Map());
@@ -2567,7 +2610,12 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // 월드는 실제 재생(live) + 소리 ON(첫 클릭에 unmute) + 동기화 ON. (value 고정 → 재렌더 방지)
   const videoCtxValue = useMemo(() => ({ live: true, withSound: true, registry: videoRegistry }), []);
   // 게임 로직 레이어 — 스크립트의 game/ui/world.playSound 가 이 스토어로 들어옴. <GameHud> 가 그림.
-  const gameRuntime = useMemo(() => createGameRuntime(), []);
+  // onSound: 호스트가 사운드를 전원에게 broadcast (비호스트는 스크립트가 안 돌아 호출 안 됨).
+  // sendScriptEvent 는 stable(useCallback) 이라 스토어는 1회만 생성.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const gameRuntime = useMemo(() => createGameRuntime({
+    onSound: (url, o) => sendScriptEvent?.('__game__', GAME_SOUND_EVENT, { url, volume: o?.volume ?? 1, loop: !!o?.loop }),
+  }), []);
   // 비디오 URL 런타임 오버라이드 — 컨트롤 바에서 URL 변경 시(멀티 동기). objId→새 URL.
   const [videoUrlOverrides, setVideoUrlOverrides] = useState<Record<string, string>>({});
   // 컨트롤 바 동작 — 등록된 모든 비디오 스크린에 적용 + 다른 플레이어에게 broadcast(__videoctl__).
@@ -2713,6 +2761,25 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         if (typeof d.seekTo === 'number') videoRegistry.current.get(objectId)?.seek(d.seekTo);
         if (typeof d.playing === 'boolean') videoRegistry.current.get(objectId)?.setPlaying(d.playing);
         if (d.url) { const url = d.url; setVideoUrlOverrides(m => ({ ...m, [objectId]: url })); }
+        return;
+      }
+      // 게임 상태+HUD 스냅샷 — 호스트가 보낸 걸 비호스트가 반영 (HUD 표시)
+      if (event === GAME_SYNC_EVENT) {
+        if (isHostRef.current) return;            // 호스트는 권위자 — 자기 상태 유지
+        const snap = (data as { snap?: GameSnapshot }).snap;
+        if (snap) gameRuntime.applySnapshot(snap);
+        return;
+      }
+      // 게임 사운드 — 호스트가 친 사운드를 비호스트가 재생 (호스트는 이미 로컬 재생함)
+      if (event === GAME_SOUND_EVENT) {
+        if (isHostRef.current) return;
+        const d = data as { url?: string; volume?: number; loop?: boolean };
+        if (d.url) gameRuntime.playRemoteSound(d.url, { volume: d.volume, loop: d.loop });
+        return;
+      }
+      // 플레이어 제어 명령 — 호스트가 나를 타깃해 보낸 것. 내 로컬 플레이어에 적용.
+      if (event === '__pctl__') {
+        applyPlayerCmd(data as { t?: string; x?: number; y?: number; z?: number });
         return;
       }
       luaScripts.current.get(objectId)?.callNetEvent(event, data, fromId);
@@ -2931,6 +2998,19 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     }, 2000);
     return () => clearInterval(iv);
   }, [isHost, sendScriptEvent]);
+
+  // 호스트: 게임 상태+HUD 가 바뀌면 200ms 주기로 전원에게 스냅샷 broadcast → 비호스트도 HUD 표시.
+  useEffect(() => {
+    if (!isHost || !sendScriptEvent) return;
+    const iv = setInterval(() => {
+      if (gameRuntime.isDirty()) sendScriptEvent('__game__', GAME_SYNC_EVENT, { snap: gameRuntime.takeSnapshot() });
+    }, 200);
+    return () => clearInterval(iv);
+  }, [isHost, sendScriptEvent, gameRuntime]);
+
+  // 새 플레이어 입장(또는 본인이 호스트가 됨) 시 다음 틱에 스냅샷 재전송 → 늦게 들어온 사람도 현재 HUD 받음.
+  const playerCount = Object.keys(players).length;
+  useEffect(() => { if (isHost) gameRuntime.markDirty(); }, [isHost, playerCount, gameRuntime]);
 
   // 1인칭 클릭 핸들러 — 버스트는 본인 화면에서 즉시(로컬 피드백). onClick 스크립트는 호스트만
   // 권위적으로 실행하고, 비호스트면 호스트로 전달(__click__)해 호스트가 실행 → broadcast.
@@ -3241,6 +3321,18 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       },
       isHost: () => isHostRef.current,
       runtimeCount: () => runtimeObjectsRef.current.length,
+      // ── 플레이어 제어 (로컬 플레이어 = 호스트/솔로/시뮬) ──
+      teleportLocal: (x, y, z) => playerCtlRef.current?.teleport(x, y, z),
+      setSpawn: (x, y, z) => { spawnRef.current = [x, y, z]; },
+      respawnLocal: () => { const [x, y, z] = spawnRef.current; playerCtlRef.current?.teleport(x, y + 1, z); },
+      setPlayerSpeed: (m) => playerCtlRef.current?.setSpeed(m),
+      setPlayerJump: (p) => playerCtlRef.current?.setJump(p),
+      isPlayerId: (id) => id === playerId || id === 'player' || !!playersRef.current[id],
+      // 특정 플레이어 제어 — 본인이면 직접, 아니면 그 클라로 명령 라우팅(__pctl__ 타깃 전송).
+      controlPlayer: (id, cmd) => {
+        if (id === playerId || id === 'player' || id === '__sim_player__') applyPlayerCmd(cmd);
+        else sendScriptEvent?.('__pctl__', '__pctl__', cmd, id);
+      },
     };
 
     // 메인 스크립트 (obj.script) VM 생성
@@ -3585,7 +3677,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={handleObjectClick} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={handleObjectClick} playerCtlRef={playerCtlRef} spawnRef={spawnRef} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}

@@ -25,9 +25,12 @@ import type { JsGameAPI } from './gameRuntime';
  *   world.runtimeCount() → 현재 spawn 된 오브젝트 수 (멱등 spawn 가드)
  *   net.sendAll(event, data) / net.sendTo(playerId, event, data)
  *   world.playSound(url, {volume,loop})  — 오디오 재생
+ *   world.teleport(x,y,z) / world.respawn() / world.setSpawn(x,y,z)  — 플레이어 이동·리스폰·체크포인트
+ *   world.setSpeed(mult) / world.setJump(power)  — (로컬) 플레이어 이동속도·점프력
+ *   world.isPlayer(id) / world.teleportPlayer(id,x,y,z) / world.respawnPlayer(id) / world.setSpawnFor(id,x,y,z)  — 특정 플레이어(트리거 other) 제어, 멀티 라우팅
  *   game.get(key, default?) / game.set(key, value) / game.add(key, n=1)  — 전역 게임 상태(점수·체력 등)
  *   ui.text(id, text, {x,y,size,color,bg,align}) / ui.bar(id, value, max, {x,y,color,bg})  — 화면 HUD
- *   ui.clear(id) / ui.clearAll()
+ *   ui.image(id, url, {x,y,w,h}) / ui.clear(id) / ui.clearAll()
  *   print(...) / console.log(...)
  *   Math.sin / cos / abs / floor / ceil / round / random / PI / min / max / sqrt / pow / atan2
  *
@@ -854,6 +857,20 @@ export interface JsWorldAPI {
   isHost?(): boolean;
   /** 현재 씬에 있는 런타임(spawn) 오브젝트 개수 — "이미 spawn 됐는지" 가드로 사용. */
   runtimeCount?(): number;
+  /** 로컬 플레이어를 (x,y,z) 로 순간이동 (스튜디오 시뮬·솔로/호스트 기준). */
+  teleportLocal?(x: number, y: number, z: number): void;
+  /** 리스폰 지점(체크포인트) 설정 — 이후 respawn/낙사 시 여기로. */
+  setSpawn?(x: number, y: number, z: number): void;
+  /** 로컬 플레이어를 현재 리스폰 지점으로 보냄. */
+  respawnLocal?(): void;
+  /** 플레이어 이동 속도 배수 (1=기본, 2=2배). */
+  setPlayerSpeed?(mult: number): void;
+  /** 플레이어 점프력 (기본 7). */
+  setPlayerJump?(power: number): void;
+  /** id 가 플레이어인지 (트리거 other 가 플레이어인지 판별). */
+  isPlayerId?(id: string): boolean;
+  /** 특정 플레이어 제어 — 멀티에선 해당 클라로 라우팅. cmd: {t:'tp'|'respawn'|'setspawn', x?,y?,z?}. */
+  controlPlayer?(id: string, cmd: Record<string, unknown>): void;
 }
 
 export interface JsNetAPI {
@@ -946,6 +963,27 @@ export class JsScript {
         // world.playSound("https://.../boom.mp3", { volume:0.8, loop:false })
         playSound: (url: unknown, opts?: { volume?: number; loop?: boolean }) =>
           gameApi?.playSound(String(url), opts),
+        // ── 플레이어 제어 ── (스튜디오 시뮬·솔로/호스트 기준)
+        // world.teleport(0, 10, 0) — 플레이어를 그 위치로 순간이동
+        teleport: (x: unknown, y: unknown, z: unknown) =>
+          worldApi.teleportLocal?.(Number(x), Number(y), Number(z)),
+        // world.setSpawn(x,y,z) — 체크포인트(리스폰 지점) 설정. 이후 respawn()·낙사 시 여기로.
+        setSpawn: (x: unknown, y: unknown, z: unknown) =>
+          worldApi.setSpawn?.(Number(x), Number(y), Number(z)),
+        // world.respawn() — 현재 리스폰 지점으로 보냄
+        respawn: () => worldApi.respawnLocal?.(),
+        // world.setSpeed(2) — 이동 속도 2배 / world.setJump(12) — 점프력
+        setSpeed: (m: unknown) => worldApi.setPlayerSpeed?.(Number(m)),
+        setJump: (p: unknown) => worldApi.setPlayerJump?.(Number(p)),
+        // ── 특정 플레이어 제어 (멀티 per-player) ── 트리거 other 가 플레이어 id 임.
+        // world.isPlayer(other) — other 가 플레이어인지
+        isPlayer: (id: unknown) => worldApi.isPlayerId ? worldApi.isPlayerId(String(id)) : true,
+        // world.teleportPlayer(other, x,y,z) / world.respawnPlayer(other) / world.setSpawnFor(other, x,y,z)
+        teleportPlayer: (id: unknown, x: unknown, y: unknown, z: unknown) =>
+          worldApi.controlPlayer?.(String(id), { t: 'tp', x: Number(x), y: Number(y), z: Number(z) }),
+        respawnPlayer: (id: unknown) => worldApi.controlPlayer?.(String(id), { t: 'respawn' }),
+        setSpawnFor: (id: unknown, x: unknown, y: unknown, z: unknown) =>
+          worldApi.controlPlayer?.(String(id), { t: 'setspawn', x: Number(x), y: Number(y), z: Number(z) }),
       };
       // world.time을 항상 최신 값으로 → getter처럼 동작
       Object.defineProperty(world, 'time', {
@@ -987,6 +1025,14 @@ export class JsScript {
             size: o.size != null ? Number(o.size) : undefined,
             color: o.color != null ? String(o.color) : undefined,
             bg: o.bg != null ? String(o.bg) : undefined });
+        },
+        // ui.image("logo", "https://.../icon.png", {x:0.5,y:0.5,w:128,h:128})
+        image: (id: unknown, url: unknown, opts?: Record<string, unknown>) => {
+          const o = (opts && typeof opts === 'object') ? opts : {};
+          gameApi?.hudSet({ id: String(id), type: 'image', url: String(url),
+            x: numOr(o.x, 0.5), y: numOr(o.y, 0.5),
+            w: o.w != null ? Number(o.w) : undefined,
+            h: o.h != null ? Number(o.h) : undefined });
         },
         clear: (id: unknown) => { gameApi?.hudClear(String(id)); },
         clearAll: () => { gameApi?.hudClearAll(); },

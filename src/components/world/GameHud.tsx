@@ -5,7 +5,7 @@
  *  - 월드: 전체화면 fixed 래퍼 안
  *  - 스튜디오: position:relative 인 뷰포트 컨테이너 안
  */
-import { useEffect, useReducer } from 'react';
+import { useEffect, useReducer, type CSSProperties } from 'react';
 import type { GameRuntimeStore, HudElement } from '@/lib/world/gameRuntime';
 
 export default function GameHud({ runtime }: { runtime: GameRuntimeStore }) {
@@ -23,6 +23,19 @@ export default function GameHud({ runtime }: { runtime: GameRuntimeStore }) {
 function HudItem({ el }: { el: HudElement }) {
   const left = `${Math.max(0, Math.min(1, el.x)) * 100}%`;
   const top = `${Math.max(0, Math.min(1, el.y)) * 100}%`;
+
+  if (el.type === 'image') {
+    if (!el.url) return null;
+    const imgStyle: CSSProperties = {
+      position: 'absolute', left, top, transform: 'translate(-50%, -50%)',
+      width: el.w && el.w > 0 ? el.w : undefined,
+      height: el.h && el.h > 0 ? el.h : undefined,
+      maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain',
+      pointerEvents: 'none', userSelect: 'none',
+    };
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={el.url} alt="" style={imgStyle} />;
+  }
 
   if (el.type === 'bar') {
     const max = el.max && el.max > 0 ? el.max : 100;

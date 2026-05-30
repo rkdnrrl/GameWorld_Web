@@ -21,7 +21,7 @@ import StudioTopBar from './StudioTopBar';
 import StudioShortcutsModal from './StudioShortcutsModal';
 import ScriptComponentsModal from './ScriptComponentsModal';
 import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, type ComponentInstance, type ComponentType } from '@/lib/world/components';
-import { Player } from '@/components/world/WorldCanvas';
+import { Player, type PlayerControl } from '@/components/world/WorldCanvas';
 
 const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광', spawn: '스폰 포인트', empty: '빈 오브젝트' };
 const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲', pointlight: '💡', spotlight: '🔦', dirlight: '☀', spawn: '🎯', empty: '🔵' };
@@ -223,7 +223,7 @@ function ComponentsSection({
   };
 
   return (
-    <div style={{ marginBottom: 10 }}>
+    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)', marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
         <div style={{ fontSize: 10, opacity: 0.5, fontWeight: 700, letterSpacing: 0.5 }}>COMPONENTS</div>
         <button type="button" onClick={openPicker}
@@ -1824,7 +1824,9 @@ type ColliderEvents = {
 };
 /** rapier 충돌 페이로드에서 상대 오브젝트 id 추출 (오브젝트는 userData.objectId, 그 외=플레이어로 간주) */
 function colliderOtherId(p: ColliderHit): string {
-  return (p.other.rigidBodyObject?.userData as { objectId?: string } | undefined)?.objectId ?? 'player';
+  // 오브젝트는 objectId, 플레이어는 playerId(시뮬은 '__sim_player__'), 둘 다 없으면 'player'.
+  const ud = p.other.rigidBodyObject?.userData as { objectId?: string; playerId?: string } | undefined;
+  return ud?.objectId ?? ud?.playerId ?? 'player';
 }
 /** trigger 면 intersection(센서) 이벤트, 아니면 collision 이벤트를 오브젝트 스크립트로 디스패치 */
 function buildColliderEvents(objId: string, trig: boolean, onColliderEvent?: (objId: string, otherId: string, kind: ColliderEventKind) => void): ColliderEvents {
@@ -2096,6 +2098,16 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
 
   // 스크립트가 오브젝트를 제어하려고 참조하는 ref 레지스트리
   const scriptBodyRefs = useRef<Map<string, SimBodyRefs>>(new Map());
+  // 플레이어 제어 — world.teleport/respawn/setSpawn. Player 가 텔레포트 함수 등록, spawnRef=리스폰 지점.
+  const playerCtlRef = useRef<PlayerControl | null>(null);
+  const spawnRef = useRef<[number, number, number]>([0, 4, 0]);
+  useEffect(() => { if (player?.spawnPos) spawnRef.current = player.spawnPos; }, [player?.spawnPos]);
+  // per-player 제어 명령을 시뮬 플레이어에 적용 (시뮬은 단일 플레이어라 항상 로컬).
+  const applyPlayerCmd = useCallback((cmd: { t?: string; x?: number; y?: number; z?: number }) => {
+    if (cmd.t === 'tp') playerCtlRef.current?.teleport(Number(cmd.x), Number(cmd.y), Number(cmd.z));
+    else if (cmd.t === 'respawn') { const [x, y, z] = spawnRef.current; playerCtlRef.current?.teleport(x, y + 1, z); }
+    else if (cmd.t === 'setspawn') spawnRef.current = [Number(cmd.x), Number(cmd.y), Number(cmd.z)];
+  }, []);
   const lightRefs = useRef<Map<string, THREE.Light>>(new Map());
   const luaScripts = useRef<Map<string, import('@/lib/world/jsRuntime').JsScript>>(new Map());
   // user 컴포넌트 VM 들 — objectId → 배열 (오브젝트당 여러 부착 가능)
@@ -2294,6 +2306,13 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
         // 스튜디오 시뮬은 단일 클라 — 본인 = 항상 호스트
         isHost: () => true,
         runtimeCount: () => runtimeObjectsRef.current.length,
+        teleportLocal: (x, y, z) => playerCtlRef.current?.teleport(x, y, z),
+        setSpawn: (x, y, z) => { spawnRef.current = [x, y, z]; },
+        respawnLocal: () => { const [x, y, z] = spawnRef.current; playerCtlRef.current?.teleport(x, y + 1, z); },
+        setPlayerSpeed: (m) => playerCtlRef.current?.setSpeed(m),
+        setPlayerJump: (p) => playerCtlRef.current?.setJump(p),
+        isPlayerId: (id) => id === '__sim_player__' || id === 'player',
+        controlPlayer: (_id, cmd) => applyPlayerCmd(cmd),   // 시뮬은 단일 플레이어 — 항상 로컬
       };
 
       // 스튜디오엔 네트워크 없음 — no-op
@@ -2415,6 +2434,13 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
       },
       isHost: () => true,
       runtimeCount: () => runtimeObjectsRef.current.length,
+      teleportLocal: (x, y, z) => playerCtlRef.current?.teleport(x, y, z),
+      setSpawn: (x, y, z) => { spawnRef.current = [x, y, z]; },
+      respawnLocal: () => { const [x, y, z] = spawnRef.current; playerCtlRef.current?.teleport(x, y + 1, z); },
+      setPlayerSpeed: (m) => playerCtlRef.current?.setSpeed(m),
+      setPlayerJump: (p) => playerCtlRef.current?.setJump(p),
+      isPlayerId: (id) => id === '__sim_player__' || id === 'player',
+      controlPlayer: (_id, cmd) => applyPlayerCmd(cmd),   // 시뮬은 단일 플레이어 — 항상 로컬
     };
     const netAPI2: import('@/lib/world/jsRuntime').JsNetAPI = { sendAll: () => {}, sendTo: () => {} };
 
@@ -2539,6 +2565,8 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
           remoteGrabbedByRef={player.remoteGrabbedByRef}
           spawnPos={player.spawnPos}
           spawnRotY={player.spawnRotY}
+          playerCtlRef={playerCtlRef}
+          spawnRef={spawnRef}
         />
       )}
     </>
@@ -4699,7 +4727,7 @@ export default function StudioCanvas() {
       {/* 내부 스크롤 컨테이너로 감싸기 — 메타 + 씬 + 버튼 */}
       <div style={{ padding: 14, overflowY: 'auto', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.08)', position: 'relative' }}>
         <h2 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 800 }}>{t('title')}</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
           <button
             onClick={() => setMyWorldsOpen(true)}
             style={{ padding: '8px 9px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(99,102,241,0.24)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
@@ -4845,8 +4873,10 @@ export default function StudioCanvas() {
       {/* ── 추가 버튼 (좌측 하단 고정) ── 자기 컨텐츠 크기 유지, 넘치면 자체 스크롤.
           씬 트리 보장은 위 minHeight: 180 으로 처리됨. */}
       <div style={{ flexShrink: 0, borderTop: '1px solid rgba(255,255,255,0.08)', padding: '8px 10px 10px', maxHeight: '65vh', overflowY: 'auto' }}>
+        {/* '추가' 그룹 — 도형/스폰/빈/조명을 한 묶음으로 (일관 스타일) */}
+        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.6, color: 'rgba(255,255,255,0.38)', textTransform: 'uppercase', margin: '0 0 6px 2px' }}>+ 추가</div>
         <button type="button" onClick={() => setShapePanelOpen(v => !v)}
-          style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '4px 8px', cursor: 'pointer', fontWeight: 600, marginBottom: 4 }}>
+          style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.8)', fontSize: 11, padding: '6px 9px', cursor: 'pointer', fontWeight: 600, marginBottom: 4 }}>
           📦 {t('addShape')} {shapePanelOpen ? '▲' : '▼'}
         </button>
         {shapePanelOpen && (
@@ -4862,17 +4892,17 @@ export default function StudioCanvas() {
         {/* 🎯 스폰 포인트 추가 — 월드 진입 시 플레이어가 여기서 등장. 여러 개 가능 (랜덤 선택). */}
         <button type="button" onClick={addSpawn}
           title="플레이어 스폰 위치. 여러 개 두면 랜덤으로 선택됨. 회전 = 초기 바라보는 방향."
-          style={{ width: '100%', textAlign: 'left', background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 6, color: '#86efac', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 700, marginBottom: 4 }}>
+          style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.8)', fontSize: 11, padding: '6px 9px', cursor: 'pointer', fontWeight: 600, marginBottom: 4 }}>
           🎯 스폰 포인트 추가
         </button>
         {/* 🔵 빈 오브젝트 추가 — World Physics(중력/점프력) 컴포넌트 홀더 (기본 부착). */}
         <button type="button" onClick={addEmpty}
           title="빈 오브젝트. 컴포넌트(예: World Physics 중력/점프력)를 부착해 관리. 플레이 시 안 보임."
-          style={{ width: '100%', textAlign: 'left', background: 'rgba(96,165,250,0.12)', border: '1px solid rgba(96,165,250,0.35)', borderRadius: 6, color: '#93c5fd', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 700, marginBottom: 4 }}>
+          style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.8)', fontSize: 11, padding: '6px 9px', cursor: 'pointer', fontWeight: 600, marginBottom: 4 }}>
           🔵 {t('addEmpty')}
         </button>
         <button type="button" onClick={() => setLightAddPanelOpen(v => !v)}
-          style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '4px 8px', cursor: 'pointer', fontWeight: 600 }}>
+          style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.8)', fontSize: 11, padding: '6px 9px', cursor: 'pointer', fontWeight: 600 }}>
           💡 조명 추가 {lightAddPanelOpen ? '▲' : '▼'}
         </button>
         {lightAddPanelOpen && (
@@ -5496,8 +5526,8 @@ export default function StudioCanvas() {
               )}
               </>}
 
-              {/* 복제 / 삭제 */}
-              <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+              {/* 오브젝트 액션 (복제 / 삭제 / 프리팹) — 속성 편집기와 구분선으로 분리 */}
+              <div style={{ display: 'flex', gap: 4, marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                 <button onClick={duplicate}
                   style={{ flex: 1, background: 'rgba(99,102,241,0.2)', border: 'none', color: '#a5b4fc', fontSize: 11, padding: '7px', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
                   복제 (Ctrl+D)

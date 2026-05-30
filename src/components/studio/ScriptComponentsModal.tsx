@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react';
 import { api, session, type ScriptComponent, type ScriptComponentPropDef } from '@/lib/api';
 import PropsSchemaEditor, { normalizePropsSchema } from './PropsSchemaEditor';
+import { SCRIPT_SNIPPETS, SNIPPET_CATEGORIES } from '@/lib/world/scriptSnippets';
 
 interface Props {
   open: boolean;
@@ -53,6 +54,16 @@ export default function ScriptComponentsModal({ open, onClose, components, onCha
   const [code, setCode]               = useState(DEFAULT_CODE);
   const [propsSchema, setPropsSchema] = useState<ScriptComponentPropDef[]>([]);
   const [saving, setSaving]           = useState(false);
+  const [snippetsOpen, setSnippetsOpen] = useState(false);
+
+  // 예제 스니펫 삽입 — 코드가 비었거나 기본 템플릿이면 교체, 아니면 끝에 덧붙임(유저가 합침).
+  function insertSnippet(snippetCode: string) {
+    setCode(prev => {
+      const t = prev.trim();
+      if (t === '' || prev === DEFAULT_CODE) return snippetCode;
+      return prev.replace(/\s*$/, '') + '\n\n' + snippetCode;
+    });
+  }
 
   // 열릴 때 — editId 가 있으면(인스펙터 카드 'edit') 그 컴포넌트 편집으로 바로 진입, 없으면 목록부터.
   // (모달이 마운트 유지되어 view 상태가 남기 때문에 열 때마다 정리)
@@ -203,8 +214,34 @@ export default function ScriptComponentsModal({ open, onClose, components, onCha
             </label>
             {/* Props 스키마 편집기 */}
             <PropsSchemaEditor schema={propsSchema} onChange={setPropsSchema} />
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.7 }}>
-              코드 *
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.7 }}>
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                코드 *
+                <button type="button" onClick={() => setSnippetsOpen(o => !o)}
+                  style={{ background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.45)', color: '#c7d2fe', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  📚 예제 {snippetsOpen ? '▲' : '▼'}
+                </button>
+              </span>
+              {snippetsOpen && (
+                <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, padding: 8, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 8 }}>
+                  <div style={{ fontSize: 10.5, opacity: 0.6 }}>클릭하면 코드에 삽입됩니다. (collider trigger 필요한 건 설명에 표시)</div>
+                  {SNIPPET_CATEGORIES.map(cat => (
+                    <div key={cat} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 800, color: '#a5b4fc', opacity: 0.9 }}>{cat}</div>
+                      {SCRIPT_SNIPPETS.filter(s => s.category === cat).map(s => (
+                        <button key={s.id} type="button" title={s.desc}
+                          onClick={() => { insertSnippet(s.code); setSnippetsOpen(false); }}
+                          style={{ textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', borderRadius: 6, padding: '6px 9px', cursor: 'pointer', fontSize: 11, lineHeight: 1.35 }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.25)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}>
+                          <span style={{ fontWeight: 700 }}>{s.title}</span>
+                          <span style={{ opacity: 0.6, marginLeft: 6 }}>{s.desc}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
               <textarea value={code} onChange={e => setCode(e.target.value)}
                 spellCheck={false}
                 style={{ background: '#0d1117', color: '#e6edf3', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 6, padding: '10px 12px', fontSize: 11.5, fontFamily: 'ui-monospace, monospace', lineHeight: 1.5, minHeight: 320, resize: 'vertical', outline: 'none', tabSize: 2 }}
@@ -220,7 +257,7 @@ export default function ScriptComponentsModal({ open, onClose, components, onCha
                   }
                 }}
               />
-            </label>
+            </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button type="button" onClick={() => setView('list')}
                 style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>취소</button>
