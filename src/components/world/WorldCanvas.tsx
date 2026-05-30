@@ -2554,6 +2554,32 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     }
     Promise.all(tasks).then(() => setScriptComponentsLoaded(n => n + 1));
   }, []);
+
+  // 맵에 실제로 쓰인 유저 컴포넌트 코드를 by-ids 로 보충 로드 — 공식/내 것이 아니어도(맵 제작자의 것
+  // 포함) 받아와야 "다른 계정"에서도 제작자의 커스텀 스크립트가 실행됨. (없으면 '코드 없음' 으로 스킵)
+  useEffect(() => {
+    const ids = new Set<string>();
+    for (const o of customObjects ?? []) {
+      for (const c of o.components ?? []) {
+        if (c.type.startsWith('user:')) {
+          const id = c.type.slice(5);
+          if (id && !scriptComponentDefsRef.current.has(id)) ids.add(id);
+        }
+      }
+    }
+    if (ids.size === 0) return;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { api, session } = require('@/lib/api') as typeof import('@/lib/api');
+    api.getScriptComponentsByIds(session.getToken() || undefined, [...ids])
+      .then(r => {
+        let added = 0;
+        for (const c of r.components) {
+          if (!scriptComponentDefsRef.current.has(c.id)) { scriptComponentDefsRef.current.set(c.id, c); added++; }
+        }
+        if (added > 0) setScriptComponentsLoaded(n => n + 1);
+      })
+      .catch(e => console.warn('[ScriptComponents] by-ids world fetch fail', e));
+  }, [customObjects]);
   // objectId → THREE.Light 인스턴스 (조명 color/intensity 제어용)
   const lightRefs = useRef<Map<string, THREE.Light>>(new Map());
   // 런타임 동적 생성된 오브젝트 (world.spawn 으로 만들어진 것 — 저장 안 됨, 로컬 전용)
