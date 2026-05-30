@@ -1785,6 +1785,18 @@ function ExposureUpdater({ exposure, hdriIntensity }: { exposure: number; hdriIn
   return null;
 }
 
+/* drei <Html occlude="blending">(영상 화면)은 캔버스 전체 pointerEvents 를 none 으로 만들고
+   언마운트돼도 복구하지 않는다 → 영상 있는 맵을 시뮬레이션한 뒤 종료하면 캔버스가 죽어
+   우클릭 회전/클릭 선택이 안 됨. 매 프레임 auto 로 되돌려 항상 상호작용 가능하게 유지. */
+function CanvasPointerEventsKeeper() {
+  const { gl } = useThree();
+  useFrame(() => {
+    const s = gl.domElement.style;
+    if (s.pointerEvents === 'none') s.pointerEvents = 'auto';
+  });
+  return null;
+}
+
 /* ── 시뮬레이션: 물리 씬 렌더러 (평면화 — 세계좌표 기준) ── */
 type SimTransforms = Record<string, { pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number] }>;
 
@@ -3472,6 +3484,8 @@ export default function StudioCanvas() {
   }
 
   function stopSim() {
+    // 1인칭 시뮬 중 걸린 포인터 락이 남으면 clientX 가 고정돼 우클릭 카메라 회전이 죽는다 → 명시적 해제.
+    if (document.pointerLockElement) document.exitPointerLock();
     setSimulating(false);
     setSimTransforms({});
     setSimCharacter(null);
@@ -5605,6 +5619,7 @@ export default function StudioCanvas() {
           onPointerMissed={() => { if (!isGizmoActive()) { setSelectedId(null); setStudioMode('scene'); } }}
         >
           <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
+          <CanvasPointerEventsKeeper />
           <ambientLight intensity={lightAmbient} />
           <directionalLight position={[20, 30, 10]} intensity={lightDir} castShadow
             shadow-mapSize={[2048, 2048]}
