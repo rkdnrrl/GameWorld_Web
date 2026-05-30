@@ -1,5 +1,5 @@
 'use client';
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, TransformControls, Grid, Sky, Environment } from '@react-three/drei';
 import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
@@ -1608,6 +1608,10 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
 }
 
 /* ── 씬 목록 노드 (UI 계층 트리) ──────────── */
+/** 트리 노드 접힘 상태 — 재귀 트리라 prop 스레딩 대신 컨텍스트로 공유.
+ *  collapsed 에 든 id = 접힘. 자식 선택 시 조상을 펼치려고 외부에서 제어. */
+const TreeCollapseCtx = createContext<{ collapsed: Set<string>; toggle: (id: string) => void }>({ collapsed: new Set(), toggle: () => {} });
+
 function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, editingLabelId, editingLabelValue, setEditingLabelId, setEditingLabelValue, setObjects, selectedCallback, pushHistory, dragActive, overId, overMode, onNodePointerDown, onFocusObject, onContextMenu }: {
   obj: MapObject;
   allObjects: MapObject[];
@@ -1628,7 +1632,8 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
   onFocusObject: (id: string) => void;
   onContextMenu: (objId: string, x: number, y: number) => void;
 }) {
-  const [open, setOpen] = useState(true);
+  const { collapsed, toggle } = useContext(TreeCollapseCtx);
+  const open = !collapsed.has(obj.id);   // 기본 펼침, collapsed 에 있으면 접힘
   const children = allObjects.filter(c => c.parentId === obj.id);
   const hasChildren = children.length > 0;
   const isSel = obj.id === selectedId || multiSelectedIds.has(obj.id);
@@ -1672,7 +1677,7 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
       >
         {/* 펼치기/접기 */}
         <button
-          onClick={e => { e.stopPropagation(); if (hasChildren) setOpen(!open); }}
+          onClick={e => { e.stopPropagation(); if (hasChildren) toggle(obj.id); }}
           style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)', fontSize: 9, cursor: hasChildren ? 'pointer' : 'default', padding: 0, width: 12, flexShrink: 0, lineHeight: 1 }}>
           {hasChildren ? (open ? '▾' : '▸') : ''}
         </button>
@@ -2901,6 +2906,28 @@ export default function StudioCanvas() {
   const [matPanelOpen, setMatPanelOpen] = useState(false);
   const [studioMode, setStudioMode] = useState<'settings' | 'scene'>('settings');
   const [multiSelectedIds, setMultiSelectedIds] = useState<Set<string>>(new Set());
+  // 트리 노드 접힘 상태 (collapsed 에 든 id = 접힘). 자식이 선택되면 조상을 자동 펼침.
+  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
+  const toggleCollapse = useCallback((id: string) => {
+    setCollapsedNodes(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  }, []);
+  // 선택된 오브젝트가 자식이면 트리에서 조상들을 자동 펼침 — 뷰포트 클릭 등으로 선택돼도 트리에 보이게.
+  useEffect(() => {
+    if (!selectedId) return;
+    setCollapsedNodes(prev => {
+      if (prev.size === 0) return prev;
+      const next = new Set(prev);
+      let changed = false;
+      let pid = objects.find(o => o.id === selectedId)?.parentId;
+      const guard = new Set<string>();
+      while (pid && !guard.has(pid)) {
+        guard.add(pid);
+        if (next.delete(pid)) changed = true;
+        pid = objects.find(o => o.id === pid)?.parentId;
+      }
+      return changed ? next : prev;
+    });
+  }, [selectedId, objects]);
   const [marqueeStart, setMarqueeStart] = useState<{x:number,y:number}|null>(null);
   const [marqueeEnd,   setMarqueeEnd]   = useState<{x:number,y:number}|null>(null);
   const isMarqueeRef = useRef(false);
@@ -4540,7 +4567,9 @@ export default function StudioCanvas() {
             if (rootObjs.length === 0) {
               return <div style={{ fontSize: 11, opacity: 0.3, textAlign: 'center', paddingTop: 20 }}>{t('scNoMatch')}</div>;
             }
-            return rootObjs.map(obj => (
+            return (
+              <TreeCollapseCtx.Provider value={{ collapsed: collapsedNodes, toggle: toggleCollapse }}>
+              {rootObjs.map(obj => (
               <SceneListNode key={obj.id} obj={obj} allObjects={objects} depth={0}
                 selectedId={selectedId} multiSelectedIds={multiSelectedIds}
                 editingLabelId={editingLabelId} editingLabelValue={editingLabelValue}
@@ -4563,7 +4592,9 @@ export default function StudioCanvas() {
                   }
                 }}
               />
-            ));
+            ))}
+              </TreeCollapseCtx.Provider>
+            );
           })()}
         </div>
       </div>
