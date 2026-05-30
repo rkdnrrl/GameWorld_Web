@@ -174,12 +174,13 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
   const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);   // 세로 → planeH
   // controls=0/disablekb=1/fs=0 → YouTube 자체 UI 제거(유저가 직접 못 건드림). 재생 제어는 별도 버튼이 IFrame API 로 함.
   const src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`;
-  // occlude="blending": 깊이 버퍼 기반 가림 — 앞 오브젝트(캐릭터/벽 등)가 영상을 픽셀 단위로 정상 가림.
+  // occlude="raycast": 오브젝트 순서(깊이)를 따름 — 앞 오브젝트(캐릭터/벽)가 화면 중심을 가리면 영상을
+  //   숨김(display:none). blending(픽셀 단위)은 캔버스에 솔리드 background 가 깔려 있어 작동 못 해서
+  //   raycast 로 전환(화면 전체 단위 가림). 영상 *파일*(VideoTexture)은 진짜 3D 메시라 자연히 픽셀 가림.
   // pointerEvents="none": iframe 을 완전 비상호작용(클릭 통과)으로 → 유저가 YouTube 를 못 건드리고,
   //   클릭은 그대로 캔버스로 통과해 포인터락(화면 회전)이 정상 동작. 조작은 별도 컨트롤 바가 담당.
-  // (주의: blending 은 캔버스 전체 pointerEvents 를 none 으로 만들므로 WorldCanvas 가 매 프레임 auto 로 복원함)
   return (
-    <Html transform occlude="blending" pointerEvents="none" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center>
+    <Html transform occlude="raycast" pointerEvents="none" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center>
       <iframe
         ref={iframeRef}
         width={YT_IFRAME_W}
@@ -289,8 +290,9 @@ export function VideoControlBar({ registry, targetId, onSeekBy, onSeekTo, onTogg
 /* ── 비디오 리모컨 — 씬에 놓는 3D 조작 패널 (videoRemote 컴포넌트). 오브젝트 위치에 떠서
    현재 영상 이름 + URL 변경 + 스크러버/재생을 보여줌. 특정 영상(targetId)만 조작.
    부모 <group position> 안에 두면 그 위치에 앵커됨. <Html> 비-transform: 항상 정면·고정 크기라
-   거리와 무관하게 읽기/클릭 좋음. zIndexRange 를 최댓값에 고정(거리에 따라 안 변함) → 영상 화면
-   iframe(blending z-index ~8.3M)·다른 Html 보다 **항상 위로** 떠서 절대 안 가려짐. 클릭 가능(pe auto). */
+   거리와 무관하게 읽기/클릭 좋음. occlude="raycast": 오브젝트 순서(깊이)를 따라 — 앵커 앞에 메시
+   (캐릭터·벽·영상 평면)가 있으면 패널을 숨김(display:none), 보일 땐 z-index 가 영상 blending(~8.3M)
+   보다 위라 영상 위로 그려짐. 자기 오브젝트에 가리지 않게 position +Y 로 살짝 띄움. 클릭 가능(pe auto). */
 export function VideoRemotePanel({ registry, targetId, videoUrl, onSeekBy, onSeekTo, onTogglePlay, onChangeUrl }: {
   registry: VideoRegistry;
   targetId: string;
@@ -320,7 +322,7 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, onSeekBy, onSee
   const shown = (titled.url === videoUrl && titled.title) || fallback;
 
   return (
-    <Html center zIndexRange={[16777271, 16777271]} style={{ pointerEvents: 'auto' }}>
+    <Html center occlude="raycast" position={[0, 1, 0]} style={{ pointerEvents: 'auto' }}>
       <div style={{
         display: 'flex', flexDirection: 'column', gap: 6, width: 280,
         background: 'rgba(10,12,20,0.82)', padding: 10, borderRadius: 12,

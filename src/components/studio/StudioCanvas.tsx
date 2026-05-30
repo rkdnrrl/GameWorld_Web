@@ -2922,6 +2922,7 @@ export default function StudioCanvas() {
   // 컴포넌트 picker 모달 (인스펙터의 "+ 컴포넌트 추가" 클릭 시 열림)
   const [componentPickerOpen, setComponentPickerOpen] = useState(false);
   const [componentPickerSearch, setComponentPickerSearch] = useState('');
+  const [pickerCollapsed, setPickerCollapsed] = useState<Record<string, boolean>>({});
   // 환경 (Sky/HDRI/ambient) 패널 토글
   const [envPanelOpen, setEnvPanelOpen] = useState(true);
   // 유저 정의 스크립트 컴포넌트 (DB) + 관리 모달
@@ -6400,8 +6401,12 @@ export default function StudioCanvas() {
             </div>
             <div style={{ padding: '0 10px 12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {/* 빌트인 컴포넌트 */}
-              <div style={{ fontSize: 10, opacity: 0.5, fontWeight: 700, letterSpacing: 0.5, marginTop: 2 }}>BUILT-IN</div>
-              {COMPONENT_DEFS
+              <button type="button" onClick={() => setPickerCollapsed(p => ({ ...p, builtin: !p.builtin }))}
+                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '2px 0', marginTop: 2 }}>
+                <span style={{ fontSize: 10, opacity: 0.5, fontWeight: 700, letterSpacing: 0.5 }}>BUILT-IN ({COMPONENT_DEFS.length})</span>
+                <span style={{ fontSize: 9, opacity: 0.4 }}>{pickerCollapsed.builtin ? '▶' : '▼'}</span>
+              </button>
+              {!pickerCollapsed.builtin && COMPONENT_DEFS
                 .filter(def => {
                   const q = componentPickerSearch.toLowerCase().trim();
                   if (!q) return true;
@@ -6444,10 +6449,12 @@ export default function StudioCanvas() {
                 })}
 
               {/* 공식 컴포넌트 (운영자가 만든 것, 모든 유저 사용 가능) */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+              <button type="button" onClick={() => setPickerCollapsed(p => ({ ...p, official: !p.official }))}
+                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '2px 0', marginTop: 8 }}>
                 <span style={{ fontSize: 10, opacity: 0.5, fontWeight: 700, letterSpacing: 0.5 }}>OFFICIAL ({officialScriptComponents.length})</span>
-              </div>
-              {officialScriptComponents
+                <span style={{ fontSize: 9, opacity: 0.4 }}>{pickerCollapsed.official ? '▶' : '▼'}</span>
+              </button>
+              {!pickerCollapsed.official && officialScriptComponents
                 .filter(c => {
                   const q = componentPickerSearch.toLowerCase().trim();
                   if (!q) return true;
@@ -6483,20 +6490,24 @@ export default function StudioCanvas() {
                     </button>
                   );
                 })}
-              {officialScriptComponents.length === 0 && (
+              {!pickerCollapsed.official && officialScriptComponents.length === 0 && (
                 <div style={{ fontSize: 10, opacity: 0.35, textAlign: 'center', padding: '6px 0' }}>공식 컴포넌트 없음</div>
               )}
 
               {/* 내 (유저 정의) 컴포넌트 */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-                <span style={{ fontSize: 10, opacity: 0.5, fontWeight: 700, letterSpacing: 0.5 }}>MY COMPONENTS ({scriptComponents.length})</span>
+                <button type="button" onClick={() => setPickerCollapsed(p => ({ ...p, my: !p.my }))}
+                  style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '2px 0' }}>
+                  <span style={{ fontSize: 10, opacity: 0.5, fontWeight: 700, letterSpacing: 0.5 }}>MY COMPONENTS ({scriptComponents.length})</span>
+                  <span style={{ fontSize: 9, opacity: 0.4 }}>{pickerCollapsed.my ? '▶' : '▼'}</span>
+                </button>
                 <button type="button"
                   onClick={() => { setComponentPickerOpen(false); setScriptComponentsModalOpen(true); }}
                   style={{ background: 'rgba(99,102,241,0.18)', border: '1px solid rgba(99,102,241,0.4)', color: '#a5b4fc', borderRadius: 5, padding: '2px 8px', cursor: 'pointer', fontSize: 10, fontWeight: 700 }}>
                   관리/만들기
                 </button>
               </div>
-              {scriptComponents
+              {!pickerCollapsed.my && scriptComponents
                 .filter(c => {
                   const q = componentPickerSearch.toLowerCase().trim();
                   if (!q) return true;
@@ -6530,7 +6541,7 @@ export default function StudioCanvas() {
                     </button>
                   );
                 })}
-              {scriptComponents.length === 0 && (
+              {!pickerCollapsed.my && scriptComponents.length === 0 && (
                 <div style={{ fontSize: 11, opacity: 0.4, textAlign: 'center', padding: '10px 0', lineHeight: 1.5 }}>
                   아직 만든 컴포넌트가 없습니다.<br/>
                   위 "관리/만들기" 로 새로 만들 수 있어요.
