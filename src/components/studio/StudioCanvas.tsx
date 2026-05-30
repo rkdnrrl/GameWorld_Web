@@ -672,6 +672,27 @@ function getAssetMaterialConfig(a: Asset | undefined): any {
 
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
 
+/** rootId 의 모든 자손 id (재귀). 부모→자식 전파(hide/lock/삭제/복제)에 공용. */
+function collectDescendants(rootId: string, objs: { id: string; parentId?: string | null }[]): Set<string> {
+  const out = new Set<string>();
+  let frontier = new Set<string>([rootId]);
+  while (frontier.size) {
+    const next = new Set<string>();
+    for (const o of objs) {
+      if (o.parentId && frontier.has(o.parentId) && !out.has(o.id)) { out.add(o.id); next.add(o.id); }
+    }
+    frontier = next;
+  }
+  return out;
+}
+/** tid 가 anc 의 자손인가 — 부모 체인을 올라가며 검사 (reparent 순환 방지). */
+function isDescendantOf(tid: string | null | undefined, anc: string, objs: { id: string; parentId?: string | null }[]): boolean {
+  let p = tid;
+  const guard = new Set<string>();
+  while (p && !guard.has(p)) { if (p === anc) return true; guard.add(p); p = objs.find(o => o.id === p)?.parentId; }
+  return false;
+}
+
 // 시뮬레이션 중 동적 오브젝트가 스폰 높이 기준 이만큼 아래로 떨어지면 원위치 복귀
 const OBJ_FALL_RESET = 50;
 
@@ -1259,7 +1280,7 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
         position={noTransform ? undefined : obj.position}
         rotation={noTransform ? undefined : obj.rotation}
         scale={noTransform ? undefined : obj.scale}
-        onClick={handle as unknown as React.MouseEventHandler}
+        onPointerDown={handle}
         userData={noTransform ? undefined : { id: obj.id }}>
         {/* 사람 모양 캡슐 */}
         <mesh position={[0, 0, 0]}>
@@ -1282,7 +1303,7 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
         position={noTransform ? undefined : obj.position}
         rotation={noTransform ? undefined : obj.rotation}
         scale={noTransform ? undefined : obj.scale}
-        onClick={handle as unknown as React.MouseEventHandler}
+        onPointerDown={handle}
         userData={noTransform ? undefined : { id: obj.id }}>
         <mesh>
           <sphereGeometry args={[0.35, 16, 12]} />
@@ -1698,12 +1719,12 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
             {obj.label || `${KIND_LABELS[obj.kind] ?? obj.kind} ${i + 1}`}
           </span>
         )}
-        {/* 아이콘 버튼들 */}
-        <button onClick={e => { e.stopPropagation(); setObjects(prev => prev.map(o => o.id === obj.id ? { ...o, hidden: !o.hidden } : o)); }}
+        {/* 아이콘 버튼들 — 부모를 hide/lock 하면 자손도 다같이 (cascade) */}
+        <button onClick={e => { e.stopPropagation(); const nv = !obj.hidden; const ids = new Set([obj.id, ...collectDescendants(obj.id, allObjects)]); setObjects(prev => prev.map(o => ids.has(o.id) ? { ...o, hidden: nv } : o)); }}
           style={{ background: 'none', border: 'none', color: obj.hidden ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.45)', fontSize: 11, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}>
           {obj.hidden ? '🙈' : '👁'}
         </button>
-        <button onClick={e => { e.stopPropagation(); setObjects(prev => prev.map(o => o.id === obj.id ? { ...o, locked: !o.locked } : o)); }}
+        <button onClick={e => { e.stopPropagation(); const nv = !obj.locked; const ids = new Set([obj.id, ...collectDescendants(obj.id, allObjects)]); setObjects(prev => prev.map(o => ids.has(o.id) ? { ...o, locked: nv } : o)); }}
           style={{ background: 'none', border: 'none', color: obj.locked ? '#fbbf24' : 'rgba(255,255,255,0.2)', fontSize: 11, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}>
           {obj.locked ? '🔒' : '🔓'}
         </button>
@@ -2947,6 +2968,9 @@ export default function StudioCanvas() {
   const rangeAnchorRef = useRef<string | null>(null);
   const selRef = useRef<{ sel: string | null; multi: Set<string> }>({ sel: null, multi: new Set() });
   selRef.current = { sel: selectedId, multi: multiSelectedIds };
+  // 최신 objects 미러 — 키보드 단축키 핸들러 등 stale 클로저에서 fresh 읽기용
+  const objectsRef = useRef(objects);
+  objectsRef.current = objects;
 
   // 우클릭(RMB) 누름 상태 — 누른 동안만 WASD/QE 카메라 비행(유니티식). 평소엔 W/E/R = 도구 단축키.
   const rmbHeldRef = useRef(false);
@@ -3246,16 +3270,47 @@ export default function StudioCanvas() {
   }
 
   function duplicate() {
-    if (!selected) return;
-    const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    const label = makeLabel(selected.kind);
-    const offset: [number,number,number] = [selected.position[0] + 1, selected.position[1], selected.position[2]];
+    // 선택된 것 전부(다중 포함) + 각자의 자손까지 복제. 복제본끼리 부모-자식 관계 유지.
+    const { sel, multi } = selRef.current;
+    const baseIds = multi.size > 0 ? [...multi] : sel ? [sel] : [];
+    if (baseIds.length === 0) return;
+    const cur = objectsRef.current;
+
+    // 복제 대상 = 선택 + 그 자손 전부 (부모를 복제하면 자식도 같이)
+    const copySet = new Set<string>(baseIds);
+    for (const id of baseIds) for (const d of collectDescendants(id, cur)) copySet.add(d);
+
+    // 원본 id → 새 id 매핑
+    const idMap = new Map<string, string>();
+    let seq = 0;
+    for (const id of copySet) idMap.set(id, `obj_${Date.now()}_${(seq++).toString(36)}_${Math.random().toString(36).slice(2, 5)}`);
+
+    const copies: MapObject[] = [];
+    const newRootIds: string[] = [];
+    for (const o of cur) {
+      if (!copySet.has(o.id)) continue;
+      const c = clone(o);
+      c.id = idMap.get(o.id)!;
+      c.label = makeLabel(o.kind);
+      if (o.parentId && copySet.has(o.parentId)) {
+        c.parentId = idMap.get(o.parentId);            // 내부 계층 리맵 (자식 복제본 → 부모 복제본)
+      } else {
+        // 최상위 복제본 — 부모는 원본과 동일, 위치 살짝 오프셋, 선택 대상
+        c.parentId = o.parentId;
+        c.position = [o.position[0] + 1, o.position[1], o.position[2]];
+        newRootIds.push(c.id);
+      }
+      copies.push(c);
+    }
+    if (copies.length === 0) return;
     setObjects(prev => {
-      const next = [...prev, { ...clone(selected), id, label, position: offset }];
+      const next = [...prev, ...copies];
       pushHistory(next);
       return next;
     });
-    setSelectedId(id);
+    // 복제본(최상위)들을 선택 상태로
+    setMultiSelectedIds(new Set(newRootIds.length > 1 ? newRootIds : []));
+    setSelectedId(newRootIds[0] ?? null);
   }
 
   /* ── 프리팹 — 선택된 오브젝트를 스냅샷으로 DB 저장 ───────────
@@ -4101,6 +4156,40 @@ export default function StudioCanvas() {
     });
   }
 
+  /** 여러 오브젝트를 한 번에 newParentId 밑으로 — world 변환 보존, 한 번의 setObjects 로 처리.
+   *  (트리에서 여러 개 선택 후 같이 드래그 이동할 때 사용. childIds 는 이미 "최상위"만 넘겨야 함) */
+  function reparentMany(childIds: string[], newParentId: string | null) {
+    const cur = objectsRef.current;
+    const patches = new Map<string, Partial<MapObject>>();
+    for (const childId of childIds) {
+      const child = cur.find(o => o.id === childId);
+      if (!child) continue;
+      if (newParentId && (newParentId === childId || isDescendantOf(newParentId, childId, cur))) continue; // 순환 방지
+      if ((child.parentId ?? null) === (newParentId ?? null)) continue; // 변화 없음
+      if (child.kind === 'spawn') {
+        const wm = computeWorldMatrix(childId, cur);
+        const wp = new THREE.Vector3(), wq = new THREE.Quaternion(), ws = new THREE.Vector3();
+        wm.decompose(wp, wq, ws);
+        const we = new THREE.Euler().setFromQuaternion(wq, 'XYZ');
+        patches.set(childId, { parentId: newParentId ?? undefined, position: [wp.x,wp.y,wp.z], rotation: [we.x,we.y,we.z], scale: [ws.x,ws.y,ws.z] });
+      } else {
+        const childWorld = computeWorldMatrix(childId, cur);
+        let localMat = childWorld.clone();
+        if (newParentId) localMat = computeWorldMatrix(newParentId, cur).clone().invert().multiply(childWorld);
+        const lp = new THREE.Vector3(), lq = new THREE.Quaternion(), ls = new THREE.Vector3();
+        localMat.decompose(lp, lq, ls);
+        const le = new THREE.Euler().setFromQuaternion(lq, 'XYZ');
+        patches.set(childId, { parentId: newParentId ?? undefined, position: [lp.x,lp.y,lp.z], rotation: [le.x,le.y,le.z], scale: [ls.x,ls.y,ls.z] });
+      }
+    }
+    if (patches.size === 0) return;
+    setObjects(prev => {
+      const next = prev.map(o => patches.has(o.id) ? { ...o, ...patches.get(o.id) } : o);
+      pushHistory(next);
+      return next;
+    });
+  }
+
   // 트리 가장자리 자동 스크롤 — 드래그 중 위/아래 끝 근처면 목록을 굴림
   const treeAutoScrollTick = () => {
     const el = treeScrollRef.current;
@@ -4181,6 +4270,34 @@ export default function StudioCanvas() {
         setTreeDrag(null);
         return;
       }
+      // ── 멀티 이동 — 드래그한 게 현재 선택에 포함되면 선택된 "최상위"들을 다같이 이동 ──
+      const selNow = selRef.current;
+      const draggedInSel = dragged === selNow.sel || selNow.multi.has(dragged);
+      if (draggedInSel && selNow.multi.size > 1) {
+        const moveSet = new Set<string>([...selNow.multi, ...(selNow.sel ? [selNow.sel] : [])]);
+        const cur = objectsRef.current;
+        // 부모 체인에 선택된 다른 멤버가 있으면 제외 (그 부모가 옮겨질 때 자동으로 따라오므로)
+        const roots = [...moveSet].filter(id => {
+          let p = cur.find(o => o.id === id)?.parentId;
+          while (p) { if (moveSet.has(p)) return false; p = cur.find(o => o.id === p)?.parentId; }
+          return true;
+        });
+        if (roots.length > 1) {
+          const vp2 = viewportRef.current;
+          if (vp2 && overEl && vp2.contains(overEl)) {
+            const targetId = pickObjectIdFromXY(e.clientX, e.clientY);
+            reparentMany(roots, (targetId && !moveSet.has(targetId)) ? targetId : null);
+          } else {
+            const { overId, overMode } = treeDragOverRef.current;
+            if (overMode === 'reparent' && overId && !moveSet.has(overId)) reparentMany(roots, overId);
+            else if (overMode === 'reorder' && overId && !moveSet.has(overId)) reparentMany(roots, cur.find(o => o.id === overId)?.parentId ?? null);
+            else if (!overMode) { const sc = treeScrollRef.current; if (sc && overEl && sc.contains(overEl)) reparentMany(roots, null); }
+          }
+          treeDragOverRef.current = { overId: null, overMode: null };
+          setTreeDrag(null);
+          return;
+        }
+      }
       const vp = viewportRef.current;
       if (vp && overEl && vp.contains(overEl)) {
         // 뷰포트 위에 놓음 → 그 3D 오브젝트의 자식으로 (빈 곳이면 루트)
@@ -4220,9 +4337,19 @@ export default function StudioCanvas() {
       return;
     }
 
+    // 부모와 자식이 동시에 선택됐을 때, 자식(=선택된 조상이 있는 것)에는 delta 를 또 주지 않는다.
+    // 부모가 움직이면 자식은 부모 transform 전파로 따라오므로 — delta 까지 주면 2배로 움직임.
+    const followers = new Set<string>();
+    for (const sid of multiSelectedIds) {
+      if (sid === id) continue;
+      let p = objectsRef.current.find(o => o.id === sid)?.parentId;
+      while (p) { if (multiSelectedIds.has(p)) { followers.add(sid); break; } p = objectsRef.current.find(o => o.id === p)?.parentId; }
+    }
+
     // 다중 선택 — start 스냅샷 기준 delta 를, 해당 모드 축에만 적용
     setObjects(prev => prev.map(o => {
       if (o.id !== id && !multiSelectedIds.has(o.id)) return o;
+      if (followers.has(o.id)) return o;   // 선택된 부모를 따라가는 자식 — 직접 이동 X
       const os = o.id === id ? primaryStart : start.get(o.id);
       if (!os) return o;
       if (mode === 'rotate') {
@@ -4263,10 +4390,13 @@ export default function StudioCanvas() {
 
   function deleteSelected() {
     // 다중 선택이 있으면 전부, 없으면 primary 하나. (selRef = 키보드 핸들러에서도 최신값)
+    // 부모를 지우면 자식도 같이 삭제 — 안 그러면 orphan(부모 없는 자식)이 돼 좌표가 깨짐.
     const { sel, multi } = selRef.current;
-    const ids = new Set<string>(multi.size > 0 ? multi : sel ? [sel] : []);
-    if (ids.size === 0) return;
+    const baseIds = multi.size > 0 ? [...multi] : sel ? [sel] : [];
+    if (baseIds.length === 0) return;
     setObjects(prev => {
+      const ids = new Set<string>(baseIds);
+      for (const id of baseIds) for (const d of collectDescendants(id, prev)) ids.add(d);
       const next = prev.filter(o => !ids.has(o.id));
       pushHistory(next);
       return next;
