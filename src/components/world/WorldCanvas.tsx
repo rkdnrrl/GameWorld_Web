@@ -883,7 +883,7 @@ function MapLoadingOverlay() {
   const fileName = item ? (item.split('/').pop() || '').split('?')[0] : '';
   return (
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 1000,
+      position: 'fixed', inset: 0, zIndex: 16777274,
       background: 'radial-gradient(circle at 50% 38%, #16213e, #0a0f1e)',
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16,
       color: '#fff', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif",
@@ -2373,7 +2373,7 @@ function MobileControls({ inputLocked }: { inputLocked: boolean }) {
   const [mobileSprinting, setMobileSprinting] = useState(false);
 
   return (
-    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', userSelect: 'none', zIndex: 999 }}>
+    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', userSelect: 'none', zIndex: 16777273 }}>
 
       {/* 카메라 룩 + 핀치 줌: 전체화면 배경 */}
       <div
@@ -3446,7 +3446,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       {isMobile && <MobileControls inputLocked={chatInputActive} />}
 
       {/* 게임 HUD — 스크립트 ui.text/ui.bar 가 그림. 전체화면 위 오버레이(클릭 통과). */}
-      <div style={{ position: 'fixed', inset: 0, zIndex: 900, pointerEvents: 'none' }}>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 16777272, pointerEvents: 'none' }}>
         <GameHud runtime={gameRuntime} />
       </div>
 
@@ -3454,7 +3454,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       {!isMobile && !chatInputActive && (
         <div style={{
           position: 'fixed', bottom: 14, left: '50%', transform: 'translateX(-50%)',
-          pointerEvents: 'none', zIndex: 1000,
+          pointerEvents: 'none', zIndex: 16777274,
           fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: 600,
           background: 'rgba(0,0,0,0.4)', padding: '4px 10px', borderRadius: 999,
           textShadow: '0 1px 2px rgba(0,0,0,0.7)', whiteSpace: 'nowrap',
@@ -3481,7 +3481,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         const useBlend = crosshairState === 'idle';
         return (
           <>
-            <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none', zIndex: 1000, mixBlendMode: useBlend ? 'difference' : 'normal' }}>
+            <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none', zIndex: 16777274, mixBlendMode: useBlend ? 'difference' : 'normal' }}>
               <div style={{ position: 'absolute', width: 14, height: 2, background: ch, left: -7, top: -1 }} />
               <div style={{ position: 'absolute', width: 2, height: 14, background: ch, left: -1, top: -7 }} />
               <div style={{ position: 'absolute', width: 3, height: 3, borderRadius: '50%', background: ch, left: -1.5, top: -1.5 }} />
@@ -3489,7 +3489,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             {hint && (
               <div style={{
                 position: 'fixed', top: 'calc(50% + 28px)', left: '50%', transform: 'translateX(-50%)',
-                pointerEvents: 'none', zIndex: 1000,
+                pointerEvents: 'none', zIndex: 16777274,
                 fontSize: 11, color: 'rgba(255,255,255,0.78)', fontWeight: 600,
                 textShadow: '0 1px 2px rgba(0,0,0,0.7)',
                 whiteSpace: 'nowrap',
@@ -3507,7 +3507,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         onClick={toggleCameraMode}
         title="카메라 전환 (V)"
         style={{
-          position: 'fixed', top: 16, right: 16, zIndex: 1000,
+          position: 'fixed', top: 16, right: 16, zIndex: 16777274,
           background: 'rgba(0,0,0,0.45)', color: '#fff',
           border: '1px solid rgba(255,255,255,0.15)', borderRadius: 10,
           padding: '7px 11px', fontSize: 12, fontWeight: 700,

@@ -622,7 +622,7 @@ export default function WorldPage() {
         onClick={() => setSettingsOpen(v => !v)}
         title={t('settings')}
         style={{
-          position: 'absolute', top: 16, right: 16, zIndex: 1000,
+          position: 'absolute', top: 16, right: 16, zIndex: 16777274,
           width: 40, height: 40, borderRadius: '50%',
           background: settingsOpen ? '#4f46e5' : 'rgba(0,0,0,0.45)',
           border: 'none', color: '#fff', fontSize: 18,
@@ -633,7 +633,7 @@ export default function WorldPage() {
         ⚙️
       </button>
 
-      <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.45)', borderRadius: 20, padding: '6px 16px', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', gap: 10, backdropFilter: 'blur(8px)', zIndex: 1000 }}>
+      <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.45)', borderRadius: 20, padding: '6px 16px', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', gap: 10, backdropFilter: 'blur(8px)', zIndex: 16777274 }}>
         <span style={{ color: connected ? '#4ade80' : '#f87171', fontSize: 9 }}>●</span>
         <span style={{ fontWeight: 700 }}>{t('alpWorld')}</span>
         <span style={{ opacity: 0.5 }}>|</span>
@@ -644,7 +644,7 @@ export default function WorldPage() {
         <span style={{ opacity: 0.7 }}>{t('playersOnline', { count: Object.keys(players).length + 1 })}</span>
       </div>
 
-      <div style={{ position: 'absolute', top: 60, left: 16, background: 'rgba(0,0,0,0.4)', borderRadius: 12, padding: '8px 12px', color: '#fff', fontSize: 12, backdropFilter: 'blur(6px)', minWidth: 120, zIndex: 1000 }}>
+      <div style={{ position: 'absolute', top: 60, left: 16, background: 'rgba(0,0,0,0.4)', borderRadius: 12, padding: '8px 12px', color: '#fff', fontSize: 12, backdropFilter: 'blur(6px)', minWidth: 120, zIndex: 16777274 }}>
         <div style={{ fontWeight: 700, marginBottom: 6, opacity: 0.7 }}>{t('playersList')}</div>
         <div style={{ color: '#4ade80' }}>● {username} {t('youSuffix')}</div>
         {Object.values(players).map((p) => (
@@ -656,7 +656,7 @@ export default function WorldPage() {
       {settingsOpen && (
         <div
           onClick={() => setSettingsOpen(false)}
-          style={{ position: 'absolute', inset: 0, background: 'rgba(2,6,23,0.78)', backdropFilter: 'blur(8px)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          style={{ position: 'absolute', inset: 0, background: 'rgba(2,6,23,0.78)', backdropFilter: 'blur(8px)', zIndex: 16777276, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
         >
           <div
             onClick={e => e.stopPropagation()}
@@ -806,7 +806,7 @@ export default function WorldPage() {
       {charModalOpen && (
         <div
           onClick={() => setCharModalOpen(false)}
-          style={{ position: 'absolute', inset: 0, background: 'rgba(3,7,18,0.72)', backdropFilter: 'blur(6px)', zIndex: 1001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          style={{ position: 'absolute', inset: 0, background: 'rgba(3,7,18,0.72)', backdropFilter: 'blur(6px)', zIndex: 16777275, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -876,7 +876,7 @@ export default function WorldPage() {
       {mapModalOpen && (
         <div
           onClick={() => { setMapModalOpen(false); setPortalPickMode(false); }}
-          style={{ position: 'absolute', inset: 0, background: 'rgba(3,7,18,0.72)', backdropFilter: 'blur(6px)', zIndex: 1001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          style={{ position: 'absolute', inset: 0, background: 'rgba(3,7,18,0.72)', backdropFilter: 'blur(6px)', zIndex: 16777275, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -1054,7 +1054,7 @@ export default function WorldPage() {
           type="button"
           onClick={() => setEmotePanel(p => !p)}
           style={{
-            position: 'absolute', bottom: 72, right: 16, zIndex: 1000,
+            position: 'absolute', bottom: 72, right: 16, zIndex: 16777274,
             width: 48, height: 48, borderRadius: '50%', border: 'none', cursor: 'pointer',
             background: emotePanel ? 'rgba(99,102,241,0.85)' : 'rgba(0,0,0,0.5)',
             color: '#fff', fontSize: 22, backdropFilter: 'blur(8px)',
@@ -1069,7 +1069,7 @@ export default function WorldPage() {
       {/* 이모트 패널 */}
       {emotePanel && emoteSlots.length > 0 && (
         <div style={{
-          position: 'absolute', bottom: 128, right: 16, zIndex: 1000,
+          position: 'absolute', bottom: 128, right: 16, zIndex: 16777274,
           background: 'rgba(10,10,20,0.85)', borderRadius: 14,
           padding: '10px 8px', backdropFilter: 'blur(12px)',
           display: 'flex', flexDirection: 'column', gap: 6,
@@ -1128,7 +1128,7 @@ export default function WorldPage() {
         onClick={openPortalBrowser}
         title={t('portalOpen')}
         style={{
-          position: 'absolute', top: 16, right: 64, zIndex: 1000,
+          position: 'absolute', top: 16, right: 64, zIndex: 16777274,
           width: 40, height: 40, borderRadius: '50%',
           background: 'rgba(34,211,238,0.18)', border: '1px solid rgba(34,211,238,0.5)',
           color: '#a5f3fc', fontSize: 18, cursor: 'pointer', backdropFilter: 'blur(8px)',
@@ -1141,7 +1141,7 @@ export default function WorldPage() {
       {/* 열린 포탈 배너 (상단 중앙) */}
       {openedPortal && (
         <div style={{
-          position: 'absolute', top: 96, left: '50%', transform: 'translateX(-50%)', zIndex: 1000,
+          position: 'absolute', top: 96, left: '50%', transform: 'translateX(-50%)', zIndex: 16777274,
           display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px 8px 16px',
           background: 'rgba(8,15,30,0.85)', border: '1px solid rgba(34,211,238,0.55)',
           borderRadius: 999, color: '#a5f3fc', fontSize: 13, fontWeight: 700, backdropFilter: 'blur(10px)',
@@ -1170,7 +1170,7 @@ export default function WorldPage() {
         }
       `}</style>
 
-      <div style={{ position: 'absolute', bottom: 24, right: 16, display: 'flex', flexDirection: 'column', gap: 6, zIndex: 1000 }}>
+      <div style={{ position: 'absolute', bottom: 24, right: 16, display: 'flex', flexDirection: 'column', gap: 6, zIndex: 16777274 }}>
         {chatOpen && (
           <div style={{ background: 'rgba(0,0,0,0.5)', borderRadius: 12, padding: '8px 10px', width: 260, maxHeight: 200, overflowY: 'auto', backdropFilter: 'blur(8px)' }} ref={chatRef}>
             {chatLog.length === 0 && <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>{t('chatEmpty')}</div>}
