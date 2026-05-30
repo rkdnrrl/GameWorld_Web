@@ -14,6 +14,7 @@
  */
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Html } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 export const VIDEO_SYNC_EVENT = '__video__';
@@ -165,6 +166,23 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
     window.addEventListener('pointerdown', onGesture);
     return () => window.removeEventListener('pointerdown', onGesture);
   }, [withSound]);
+
+  // 핵심 가림 트릭: drei portal 의 모든 wrapper div 들을 매 프레임 zIndex=-1 로 강제 → 캔버스(16777271)
+  // 뒤로 보냄. 그러면 캔버스의 영상 mesh 가 alpha=0 으로 뚫은 구멍을 통해서만 iframe 이 비치고, 캐릭터가
+  // 앞에 있으면 캔버스 캐릭터 픽셀이 iframe 을 가림 → 오브젝트가 영상을 정확히 픽셀 단위로 가림.
+  // drei transform 모드는 portal div(el) 안에 transformOuter/Inner div 두 겹을 추가하므로 iframe 부모
+  // 사슬을 위로 거슬러 모두 zIndex=-1 강제. drei 가 매 프레임 갱신(~8388634)하므로 useFrame 사용.
+  useFrame(() => {
+    const els: HTMLElement[] = [];
+    const start = iframeRef.current?.parentElement;
+    if (start) els.push(start);
+    for (let i = 0; i < 4; i++) {
+      const last = els[els.length - 1];
+      const p = last?.parentElement;
+      if (p && p.tagName !== 'BODY') els.push(p);
+    }
+    els.forEach(el => { if (el.style.zIndex !== '-1') el.style.zIndex = '-1'; });
+  });
 
   // drei <Html transform> 의 px→월드 환산이 작아서(scale 1 에서 640px ≈ 64유닛, 경험치).
   // 가로·세로 각각 평면 크기에 맞춰 비균등 스케일 → iframe 이 평면을 꽉 채움(16:9 아니어도).
