@@ -12,6 +12,7 @@ import AssetPreviewModal from '@/components/assets/AssetPreviewModal';
 import type { Asset as RegistryAsset } from '@/lib/assets/types';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
+import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, VideoScreenCtx, parseYouTubeId } from '@/components/world/VideoScreen';
 import AiGuideModal from './AiGuideModal';
 import StudioTopBar from './StudioTopBar';
 import StudioShortcutsModal from './StudioShortcutsModal';
@@ -145,6 +146,7 @@ interface MapObject {
   textureRoughness?: string;
   textureTilingX?:   number;
   textureTilingY?:   number;
+  videoUrl?:         string;   // 표면에 재생할 영상(TV 화면). 설정 시 텍스처 대신 비디오 재질.
   // 조명 전용
   lightColor?:     string;
   lightIntensity?: number;
@@ -1213,14 +1215,17 @@ function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onT
 }
 
 /* ── 텍스처 선택 모달 ────────────────────── */
-function TexturePickerModal({ assets, onSelect, onClose, title }: {
+function TexturePickerModal({ assets, onSelect, onClose, title, mode = 'image' }: {
   assets: Asset[];
   onSelect: (url: string) => void;
   onClose: () => void;
   title: string;
+  mode?: 'image' | 'video';
 }) {
   const t = useTranslations('Studio');
-  const images = assets.filter(a => /\.(png|jpe?g|webp)$/i.test(a.modelUrl));
+  const images = mode === 'video'
+    ? assets.filter(a => /\.(mp4|webm|mov)$/i.test(a.modelUrl))
+    : assets.filter(a => /\.(png|jpe?g|webp)$/i.test(a.modelUrl));
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}
       onClick={onClose}>
@@ -1242,7 +1247,9 @@ function TexturePickerModal({ assets, onSelect, onClose, title }: {
                 style={{ background: 'rgba(255,255,255,0.05)', border: '2px solid rgba(255,255,255,0.08)', borderRadius: 8, cursor: 'pointer', overflow: 'hidden', padding: 0 }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = '#6366f1')}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}>
-                <div style={{ width: '100%', aspectRatio: '1', background: `url(${a.modelUrl}) center/cover` }} />
+                {mode === 'video'
+                  ? <div style={{ width: '100%', aspectRatio: '1', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30 }}>📺</div>
+                  : <div style={{ width: '100%', aspectRatio: '1', background: `url(${a.modelUrl}) center/cover` }} />}
                 <div style={{ padding: '4px 6px', fontSize: 10, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
               </button>
             ))}
@@ -1318,17 +1325,26 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
     obj.kind === 'cylinder' ? <cylinderGeometry args={[0.5, 0.5, 1, 16]} /> :
     obj.kind === 'plane'    ? <planeGeometry args={[1, 1]} /> :
                               <boxGeometry args={[1, 1, 1]} />;
+  const vidSide = obj.kind === 'plane' ? THREE.DoubleSide : THREE.FrontSide;
+  const ytId = obj.videoUrl ? parseYouTubeId(obj.videoUrl) : null;
   // noTransform=true: 위치/userData는 외부 SceneNode group이 담당
   return (
-    <mesh ref={ref}
-      position={noTransform ? undefined : obj.position}
-      rotation={noTransform ? undefined : obj.rotation}
-      scale={noTransform ? undefined : obj.scale}
-      onPointerDown={handle} castShadow receiveShadow
-      userData={noTransform ? {} : { id: obj.id }}>
-      {geometry}
-      <PrimitiveMaterial obj={obj} selected={selected} />
-    </mesh>
+    <>
+      <mesh ref={ref}
+        position={noTransform ? undefined : obj.position}
+        rotation={noTransform ? undefined : obj.rotation}
+        scale={noTransform ? undefined : obj.scale}
+        onPointerDown={handle} castShadow receiveShadow
+        userData={noTransform ? {} : { id: obj.id }}>
+        {geometry}
+        {ytId
+          ? <YouTubeMeshMaterial videoId={ytId} selected={selected} side={vidSide} />
+          : obj.videoUrl
+            ? <VideoScreenMaterial url={obj.videoUrl} objId={obj.id} selected={selected} side={vidSide} />
+            : <PrimitiveMaterial obj={obj} selected={selected} />}
+      </mesh>
+      {ytId && <YouTubeMaybeOverlay videoId={ytId} objId={obj.id} />}
+    </>
   );
 }
 
@@ -2912,6 +2928,7 @@ export default function StudioCanvas() {
   const treeDragOverRef = useRef<{ overId: string | null; overMode: 'reorder' | 'reparent' | null }>({ overId: null, overMode: null });
   const [uploading, setUploading] = useState(false);
   const [texPicker, setTexPicker] = useState<null | 'albedo' | 'normal' | 'roughness'>(null);
+  const [videoPicker, setVideoPicker] = useState(false);
   const [dragOverTex, setDragOverTex] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
@@ -5364,6 +5381,38 @@ export default function StudioCanvas() {
                       </div>
                     )}
                   </div>
+
+                  {/* 📺 비디오 스크린 — 표면에 영상 재생 (TV 화면) */}
+                  <div style={{ marginBottom: 10, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.08)' }}
+                    onDragOver={e => { if (e.dataTransfer.types.includes('text/plain')) { e.preventDefault(); e.stopPropagation(); setDragOverTex('video'); } }}
+                    onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverTex(null); }}
+                    onDrop={e => {
+                      e.preventDefault(); e.stopPropagation(); setDragOverTex(null);
+                      const asset = myAssets.find(a => a.id === e.dataTransfer.getData('text/plain'));
+                      if (asset && /\.(mp4|webm|mov)$/i.test(asset.modelUrl)) { updateMaterialField('videoUrl', asset.modelUrl); pushHistory(objects); }
+                    }}>
+                    <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4 }}>📺 비디오 스크린</div>
+                    {selected.videoUrl ? (
+                      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                        <span style={{ flex: 1, fontSize: 10, color: '#86efac', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {parseYouTubeId(selected.videoUrl) ? '▶ YouTube 설정됨' : '✓ 영상 파일 설정됨'}
+                        </span>
+                        <button onClick={() => { updateMaterialField('videoUrl', undefined); pushHistory(objects); }} style={{ fontSize: 9, padding: '3px 6px', background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: 'none', borderRadius: 3, cursor: 'pointer' }}>제거</button>
+                      </div>
+                    ) : (
+                      <>
+                        <button onClick={() => setVideoPicker(true)}
+                          style={{ width: '100%', fontSize: 10, padding: '5px', marginBottom: 4, background: dragOverTex === 'video' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.06)', color: '#a5b4fc', border: `1px dashed ${dragOverTex === 'video' ? '#818cf8' : 'rgba(255,255,255,0.15)'}`, borderRadius: 4, cursor: 'pointer' }}>
+                          {dragOverTex === 'video' ? '📥 여기에 놓기' : '영상 파일 선택 (또는 에셋 드래그)'}
+                        </button>
+                        <input key={selected.id} type="text" placeholder="또는 YouTube 링크 붙여넣기"
+                          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                          onBlur={e => { const v = e.target.value.trim(); if (v && parseYouTubeId(v)) { updateMaterialField('videoUrl', v); pushHistory(objects); } }}
+                          style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(0,0,0,0.4)', border: 'none', color: '#fff', fontSize: 10, padding: '5px', borderRadius: 4, outline: 'none' }} />
+                      </>
+                    )}
+                    <div style={{ fontSize: 9, opacity: 0.4, marginTop: 3, lineHeight: 1.4 }}>평면(plane)에 적용하면 TV 화면처럼 됩니다. 영상 파일(mp4) 또는 YouTube 링크. 소리·멀티 동기화는 월드(플레이)에서 동작.</div>
+                  </div>
                 </>
               )}
               </>}
@@ -5519,6 +5568,7 @@ export default function StudioCanvas() {
           {simulating ? (
             /* ── 시뮬레이션 모드 ── */
             <Suspense fallback={null}>
+              <VideoScreenCtx.Provider value={{ live: true, withSound: true }}>
               <Physics gravity={[0, worldPhysics.gravity, 0]} interpolate={false}>
                 <SimScene objects={objects.filter(o => !o.hidden)} transforms={simTransforms} myAssets={myAssets}
                   player={simCharacter ? {
@@ -5537,6 +5587,7 @@ export default function StudioCanvas() {
                   } : undefined}
                 />
               </Physics>
+              </VideoScreenCtx.Provider>
             </Suspense>
           ) : (
             /* ── 편집 모드 ── */
@@ -5768,6 +5819,15 @@ export default function StudioCanvas() {
               pushHistory(objects);
               setTexPicker(null);
             }}
+          />
+        )}
+        {videoPicker && (
+          <TexturePickerModal
+            assets={myAssets}
+            mode="video"
+            title="비디오 스크린 선택"
+            onClose={() => setVideoPicker(false)}
+            onSelect={(url) => { updateMaterialField('videoUrl', url); pushHistory(objects); setVideoPicker(false); }}
           />
         )}
 

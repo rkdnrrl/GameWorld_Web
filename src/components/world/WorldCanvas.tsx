@@ -23,6 +23,7 @@ import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
+import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, VideoScreenCtx, VIDEO_SYNC_EVENT, applyVideoSync, type VideoRegistry, type VideoHandle } from './VideoScreen';
 
 const PLAYER_CAPSULE_HALF_HEIGHT = 0.35;
 const PLAYER_CAPSULE_RADIUS = 0.28;
@@ -1801,6 +1802,7 @@ interface UserMapObject {
   textureRoughness?: string;
   textureTilingX?:   number;
   textureTilingY?:   number;
+  videoUrl?:         string;   // 표면에 재생할 영상(TV 화면)
   // 조명 전용
   lightColor?:     string;
   lightIntensity?: number;
@@ -2102,6 +2104,29 @@ function PrimitiveMesh({ obj, shape }: { obj: UserMapObject; shape: React.ReactE
   }, [obj.material, obj.materialColor, obj.color, obj.textureAlbedo, obj.textureNormal, obj.textureRoughness, obj.textureTilingX, obj.textureTilingY, obj.kind]);
 
   React.useEffect(() => () => disposeMaterial(material), [material]);
+
+  // 비디오 스크린 — 표면에 영상 재생 (소리/동기화는 VideoScreenCtx 로 제어)
+  if (obj.videoUrl) {
+    const vidSide = obj.kind === 'plane' ? THREE.DoubleSide : THREE.FrontSide;
+    const ytId = parseYouTubeId(obj.videoUrl);
+    if (ytId) {
+      return (
+        <>
+          <mesh castShadow receiveShadow>
+            {shape}
+            <YouTubeMeshMaterial videoId={ytId} side={vidSide} />
+          </mesh>
+          <YouTubeMaybeOverlay videoId={ytId} objId={obj.id} />
+        </>
+      );
+    }
+    return (
+      <mesh castShadow receiveShadow>
+        {shape}
+        <VideoScreenMaterial url={obj.videoUrl} objId={obj.id} side={vidSide} />
+      </mesh>
+    );
+  }
 
   return (
     <mesh castShadow receiveShadow material={material}>
@@ -2510,6 +2535,10 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const componentScripts = useRef<Map<string, Array<{ vm: import('@/lib/world/jsRuntime').JsScript; key: string }>>>(new Map());
   // 클릭 파티클 버스트 — objectId → nonce. Player 클릭 시 +1, Particles(click 모드)가 폴링해 재생.
   const clickBurstRef = useRef<Map<string, number>>(new Map());
+  // 비디오 스크린 레지스트리 — objId→<video>. 소리 켜기(제스처)+멀티 동기화에 사용.
+  const videoRegistry: VideoRegistry = useRef<Map<string, VideoHandle>>(new Map());
+  // 월드는 실제 재생(live) + 소리 ON(첫 클릭에 unmute) + 동기화 ON. (value 고정 → 재렌더 방지)
+  const videoCtxValue = useMemo(() => ({ live: true, withSound: true, registry: videoRegistry }), []);
   const triggerClickBurst = useCallback((objectId: string) => {
     clickBurstRef.current.set(objectId, (clickBurstRef.current.get(objectId) ?? 0) + 1);
   }, []);
@@ -2623,6 +2652,13 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         if (!isHostRef.current) return;
         luaScripts.current.get(objectId)?.callClick(fromId);
         componentScripts.current.get(objectId)?.forEach(({ vm }) => vm.callClick(fromId));
+        return;
+      }
+      // 비디오 스크린 동기화 — 호스트가 보낸 재생시각을 비호스트가 자기 영상에 반영 (watch party)
+      if (event === VIDEO_SYNC_EVENT) {
+        if (isHostRef.current) return;            // 호스트는 권위자 — 수신 무시
+        const v = videoRegistry.current.get(objectId);
+        if (v) applyVideoSync(v, data as { t?: number; playing?: boolean });
         return;
       }
       luaScripts.current.get(objectId)?.callNetEvent(event, data, fromId);
@@ -2828,6 +2864,19 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // 스크립트 closure 에서 항상 최신 isHost 값 읽으려고 ref 로 유지
   const isHostRef = useRef(isHost);
   useEffect(() => { isHostRef.current = isHost; }, [isHost]);
+
+  // 호스트: 비디오 스크린 재생시각을 2초마다 broadcast → 비호스트가 같은 시점으로 맞춤 (watch party)
+  useEffect(() => {
+    if (!isHost || !sendScriptEvent) return;
+    const iv = setInterval(() => {
+      for (const [objId, v] of videoRegistry.current) {
+        const t = v.getTime();
+        if (!Number.isFinite(t) || t <= 0) continue;
+        sendScriptEvent(objId, VIDEO_SYNC_EVENT, { t, playing: !v.paused() });
+      }
+    }, 2000);
+    return () => clearInterval(iv);
+  }, [isHost, sendScriptEvent]);
 
   // 1인칭 클릭 핸들러 — 버스트는 본인 화면에서 즉시(로컬 피드백). onClick 스크립트는 호스트만
   // 권위적으로 실행하고, 비호스트면 호스트로 전달(__click__)해 호스트가 실행 → broadcast.
@@ -3385,6 +3434,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         />
 
         <Suspense fallback={null}>
+          <VideoScreenCtx.Provider value={videoCtxValue}>
           <Physics gravity={[0, gravityY, 0]} interpolate={false}>
             {customObjects !== undefined ? (
               // 유저 제작 월드 — 기본 그라운드 없음. 필요하면 평면 직접 배치
@@ -3424,6 +3474,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             ))}
             {portal && <WorldPortal portal={portal} />}
           </Physics>
+          </VideoScreenCtx.Provider>
         </Suspense>
         <PostFX s={postFX} />
       </Canvas>
