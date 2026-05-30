@@ -17,6 +17,9 @@ import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 
 export const VIDEO_SYNC_EVENT = '__video__';
+// 유저 컨트롤(앞/뒤 이동·URL 변경) 동기화 이벤트 — 주기적 sync(__video__)와 별개의 1회성 명령.
+export const VIDEO_CTL_EVENT = '__videoctl__';
+export interface VideoControlCmd { seekTo?: number; url?: string; playing?: boolean }
 
 /** 파일영상/YouTube 공통 재생 핸들 — 동기화가 소스 종류를 몰라도 되게 추상화. */
 export interface VideoHandle {
@@ -169,26 +172,23 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
   const PX_TO_UNIT = 0.06;
   const sx = Math.max(0.01, planeW) / (YT_IFRAME_W * PX_TO_UNIT);   // 가로 → planeW
   const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);   // 세로 → planeH
-  const src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=1&rel=0&playsinline=1`;
-  // occlude="blending": 깊이 버퍼 기반 가림 — 앞에 있는 오브젝트(캐릭터/벽 등)가 영상을
-  // 픽셀 단위로 정상적으로 가림. (raycast 방식은 중심이 가려지면 통째로 사라져서 부적합)
-  // occlude="blending" → 깊이 가림(앞 오브젝트가 영상을 거리순으로 가림).
-  // pointerEvents 는 drei 가 전담(보일 때 auto, 가려지면 none) — 수동으로 주면 충돌하므로 주지 않는다.
-  //  - 보일 때 pe=auto → elementFromPoint 로 크로스헤어가 영상 감지 → 자동 언락(커서) / YouTube 조작
-  //  - 영상 밖(바닥) 클릭은 래퍼 영역 밖이라 캔버스로 통과 → 포인터락(커서 숨김+회전)
+  // controls=0/disablekb=1/fs=0 → YouTube 자체 UI 제거(유저가 직접 못 건드림). 재생 제어는 별도 버튼이 IFrame API 로 함.
+  const src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`;
+  // occlude="blending": 깊이 버퍼 기반 가림 — 앞 오브젝트(캐릭터/벽 등)가 영상을 픽셀 단위로 정상 가림.
+  // pointerEvents="none": iframe 을 완전 비상호작용(클릭 통과)으로 → 유저가 YouTube 를 못 건드리고,
+  //   클릭은 그대로 캔버스로 통과해 포인터락(화면 회전)이 정상 동작. 조작은 별도 컨트롤 바가 담당.
+  // (주의: blending 은 캔버스 전체 pointerEvents 를 none 으로 만들므로 WorldCanvas 가 매 프레임 auto 로 복원함)
   return (
-    <Html transform occlude="blending" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center>
+    <Html transform occlude="blending" pointerEvents="none" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center>
       <iframe
         ref={iframeRef}
-        data-yt-screen=""
         width={YT_IFRAME_W}
         height={YT_IFRAME_H}
         src={src}
         title="YouTube"
         frameBorder={0}
         allow="autoplay; encrypted-media; picture-in-picture"
-        allowFullScreen
-        style={{ border: 'none', display: 'block', background: '#000' }}
+        style={{ border: 'none', display: 'block', background: '#000', pointerEvents: 'none' }}
       />
     </Html>
   );

@@ -23,7 +23,7 @@ import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
-import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, VideoScreenCtx, VIDEO_SYNC_EVENT, applyVideoSync, type VideoRegistry, type VideoHandle } from './VideoScreen';
+import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
 
 const PLAYER_CAPSULE_HALF_HEIGHT = 0.35;
 const PLAYER_CAPSULE_RADIUS = 0.28;
@@ -768,6 +768,17 @@ function ExposureUpdater({ exposure, hdriIntensity }: { exposure: number; hdriIn
   const { gl, scene } = useThree();
   gl.toneMappingExposure = exposure;
   (scene as THREE.Scene & { environmentIntensity?: number }).environmentIntensity = hdriIntensity;
+  return null;
+}
+
+/* drei <Html occlude="blending"> 는 캔버스 전체 pointerEvents 를 none 으로 만들어(라이브러리 동작)
+   YouTube 화면이 있으면 클릭-포인터락이 깨진다. 매 프레임 auto 로 되돌려 클릭/회전을 보장. */
+function CanvasPointerEventsKeeper() {
+  const { gl } = useThree();
+  useFrame(() => {
+    const s = gl.domElement.style;
+    if (s.pointerEvents === 'none') s.pointerEvents = 'auto';
+  });
   return null;
 }
 
@@ -2550,6 +2561,23 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const videoRegistry: VideoRegistry = useRef<Map<string, VideoHandle>>(new Map());
   // 월드는 실제 재생(live) + 소리 ON(첫 클릭에 unmute) + 동기화 ON. (value 고정 → 재렌더 방지)
   const videoCtxValue = useMemo(() => ({ live: true, withSound: true, registry: videoRegistry }), []);
+  // 비디오 URL 런타임 오버라이드 — 컨트롤 바에서 URL 변경 시(멀티 동기). objId→새 URL.
+  const [videoUrlOverrides, setVideoUrlOverrides] = useState<Record<string, string>>({});
+  // 컨트롤 바 동작 — 등록된 모든 비디오 스크린에 적용 + 다른 플레이어에게 broadcast(__videoctl__).
+  const runVideoControl = useCallback((cmd: { seekBy?: number; url?: string }) => {
+    for (const [objId, v] of videoRegistry.current) {
+      if (typeof cmd.seekBy === 'number') {
+        const target = Math.max(0, (v.getTime() || 0) + cmd.seekBy);
+        v.seek(target);
+        sendScriptEvent?.(objId, VIDEO_CTL_EVENT, { seekTo: target });
+      }
+      if (cmd.url) {
+        const url = cmd.url;
+        setVideoUrlOverrides(m => ({ ...m, [objId]: url }));
+        sendScriptEvent?.(objId, VIDEO_CTL_EVENT, { url });
+      }
+    }
+  }, [sendScriptEvent]);
   const triggerClickBurst = useCallback((objectId: string) => {
     clickBurstRef.current.set(objectId, (clickBurstRef.current.get(objectId) ?? 0) + 1);
   }, []);
@@ -2670,6 +2698,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         if (isHostRef.current) return;            // 호스트는 권위자 — 수신 무시
         const v = videoRegistry.current.get(objectId);
         if (v) applyVideoSync(v, data as { t?: number; playing?: boolean });
+        return;
+      }
+      // 비디오 컨트롤 명령(앞/뒤 5초·URL 변경) — 호스트 포함 모든 클라가 반영 (누가 눌러도 동기화)
+      if (event === VIDEO_CTL_EVENT) {
+        const d = data as VideoControlCmd;
+        if (typeof d.seekTo === 'number') videoRegistry.current.get(objectId)?.seek(d.seekTo);
+        if (typeof d.playing === 'boolean') videoRegistry.current.get(objectId)?.setPlaying(d.playing);
+        if (d.url) { const url = d.url; setVideoUrlOverrides(m => ({ ...m, [objectId]: url })); }
         return;
       }
       luaScripts.current.get(objectId)?.callNetEvent(event, data, fromId);
@@ -3312,7 +3348,39 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             background: 'rgba(255,255,255,0.18)', borderRadius: 4, padding: '1px 6px',
             fontFamily: 'inherit', fontSize: 10.5, fontWeight: 700,
           }}>Tab</kbd>
-          마우스 커서 켜기/끄기 (영상 클릭 ↔ 화면 회전)
+          마우스 커서 켜기/끄기 (버튼·UI 클릭 ↔ 화면 회전)
+        </div>
+      )}
+
+      {/* 영상 컨트롤 바 — YouTube/영상 화면이 있을 때만. 화면 자체는 못 건드리고, 이 버튼으로만 조작.
+          모든 영상 화면에 동시 적용 + 다른 플레이어에게 동기화(__videoctl__). 클릭하려면 Tab 으로 커서를 켤 것. */}
+      {customObjects?.some(o => o.videoUrl) && !chatInputActive && (
+        <div style={{
+          position: 'fixed', bottom: 16, left: 16,
+          pointerEvents: 'auto', zIndex: 1001,
+          display: 'flex', alignItems: 'center', gap: 6,
+          background: 'rgba(0,0,0,0.55)', padding: '6px 8px', borderRadius: 999,
+          border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(6px)',
+        }}>
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 700, padding: '0 4px' }}>📺</span>
+          {([
+            { label: '⏪ 5초', title: '5초 뒤로', onClick: () => runVideoControl({ seekBy: -5 }) },
+            { label: '5초 ⏩', title: '5초 앞으로', onClick: () => runVideoControl({ seekBy: 5 }) },
+            { label: '🔗 URL', title: '다른 동영상으로 변경', onClick: () => {
+              const url = window.prompt('새 유튜브 URL (또는 영상 파일 URL)', '');
+              if (url && url.trim()) runVideoControl({ url: url.trim() });
+            } },
+          ] as const).map(b => (
+            <button key={b.label} type="button" title={b.title} onClick={b.onClick}
+              style={{
+                background: 'rgba(255,255,255,0.12)', color: '#fff', border: 'none',
+                borderRadius: 8, padding: '6px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.24)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; }}
+            >{b.label}</button>
+          ))}
         </div>
       )}
 
@@ -3436,6 +3504,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         {/* 그림자맵을 매 프레임이 아니라 ~30Hz 로만 갱신 → 큰 그림자맵 렌더 부하 절감 */}
         {shadowsEnabled && <ShadowUpdateThrottle hz={30} />}
         <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
+        <CanvasPointerEventsKeeper />
 
         {/* 스튜디오 시뮬레이션과 동일한 Sky 파라미터(기본 turbidity/rayleigh) — WYSIWYG 일치 */}
         {showSky && !hdriBackground && <Sky sunPosition={[20, 10, 10]} />}
@@ -3470,7 +3539,10 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // 유저 제작 월드 — 기본 그라운드 없음. 필요하면 평면 직접 배치
               // runtimeObjects: 스크립트 world.spawn() 으로 동적 생성된 것 (로컬 전용, 저장 안 됨)
               <>{(() => {
-                const list = [...customObjects, ...runtimeObjects];
+                const base = [...customObjects, ...runtimeObjects];
+                // 런타임 URL 오버라이드(컨트롤 바에서 변경) 적용 — 오버라이드 없으면 원본 ref 유지(재렌더 방지)
+                const list = Object.keys(videoUrlOverrides).length === 0 ? base
+                  : base.map(o => videoUrlOverrides[o.id] !== undefined ? { ...o, videoUrl: videoUrlOverrides[o.id] } : o);
                 const byId = new Map(list.map(o => [o.id, o]));
                 const meshes = list
                   .filter(o => !o.hidden && o.kind !== 'pointlight' && o.kind !== 'spotlight' && o.kind !== 'dirlight' && o.kind !== 'spawn'
