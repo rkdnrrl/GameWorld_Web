@@ -14,6 +14,7 @@ import { getKind } from '@/lib/assets/registry';
 import '@/lib/assets/kinds';   // 사이드이펙트 import
 
 import AssetMarketCard from '@/components/assets/AssetMarketCard';
+import AssetDetailModal from '@/components/assets/AssetDetailModal';
 import AssetReportModal, { type ReportReason } from '@/components/assets/AssetReportModal';
 import PackCard from '@/components/assets/PackCard';
 import type { FolderPack } from '@/lib/api';
@@ -47,6 +48,9 @@ export default function AssetBrowsePage() {
   const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
   const [reportingAsset, setReportingAsset] = useState<Asset | null>(null);
   const [reportedIds, setReportedIds] = useState<Set<string>>(new Set());
+  // 카드 클릭 상세 모달 — id 로 잡고 assets 에서 파생(좋아요/비공개 즉시 반영)
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [unpublishingId, setUnpublishingId] = useState<string | null>(null);
   // 반응형 — 좁은 화면에선 사이드바를 가로 카테고리 칩으로 전환
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -216,6 +220,27 @@ export default function AssetBrowsePage() {
     }
   }
 
+  // 내 에셋 비공개 전환 — 마켓 목록에서 제거 (라이브러리에서 다시 공개 가능)
+  async function unpublishAsset(a: MarketAsset) {
+    const tk = session.getToken();
+    if (!tk) { router.push('/login'); return; }
+    setUnpublishingId(a.id);
+    setError('');
+    try {
+      await api.batchUpdateAssets(tk, { ids: [a.id], action: 'setPublic', value: false });
+      setAssets(prev => prev.filter(x => x.id !== a.id));
+      setTotal(prev => Math.max(0, prev - 1));
+      setDetailId(null);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'unpublish failed');
+    } finally {
+      setUnpublishingId(null);
+    }
+  }
+
+  // 상세 모달 대상 — 항상 최신 assets 에서 파생
+  const detailAsset = useMemo(() => assets.find(a => a.id === detailId) || null, [assets, detailId]);
+
   /* ── 프리뷰 (kind 핸들러) ── */
   const previewHandler = previewAsset ? getKind(previewAsset.kind) : null;
   const PreviewComp    = previewHandler?.Preview;
@@ -226,6 +251,23 @@ export default function AssetBrowsePage() {
     <>
       {previewAsset && PreviewComp && (
         <PreviewComp asset={previewAsset} onClose={() => setPreviewAsset(null)} />
+      )}
+      {detailAsset && (
+        <AssetDetailModal
+          asset={detailAsset}
+          kinds={kinds}
+          importing={importingId === detailAsset.id}
+          imported={importedIds.has(detailAsset.id)}
+          liking={likingId === detailAsset.id}
+          reported={reportedIds.has(detailAsset.id)}
+          unpublishing={unpublishingId === detailAsset.id}
+          onClose={() => setDetailId(null)}
+          onImport={importAsset}
+          onToggleLike={toggleLike}
+          onReport={(a) => { setDetailId(null); setReportingAsset(a); }}
+          onUnpublish={unpublishAsset}
+          onPreview={(a) => { setDetailId(null); setPreviewAsset(a); }}
+        />
       )}
       {reportingAsset && (
         <AssetReportModal
@@ -388,6 +430,7 @@ export default function AssetBrowsePage() {
                         liking={likingId === a.id}
                         reported={reportedIds.has(a.id)}
                         onPreview={setPreviewAsset}
+                        onOpenDetail={() => setDetailId(a.id)}
                         onImport={importAsset}
                         onToggleLike={toggleLike}
                         onReport={setReportingAsset}

@@ -4,14 +4,16 @@
  *  4:3 썸네일(클릭=미리보기) + kind 배지 + 좋아요, 하단 정보(제목·퍼블리셔·평점형 통계·FREE).
  *  가져오기/다운로드/신고 액션은 썸네일 호버 오버레이로 노출.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import type { Asset, AssetKind } from '@/lib/assets/types';
 import { detectKindFromUrl } from '@/lib/assets/types';
 import { getKind } from '@/lib/assets/registry';
+import { session, type User } from '@/lib/api';
 
 interface MarketAsset extends Asset {
+  creatorId?: string;
   creator?: { username: string | null };
   liked?: boolean;
   likeCount?: number;
@@ -26,6 +28,8 @@ interface Props {
   liking?: boolean;
   reported?: boolean;
   onPreview: (a: Asset) => void;
+  /** 카드 클릭 시 상세 모달 열기 (있으면 onPreview 대신 우선) */
+  onOpenDetail?: (a: MarketAsset) => void;
   onImport: (a: Asset) => void;
   onToggleLike: (a: MarketAsset) => void;
   onReport: (a: Asset) => void;
@@ -33,7 +37,7 @@ interface Props {
 
 export default function AssetMarketCard({
   asset, kinds, importing, imported, liking, reported,
-  onPreview, onImport, onToggleLike, onReport,
+  onPreview, onOpenDetail, onImport, onToggleLike, onReport,
 }: Props) {
   const t = useTranslations('Assets');
   const [hovered, setHovered] = useState(false);
@@ -43,6 +47,11 @@ export default function AssetMarketCard({
   const Thumb   = handler?.Thumbnail;
   const canPreview = !!handler?.Preview;
   const username = asset.creator?.username || null;
+
+  // 다운로드는 자신의 에셋(creatorId 일치)이거나 운영자일 때만 노출
+  const [me, setMe] = useState<User | null>(null);
+  useEffect(() => { setMe(session.getUser()); }, []);
+  const canDownload = !!me && (!!me.isOperator || (!!asset.creatorId && asset.creatorId === me.id));
 
   const iconBtn: React.CSSProperties = {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -63,13 +72,13 @@ export default function AssetMarketCard({
         boxShadow: hovered ? '0 12px 28px rgba(0,0,0,0.45)' : '0 1px 2px rgba(0,0,0,0.3)',
         transition: 'border-color .15s, transform .15s, box-shadow .15s',
       }}>
-      {/* 썸네일 (4:3, 클릭=미리보기) */}
+      {/* 썸네일 (4:3, 클릭=상세 모달, 미디어는 모달에서 미리보기) */}
       <div
-        onClick={() => { if (canPreview) onPreview(asset); }}
+        onClick={() => { if (onOpenDetail) onOpenDetail(asset); else if (canPreview) onPreview(asset); }}
         style={{
           width: '100%', aspectRatio: '4 / 3', background: 'radial-gradient(circle at 50% 35%, #25304a, #0e1424)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          position: 'relative', cursor: canPreview ? 'zoom-in' : 'default', overflow: 'hidden',
+          position: 'relative', cursor: onOpenDetail ? 'pointer' : canPreview ? 'zoom-in' : 'default', overflow: 'hidden',
         }}>
         {Thumb
           ? <Thumb asset={asset} />
@@ -124,7 +133,9 @@ export default function AssetMarketCard({
             }}>
             {imported ? '✓ ' + t('marketImported') : importing ? '…' : '↓ ' + t('marketImport')}
           </button>
-          <a href={asset.modelUrl} download onClick={e => e.stopPropagation()} title={t('download')} style={iconBtn}>⬇</a>
+          {canDownload && (
+            <a href={asset.modelUrl} download onClick={e => e.stopPropagation()} title={t('download')} style={iconBtn}>⬇</a>
+          )}
           <button
             onClick={e => { e.stopPropagation(); if (!reported) onReport(asset); }}
             disabled={reported}

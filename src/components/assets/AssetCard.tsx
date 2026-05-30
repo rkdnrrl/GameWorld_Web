@@ -8,6 +8,7 @@ import { useTranslations } from 'next-intl';
 import type { Asset, AssetKind } from '@/lib/assets/types';
 import { detectKindFromUrl } from '@/lib/assets/types';
 import { getKind } from '@/lib/assets/registry';
+import { session } from '@/lib/api';
 
 interface Props {
   asset: Asset;
@@ -46,9 +47,14 @@ export default function AssetCard({
   const [draft, setDraft]     = useState(asset.name);
   const [saving, setSaving]   = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isOperator, setIsOperator] = useState(false);
 
   useEffect(() => { setDraft(asset.name); }, [asset.name]);
   useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
+  useEffect(() => { setIsOperator(!!session.getUser()?.isOperator); }, []);
+
+  // 다운로드는 자신이 올린 에셋이거나 운영자일 때만 — 참조(가져온) 에셋은 원본 소유자 파일이라 제외
+  const canDownload = !asset.metadata?.referenceOnly || isOperator;
 
   async function commitRename() {
     const next = draft.trim().slice(0, 100);
@@ -270,13 +276,15 @@ export default function AssetCard({
         </div>
 
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <a
-            href={asset.modelUrl}
-            download
-            style={{ fontSize: 11, color: '#818cf8', textDecoration: 'none', padding: '3px 8px', background: 'rgba(99,102,241,0.15)', borderRadius: 5 }}
-          >
-            {t('download')}
-          </a>
+          {canDownload && (
+            <a
+              href={asset.modelUrl}
+              download
+              style={{ fontSize: 11, color: '#818cf8', textDecoration: 'none', padding: '3px 8px', background: 'rgba(99,102,241,0.15)', borderRadius: 5 }}
+            >
+              {t('download')}
+            </a>
+          )}
           {asset.metadata?.referenceOnly ? (
             // 마켓에서 가져온(참조) 에셋 — 원본 소유자 것이라 공개/비공개 전환 불가
             <span

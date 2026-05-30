@@ -24,6 +24,11 @@ export default function AssetVersionsModal({ asset, onClose, onAssetChanged }: P
   const [error, setError]   = useState('');
   const [acting, setActing] = useState<number | null>(null);
 
+  // 다운로드는 자신이 올린 에셋이거나 운영자일 때만 — 참조(가져온) 에셋은 제외
+  const [isOperator, setIsOperator] = useState(false);
+  useEffect(() => { setIsOperator(!!session.getUser()?.isOperator); }, []);
+  const canDownload = !asset.metadata?.referenceOnly || isOperator;
+
   // 업로드 상태
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress]   = useState(0);
@@ -212,10 +217,12 @@ export default function AssetVersionsModal({ asset, onClose, onAssetChanged }: P
                       </div>
                     )}
                   </div>
-                  <a href={v.modelUrl} download
-                    style={{ fontSize: 10, color: '#a5b4fc', textDecoration: 'none', padding: '4px 8px', background: 'rgba(255,255,255,0.06)', borderRadius: 4 }}>
-                    ↓
-                  </a>
+                  {canDownload && (
+                    <a href={v.modelUrl} download
+                      style={{ fontSize: 10, color: '#a5b4fc', textDecoration: 'none', padding: '4px 8px', background: 'rgba(255,255,255,0.06)', borderRadius: 4 }}>
+                      ↓
+                    </a>
+                  )}
                   {!isCurrent && (
                     <>
                       <button onClick={() => revert(v.version)} disabled={acting === v.version}
