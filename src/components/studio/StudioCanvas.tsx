@@ -2322,7 +2322,12 @@ function SimScene({ objects, transforms, myAssets, player }: {
     const worldAPI2: import('@/lib/world/jsRuntime').JsWorldAPI = {
       getTime: () => worldElapsed.current,
       getPlayers: () => [],
-      findObject: () => null,
+      // 메인 스크립트와 동일하게 id/label 로 오브젝트 찾기 — 오브젝트 참조 변수(드롭한 target) 해석에 필요.
+      // (이게 () => null 이라 시뮬에선 target 이 항상 null 이라 동작 안 하던 버그)
+      findObject: (nameOrId) => {
+        const target = [...objects, ...runtimeObjectsRef.current].find(o => o.id === nameOrId || o.label === nameOrId);
+        return target ? makeAPIForObj(target) : null;
+      },
       spawn: (opts) => {
         const id = spawnObject(opts);
         return makeAPIForObj({ ...opts, id } as MapObject);
