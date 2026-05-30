@@ -180,6 +180,7 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
     <Html transform occlude="blending" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center style={{ pointerEvents: 'none' }}>
       <iframe
         ref={iframeRef}
+        data-yt-screen=""
         width={YT_IFRAME_W}
         height={YT_IFRAME_H}
         src={src}

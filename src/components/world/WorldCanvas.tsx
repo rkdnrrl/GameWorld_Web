@@ -1194,6 +1194,20 @@ export function Player({
     };
   }, [gl, inputLocked, onToggleCameraMode]);
 
+  // 크로스헤어(화면 중앙)가 YouTube 영상에 닿으면 포인터락 해제 → 커서가 나와 영상 조작 가능.
+  // (다시 잠그는 건 빈 곳 클릭 — 브라우저가 사용자 제스처 없이 자동 lock 을 막음)
+  // armed: 영상 밖을 한 번 본 뒤에만 다시 해제 → 잠근 직후 영상을 보고 있어도 바로 안 풀려 카메라를 돌릴 수 있음.
+  useEffect(() => {
+    let armed = false;
+    const iv = setInterval(() => {
+      const el = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2) as HTMLElement | null;
+      const onVideo = !!el?.closest?.('[data-yt-screen]');
+      if (!onVideo) { armed = true; return; }
+      if (document.pointerLockElement && armed) { document.exitPointerLock(); armed = false; }
+    }, 120);
+    return () => clearInterval(iv);
+  }, []);
+
   useEffect(() => {
     if (!inputLocked) return;
     keys.current.clear();
