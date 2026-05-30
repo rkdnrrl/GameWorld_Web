@@ -779,7 +779,10 @@ function CanvasPointerEventsKeeper() {
   const { gl } = useThree();
   useFrame(() => {
     const s = gl.domElement.style;
+    // blending 누수 복원: pe(none → auto) + zIndex 강제(16777271, drei iframe max 8388634 보다 위)
+    // 캔버스가 iframe 위에 있어야 occlusion mesh 의 alpha-0 구멍을 통해서만 iframe 이 보임 = 정상 가림.
     if (s.pointerEvents === 'none') s.pointerEvents = 'auto';
+    if (s.zIndex !== '16777271') s.zIndex = '16777271';
   });
   return null;
 }
@@ -3531,7 +3534,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 0.7,
         }}
-        style={{ width: '100vw', height: '100vh', display: 'block', transform: 'translateZ(0)', willChange: 'transform' }}
+        style={{ width: '100vw', height: '100vh', display: 'block', transform: 'translateZ(0)', willChange: 'transform', zIndex: 16777271, position: 'fixed', inset: 0 }}
       >
         {/* 조명 — sceneSettings 기반 */}
         <ambientLight intensity={ambientIntensity} />
