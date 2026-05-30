@@ -3391,6 +3391,27 @@ export default function StudioCanvas() {
     setStudioMode('scene');
   }
 
+  // 트리에서 우클릭한 아이템의 자식으로 빈 오브젝트 추가.
+  // 부모 기준 로컬 (0,0,0) 으로 생성 → 부모 위치에 붙음 (컴포넌트 없이 깨끗하게).
+  function addEmptyChild(parentId: string) {
+    const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const label = makeLabel('empty');
+    setObjects(prev => {
+      const next: MapObject[] = [...prev, {
+        id, kind: 'empty', label,
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale:    [1, 1, 1],
+        color:    '#60a5fa',
+        parentId,
+      }];
+      pushHistory(next);
+      return next;
+    });
+    setSelectedId(id);
+    setStudioMode('scene');
+  }
+
   function addAsset(asset: Asset, position: [number, number, number] = [0, 0, 0]) {
     const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const label = asset.name || makeLabel('asset');
@@ -5706,6 +5727,8 @@ export default function StudioCanvas() {
                 </>
               ) : (
                 <>
+                  <button type="button" style={itemStyle} onMouseEnter={hover(true)} onMouseLeave={hover(false)}
+                    onClick={() => { addEmptyChild(treeCtxMenu.objId!); setTreeCtxMenu(null); }}>🔵 {t('addEmptyChild')}</button>
                   {node?.parentId && (
                     <button type="button" style={itemStyle} onMouseEnter={hover(true)} onMouseLeave={hover(false)}
                       onClick={() => { reparentObject(treeCtxMenu.objId!, null); setTreeCtxMenu(null); }}>⤴ {t('unparent')}</button>

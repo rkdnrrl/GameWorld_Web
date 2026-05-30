@@ -1302,6 +1302,7 @@
     "fullscreenEnter": "全画面",
     "fullscreenExit": "全画面終了",
     "addEmpty": "空オブジェクト追加",
+    "addEmptyChild": "子として空オブジェクトを追加",
     "addSpawn": "スポーン地点を追加",
     "unparent": "親から外す"
   },

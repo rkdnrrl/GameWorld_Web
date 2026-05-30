@@ -1302,6 +1302,7 @@
     "fullscreenEnter": "전체화면",
     "fullscreenExit": "전체화면 종료",
     "addEmpty": "빈 오브젝트 추가",
+    "addEmptyChild": "자식으로 빈 오브젝트 추가",
     "addSpawn": "스폰 포인트 추가",
     "unparent": "부모에서 빼기"
   },

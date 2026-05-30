@@ -1302,6 +1302,7 @@
     "fullscreenEnter": "全屏",
     "fullscreenExit": "退出全屏",
     "addEmpty": "添加空对象",
+    "addEmptyChild": "添加空对象为子级",
     "addSpawn": "添加出生点",
     "unparent": "移出父级"
   },

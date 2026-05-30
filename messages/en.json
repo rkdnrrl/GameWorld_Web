@@ -1302,6 +1302,7 @@
     "fullscreenEnter": "Fullscreen",
     "fullscreenExit": "Exit fullscreen",
     "addEmpty": "Add Empty",
+    "addEmptyChild": "Add Empty as Child",
     "addSpawn": "Add Spawn Point",
     "unparent": "Move out of parent"
   },
