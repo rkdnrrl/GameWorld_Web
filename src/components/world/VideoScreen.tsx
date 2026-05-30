@@ -163,10 +163,6 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
     return () => window.removeEventListener('pointerdown', onGesture);
   }, [withSound]);
 
-  // 영상은 항상 클릭 통과(pointerEvents:none) → 게임 카메라 회전/포인터락이 항상 정상 동작.
-  // (영상 제어(재생·탐색·URL 변경)는 iframe 직접 클릭이 아니라 별도 동기화 컨트롤로 처리)
-  const pe = 'none' as const;
-
   // drei <Html transform> 의 px→월드 환산이 작아서(scale 1 에서 640px ≈ 64유닛, 경험치).
   // 가로·세로 각각 평면 크기에 맞춰 비균등 스케일 → iframe 이 평면을 꽉 채움(16:9 아니어도).
   // 전체가 안 맞으면 PX_TO_UNIT 만 조절.
@@ -176,10 +172,11 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
   const src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=1&rel=0&playsinline=1`;
   // occlude="blending": 깊이 버퍼 기반 가림 — 앞에 있는 오브젝트(캐릭터/벽 등)가 영상을
   // 픽셀 단위로 정상적으로 가림. (raycast 방식은 중심이 가려지면 통째로 사라져서 부적합)
-  // 락 중이면 pointerEvents:none → 클릭이 캔버스로 통과(카메라 회전). 락 해제면 auto → YT 컨트롤 클릭 가능.
-  // (락 걸려면 영상 아닌 빈 곳을 클릭, 영상 클릭은 YT 조작)
+  // 래퍼(Html)는 pointerEvents:none → iframe 바깥(빈 곳) 클릭은 캔버스로 통과 → 포인터락(화면 회전).
+  // iframe 만 pointerEvents:auto → 영상 영역 클릭은 iframe 이 잡아서 잠금 안 됨 + YouTube 조작 가능.
+  // (occlude 는 pointerEvents 를 자체 관리해 위 동작과 충돌 → 사용 안 함. 앞 오브젝트 가림은 미적용)
   return (
-    <Html transform occlude="blending" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center style={{ pointerEvents: pe }}>
+    <Html transform position={[0, 0, 0.05]} scale={[sx, sy, 1]} center style={{ pointerEvents: 'none' }}>
       <iframe
         ref={iframeRef}
         width={YT_IFRAME_W}
@@ -189,7 +186,7 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
         frameBorder={0}
         allow="autoplay; encrypted-media; picture-in-picture"
         allowFullScreen
-        style={{ border: 'none', display: 'block', background: '#000', pointerEvents: pe }}
+        style={{ border: 'none', display: 'block', background: '#000', pointerEvents: 'auto' }}
       />
     </Html>
   );
