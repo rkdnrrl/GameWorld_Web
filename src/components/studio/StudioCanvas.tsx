@@ -1839,7 +1839,7 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
   if (obj.kind === 'spawn' || obj.kind === 'empty') {
     if (!colliderBox) return null;
     return (
-      <RigidBody ref={bodyRef} type="fixed" colliders={false}
+      <RigidBody ref={bodyRef} type="fixed" colliders={false} userData={{ objectId: obj.id }}
         position={t.pos} rotation={t.rot} scale={t.scl} {...colliderEvents}>
         <CuboidCollider args={[colliderBox.hx, colliderBox.hy, colliderBox.hz]} position={[colliderBox.ox, colliderBox.oy, colliderBox.oz]} sensor={trig} />
       </RigidBody>
@@ -1882,7 +1882,7 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
   const bodyType: 'fixed' | 'dynamic' = phys === 'dynamic' ? 'dynamic' : 'fixed';
   if (colliderComp && colliderBox) {
     return (
-      <RigidBody ref={bodyRef} type={bodyType} colliders={false}
+      <RigidBody ref={bodyRef} type={bodyType} colliders={false} userData={{ objectId: obj.id }}
         position={t.pos} rotation={t.rot} scale={t.scl} {...colliderEvents}>
         <CuboidCollider args={[colliderBox.hx, colliderBox.hy, colliderBox.hz]} position={[colliderBox.ox, colliderBox.oy, colliderBox.oz]} sensor={trig} />
         {mesh}
@@ -1894,7 +1894,7 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
     obj.kind === 'asset'   ? (phys === 'dynamic' ? 'hull' : 'trimesh') :
                              'cuboid';
   return (
-    <RigidBody ref={bodyRef} type={bodyType} colliders={colliders}
+    <RigidBody ref={bodyRef} type={bodyType} colliders={colliders} userData={{ objectId: obj.id }}
       position={t.pos} rotation={t.rot} scale={t.scl}>
       {mesh}
     </RigidBody>
