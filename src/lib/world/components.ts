@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -24,11 +24,12 @@ export interface ComponentInstance {
  *  - string: 텍스트 input
  *  - boolean: 체크박스
  *  - enum: radio 버튼 그룹 (options 배열에서 선택)
+ *  - color: 색상 선택기 (hex 문자열)
  */
 export interface ComponentPropDef {
   key: string;
   label: string;
-  type: 'number' | 'string' | 'boolean' | 'enum';
+  type: 'number' | 'string' | 'boolean' | 'enum' | 'color';
   default: number | string | boolean;
   min?: number;        // type=number 일 때
   max?: number;
@@ -97,6 +98,22 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'dofFocalLength', label: 'DOF 초점길이',           type: 'number', default: 0.05, min: 0, max: 1,    step: 0.005 },
       { key: 'dofBokeh',       label: 'DOF 보케 크기',          type: 'number', default: 2,    min: 0, max: 10,   step: 0.5 },
       { key: 'toneMapping',    label: 'ACES 톤매핑',            type: 'boolean', default: false },
+    ],
+  },
+  {
+    type: 'particle',
+    name: '파티클 (눈/연기/불)',
+    icon: '❄️',
+    description: '오브젝트 위치에서 파티클을 방출. 프리셋(눈·연기·불·비·반짝임) 선택 후 개수·크기·속도·범위·색을 조절. 빈 오브젝트에 붙여 방출기로 쓰기 좋음. 편집·시뮬·플레이 모두 반영.',
+    props: [
+      { key: 'preset',  label: '프리셋',              type: 'enum',   default: 'snow', options: ['snow', 'smoke', 'fire', 'rain', 'sparkles'] },
+      { key: 'count',   label: '개수',                type: 'number', default: 300,  min: 1,   max: 3000, step: 10 },
+      { key: 'size',    label: '입자 크기 (배율)',    type: 'number', default: 1,    min: 0.1, max: 5,    step: 0.1 },
+      { key: 'speed',   label: '속도 (배율)',         type: 'number', default: 1,    min: 0.1, max: 5,    step: 0.1 },
+      { key: 'area',    label: '퍼짐 반경',           type: 'number', default: 6,    min: 0.5, max: 40,   step: 0.5 },
+      { key: 'height',  label: '높이 범위',           type: 'number', default: 8,    min: 0.5, max: 40,   step: 0.5 },
+      { key: 'opacity', label: '투명도',              type: 'number', default: 0.85, min: 0,   max: 1,    step: 0.05 },
+      { key: 'color',   label: '색 (흰색=프리셋 기본)', type: 'color',  default: '#ffffff' },
     ],
   },
   {

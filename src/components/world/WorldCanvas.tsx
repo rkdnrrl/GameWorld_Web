@@ -22,6 +22,7 @@ import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
 import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
+import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 
 const PLAYER_CAPSULE_HALF_HEIGHT = 0.35;
 const PLAYER_CAPSULE_RADIUS = 0.28;
@@ -3253,13 +3254,26 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               <>{(() => {
                 const list = [...customObjects, ...runtimeObjects];
                 const byId = new Map(list.map(o => [o.id, o]));
-                return list
+                const meshes = list
                   .filter(o => !o.hidden && o.kind !== 'pointlight' && o.kind !== 'spotlight' && o.kind !== 'dirlight' && o.kind !== 'spawn' && o.kind !== 'empty')
                   .map(obj => (
                     <UserMapObjectMesh key={obj.id} obj={obj}
                       world={obj.parentId ? computeWorldTRS(obj, byId) : undefined}
                       scriptBodyRefs={scriptBodyRefs} />
                   ));
+                // 파티클 레이어 — 빈 오브젝트 포함 모든 kind (물리 바디 밖, 메시 렌더와 별개)
+                const particles = list
+                  .filter(o => !o.hidden && o.components?.some(c => c.type === 'particle'))
+                  .map(obj => {
+                    const inst = obj.components!.find(c => c.type === 'particle')!;
+                    const w = obj.parentId ? computeWorldTRS(obj, byId) : { position: obj.position, rotation: obj.rotation, scale: obj.scale };
+                    return (
+                      <group key={'pfx-' + obj.id} position={w.position} rotation={w.rotation} scale={w.scale}>
+                        <Particles s={deriveParticleSettings(inst)} />
+                      </group>
+                    );
+                  });
+                return <>{meshes}{particles}</>;
               })()}</>
             ) : (
               // worldId 없음 (기본 월드) → 데모 섬

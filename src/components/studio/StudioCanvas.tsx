@@ -11,6 +11,7 @@ import '@/lib/assets/kinds'; // kind 핸들러(Thumbnail/Preview) 등록 — 사
 import AssetPreviewModal from '@/components/assets/AssetPreviewModal';
 import type { Asset as RegistryAsset } from '@/lib/assets/types';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
+import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import AiGuideModal from './AiGuideModal';
 import StudioTopBar from './StudioTopBar';
 import StudioShortcutsModal from './StudioShortcutsModal';
@@ -294,6 +295,42 @@ function ComponentsSection({
                     <input type="checkbox" checked={!!val}
                       onChange={e => { updateProp(idx, p.key, e.target.checked); pushHistory(allObjects); }} />
                     {p.label}
+                  </label>
+                );
+              }
+              if (p.type === 'enum' && p.options && p.options.length > 0) {
+                return (
+                  <div key={p.key} style={{ marginTop: 4 }}>
+                    <div style={{ fontSize: 10, opacity: 0.75, marginBottom: 3 }}>{p.label}</div>
+                    <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                      {p.options.map(opt => {
+                        const active = String(val) === opt;
+                        return (
+                          <button key={opt} type="button"
+                            onClick={() => { updateProp(idx, p.key, opt); pushHistory(allObjects); }}
+                            style={{
+                              flex: '1 0 auto', minWidth: 30,
+                              background: active ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.05)',
+                              border: `1px solid ${active ? '#818cf8' : 'rgba(255,255,255,0.12)'}`,
+                              color: active ? '#c7d2fe' : 'rgba(255,255,255,0.65)',
+                              borderRadius: 4, padding: '4px 6px', fontSize: 10, fontWeight: active ? 700 : 500, cursor: 'pointer',
+                            }}>
+                            {opt}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
+              if (p.type === 'color') {
+                return (
+                  <label key={p.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, fontSize: 10, opacity: 0.75, marginTop: 4 }}>
+                    {p.label}
+                    <input type="color" value={String(val)}
+                      onChange={e => updateProp(idx, p.key, e.target.value)}
+                      onBlur={() => pushHistory(allObjects)}
+                      style={{ width: 36, height: 22, padding: 0, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
                   </label>
                 );
               }
@@ -2247,6 +2284,16 @@ function SimScene({ objects, transforms, myAssets, player }: {
         <SimObject key={obj.id} obj={obj} transforms={transforms}
           myAssets={myAssets} scriptBodyRefs={scriptBodyRefs} lightRefs={lightRefs} />
       ))}
+      {/* 파티클 레이어 — 빈 오브젝트 포함 모든 kind. 물리 바디 밖에 두어 충돌에 영향 X */}
+      {allObjects.filter(o => o.components?.some(c => c.type === 'particle')).map(obj => {
+        const inst = obj.components!.find(c => c.type === 'particle')!;
+        const tr = transforms[obj.id] ?? { pos: obj.position, rot: obj.rotation, scl: obj.scale };
+        return (
+          <group key={'pfx-' + obj.id} position={tr.pos} rotation={tr.rot} scale={tr.scl ?? obj.scale}>
+            <Particles s={deriveParticleSettings(inst)} />
+          </group>
+        );
+      })}
       {/* 시뮬레이션 플레이어 — 월드와 동일한 Player 컴포넌트 재사용. grab 은 sim 의 scriptBodyRefs/스크립트와 연동 */}
       {player && (
         <SimCameraNear near={!player.freeCam && player.cameraMode === 'first' ? 0.45 : 0.1} />
@@ -5109,6 +5156,16 @@ export default function StudioCanvas() {
                       }
                     }}
                   />
+                );
+              })}
+              {/* 파티클 레이어 — 빈 오브젝트 포함 모든 kind 를 월드 TRS 로 방출 */}
+              {objects.filter(o => !o.hidden && o.components?.some(c => c.type === 'particle')).map(obj => {
+                const inst = obj.components!.find(c => c.type === 'particle')!;
+                const w = worldTRSFor(obj);
+                return (
+                  <group key={'pfx-' + obj.id} position={w.p} rotation={w.r} scale={w.s}>
+                    <Particles s={deriveParticleSettings(inst)} />
+                  </group>
                 );
               })}
               <SelectedTransform
