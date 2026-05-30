@@ -450,6 +450,9 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, he
 
   // 1인칭 크로스헤어 클릭 — pointer lock 상태에서 화면 중앙으로 raycaster 쏴 이 mesh hit 시 처리.
   // R3F 의 onPointerDown 은 마우스 좌표 기반이라 lock 중엔 안 잡힘 → 직접 window listener.
+  // 주의: capture phase X / stopPropagation X — 다른 1인칭 처리(오브젝트 클릭 등) 와 공존.
+  //   리모컨 hit 일 때도 다른 처리에 클릭이 같이 전달되지만, 다른 곳도 raycast 로 자기 mesh hit
+  //   체크하므로 동시 호출돼도 무해(리모컨 mesh 는 다른 곳에서 hit 안 됨).
   const meshRef = useRef<THREE.Mesh>(null);
   const { camera } = useThree();
   useEffect(() => {
@@ -461,13 +464,10 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, he
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);   // 화면 중앙
       const hits = raycaster.intersectObject(meshRef.current);
-      if (hits.length > 0 && hits[0].uv) {
-        handleUv(hits[0].uv);
-        e.stopPropagation();
-      }
+      if (hits.length > 0 && hits[0].uv) handleUv(hits[0].uv);
     };
-    window.addEventListener('pointerdown', onClick, true);
-    return () => window.removeEventListener('pointerdown', onClick, true);
+    window.addEventListener('pointerdown', onClick);
+    return () => window.removeEventListener('pointerdown', onClick);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interactive, camera, targetId]);
 
