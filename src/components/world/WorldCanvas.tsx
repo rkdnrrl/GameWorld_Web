@@ -2538,6 +2538,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const lightObjects = (customObjects ?? []).filter(
     (o: UserMapObject) => o.kind === 'pointlight' || o.kind === 'spotlight' || o.kind === 'dirlight'
   );
+  // 조명도 부모(예: Manager) 변환을 반영해야 함 — 스튜디오는 월드 TRS 로 배치하는데
+  // 월드가 로컬 위치만 쓰면 방향광 방향이 틀어져 어두워짐. 부모 합성용 byId.
+  const objectsById = useMemo(() => new Map((customObjects ?? []).map(o => [o.id, o])), [customObjects]);
   // 후처리 볼륨 — postProcess 컴포넌트 설정
   const postFX = useMemo(() => derivePostFX(customObjects ?? []), [customObjects]);
   // 스폰 포인트 — 여러 개 있으면 랜덤 선택. 없으면 기본 [0, 4, 0].
@@ -3464,6 +3467,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         {lightObjects.map(o => {
           const dist = o.lightDistance ?? 0;
           const shadowFar = dist > 0 ? dist : 100;
+          // 부모(Manager 등) 변환 반영한 월드 위치 — 방향광은 위치→원점 방향으로 비추므로
+          // 부모 변환이 빠지면 빛 방향이 틀어진다(스튜디오와 불일치 → 어두움). 메시와 동일 규약.
+          const lpos = o.parentId ? computeWorldTRS(o, objectsById).position : o.position;
           // ref 콜백: 스크립트에서 light.color / light.intensity 직접 제어 가능하게 등록
           const refCb = (light: THREE.Light | null) => {
             if (light) lightRefs.current.set(o.id, light);
@@ -3471,13 +3477,13 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           };
           return o.kind === 'pointlight' ? (
             <pointLight key={o.id} ref={refCb}
-              position={o.position} color={o.lightColor || '#ffffff'}
+              position={lpos} color={o.lightColor || '#ffffff'}
               intensity={o.lightIntensity ?? 1} distance={dist}
               decay={1} castShadow={o.castShadow ?? false}
               shadow-camera-near={0.1} shadow-camera-far={shadowFar} />
           ) : o.kind === 'dirlight' ? (
             <directionalLight key={o.id} ref={refCb}
-              position={o.position} color={o.lightColor || '#ffffff'}
+              position={lpos} color={o.lightColor || '#ffffff'}
               intensity={o.lightIntensity ?? 1}
               castShadow={o.castShadow ?? false}
               shadow-mapSize={shadowMapSize}
@@ -3487,7 +3493,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               shadow-bias={-0.0005} />
           ) : (
             <spotLight key={o.id} ref={refCb}
-              position={o.position} color={o.lightColor || '#ffffff'}
+              position={lpos} color={o.lightColor || '#ffffff'}
               intensity={o.lightIntensity ?? 1} distance={dist}
               angle={(o.lightAngle ?? 45) * Math.PI / 180}
               penumbra={o.lightPenumbra ?? 0.2}
