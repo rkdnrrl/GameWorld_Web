@@ -286,12 +286,80 @@ export function VideoControlBar({ registry, targetId, onSeekBy, onSeekTo, onTogg
   );
 }
 
-/* ── 비디오 리모컨 — 씬에 놓는 3D 조작 패널 (videoRemote 컴포넌트). 오브젝트 위치에 떠서
-   현재 영상 이름 + URL 변경 + 스크러버/재생을 보여줌. 특정 영상(targetId)만 조작.
-   부모 <group position> 안에 두면 그 위치에 앵커됨. <Html> 비-transform: 항상 정면·고정 크기라
-   거리와 무관하게 읽기/클릭 좋음. occlude="raycast": 오브젝트 순서(깊이)를 따라 — 앵커 앞에 메시
-   (캐릭터·벽·영상 평면)가 있으면 패널을 숨김(display:none), 보일 땐 z-index 가 영상 blending(~8.3M)
-   보다 위라 영상 위로 그려짐. 자기 오브젝트에 가리지 않게 position +Y 로 살짝 띄움. 클릭 가능(pe auto). */
+/* ── 비디오 리모컨 — 진짜 3D 메쉬 (태블릿 식). 캔버스 텍스처를 plane 에 입히고 raycaster 로 클릭 받음.
+   - 2D HTML 오버레이 X → drei Html 안 씀. 깊이 가림·원근감 자연 (다른 오브젝트와 동일하게 처리됨).
+   - 텍스처: offscreen 2D canvas 에 매 250ms 그려서 THREE.CanvasTexture 로 업데이트.
+   - 클릭: mesh onPointerDown 에서 event.uv 받아 캔버스 픽셀 좌표로 변환 → 어느 버튼/스크러버 영역인지 판정. */
+
+// 캔버스 레이아웃 (px) — 클릭 hit 판정 + 그리기 좌표 공유
+const CAN_W = 512, CAN_H = 256;
+const HIT = {
+  title: { x: 0, y: 0, w: CAN_W, h: 44 },
+  prev:  { x: 16,  y: 60, w: 60, h: 60 },   // ⏪
+  play:  { x: 88,  y: 60, w: 60, h: 60 },   // ▶/⏸
+  next:  { x: 160, y: 60, w: 60, h: 60 },   // ⏩
+  url:   { x: 436, y: 60, w: 60, h: 60 },   // 🔗
+  scrub: { x: 16,  y: 150, w: CAN_W - 32, h: 36 }, // 스크러버 트랙
+};
+
+function drawRemote(ctx: CanvasRenderingContext2D, title: string, cur: number, dur: number, paused: boolean) {
+  // 배경
+  ctx.fillStyle = 'rgba(10,12,20,0.92)';
+  ctx.fillRect(0, 0, CAN_W, CAN_H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, CAN_W - 2, CAN_H - 2);
+  // 제목
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 22px sans-serif';
+  ctx.textBaseline = 'middle';
+  const t = '📺  ' + (title.length > 32 ? title.slice(0, 30) + '…' : title);
+  ctx.fillText(t, 14, HIT.title.y + HIT.title.h / 2);
+  // 버튼 박스 헬퍼
+  const drawBtn = (h: { x: number; y: number; w: number; h: number }, label: string, accent = '#a5b4fc') => {
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    ctx.fillRect(h.x, h.y, h.w, h.h);
+    ctx.strokeStyle = accent;
+    ctx.strokeRect(h.x + 0.5, h.y + 0.5, h.w - 1, h.h - 1);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 28px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, h.x + h.w / 2, h.y + h.h / 2);
+    ctx.textAlign = 'start';
+  };
+  drawBtn(HIT.prev, '⏪');
+  drawBtn(HIT.play, paused ? '▶' : '⏸');
+  drawBtn(HIT.next, '⏩');
+  drawBtn(HIT.url,  '🔗', '#fcd34d');
+  // 시간
+  ctx.fillStyle = '#c7d2fe';
+  ctx.font = '16px monospace';
+  ctx.fillText(fmtTime(cur) + ' / ' + fmtTime(dur), 240, 90);
+  // 스크러버
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.fillRect(HIT.scrub.x, HIT.scrub.y + HIT.scrub.h / 2 - 4, HIT.scrub.w, 8);
+  const ratio = dur > 0 ? Math.max(0, Math.min(1, cur / dur)) : 0;
+  ctx.fillStyle = '#818cf8';
+  ctx.fillRect(HIT.scrub.x, HIT.scrub.y + HIT.scrub.h / 2 - 4, HIT.scrub.w * ratio, 8);
+  // thumb
+  ctx.beginPath();
+  ctx.arc(HIT.scrub.x + HIT.scrub.w * ratio, HIT.scrub.y + HIT.scrub.h / 2, 10, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  // 안내 (하단)
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.font = '13px sans-serif';
+  ctx.fillText('Tab 으로 커서 켜고 클릭', 14, 220);
+}
+
+function hitTest(px: number, py: number): keyof typeof HIT | null {
+  for (const key of Object.keys(HIT) as (keyof typeof HIT)[]) {
+    const h = HIT[key];
+    if (px >= h.x && px <= h.x + h.w && py >= h.y && py <= h.y + h.h) return key;
+  }
+  return null;
+}
+
 export function VideoRemotePanel({ registry, targetId, videoUrl, onSeekBy, onSeekTo, onTogglePlay, onChangeUrl }: {
   registry: VideoRegistry;
   targetId: string;
@@ -301,7 +369,7 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, onSeekBy, onSee
   onTogglePlay: (play: boolean) => void;
   onChangeUrl: () => void;
 }) {
-  // 유튜브 제목 best-effort (oEmbed). url 과 함께 저장해, url 바뀌면 자동으로 폴백(파생값)으로.
+  // 유튜브 제목 best-effort
   const [titled, setTitled] = useState<{ url: string; title: string }>({ url: '', title: '' });
   useEffect(() => {
     const id = parseYouTubeId(videoUrl || '');
@@ -310,7 +378,7 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, onSeekBy, onSee
     fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`)
       .then(r => (r.ok ? r.json() : null))
       .then(j => { if (!cancelled && j?.title) setTitled({ url: videoUrl, title: String(j.title) }); })
-      .catch(() => { /* CORS/네트워크 — 폴백 사용 */ });
+      .catch(() => { /* noop */ });
     return () => { cancelled = true; };
   }, [videoUrl]);
 
@@ -318,29 +386,69 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, onSeekBy, onSee
   const fallback = videoUrl
     ? (ytId ? 'YouTube · ' + ytId : (videoUrl.split('/').pop() || videoUrl))
     : '(영상 없음)';
-  const shown = (titled.url === videoUrl && titled.title) || fallback;
+  const shownTitle = (titled.url === videoUrl && titled.title) || fallback;
 
+  // offscreen canvas + texture (한 번만 생성)
+  const canvas = useMemo(() => {
+    const c = document.createElement('canvas');
+    c.width = CAN_W; c.height = CAN_H;
+    return c;
+  }, []);
+  const texture = useMemo(() => {
+    const t = new THREE.CanvasTexture(canvas);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.minFilter = THREE.LinearFilter;
+    return t;
+  }, [canvas]);
+  useEffect(() => () => { texture.dispose(); }, [texture]);
+
+  // 영상 상태 폴링 — 250ms 마다 캔버스 다시 그림
+  useEffect(() => {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const tick = () => {
+      const h = registry.current.get(targetId);
+      const cur = h?.getTime() || 0;
+      const dur = h?.duration() || 0;
+      const paused = h?.paused() ?? false;
+      drawRemote(ctx, shownTitle, cur, dur, paused);
+      texture.needsUpdate = true;
+    };
+    tick();
+    const iv = setInterval(tick, 250);
+    return () => clearInterval(iv);
+  }, [canvas, texture, registry, targetId, shownTitle]);
+
+  // mesh 크기 — 가로 1.6, 세로 0.8 (canvas 비율 2:1)
+  const W = 1.6, H = 0.8;
   return (
-    <Html center occlude="raycast" position={[0, 1, 0]} style={{ pointerEvents: 'auto' }}>
-      <div style={{
-        display: 'flex', flexDirection: 'column', gap: 6, width: 280,
-        background: 'rgba(10,12,20,0.82)', padding: 10, borderRadius: 12,
-        border: '1px solid rgba(255,255,255,0.14)', backdropFilter: 'blur(6px)',
-        boxShadow: '0 6px 24px rgba(0,0,0,0.45)', userSelect: 'none',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#fff', fontWeight: 700 }}>
-          <span>📺</span>
-          <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={shown}>{shown}</span>
-        </div>
-        <VideoControlBar
-          registry={registry}
-          targetId={targetId}
-          onSeekBy={onSeekBy}
-          onSeekTo={onSeekTo}
-          onTogglePlay={onTogglePlay}
-          onChangeUrl={onChangeUrl}
-        />
-      </div>
-    </Html>
+    <mesh
+      position={[0, 1, 0]}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        if (!e.uv) return;
+        const px = e.uv.x * CAN_W;
+        const py = (1 - e.uv.y) * CAN_H;
+        const hit = hitTest(px, py);
+        if (hit === 'prev')      onSeekBy(-5);
+        else if (hit === 'next') onSeekBy(5);
+        else if (hit === 'play') {
+          const h = registry.current.get(targetId);
+          onTogglePlay(h?.paused() ?? true);
+        }
+        else if (hit === 'url')  onChangeUrl();
+        else if (hit === 'scrub') {
+          const h = registry.current.get(targetId);
+          const dur = h?.duration() || 0;
+          if (dur > 0) {
+            const ratio = Math.max(0, Math.min(1, (px - HIT.scrub.x) / HIT.scrub.w));
+            onSeekTo(ratio * dur);
+          }
+        }
+      }}
+    >
+      <planeGeometry args={[W, H]} />
+      <meshBasicMaterial map={texture} transparent side={THREE.DoubleSide} toneMapped={false} />
+    </mesh>
   );
 }
