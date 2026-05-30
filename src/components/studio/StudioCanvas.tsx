@@ -369,6 +369,7 @@ function UserComponentCard({
   onPropsCommit: () => void;
 }) {
   const props = (instance.props ?? {}) as Record<string, number | string | boolean>;
+  const [open, setOpen] = useState(true);
   const propsSchema = scriptComponent?.propsSchema ?? [];
   // 유니티식 — 코드에 선언한 top-level 변수(let x = 5)를 자동 감지해 인스펙터에 노출.
   // 수동 propsSchema 에 이미 있는 키는 그쪽(라벨·min/max 등 풍부) 우선, 없는 것만 자동 추가.
@@ -402,14 +403,19 @@ function UserComponentCard({
       borderRadius: 6, padding: '6px 8px', marginBottom: 5,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: '#e2e8f0' }}>
-          {scriptComponent?.icon || '🧩'} {scriptComponent?.name || '(삭제된 컴포넌트)'}
-        </span>
+        <button type="button" onClick={() => setOpen(o => !o)} title={open ? '접기' : '펼치기'}
+          style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', color: '#e2e8f0', cursor: 'pointer', padding: 0, textAlign: 'left' }}>
+          <span style={{ fontSize: 9, width: 8, flexShrink: 0, opacity: 0.6 }}>{open ? '▾' : '▸'}</span>
+          <span style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {scriptComponent?.icon || '🧩'} {scriptComponent?.name || '(삭제된 컴포넌트)'}
+          </span>
+        </button>
         <button type="button" onClick={onRemove} title="제거"
-          style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontSize: 12, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>
+          style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontSize: 12, cursor: 'pointer', padding: '0 4px', lineHeight: 1, flexShrink: 0 }}>
           ✕
         </button>
       </div>
+      {open && (<>
       {!scriptComponent && (
         <div style={{ fontSize: 9, opacity: 0.5, marginTop: 3, color: '#fca5a5' }}>
           원본 컴포넌트가 삭제됨 — 이 인스턴스는 동작하지 않습니다.
@@ -507,6 +513,7 @@ function UserComponentCard({
           </div>
         </>
       )}
+      </>)}
     </div>
   );
 }
@@ -520,20 +527,27 @@ function ComponentCard({
   onRemove: () => void;
   children?: React.ReactNode;
 }) {
+  const [open, setOpen] = useState(true);
+  const hasBody = !!children;
   return (
     <div style={{
       background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
       borderRadius: 6, padding: '6px 8px', marginBottom: 5,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: '#e2e8f0' }}>{icon} {name}</span>
+        <button type="button" onClick={() => { if (hasBody) setOpen(o => !o); }}
+          title={hasBody ? (open ? '접기' : '펼치기') : undefined}
+          style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', color: '#e2e8f0', cursor: hasBody ? 'pointer' : 'default', padding: 0, textAlign: 'left' }}>
+          <span style={{ fontSize: 9, width: 8, flexShrink: 0, opacity: hasBody ? 0.6 : 0 }}>{open ? '▾' : '▸'}</span>
+          <span style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{icon} {name}</span>
+        </button>
         <button type="button" onClick={onRemove}
           title="제거"
-          style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontSize: 12, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>
+          style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontSize: 12, cursor: 'pointer', padding: '0 4px', lineHeight: 1, flexShrink: 0 }}>
           ✕
         </button>
       </div>
-      {children}
+      {open && children}
     </div>
   );
 }
@@ -3353,7 +3367,8 @@ export default function StudioCanvas() {
     setStudioMode('scene');
   }
 
-  // 빈 오브젝트 — 컴포넌트(예: World Physics) 홀더. 기본으로 worldPhysics 컴포넌트 부착.
+  // 빈 오브젝트 — 컴포넌트 홀더(컨테이너/피벗). 기본 컴포넌트 없이 깨끗하게 생성.
+  // (맵 중력은 worldPhysics 컴포넌트가 없으면 기본값(gravityY) 사용 — 필요하면 직접 부착)
   function addEmpty() {
     const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const label = makeLabel('empty');
@@ -3364,7 +3379,6 @@ export default function StudioCanvas() {
         rotation: [0, 0, 0],
         scale:    [1, 1, 1],
         color:    '#60a5fa',
-        components: [{ type: 'worldPhysics', props: { gravity: -22, jumpPower: 7 } }],
       }];
       pushHistory(next);
       return next;
