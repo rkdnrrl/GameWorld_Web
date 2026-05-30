@@ -170,10 +170,10 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
   const sx = Math.max(0.01, planeW) / (YT_IFRAME_W * PX_TO_UNIT);   // 가로 → planeW
   const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);   // 세로 → planeH
   const src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=1&rel=0&playsinline=1`;
-  // occlude/zIndexRange 없이 — iframe 을 화면 위에 확실히 표시 (검게 안 나오게).
-  // 벽 뒤 가림은 일단 포기(보이는 게 우선). z 를 0.05 로 살짝 앞에.
+  // occlude="blending": 깊이 버퍼 기반 가림 — 앞에 있는 오브젝트(캐릭터/벽 등)가 영상을
+  // 픽셀 단위로 정상적으로 가림. (raycast 방식은 중심이 가려지면 통째로 사라져서 부적합)
   return (
-    <Html transform position={[0, 0, 0.05]} scale={[sx, sy, 1]} center>
+    <Html transform occlude="blending" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center>
       <iframe
         ref={iframeRef}
         width={YT_IFRAME_W}
