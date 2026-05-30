@@ -1473,6 +1473,8 @@
     "noMatches": "没有匹配的资源。",
     "publishing": "公开",
     "private": "私有",
+    "referenced": "引用",
+    "referencedHint": "从市场获取的引用素材，无法切换公开/私有",
     "all": "全部",
     "download": "↓ 下载",
     "delete": "删除",

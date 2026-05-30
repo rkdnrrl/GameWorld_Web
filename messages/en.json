@@ -1473,6 +1473,8 @@
     "noMatches": "No assets match your filters.",
     "publishing": "Public",
     "private": "Private",
+    "referenced": "Referenced",
+    "referencedHint": "Imported from the marketplace (reference) — visibility can't be changed",
     "all": "All",
     "download": "↓ Download",
     "delete": "Delete",

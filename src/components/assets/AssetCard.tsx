@@ -277,16 +277,30 @@ export default function AssetCard({
           >
             {t('download')}
           </a>
-          <button
-            onClick={() => onTogglePublic(asset)}
-            style={{
-              fontSize: 11, cursor: 'pointer', padding: '3px 8px', borderRadius: 5, border: 'none',
-              background: asset.isPublic ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.08)',
-              color: asset.isPublic ? '#6ee7b7' : 'rgba(255,255,255,0.5)',
-            }}
-          >
-            {asset.isPublic ? t('publishing') : t('private')}
-          </button>
+          {asset.metadata?.referenceOnly ? (
+            // 마켓에서 가져온(참조) 에셋 — 원본 소유자 것이라 공개/비공개 전환 불가
+            <span
+              title={t('referencedHint')}
+              style={{
+                fontSize: 11, padding: '3px 8px', borderRadius: 5,
+                background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.45)',
+                display: 'inline-flex', alignItems: 'center', gap: 3,
+              }}
+            >
+              🔗 {t('referenced')}
+            </span>
+          ) : (
+            <button
+              onClick={() => onTogglePublic(asset)}
+              style={{
+                fontSize: 11, cursor: 'pointer', padding: '3px 8px', borderRadius: 5, border: 'none',
+                background: asset.isPublic ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.08)',
+                color: asset.isPublic ? '#6ee7b7' : 'rgba(255,255,255,0.5)',
+              }}
+            >
+              {asset.isPublic ? t('publishing') : t('private')}
+            </button>
+          )}
           <button
             onClick={() => onEditVersions(asset)}
             title={t('versionsTitle')}

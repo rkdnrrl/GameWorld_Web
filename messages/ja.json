@@ -1473,6 +1473,8 @@
     "noMatches": "条件に一致するアセットがありません。",
     "publishing": "公開",
     "private": "非公開",
+    "referenced": "参照",
+    "referencedHint": "マーケットから取得した参照アセットのため、公開/非公開は変更できません",
     "all": "すべて",
     "download": "↓ ダウンロード",
     "delete": "削除",

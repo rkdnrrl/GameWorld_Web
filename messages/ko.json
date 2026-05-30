@@ -1473,6 +1473,8 @@
     "noMatches": "조건에 맞는 에셋이 없습니다.",
     "publishing": "공개",
     "private": "비공개",
+    "referenced": "참조",
+    "referencedHint": "마켓에서 가져온 참조 에셋이라 공개/비공개 전환이 불가합니다",
     "all": "전체",
     "download": "↓ 다운로드",
     "delete": "삭제",
