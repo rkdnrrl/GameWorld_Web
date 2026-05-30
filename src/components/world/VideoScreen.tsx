@@ -162,7 +162,10 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2 }: { videoId: string
     return () => window.removeEventListener('pointerdown', onGesture);
   }, [withSound]);
 
-  const htmlScale = Math.max(0.01, planeW) / YT_IFRAME_W;   // iframe 너비 = planeW (평면 월드 너비)
+  // drei <Html transform> 의 px→월드 환산이 작아서(scale 1 에서 640px ≈ 64유닛, 경험치)
+  // iframe 을 평면 너비에 맞추려면 이 배율이 필요. 안 맞으면 PX_TO_UNIT 만 조절.
+  const PX_TO_UNIT = 0.06;
+  const htmlScale = Math.max(0.01, planeW) / (YT_IFRAME_W * PX_TO_UNIT);   // iframe 너비 ≈ planeW
   const src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=1&rel=0&playsinline=1`;
   // occlude/zIndexRange 없이 — iframe 을 화면 위에 확실히 표시 (검게 안 나오게).
   // 벽 뒤 가림은 일단 포기(보이는 게 우선). z 를 0.05 로 살짝 앞에.
