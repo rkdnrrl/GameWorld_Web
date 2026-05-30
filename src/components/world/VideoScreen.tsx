@@ -12,7 +12,7 @@
  *
  * 파일영상과 YouTube 를 같은 VideoHandle 인터페이스로 묶어 동기화 코드를 공유.
  */
-import { createContext, useContext, useEffect, useMemo, useRef } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -217,4 +217,129 @@ export function applyVideoSync(handle: VideoHandle, data: { t?: number; playing?
   }
   if (data.playing === false && !handle.paused()) handle.setPlaying(false);
   else if (data.playing !== false && handle.paused()) handle.setPlaying(true);
+}
+
+/* ── 영상 컨트롤 바 (월드·스튜디오 공용) ── 스크러버 + 재생/일시정지 + ±5초 + (선택)URL.
+   registry 의 첫 영상 시각/길이를 250ms 폴링해 표시. 조작은 콜백으로(월드=broadcast+local, 스튜디오=local). */
+function fmtTime(s: number): string {
+  if (!Number.isFinite(s) || s < 0) s = 0;
+  const m = Math.floor(s / 60), ss = Math.floor(s % 60);
+  return m + ':' + (ss < 10 ? '0' : '') + ss;
+}
+
+export function VideoControlBar({ registry, targetId, onSeekBy, onSeekTo, onTogglePlay, onChangeUrl }: {
+  registry: VideoRegistry;
+  /** 지정 시 그 objId 영상만 표시/조작 (비디오 리모컨). 미지정 시 등록된 첫 영상 (2D 바). */
+  targetId?: string;
+  onSeekBy: (delta: number) => void;
+  onSeekTo: (t: number) => void;
+  onTogglePlay: (play: boolean) => void;
+  onChangeUrl?: () => void;
+}) {
+  const [cur, setCur] = useState(0);
+  const [dur, setDur] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [scrub, setScrub] = useState(0);
+
+  useEffect(() => {
+    const iv = setInterval(() => {
+      if (dragging) return;
+      const h = (targetId ? registry.current.get(targetId) : registry.current.values().next().value) as VideoHandle | undefined;
+      if (!h) return;
+      setCur(h.getTime() || 0);
+      setDur(h.duration() || 0);
+      setPaused(h.paused());
+    }, 250);
+    return () => clearInterval(iv);
+  }, [registry, dragging, targetId]);
+
+  const max = dur > 0 ? dur : 0;
+  const shown = dragging ? scrub : cur;
+  const btn: CSSProperties = {
+    background: 'rgba(255,255,255,0.12)', color: '#fff', border: 'none',
+    borderRadius: 7, padding: '5px 9px', fontSize: 13, fontWeight: 700, cursor: 'pointer', lineHeight: 1,
+  };
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 6,
+      background: 'rgba(0,0,0,0.6)', padding: '6px 9px', borderRadius: 999,
+      border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(6px)', maxWidth: '80vw',
+    }}>
+      <span style={{ fontSize: 13, padding: '0 2px' }}>📺</span>
+      <button type="button" title="5초 뒤로" style={btn} onClick={() => onSeekBy(-5)}>⏪</button>
+      <button type="button" title={paused ? '재생' : '일시정지'} style={btn} onClick={() => onTogglePlay(paused)}>{paused ? '▶' : '⏸'}</button>
+      <button type="button" title="5초 앞으로" style={btn} onClick={() => onSeekBy(5)}>⏩</button>
+      <span style={{ fontSize: 11, color: '#fff', fontVariantNumeric: 'tabular-nums', minWidth: 30, textAlign: 'right' }}>{fmtTime(shown)}</span>
+      <input
+        type="range" min={0} max={max || 1} step={0.1}
+        value={Math.min(shown, max || 1)}
+        onPointerDown={() => { setScrub(cur); setDragging(true); }}
+        onChange={e => setScrub(Number(e.currentTarget.value))}
+        onPointerUp={e => { const t = Number((e.currentTarget as HTMLInputElement).value); setDragging(false); onSeekTo(t); }}
+        style={{ width: 180, maxWidth: '34vw', accentColor: '#818cf8', cursor: 'pointer' }}
+      />
+      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', fontVariantNumeric: 'tabular-nums', minWidth: 30 }}>{fmtTime(max)}</span>
+      {onChangeUrl && <button type="button" title="다른 동영상으로 변경" style={btn} onClick={onChangeUrl}>🔗</button>}
+    </div>
+  );
+}
+
+/* ── 비디오 리모컨 — 씬에 놓는 3D 조작 패널 (videoRemote 컴포넌트). 오브젝트 위치에 떠서
+   현재 영상 이름 + URL 변경 + 스크러버/재생을 보여줌. 특정 영상(targetId)만 조작.
+   부모 <group position> 안에 두면 그 위치에 앵커됨. <Html> 비-transform + distanceFactor 로
+   항상 정면·읽기 좋은 크기(거리에 따라 축소). 클릭 가능(pe auto). */
+export function VideoRemotePanel({ registry, targetId, videoUrl, onSeekBy, onSeekTo, onTogglePlay, onChangeUrl, distanceFactor = 8 }: {
+  registry: VideoRegistry;
+  targetId: string;
+  videoUrl: string;
+  onSeekBy: (delta: number) => void;
+  onSeekTo: (t: number) => void;
+  onTogglePlay: (play: boolean) => void;
+  onChangeUrl: () => void;
+  distanceFactor?: number;
+}) {
+  // 유튜브 제목 best-effort (oEmbed). url 과 함께 저장해, url 바뀌면 자동으로 폴백(파생값)으로.
+  const [titled, setTitled] = useState<{ url: string; title: string }>({ url: '', title: '' });
+  useEffect(() => {
+    const id = parseYouTubeId(videoUrl || '');
+    if (!id) return;
+    let cancelled = false;
+    fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => { if (!cancelled && j?.title) setTitled({ url: videoUrl, title: String(j.title) }); })
+      .catch(() => { /* CORS/네트워크 — 폴백 사용 */ });
+    return () => { cancelled = true; };
+  }, [videoUrl]);
+
+  const ytId = parseYouTubeId(videoUrl || '');
+  const fallback = videoUrl
+    ? (ytId ? 'YouTube · ' + ytId : (videoUrl.split('/').pop() || videoUrl))
+    : '(영상 없음)';
+  const shown = (titled.url === videoUrl && titled.title) || fallback;
+
+  return (
+    <Html center distanceFactor={distanceFactor} zIndexRange={[20, 0]} style={{ pointerEvents: 'auto' }}>
+      <div style={{
+        display: 'flex', flexDirection: 'column', gap: 6, width: 280,
+        background: 'rgba(10,12,20,0.82)', padding: 10, borderRadius: 12,
+        border: '1px solid rgba(255,255,255,0.14)', backdropFilter: 'blur(6px)',
+        boxShadow: '0 6px 24px rgba(0,0,0,0.45)', userSelect: 'none',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#fff', fontWeight: 700 }}>
+          <span>📺</span>
+          <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={shown}>{shown}</span>
+        </div>
+        <VideoControlBar
+          registry={registry}
+          targetId={targetId}
+          onSeekBy={onSeekBy}
+          onSeekTo={onSeekTo}
+          onTogglePlay={onTogglePlay}
+          onChangeUrl={onChangeUrl}
+        />
+      </div>
+    </Html>
+  );
 }

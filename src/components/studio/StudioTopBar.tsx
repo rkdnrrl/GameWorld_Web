@@ -22,6 +22,9 @@ interface StudioTopBarProps {
   onToggleLeft: () => void;
   onToggleRight: () => void;
   isMobile?: boolean;
+  /** 맵 정보 드롭다운(내맵/새월드/설명/공개) 토글 — 헤더의 'ℹ️ 맵' 버튼. */
+  mapMenuOpen?: boolean;
+  onToggleMapMenu?: () => void;
 }
 
 export default function StudioTopBar({
@@ -31,6 +34,7 @@ export default function StudioTopBar({
   simulating, onStartSim, onStopSim,
   leftPanelOpen, rightPanelOpen, onToggleLeft, onToggleRight,
   isMobile = false,
+  mapMenuOpen = false, onToggleMapMenu,
 }: StudioTopBarProps) {
   const t = useTranslations('Studio');
   const router = useRouter();
@@ -59,6 +63,8 @@ export default function StudioTopBar({
         <button onClick={confirmAndExit} title={t('tbExit')} style={mBtn('rgba(255,255,255,0.06)')}>←</button>
         <button onClick={onToggleLeft} title={t('scSceneObjects')}
           style={mBtn(leftPanelOpen ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.06)')}>☰</button>
+        <button onClick={onToggleMapMenu} title="맵 정보"
+          style={mBtn(mapMenuOpen ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.06)')}>ℹ️</button>
         <input
           value={name}
           onChange={e => onNameChange(e.target.value)}
@@ -154,6 +160,17 @@ export default function StudioTopBar({
           padding: '7px 11px', outline: 'none',
         }}
       />
+
+      {/* 맵 정보 드롭다운 토글 (내맵/새월드/설명/공개) */}
+      <button onClick={onToggleMapMenu} title="맵 정보 (내 맵·새 월드·설명·공개)"
+        style={{
+          flexShrink: 0, height: 34, padding: '0 11px', borderRadius: 8, cursor: 'pointer',
+          background: mapMenuOpen ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.06)',
+          border: `1px solid ${mapMenuOpen ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`,
+          color: '#fff', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+        }}>
+        ℹ️ 맵 {mapMenuOpen ? '▴' : '▾'}
+      </button>
 
       <div style={{
         background: statusBadge.bg, border: `1px solid ${statusBadge.border}`,

@@ -15,7 +15,7 @@ import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { createGameRuntime } from '@/lib/world/gameRuntime';
 import GameHud from '@/components/world/GameHud';
-import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, VideoScreenCtx, parseYouTubeId } from '@/components/world/VideoScreen';
+import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, VideoScreenCtx, parseYouTubeId, VideoControlBar, VideoRemotePanel, type VideoRegistry, type VideoHandle } from '@/components/world/VideoScreen';
 import AiGuideModal from './AiGuideModal';
 import StudioTopBar from './StudioTopBar';
 import StudioShortcutsModal from './StudioShortcutsModal';
@@ -1787,14 +1787,21 @@ function ExposureUpdater({ exposure, hdriIntensity }: { exposure: number; hdriIn
   return null;
 }
 
-/* drei <Html occlude="blending">(영상 화면)은 캔버스 전체 pointerEvents 를 none 으로 만들고
-   언마운트돼도 복구하지 않는다 → 영상 있는 맵을 시뮬레이션한 뒤 종료하면 캔버스가 죽어
-   우클릭 회전/클릭 선택이 안 됨. 매 프레임 auto 로 되돌려 항상 상호작용 가능하게 유지. */
-function CanvasPointerEventsKeeper() {
+/* drei <Html occlude="blending">(영상 화면)은 캔버스의 pointerEvents=none + position=absolute +
+   거대한 z-index 를 설정하고, 언마운트돼도 복구하지 않는다. 안 풀면:
+     - pointerEvents:none → 우클릭 회전/클릭 선택이 죽음
+     - position:absolute + z-index → 시뮬 종료 후 캔버스가 모달(컴포넌트 추가 등) 위로 떠 가림
+   pointerEvents 는 항상 auto 로. position/z-index 는 시뮬 중엔 영상 합성에 필요하니 두고,
+   시뮬이 아닐 때(편집 모드)만 제거해 정상 레이아웃으로 복구. */
+function CanvasPointerEventsKeeper({ simulating }: { simulating: boolean }) {
   const { gl } = useThree();
   useFrame(() => {
     const s = gl.domElement.style;
     if (s.pointerEvents === 'none') s.pointerEvents = 'auto';
+    if (!simulating) {
+      if (s.position === 'absolute') s.position = '';
+      if (s.zIndex) s.zIndex = '';
+    }
   });
   return null;
 }
@@ -2876,6 +2883,28 @@ export default function StudioCanvas() {
   const [simulating, setSimulating] = useState(false);
   // 게임 로직 레이어(시뮬용) — 스크립트의 game/ui/world.playSound 가 들어오고 <GameHud> 가 그림.
   const simGameRuntime = useMemo(() => createGameRuntime(), []);
+  // 영상 컨트롤(스크러버/재생·정지/±5초) 용 레지스트리 — 시뮬 영상 핸들 등록처. 단일 플레이라 로컬 조작.
+  const simVideoRegistry: VideoRegistry = useRef<Map<string, VideoHandle>>(new Map());
+  // 시뮬 중 URL 변경(리모컨 🔗) 오버라이드 — objId→새 URL. stopSim 에서 초기화.
+  const [simVideoUrlOverrides, setSimVideoUrlOverrides] = useState<Record<string, string>>({});
+  // targetId 지정 시 그 화면만(리모컨), 미지정 시 등록된 모두(2D 바). 단일 플레이라 로컬 조작.
+  const runSimVideoControl = useCallback((cmd: { seekBy?: number; seekTo?: number; playing?: boolean; url?: string }, targetId?: string) => {
+    if (cmd.url && targetId) setSimVideoUrlOverrides(m => ({ ...m, [targetId]: cmd.url! }));
+    const ids = targetId ? [targetId] : [...simVideoRegistry.current.keys()];
+    for (const objId of ids) {
+      const v = simVideoRegistry.current.get(objId);
+      if (v && typeof cmd.seekBy === 'number') v.seek(Math.max(0, (v.getTime() || 0) + cmd.seekBy));
+      if (v && typeof cmd.seekTo === 'number') v.seek(cmd.seekTo);
+      if (v && typeof cmd.playing === 'boolean') v.setPlaying(cmd.playing);
+      if (cmd.url && !targetId) setSimVideoUrlOverrides(m => ({ ...m, [objId]: cmd.url! }));
+    }
+  }, []);
+  // 시뮬에 넘길 오브젝트 — 숨김 제외 + URL 오버라이드 적용(없으면 원본 ref 유지해 재렌더 방지).
+  const simObjs = useMemo(() => {
+    const base = objects.filter(o => !o.hidden);
+    if (Object.keys(simVideoUrlOverrides).length === 0) return base;
+    return base.map(o => simVideoUrlOverrides[o.id] !== undefined ? { ...o, videoUrl: simVideoUrlOverrides[o.id] } : o);
+  }, [objects, simVideoUrlOverrides]);
   // 시뮬레이션 플레이어 — 본인 캐릭터로 직접 플레이 (월드와 동일 조작)
   const [simCharacter, setSimCharacter] = useState<Record<string, unknown> | null>(null);
   const [simCameraMode, setSimCameraMode] = useState<'first' | 'third'>('first');
@@ -2947,6 +2976,8 @@ export default function StudioCanvas() {
   const [assetH, setAssetH] = useState(340);
   // 좌측 패널 탭 — 한 컬럼에 다 쌓지 않고 전환. '씬'=계층+추가, '환경'=HDRI, '프리팹'
   const [leftTab, setLeftTab] = useState<'scene' | 'env' | 'prefab'>('scene');
+  // 맵 정보(내맵/새월드/설명/공개) — 헤더에서 여는 드롭다운으로 이동
+  const [mapMenuOpen, setMapMenuOpen] = useState(false);
   // 드래그 리사이즈 — axis x(가로)/y(세로), dir +1/-1(드래그 방향→증가), from=시작값, set=상태 setter.
   const beginResize = (e: React.PointerEvent, o: { axis: 'x' | 'y'; from: number; dir: 1 | -1; min: number; max: number; set: (n: number) => void }) => {
     e.preventDefault();
@@ -3549,6 +3580,7 @@ export default function StudioCanvas() {
     setSimTransforms({});
     setSimCharacter(null);
     setSimCrosshair('idle');
+    setSimVideoUrlOverrides({});   // 리모컨으로 바꿨던 영상 URL 초기화
     simGameRuntime.reset();   // 편집 모드로 돌아가며 HUD 제거
   }
 
@@ -4683,7 +4715,45 @@ export default function StudioCanvas() {
         onToggleLeft={() => isMobile ? setMobilePanelOpen(v => !v) : setLeftPanelOpen(v => !v)}
         onToggleRight={() => setRightPanelOpen(v => !v)}
         isMobile={isMobile}
+        mapMenuOpen={mapMenuOpen}
+        onToggleMapMenu={() => setMapMenuOpen(v => !v)}
       />
+
+      {/* 맵 정보 드롭다운 — 헤더의 'ℹ️ 맵' 버튼으로 토글. 내맵/새월드/설명/공개. */}
+      {mapMenuOpen && (
+        <>
+          <div onClick={() => setMapMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />
+          <div style={{
+            position: 'fixed', top: 54, left: 12, width: 300, zIndex: 200,
+            background: '#1e293b', border: '1px solid rgba(129,140,248,0.35)', borderRadius: 12,
+            boxShadow: '0 14px 44px rgba(0,0,0,0.55)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,0.45)', letterSpacing: 0.6, textTransform: 'uppercase' }}>맵 정보</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              <button onClick={() => { setMyWorldsOpen(true); setMapMenuOpen(false); }}
+                style={{ padding: '8px 9px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(99,102,241,0.24)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                🗺 {t('openMyWorlds')}
+              </button>
+              <button onClick={() => router.replace('/studio')}
+                style={{ padding: '8px 9px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(16,185,129,0.22)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                ＋ {t('newWorldDefault')}
+              </button>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, opacity: 0.5, margin: '0 0 4px' }}>{t('inspDescription')}</div>
+              <textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={300}
+                placeholder={t('inspDescPlaceholder')} rows={3}
+                style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#fff', fontSize: 11, padding: '6px 10px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
+            </div>
+            <button type="button" onClick={() => setIsPublic(v => !v)}
+              style={{ width: '100%', padding: '8px', borderRadius: 8, border: `1px solid ${isPublic ? 'rgba(52,211,153,0.4)' : 'rgba(255,255,255,0.12)'}`,
+                background: isPublic ? 'rgba(52,211,153,0.12)' : 'rgba(255,255,255,0.05)',
+                color: isPublic ? '#34d399' : 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}>
+              {isPublic ? t('inspPublicYes') : t('inspPublicNo')}
+            </button>
+          </div>
+        </>
+      )}
     <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative', paddingRight: isMobile ? 0 : (rightPanelOpen ? 300 : 0) }}>
 
       {/* ── 좌측 패널 ── 항상 마운트, display 로만 토글 (mount/unmount race 회피).
@@ -4758,56 +4828,12 @@ export default function StudioCanvas() {
           </div>
         </div>
       )}
-      {/* 내부 스크롤 컨테이너로 감싸기 — 메타 + 씬 + 버튼 */}
-      <div style={{ padding: 14, overflowY: 'auto', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.08)', position: 'relative' }}>
-        <h2 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 800 }}>{t('title')}</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-          <button
-            onClick={() => setMyWorldsOpen(true)}
-            style={{ padding: '8px 9px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(99,102,241,0.24)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-          >
-            🗺 {t('openMyWorlds')}
-          </button>
-          <button
-            onClick={() => router.replace('/studio')}
-            style={{ padding: '8px 9px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(16,185,129,0.22)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-          >
-            ＋ {t('newWorldDefault')}
-          </button>
+      {/* 맵 정보(내맵/새월드/설명/공개)는 상단 헤더의 'ℹ️ 맵' 드롭다운으로 이동됨 (아래 mapMenuOpen) */}
+      {loadError && (
+        <div style={{ margin: '8px 10px 0', padding: 8, background: 'rgba(239,68,68,0.15)', borderRadius: 6, fontSize: 11, color: '#fca5a5', flexShrink: 0 }}>
+          ⚠️ {loadError}
         </div>
-
-        {loading && (
-          <div style={{ padding: 8, background: 'rgba(99,102,241,0.15)', borderRadius: 6, fontSize: 11, marginBottom: 10, color: '#a5b4fc' }}>
-            ⏳ {t('saving').replace('…', '')} ...
-          </div>
-        )}
-        {loadError && (
-          <div style={{ padding: 8, background: 'rgba(239,68,68,0.15)', borderRadius: 6, fontSize: 11, marginBottom: 10, color: '#fca5a5' }}>
-            ⚠️ {loadError}
-          </div>
-        )}
-
-        {/* 설명 + 공개/비공개 — 이름/저장/Undo/Redo 는 상단 툴바로 이동됨 */}
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 11, opacity: 0.5, margin: '0 0 4px' }}>{t('inspDescription')}</div>
-          <textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={300}
-            placeholder={t('inspDescPlaceholder')}
-            rows={2}
-            style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#fff', fontSize: 11, padding: '6px 10px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
-        </div>
-
-        {/* 공개/비공개 토글 */}
-        <button
-          type="button"
-          onClick={() => setIsPublic(v => !v)}
-          style={{
-            width: '100%', marginBottom: 4, padding: '8px', borderRadius: 8, border: `1px solid ${isPublic ? 'rgba(52,211,153,0.4)' : 'rgba(255,255,255,0.12)'}`,
-            background: isPublic ? 'rgba(52,211,153,0.12)' : 'rgba(255,255,255,0.05)',
-            color: isPublic ? '#34d399' : 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
-          }}>
-          {isPublic ? t('inspPublicYes') : t('inspPublicNo')}
-        </button>
-      </div>{/* /내부 스크롤 컨테이너 (메타) */}
+      )}
 
       {/* 좌측 패널 탭 — 한 컬럼에 다 쌓지 않고 전환 (씬=트리+추가 / 환경 / 프리팹) */}
       {!isMobile && (
@@ -5718,7 +5744,7 @@ export default function StudioCanvas() {
           onPointerMissed={() => { if (!isGizmoActive()) { setSelectedId(null); setStudioMode('scene'); } }}
         >
           <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
-          <CanvasPointerEventsKeeper />
+          <CanvasPointerEventsKeeper simulating={simulating} />
           <ambientLight intensity={lightAmbient} />
           <directionalLight position={[20, 30, 10]} intensity={lightDir} castShadow
             shadow-mapSize={[2048, 2048]}
@@ -5739,9 +5765,9 @@ export default function StudioCanvas() {
           {simulating ? (
             /* ── 시뮬레이션 모드 ── */
             <Suspense fallback={null}>
-              <VideoScreenCtx.Provider value={{ live: true, withSound: true }}>
+              <VideoScreenCtx.Provider value={{ live: true, withSound: true, registry: simVideoRegistry }}>
               <Physics gravity={[0, worldPhysics.gravity, 0]} interpolate={false}>
-                <SimScene objects={objects.filter(o => !o.hidden)} transforms={simTransforms} myAssets={myAssets} gameApi={simGameRuntime.api}
+                <SimScene objects={simObjs} transforms={simTransforms} myAssets={myAssets} gameApi={simGameRuntime.api}
                   player={simCharacter ? {
                     character: simCharacter,
                     cameraMode: simCameraMode,
@@ -5757,6 +5783,33 @@ export default function StudioCanvas() {
                     spawnRotY: simSpawn.rotY,
                   } : undefined}
                 />
+                {/* 비디오 리모컨 — videoRemote 컴포넌트 오브젝트 위치에 3D 조작 패널 (시뮬 중) */}
+                {simObjs
+                  .filter(o => o.components?.some(c => c.type === 'videoRemote'))
+                  .map(obj => {
+                    const inst = obj.components!.find(c => c.type === 'videoRemote')!;
+                    const label = String(inst.props?.target ?? '').trim();
+                    const target = label
+                      ? simObjs.find(x => (x.label || '') === label && x.videoUrl)
+                      : simObjs.find(x => x.videoUrl);
+                    if (!target) return null;
+                    const pos = simTransforms[obj.id]?.pos ?? obj.position;
+                    const tid = target.id;
+                    return (
+                      <group key={'vr-' + obj.id} position={pos}>
+                        <VideoRemotePanel
+                          registry={simVideoRegistry} targetId={tid} videoUrl={target.videoUrl || ''}
+                          onSeekBy={(d) => runSimVideoControl({ seekBy: d }, tid)}
+                          onSeekTo={(t) => runSimVideoControl({ seekTo: t }, tid)}
+                          onTogglePlay={(p) => runSimVideoControl({ playing: p }, tid)}
+                          onChangeUrl={() => {
+                            const u = window.prompt('새 유튜브 URL (또는 영상 파일 URL)', target.videoUrl || '');
+                            if (u && u.trim()) runSimVideoControl({ url: u.trim() }, tid);
+                          }}
+                        />
+                      </group>
+                    );
+                  })}
               </Physics>
               </VideoScreenCtx.Provider>
             </Suspense>
@@ -5844,6 +5897,18 @@ export default function StudioCanvas() {
 
         {/* 게임 HUD — 스크립트 ui.text/ui.bar 가 그림. 시뮬레이션 중에만 뷰포트 위에 오버레이. */}
         {simulating && <GameHud runtime={simGameRuntime} />}
+
+        {/* 영상 컨트롤 바 — 시뮬 중 영상 화면이 있으면 (스크러버/재생·정지/±5초, 로컬 조작) */}
+        {simulating && objects.some(o => o.videoUrl) && (
+          <div style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 16, pointerEvents: 'auto' }}>
+            <VideoControlBar
+              registry={simVideoRegistry}
+              onSeekBy={(d) => runSimVideoControl({ seekBy: d })}
+              onSeekTo={(t) => runSimVideoControl({ seekTo: t })}
+              onTogglePlay={(p) => runSimVideoControl({ playing: p })}
+            />
+          </div>
+        )}
 
         {/* 1인칭 시뮬레이션 크로스헤어 — follow 모드 + 1인칭일 때만. idle=흰, aim=초록, grab=노랑 */}
         {simulating && simCharacter && simCamView === 'follow' && simCameraMode === 'first' && (

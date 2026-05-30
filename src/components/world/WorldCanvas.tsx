@@ -23,7 +23,7 @@ import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
-import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
+import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, VideoControlBar, VideoRemotePanel, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
 import { createGameRuntime, GAME_SYNC_EVENT, GAME_SOUND_EVENT, type GameSnapshot } from '@/lib/world/gameRuntime';
 import GameHud from './GameHud';
 
@@ -2618,13 +2618,24 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   }), []);
   // 비디오 URL 런타임 오버라이드 — 컨트롤 바에서 URL 변경 시(멀티 동기). objId→새 URL.
   const [videoUrlOverrides, setVideoUrlOverrides] = useState<Record<string, string>>({});
-  // 컨트롤 바 동작 — 등록된 모든 비디오 스크린에 적용 + 다른 플레이어에게 broadcast(__videoctl__).
-  const runVideoControl = useCallback((cmd: { seekBy?: number; url?: string }) => {
-    for (const [objId, v] of videoRegistry.current) {
-      if (typeof cmd.seekBy === 'number') {
+  // 컨트롤 바/리모컨 동작 — 등록된 비디오 스크린에 적용 + 다른 플레이어에게 broadcast(__videoctl__).
+  // targetId 지정 시 그 화면만(비디오 리모컨), 미지정 시 등록된 모두(2D 바).
+  const runVideoControl = useCallback((cmd: { seekBy?: number; seekTo?: number; playing?: boolean; url?: string }, targetId?: string) => {
+    const ids = targetId ? [targetId] : [...videoRegistry.current.keys()];
+    for (const objId of ids) {
+      const v = videoRegistry.current.get(objId);
+      if (v && typeof cmd.seekBy === 'number') {
         const target = Math.max(0, (v.getTime() || 0) + cmd.seekBy);
         v.seek(target);
         sendScriptEvent?.(objId, VIDEO_CTL_EVENT, { seekTo: target });
+      }
+      if (v && typeof cmd.seekTo === 'number') {
+        v.seek(cmd.seekTo);
+        sendScriptEvent?.(objId, VIDEO_CTL_EVENT, { seekTo: cmd.seekTo });
+      }
+      if (v && typeof cmd.playing === 'boolean') {
+        v.setPlaying(cmd.playing);
+        sendScriptEvent?.(objId, VIDEO_CTL_EVENT, { playing: cmd.playing });
       }
       if (cmd.url) {
         const url = cmd.url;
@@ -3456,35 +3467,20 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         </div>
       )}
 
-      {/* 영상 컨트롤 바 — YouTube/영상 화면이 있을 때만. 화면 자체는 못 건드리고, 이 버튼으로만 조작.
-          모든 영상 화면에 동시 적용 + 다른 플레이어에게 동기화(__videoctl__). 클릭하려면 Tab 으로 커서를 켤 것. */}
+      {/* 영상 컨트롤 바 — 영상 화면이 있을 때만. 스크러버/재생·정지/±5초/URL. 동기화(__videoctl__).
+          화면 자체는 비상호작용이라 이 바로만 조작. 클릭하려면 Tab 으로 커서를 켤 것. */}
       {customObjects?.some(o => o.videoUrl) && !chatInputActive && (
-        <div style={{
-          position: 'fixed', bottom: 16, left: 16,
-          pointerEvents: 'auto', zIndex: 1001,
-          display: 'flex', alignItems: 'center', gap: 6,
-          background: 'rgba(0,0,0,0.55)', padding: '6px 8px', borderRadius: 999,
-          border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(6px)',
-        }}>
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 700, padding: '0 4px' }}>📺</span>
-          {([
-            { label: '⏪ 5초', title: '5초 뒤로', onClick: () => runVideoControl({ seekBy: -5 }) },
-            { label: '5초 ⏩', title: '5초 앞으로', onClick: () => runVideoControl({ seekBy: 5 }) },
-            { label: '🔗 URL', title: '다른 동영상으로 변경', onClick: () => {
+        <div style={{ position: 'fixed', bottom: 16, left: 16, pointerEvents: 'auto', zIndex: 1001 }}>
+          <VideoControlBar
+            registry={videoRegistry}
+            onSeekBy={(d) => runVideoControl({ seekBy: d })}
+            onSeekTo={(t) => runVideoControl({ seekTo: t })}
+            onTogglePlay={(p) => runVideoControl({ playing: p })}
+            onChangeUrl={() => {
               const url = window.prompt('새 유튜브 URL (또는 영상 파일 URL)', '');
               if (url && url.trim()) runVideoControl({ url: url.trim() });
-            } },
-          ] as const).map(b => (
-            <button key={b.label} type="button" title={b.title} onClick={b.onClick}
-              style={{
-                background: 'rgba(255,255,255,0.12)', color: '#fff', border: 'none',
-                borderRadius: 8, padding: '6px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.24)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; }}
-            >{b.label}</button>
-          ))}
+            }}
+          />
         </div>
       )}
 
@@ -3671,7 +3667,35 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                       </group>
                     );
                   });
-                return <>{meshes}{particles}</>;
+                // 비디오 리모컨 레이어 — videoRemote 컴포넌트가 붙은 오브젝트 위치에 3D 조작 패널.
+                const remotes = list
+                  .filter(o => !o.hidden && o.components?.some(c => c.type === 'videoRemote'))
+                  .map(obj => {
+                    const inst = obj.components!.find(c => c.type === 'videoRemote')!;
+                    const label = String(inst.props?.target ?? '').trim();
+                    const target = label
+                      ? list.find(x => ((x as { label?: string }).label || '') === label && x.videoUrl)
+                      : list.find(x => x.videoUrl);
+                    if (!target) return null;
+                    const w = obj.parentId ? computeWorldTRS(obj, byId) : { position: obj.position };
+                    const tid = target.id;
+                    const curUrl = (videoUrlOverrides[tid] ?? target.videoUrl) || '';
+                    return (
+                      <group key={'vr-' + obj.id} position={w.position}>
+                        <VideoRemotePanel
+                          registry={videoRegistry} targetId={tid} videoUrl={curUrl}
+                          onSeekBy={(d) => runVideoControl({ seekBy: d }, tid)}
+                          onSeekTo={(t) => runVideoControl({ seekTo: t }, tid)}
+                          onTogglePlay={(p) => runVideoControl({ playing: p }, tid)}
+                          onChangeUrl={() => {
+                            const u = window.prompt('새 유튜브 URL (또는 영상 파일 URL)', target.videoUrl || '');
+                            if (u && u.trim()) runVideoControl({ url: u.trim() }, tid);
+                          }}
+                        />
+                      </group>
+                    );
+                  });
+                return <>{meshes}{particles}{remotes}</>;
               })()}</>
             ) : (
               // worldId 없음 (기본 월드) → 데모 섬
