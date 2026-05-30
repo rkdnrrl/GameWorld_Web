@@ -332,8 +332,22 @@ export default function WorldPage() {
     },
   });
 
-  // WorldCanvas 에 넘길 customObjects — 스냅샷 있으면 그것, 없으면 API 데이터
-  const effectiveCustomObjects = sceneFromHost ?? customObjects;
+  // WorldCanvas 에 넘길 customObjects.
+  // 호스트 스냅샷은 "라이브 위치(transform)"용 — videoUrl/재질/스크립트 같은 정적 콘텐츠는
+  // API(저장) 데이터가 권위. 스냅샷으로 통째로 교체하면 오래된 스냅샷이 신선한 콘텐츠를 덮어써
+  // (예: 나중에 추가한 YouTube videoUrl 이 다른 계정에 안 보임) → transform 만 합치고 콘텐츠는 API 우선.
+  const effectiveCustomObjects = useMemo(() => {
+    if (!sceneFromHost) return customObjects;
+    if (!customObjects) return sceneFromHost;
+    const apiById = new Map(customObjects.map(o => [o.id, o]));
+    const merged = sceneFromHost.map(snap => {
+      const api = apiById.get(snap.id);
+      return api ? { ...api, position: snap.position, rotation: snap.rotation, scale: snap.scale } : snap;
+    });
+    const snapIds = new Set(sceneFromHost.map(o => o.id));
+    for (const o of customObjects) if (!snapIds.has(o.id)) merged.push(o);  // 스냅샷이 누락한 것 보강
+    return merged;
+  }, [sceneFromHost, customObjects]);
 
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
