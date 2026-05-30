@@ -24,21 +24,24 @@ export function detectModelExt(url: string): SupportedModelExt | null {
 /**
  * 확장자에 맞는 로더로 모델 로드.
  * Promise 반환 — 성공 시 Object3D, 실패 시 reject.
+ *
+ * manager: 선택. 넘기면 로더(및 그 텍스처 로드)가 이 LoadingManager 를 사용 →
+ * 호출부에서 텍스처 로드 완료 시점을 추적할 수 있다(썸네일 생성 등). 안 넘기면 기존 동작.
  */
-export async function loadStaticModel(url: string): Promise<THREE.Object3D> {
+export async function loadStaticModel(url: string, manager?: THREE.LoadingManager): Promise<THREE.Object3D> {
   const ext = detectModelExt(url);
 
   if (ext === 'glb' || ext === 'gltf') {
     const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
     return new Promise((resolve, reject) => {
-      new GLTFLoader().load(url, (gltf) => resolve(gltf.scene), undefined, reject);
+      new GLTFLoader(manager).load(url, (gltf) => resolve(gltf.scene), undefined, reject);
     });
   }
 
   if (ext === 'dae') {
     const { ColladaLoader } = await import('three/examples/jsm/loaders/ColladaLoader.js');
     return new Promise((resolve, reject) => {
-      new ColladaLoader().load(url, (col) => {
+      new ColladaLoader(manager).load(url, (col) => {
         if (col?.scene) resolve(col.scene);
         else reject(new Error('COLLADA scene 없음'));
       }, undefined, reject);
@@ -48,13 +51,13 @@ export async function loadStaticModel(url: string): Promise<THREE.Object3D> {
   if (ext === 'obj') {
     const { OBJLoader } = await import('three/examples/jsm/loaders/OBJLoader.js');
     return new Promise((resolve, reject) => {
-      new OBJLoader().load(url, resolve, undefined, reject);
+      new OBJLoader(manager).load(url, resolve, undefined, reject);
     });
   }
 
   // 기본 FBX (확장자 없거나 모름이면 FBX 시도)
   const { FBXLoader } = await import('three/examples/jsm/loaders/FBXLoader.js');
   return new Promise((resolve, reject) => {
-    new FBXLoader().load(url, resolve, undefined, reject);
+    new FBXLoader(manager).load(url, resolve, undefined, reject);
   });
 }

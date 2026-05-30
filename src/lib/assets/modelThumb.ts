@@ -95,8 +95,20 @@ async function renderThumb(url: string, config?: MaterialConfig | null): Promise
   ensureRenderer();
   await ensureEnv();
   const r = renderer!, sc = scene!, cam = camera!;
-  const model = await loadStaticModel(url);
-  // config 텍스처는 비동기 로드 → onTexLoad 콜백으로 완료를 기다린다 (three 의 texture.image 는 로드 후에야 채워져서 waitForTextures 로는 못 잡음)
+  // 모델 + 임베디드/외부 텍스처 로드를 추적하는 매니저. itemStart/itemEnd 를 감싸 실제
+  // 미완료 항목 수(pending)를 직접 센다 — texture.image 가 아직 안 채워진 단계도 정확.
+  // (waitForTextures 는 image 가 생긴 뒤에만 잡혀 비동기 텍스처를 놓쳐 검게 캡처되던 원인)
+  const manager = new THREE.LoadingManager();
+  let pending = 0;
+  const _start = manager.itemStart.bind(manager);
+  const _end = manager.itemEnd.bind(manager);
+  const _err = manager.itemError.bind(manager);
+  manager.itemStart = (u: string) => { pending++; _start(u); };
+  manager.itemEnd = (u: string) => { pending = Math.max(0, pending - 1); _end(u); };
+  manager.itemError = (u: string) => { pending = Math.max(0, pending - 1); _err(u); };
+
+  const model = await loadStaticModel(url, manager);
+  // config 텍스처는 buildMat 내부의 별도 TextureLoader 라 매니저에 안 잡힘 → onTexLoad 콜백으로 완료를 기다린다 (three 의 texture.image 는 로드 후에야 채워져서 waitForTextures 로는 못 잡음)
   let resolveTex: () => void = () => {};
   const texPromise = new Promise<void>(res => { resolveTex = res; });
   let texExpected = 0, texLoaded = 0;
@@ -138,9 +150,19 @@ async function renderThumb(url: string, config?: MaterialConfig | null): Promise
       });
     });
     sc.add(model);
-    // config 텍스처(albedo 등) 로드 대기 + 임베디드 텍스처 로드 대기 → 입혀진 상태로 캡처
-    await Promise.race([texPromise, new Promise<void>(res => setTimeout(res, 900))]);
-    await waitForTextures(model, 500);
+    // 임베디드/외부 모델 텍스처가 모두 로드될 때까지 반복 렌더 → 로드된 텍스처가 GPU 에 업로드되어
+    // 보이게 한다(라이브 캔버스가 텍스처를 보여주는 원리와 동일). pending 0 이 되면 즉시 종료, 최대 2.5s.
+    const deadline = 2500, step = 120;
+    let waited = 0;
+    do {
+      r.render(sc, cam);
+      if (pending <= 0) break;
+      await new Promise<void>(res => setTimeout(res, step));
+      waited += step;
+    } while (waited < deadline);
+    // config(materialConfig) 텍스처 + 잔여 텍스처 마무리 대기 후 최종 캡처
+    if (texExpected > 0) await Promise.race([texPromise, new Promise<void>(res => setTimeout(res, 800))]);
+    await waitForTextures(model, 300);
     r.render(sc, cam);
     return r.domElement.toDataURL('image/png');
   } finally {
