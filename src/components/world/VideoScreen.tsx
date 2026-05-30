@@ -125,13 +125,28 @@ const YT_IFRAME_H = 360;
 // drei <Html transform> 은 부모 스케일을 무시(위치·회전만 따름)하므로 평면 월드 가로/세로를 직접 받아 스케일링.
 export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { videoId: string; objId?: string; planeW?: number; planeH?: number }) {
   const { withSound, registry } = useContext(VideoScreenCtx);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  // imperative iframe — React JSX 가 reconcile 로 iframe element 를 교체하면 src 새로 로드되며 영상이
+  // 처음부터 재생됨. div container 만 JSX 로 두고 iframe 은 createElement + appendChild 로 직접 관리 →
+  // React reconcile 영향 X → 영상 시점 유지. 새 플레이어 입장 시에도 안 끊김.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const playerRef = useRef<any>(null);
 
-  // 플레이어 생성 (IFrame API)
+  // 플레이어 생성 (IFrame API) — videoId 변경 시만 새로 만듦
   useEffect(() => {
     console.log('[YT] mount/effect player', videoId, objId);
+    if (!containerRef.current) return;
+    const iframe = document.createElement('iframe');
+    iframe.width = String(YT_IFRAME_W);
+    iframe.height = String(YT_IFRAME_H);
+    // controls=0/disablekb=1/fs=0 → YouTube 자체 UI 제거. 재생 제어는 별도 리모컨이 IFrame API 로.
+    iframe.src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`;
+    iframe.title = 'YouTube';
+    iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
+    iframe.style.cssText = 'border:none;display:block;background:#000;pointer-events:none;width:100%;height:100%';
+    containerRef.current.appendChild(iframe);
+    iframeRef.current = iframe;
     let cancelled = false;
     loadYTApi().then(() => {
       if (cancelled || !iframeRef.current) return;
@@ -143,7 +158,6 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
           onReady: (e: any) => { console.log('[YT] onReady', objId); try { e.target.mute(); e.target.playVideo(); } catch { /* noop */ } },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onStateChange: (e: any) => {
-            // -1 unstarted, 0 ended, 1 playing, 2 paused, 3 buffering, 5 cued
             const t = (() => { try { return e.target.getCurrentTime?.() ?? '?'; } catch { return '?'; } })();
             console.log('[YT] state', objId, 'state', e.data, 'time', t);
           },
@@ -155,6 +169,8 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
       cancelled = true;
       try { playerRef.current?.destroy?.(); } catch { /* noop */ }
       playerRef.current = null;
+      try { iframe.remove(); } catch { /* noop */ }
+      iframeRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
@@ -189,24 +205,14 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
   const PX_TO_UNIT = 0.06;
   const sx = Math.max(0.01, planeW) / (YT_IFRAME_W * PX_TO_UNIT);   // 가로 → planeW
   const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);   // 세로 → planeH
-  // controls=0/disablekb=1/fs=0 → YouTube 자체 UI 제거(유저가 직접 못 건드림). 재생 제어는 별도 버튼이 IFrame API 로 함.
-  const src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`;
   // occlude="blending": 깊이 버퍼 기반 픽셀 단위 가림. 캔버스 alpha:true + 배경 div + 캔버스 zIndex
   //   강제(16777271) 조합으로 iframe 이 캔버스 뒤로 가게 해 캐릭터·박스 등이 영상을 가림.
-  //   알려진 한계: drei transform 모드 occlusion mesh 가 빌보드 셰이더라 가림 영역이 살짝 부정확할 수 있음.
   // pointerEvents="none": iframe 클릭 통과 → 마우스 캡쳐 안 됨. 조작은 별도 리모컨 패널이 담당.
+  // 안 div container 안에 iframe 을 imperative 로 넣음 (위 useEffect) — React 가 iframe 자체를 reconcile
+  // 못 하게 해서 부모 re-render 시에도 iframe 유지 → 영상 끊김/리셋 방지.
   return (
     <Html transform occlude="blending" pointerEvents="none" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center>
-      <iframe
-        ref={iframeRef}
-        width={YT_IFRAME_W}
-        height={YT_IFRAME_H}
-        src={src}
-        title="YouTube"
-        frameBorder={0}
-        allow="autoplay; encrypted-media; picture-in-picture"
-        style={{ border: 'none', display: 'block', background: '#000', pointerEvents: 'none' }}
-      />
+      <div ref={containerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000' }} />
     </Html>
   );
 }
