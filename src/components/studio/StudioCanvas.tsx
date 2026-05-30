@@ -1,5 +1,6 @@
 'use client';
 import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, TransformControls, Grid, Sky, Environment } from '@react-three/drei';
 import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
@@ -886,11 +887,12 @@ function inferKindId(a: Asset): string {
 }
 
 /* ── 에셋 카드 (우측 그리드) — 썸네일 + 호버 미리보기 ─────────────── */
-function StudioAssetCard({ asset, onDelete, onRename, onPreview }: {
+function StudioAssetCard({ asset, onDelete, onRename, onPreview, selected }: {
   asset: Asset;
   onDelete: (id: string) => void;
   onRename: (id: string, newName: string) => void;
   onPreview: (a: Asset) => void;
+  selected?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -906,7 +908,10 @@ function StudioAssetCard({ asset, onDelete, onRename, onPreview }: {
 
   return (
     <div
-      style={{ position: 'relative', borderRadius: 8 }}
+      data-asset-id={asset.id}
+      style={{ position: 'relative', borderRadius: 8,
+        outline: selected ? '2px solid #818cf8' : 'none', outlineOffset: 1,
+        background: selected ? 'rgba(129,140,248,0.18)' : undefined }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -1083,6 +1088,7 @@ function StudioFolderCard({ name, path, onNavigate, onFolderDrop, onAssetDrop }:
   const [dragOver, setDragOver] = useState(false);
   return (
     <div
+      data-folder-card=""
       draggable
       onDragStart={e => { e.dataTransfer.setData('folderPath', path); e.dataTransfer.effectAllowed = 'move'; }}
       onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }}
@@ -2915,6 +2921,13 @@ export default function StudioCanvas() {
   const [dragOverPath, setDragOverPath] = useState<string | undefined>(undefined);
   const [pickerPreview, setPickerPreview] = useState<Asset | null>(null); // 내 에셋 미리보기 모달
   const [dropZoneActive, setDropZoneActive] = useState(false);
+  // 에셋 그리드 마퀴(드래그 박스) 다중선택
+  const [assetSel, setAssetSel] = useState<Set<string>>(new Set());
+  const [assetMarq, setAssetMarq] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const assetGridRef = useRef<HTMLDivElement>(null);
+  const assetMarqStart = useRef<{ x: number; y: number } | null>(null);
+  // 폴더 바뀌면 선택 해제
+  useEffect(() => { setAssetSel(new Set()); }, [selectedFolder]);
   // 에셋 그리드 빈 영역 우클릭 컨텍스트 메뉴 (폴더 만들기)
   const [assetCtxMenu, setAssetCtxMenu] = useState<{ x: number; y: number } | null>(null);
   // 씬 트리 우클릭 컨텍스트 메뉴 — objId=null 이면 빈 영역(추가), 있으면 노드(빼기/삭제)
@@ -3810,6 +3823,50 @@ export default function StudioCanvas() {
       });
     } catch (e) { console.error('삭제 실패', e); }
   }
+
+  /** 선택된 에셋 일괄 삭제 — 확인 1회 후 전부 삭제 */
+  async function deleteAssetsBatch(ids: string[]) {
+    if (ids.length === 0) return;
+    if (!window.confirm(`선택한 에셋 ${ids.length}개를 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    const idSet = new Set(ids);
+    setMyAssets(prev => prev.filter(a => !idSet.has(a.id)));
+    setAssetSel(new Set());
+    for (const id of ids) {
+      try { await fetch(`${API}/api/assets/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token()}` } }); }
+      catch (e) { console.error('삭제 실패', e); }
+    }
+  }
+
+  // 에셋 그리드 마퀴 드래그 다중선택 — 빈 공간에서 시작, 박스에 닿는 카드 선택
+  const onAssetGridPointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    const tgt = e.target as HTMLElement;
+    if (tgt.closest('[data-asset-id], button, input, [data-folder-card]')) return; // 카드/버튼/폴더 위면 무시(드래그·클릭 유지)
+    assetMarqStart.current = { x: e.clientX, y: e.clientY };
+    if (!e.shiftKey) setAssetSel(new Set());
+    try { assetGridRef.current?.setPointerCapture(e.pointerId); } catch { /* noop */ }
+  };
+  const onAssetGridPointerMove = (e: React.PointerEvent) => {
+    const start = assetMarqStart.current;
+    if (!start) return;
+    const x0 = Math.min(start.x, e.clientX), y0 = Math.min(start.y, e.clientY);
+    const x1 = Math.max(start.x, e.clientX), y1 = Math.max(start.y, e.clientY);
+    setAssetMarq({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+    const sel = new Set<string>();
+    assetGridRef.current?.querySelectorAll('[data-asset-id]').forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.right > x0 && r.left < x1 && r.bottom > y0 && r.top < y1) {
+        const id = el.getAttribute('data-asset-id'); if (id) sel.add(id);
+      }
+    });
+    setAssetSel(sel);
+  };
+  const onAssetGridPointerUp = (e: React.PointerEvent) => {
+    if (!assetMarqStart.current) return;
+    assetMarqStart.current = null;
+    setAssetMarq(null);
+    try { assetGridRef.current?.releasePointerCapture(e.pointerId); } catch { /* noop */ }
+  };
 
   async function deleteFolderInStudio(folderPath: string) {
     const folderName = folderPath.split('/').filter(Boolean).pop() ?? folderPath;
@@ -5942,16 +5999,31 @@ export default function StudioCanvas() {
 
             {/* 오른쪽: 선택된 폴더의 에셋 그리드 */}
             <div
+              ref={assetGridRef}
               style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', position: 'relative',
                 outline: dropZoneActive ? '2px dashed #34d399' : 'none',
                 background: dropZoneActive ? 'rgba(52,211,153,0.06)' : 'transparent',
                 transition: 'outline 0.1s, background 0.1s',
               }}
+              onPointerDown={onAssetGridPointerDown}
+              onPointerMove={onAssetGridPointerMove}
+              onPointerUp={onAssetGridPointerUp}
               onDragOver={e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDropZoneActive(true); } }}
               onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropZoneActive(false); }}
               onDrop={e => { e.preventDefault(); setDropZoneActive(false); if (e.dataTransfer.files.length > 0) uploadFilesToFolder(e.dataTransfer.files); }}
               onContextMenu={e => { e.preventDefault(); setAssetCtxMenu({ x: e.clientX, y: e.clientY }); }}
             >
+              {/* 다중선택 삭제 바 */}
+              {assetSel.size > 0 && (
+                <div style={{ position: 'sticky', top: -8, zIndex: 3, margin: '-8px -10px 6px', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 8,
+                  background: 'rgba(30,41,59,0.96)', borderBottom: '1px solid rgba(129,140,248,0.25)' }}>
+                  <span style={{ fontSize: 11, color: '#c7d2fe', fontWeight: 600 }}>{assetSel.size}개 선택됨</span>
+                  <button onClick={() => deleteAssetsBatch([...assetSel])}
+                    style={{ background: 'rgba(239,68,68,0.85)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 11, padding: '4px 10px', cursor: 'pointer', fontWeight: 600 }}>🗑 선택 삭제</button>
+                  <button onClick={() => setAssetSel(new Set())}
+                    style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 5, color: '#cbd5e1', fontSize: 11, padding: '4px 10px', cursor: 'pointer' }}>선택 해제</button>
+                </div>
+              )}
               {/* 드롭 오버레이 */}
               {dropZoneActive && (
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 1 }}>
@@ -5983,7 +6055,7 @@ export default function StudioCanvas() {
                   ))}
                   {/* FBX 파일 카드 */}
                   {selectedFolderAssets.map(a => (
-                    <StudioAssetCard key={a.id} asset={a} onDelete={deleteAsset} onRename={renameAsset} onPreview={setPickerPreview} />
+                    <StudioAssetCard key={a.id} asset={a} onDelete={deleteAsset} onRename={renameAsset} onPreview={setPickerPreview} selected={assetSel.has(a.id)} />
                   ))}
                   {/* 폴더/파일 모두 없을 때 안내 */}
                   {selectedSubfolders.length === 0 && selectedFolderAssets.length === 0 && (
@@ -5997,6 +6069,13 @@ export default function StudioCanvas() {
           </div>
         </div>
       </div>
+
+      {/* 에셋 마퀴 선택 박스 — 패널이 transform 되어 있어 portal 로 body 에 (뷰포트 좌표) */}
+      {assetMarq && typeof document !== 'undefined' && createPortal(
+        <div style={{ position: 'fixed', left: assetMarq.x, top: assetMarq.y, width: assetMarq.w, height: assetMarq.h,
+          border: '1px solid #818cf8', background: 'rgba(129,140,248,0.18)', zIndex: 99999, pointerEvents: 'none' }} />,
+        document.body
+      )}
 
       {/* 내 에셋 미리보기 모달 */}
       {pickerPreview && (
