@@ -1,4 +1,5 @@
 'use client';
+import type { JsGameAPI } from './gameRuntime';
 /**
  * ALP 미니 JavaScript 인터프리터 — 외부 라이브러리 0개 (npm install 없음)
  *
@@ -23,6 +24,10 @@
  *   world.isHost() → 본인이 호스트인지 (중복 spawn 방지에 사용)
  *   world.runtimeCount() → 현재 spawn 된 오브젝트 수 (멱등 spawn 가드)
  *   net.sendAll(event, data) / net.sendTo(playerId, event, data)
+ *   world.playSound(url, {volume,loop})  — 오디오 재생
+ *   game.get(key, default?) / game.set(key, value) / game.add(key, n=1)  — 전역 게임 상태(점수·체력 등)
+ *   ui.text(id, text, {x,y,size,color,bg,align}) / ui.bar(id, value, max, {x,y,color,bg})  — 화면 HUD
+ *   ui.clear(id) / ui.clearAll()
  *   print(...) / console.log(...)
  *   Math.sin / cos / abs / floor / ceil / round / random / PI / min / max / sqrt / pow / atan2
  *
@@ -863,7 +868,7 @@ export class JsScript {
   readonly logs: string[] = [];
   readonly errors: string[] = [];
 
-  init(source: string, obj: JsObjectAPI, worldApi: JsWorldAPI, netApi: JsNetAPI, props?: Record<string, unknown>, vars?: Record<string, unknown>): void {
+  init(source: string, obj: JsObjectAPI, worldApi: JsWorldAPI, netApi: JsNetAPI, props?: Record<string, unknown>, vars?: Record<string, unknown>, gameApi?: JsGameAPI): void {
     try {
       const print = (...args: unknown[]) => {
         const line = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
@@ -938,6 +943,9 @@ export class JsScript {
         // 현재 spawn 된 런타임 오브젝트 개수 — "이미 있나" 가드.
         // if (world.isHost() && world.runtimeCount() === 0) { ...spawn... }
         runtimeCount: () => worldApi.runtimeCount ? worldApi.runtimeCount() : 0,
+        // world.playSound("https://.../boom.mp3", { volume:0.8, loop:false })
+        playSound: (url: unknown, opts?: { volume?: number; loop?: boolean }) =>
+          gameApi?.playSound(String(url), opts),
       };
       // world.time을 항상 최신 값으로 → getter처럼 동작
       Object.defineProperty(world, 'time', {
@@ -952,6 +960,38 @@ export class JsScript {
           netApi.sendTo(String(pid), String(event), data ?? {}),
       };
 
+      // ── 게임 로직 레이어 (샌드박스) — 전역 상태 + 화면 UI(HUD) ──
+      const numOr = (v: unknown, d: number) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+      // game.set("score", 0) / game.add("score", 10) / game.get("score", 0)
+      const game = {
+        get: (k: unknown, d?: unknown) => { const v = gameApi?.stateGet(String(k)); return v === undefined ? (d ?? null) : v; },
+        set: (k: unknown, v: unknown) => { gameApi?.stateSet(String(k), v); },
+        add: (k: unknown, n?: unknown) => gameApi?.stateAdd(String(k), numOr(n, 1)) ?? 0,
+      };
+      // ui.text("score", "점수: "+game.get("score",0), {x:0.5,y:0.06,size:28})
+      // ui.bar("hp", game.get("hp",100), 100, {y:0.94,color:"#e44"})
+      const ui = {
+        text: (id: unknown, text: unknown, opts?: Record<string, unknown>) => {
+          const o = (opts && typeof opts === 'object') ? opts : {};
+          gameApi?.hudSet({ id: String(id), type: 'text', text: String(text),
+            x: numOr(o.x, 0.5), y: numOr(o.y, 0.08),
+            size: o.size != null ? Number(o.size) : undefined,
+            color: o.color != null ? String(o.color) : undefined,
+            bg: o.bg != null ? String(o.bg) : undefined,
+            align: (o.align === 'left' || o.align === 'right') ? o.align : 'center' });
+        },
+        bar: (id: unknown, value: unknown, max?: unknown, opts?: Record<string, unknown>) => {
+          const o = (opts && typeof opts === 'object') ? opts : {};
+          gameApi?.hudSet({ id: String(id), type: 'bar', value: numOr(value, 0), max: numOr(max, 100),
+            x: numOr(o.x, 0.5), y: numOr(o.y, 0.92),
+            size: o.size != null ? Number(o.size) : undefined,
+            color: o.color != null ? String(o.color) : undefined,
+            bg: o.bg != null ? String(o.bg) : undefined });
+        },
+        clear: (id: unknown) => { gameApi?.hudClear(String(id)); },
+        clearAll: () => { gameApi?.hudClearAll(); },
+      };
+
       const MathLib = {
         sin: Math.sin, cos: Math.cos, tan: Math.tan, atan: Math.atan, atan2: Math.atan2,
         abs: Math.abs, floor: Math.floor, ceil: Math.ceil, round: Math.round,
@@ -963,7 +1003,7 @@ export class JsScript {
       const console_ = { log: print };
 
       this.interp = new Interpreter({
-        self, world, net,
+        self, world, net, game, ui,
         Math: MathLib,
         console: console_,
         print,

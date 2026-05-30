@@ -13,6 +13,8 @@ import AssetPreviewModal from '@/components/assets/AssetPreviewModal';
 import type { Asset as RegistryAsset } from '@/lib/assets/types';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
+import { createGameRuntime } from '@/lib/world/gameRuntime';
+import GameHud from '@/components/world/GameHud';
 import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, VideoScreenCtx, parseYouTubeId } from '@/components/world/VideoScreen';
 import AiGuideModal from './AiGuideModal';
 import StudioTopBar from './StudioTopBar';
@@ -2063,10 +2065,12 @@ function SimCameraNear({ near }: { near: number }) {
   return null;
 }
 
-function SimScene({ objects, transforms, myAssets, player }: {
+function SimScene({ objects, transforms, myAssets, player, gameApi }: {
   objects: MapObject[];
   transforms: SimTransforms;
   myAssets: Asset[];
+  /** 게임 로직 레이어 — 스크립트의 game/ui/world.playSound 가 이 API 로 들어감. */
+  gameApi: import('@/lib/world/gameRuntime').JsGameAPI;
   /** 시뮬레이션 플레이어 — 본인 캐릭터로 직접 플레이 (월드와 동일). null 이면 플레이어 없음. */
   player?: {
     character: Record<string, unknown>;
@@ -2299,7 +2303,7 @@ function SimScene({ objects, transforms, myAssets, player }: {
       };
 
       luaScripts.current.set(obj.id, vm);
-      vm.init(obj.script!, objectAPI, worldAPI, netAPI, undefined, obj.scriptVars);
+      vm.init(obj.script!, objectAPI, worldAPI, netAPI, undefined, obj.scriptVars, gameApi);
       vm.callStart(); // 스튜디오는 단일 클라 — 즉시 시작
     }
 
@@ -2458,7 +2462,7 @@ function SimScene({ objects, transforms, myAssets, player }: {
         }
         const vm2 = new JsScript2();
         // props 를 props 글로벌 + 변수 오버라이드 둘 다로 전달 → 코드에서 props.speed 또는 let speed 둘 다 동작
-        vm2.init(def.code, objAPI, worldAPI2, netAPI2, inst.props ?? {}, inst.props ?? {});
+        vm2.init(def.code, objAPI, worldAPI2, netAPI2, inst.props ?? {}, inst.props ?? {}, gameApi);
         vm2.callStart();
         vms.push({ vm: vm2 });
       }
@@ -2842,6 +2846,8 @@ export default function StudioCanvas() {
   const [mode, setMode]             = useState<'translate' | 'rotate' | 'scale'>('translate');
   // 시뮬레이션
   const [simulating, setSimulating] = useState(false);
+  // 게임 로직 레이어(시뮬용) — 스크립트의 game/ui/world.playSound 가 들어오고 <GameHud> 가 그림.
+  const simGameRuntime = useMemo(() => createGameRuntime(), []);
   // 시뮬레이션 플레이어 — 본인 캐릭터로 직접 플레이 (월드와 동일 조작)
   const [simCharacter, setSimCharacter] = useState<Record<string, unknown> | null>(null);
   const [simCameraMode, setSimCameraMode] = useState<'first' | 'third'>('first');
@@ -3480,6 +3486,7 @@ export default function StudioCanvas() {
     }
     setSimCameraMode('first');
     setSimCamView('follow');
+    simGameRuntime.reset();   // 게임 상태·HUD 초기화 후 시작
     setSimulating(true);
   }
 
@@ -3490,6 +3497,7 @@ export default function StudioCanvas() {
     setSimTransforms({});
     setSimCharacter(null);
     setSimCrosshair('idle');
+    simGameRuntime.reset();   // 편집 모드로 돌아가며 HUD 제거
   }
 
   // 스폰 위치 — spawn 오브젝트 중 하나 (랜덤). 없으면 기본 [0,4,0]. 시뮬 시작 시 고정.
@@ -5642,7 +5650,7 @@ export default function StudioCanvas() {
             <Suspense fallback={null}>
               <VideoScreenCtx.Provider value={{ live: true, withSound: true }}>
               <Physics gravity={[0, worldPhysics.gravity, 0]} interpolate={false}>
-                <SimScene objects={objects.filter(o => !o.hidden)} transforms={simTransforms} myAssets={myAssets}
+                <SimScene objects={objects.filter(o => !o.hidden)} transforms={simTransforms} myAssets={myAssets} gameApi={simGameRuntime.api}
                   player={simCharacter ? {
                     character: simCharacter,
                     cameraMode: simCameraMode,
@@ -5742,6 +5750,9 @@ export default function StudioCanvas() {
           <CameraRefCapture cameraRef={cameraRef} />
           <PostFX s={postFX} />
         </Canvas>
+
+        {/* 게임 HUD — 스크립트 ui.text/ui.bar 가 그림. 시뮬레이션 중에만 뷰포트 위에 오버레이. */}
+        {simulating && <GameHud runtime={simGameRuntime} />}
 
         {/* 1인칭 시뮬레이션 크로스헤어 — follow 모드 + 1인칭일 때만. idle=흰, aim=초록, grab=노랑 */}
         {simulating && simCharacter && simCamView === 'follow' && simCameraMode === 'first' && (

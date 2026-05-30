@@ -24,6 +24,8 @@ import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimati
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
+import { createGameRuntime } from '@/lib/world/gameRuntime';
+import GameHud from './GameHud';
 
 const PLAYER_CAPSULE_HALF_HEIGHT = 0.35;
 const PLAYER_CAPSULE_RADIUS = 0.28;
@@ -2564,6 +2566,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const videoRegistry: VideoRegistry = useRef<Map<string, VideoHandle>>(new Map());
   // 월드는 실제 재생(live) + 소리 ON(첫 클릭에 unmute) + 동기화 ON. (value 고정 → 재렌더 방지)
   const videoCtxValue = useMemo(() => ({ live: true, withSound: true, registry: videoRegistry }), []);
+  // 게임 로직 레이어 — 스크립트의 game/ui/world.playSound 가 이 스토어로 들어옴. <GameHud> 가 그림.
+  const gameRuntime = useMemo(() => createGameRuntime(), []);
   // 비디오 URL 런타임 오버라이드 — 컨트롤 바에서 URL 변경 시(멀티 동기). objId→새 URL.
   const [videoUrlOverrides, setVideoUrlOverrides] = useState<Record<string, string>>({});
   // 컨트롤 바 동작 — 등록된 모든 비디오 스크린에 적용 + 다른 플레이어에게 broadcast(__videoctl__).
@@ -3249,7 +3253,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         sendTo: (pid, event, data) => sendScriptEvent?.(obj.id, event, data, pid),
       };
       luaScripts.current.set(obj.id, vm);
-      vm.init(obj.script!, objectAPI, worldAPI, netAPI, undefined, obj.scriptVars);
+      vm.init(obj.script!, objectAPI, worldAPI, netAPI, undefined, obj.scriptVars, gameRuntime.api);
       if (isHostRef.current) vm.callStart();   // 호스트만 onStart 실행 (비호스트는 pending → 호스트 되면 실행)
       else pendingStartRef.current.add(vm);
     }
@@ -3285,7 +3289,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         }
         const vm2 = new JsScript();
         // props 를 props 글로벌 + 변수 오버라이드 둘 다로 전달 → 코드에서 props.speed 또는 let speed 둘 다 동작
-        vm2.init(def.code, objAPI, worldAPI, userNetAPI, inst.props ?? {}, inst.props ?? {});
+        vm2.init(def.code, objAPI, worldAPI, userNetAPI, inst.props ?? {}, inst.props ?? {}, gameRuntime.api);
         if (isHostRef.current) vm2.callStart();   // 호스트만 onStart (비호스트는 pending → 호스트 되면 실행)
         else pendingStartRef.current.add(vm2);
         vms.push({ vm: vm2, key: `${obj.id}::${idx}::${compId}` });
@@ -3336,6 +3340,11 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     <>
       {/* ── 모바일 컨트롤: Canvas 완전 바깥의 position:fixed DOM ── */}
       {isMobile && <MobileControls inputLocked={chatInputActive} />}
+
+      {/* 게임 HUD — 스크립트 ui.text/ui.bar 가 그림. 전체화면 위 오버레이(클릭 통과). */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: 900, pointerEvents: 'none' }}>
+        <GameHud runtime={gameRuntime} />
+      </div>
 
       {/* Tab 안내: 마우스 커서 켜기(영상·UI 클릭) ↔ 끄기(화면 회전). 데스크톱만. */}
       {!isMobile && !chatInputActive && (
