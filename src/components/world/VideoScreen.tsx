@@ -174,12 +174,12 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
   const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);   // 세로 → planeH
   // controls=0/disablekb=1/fs=0 → YouTube 자체 UI 제거(유저가 직접 못 건드림). 재생 제어는 별도 버튼이 IFrame API 로 함.
   const src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`;
-  // occlude="raycast": 화면 중심이 앞 오브젝트(캐릭터/벽 등)에 가리면 iframe 전체를 숨김(display:none).
-  //   픽셀 단위 가림은 YouTube iframe 의 본질적 한계로 불가 — blending 은 drei transform 모드에서
-  //   빌보드 셰이더 + 캔버스/iframe z-index 충돌로 정상 동작 안 함. raycast 가 가장 안정적인 동작.
-  // pointerEvents="none": iframe 을 완전 비상호작용(클릭 통과). 조작은 별도 리모컨 패널이 담당.
+  // occlude="blending": 깊이 버퍼 기반 픽셀 단위 가림. 캔버스 alpha:true + 배경 div + 캔버스 zIndex
+  //   강제(16777271) 조합으로 iframe 이 캔버스 뒤로 가게 해 캐릭터·박스 등이 영상을 가림.
+  //   알려진 한계: drei transform 모드 occlusion mesh 가 빌보드 셰이더라 가림 영역이 살짝 부정확할 수 있음.
+  // pointerEvents="none": iframe 클릭 통과 → 마우스 캡쳐 안 됨. 조작은 별도 리모컨 패널이 담당.
   return (
-    <Html transform occlude="raycast" pointerEvents="none" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center>
+    <Html transform occlude="blending" pointerEvents="none" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center>
       <iframe
         ref={iframeRef}
         width={YT_IFRAME_W}
