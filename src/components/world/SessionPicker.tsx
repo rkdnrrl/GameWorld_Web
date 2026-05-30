@@ -51,7 +51,7 @@ export default function SessionPicker({ worldId, worldName, maxPlayersDefault = 
       style={{
         position: 'fixed', inset: 0,
         background: 'rgba(2,6,23,0.85)', backdropFilter: 'blur(8px)',
-        zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 16777274, display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 16,
       }}
       onClick={onClose}

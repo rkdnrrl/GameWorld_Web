@@ -133,7 +133,7 @@ export default function GraphicsPanel({ settings, updateSettings, applyPreset, m
         onClick={() => setOpen(v => !v)}
         title={t('title')}
         style={{
-          position: 'absolute', top: 16, right: 16, zIndex: 1000,
+          position: 'absolute', top: 16, right: 16, zIndex: 16777274,
           width: 40, height: 40, borderRadius: '50%',
           background: open ? '#4f46e5' : 'rgba(0,0,0,0.45)',
           border: 'none', color: '#fff', fontSize: 18,
@@ -146,7 +146,7 @@ export default function GraphicsPanel({ settings, updateSettings, applyPreset, m
 
       {open && (
         <div style={{
-          position: 'absolute', top: 64, right: 16, zIndex: 1000,
+          position: 'absolute', top: 64, right: 16, zIndex: 16777274,
           width: 280, background: 'rgba(15,23,42,0.92)', backdropFilter: 'blur(14px)',
           border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14,
           padding: 16, color: '#fff',
