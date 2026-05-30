@@ -12,7 +12,7 @@
  *
  * 파일영상과 YouTube 를 같은 VideoHandle 인터페이스로 묶어 동기화 코드를 공유.
  */
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef } from 'react';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -163,16 +163,9 @@ export function YouTubeOverlay({ videoId, objId, planeW = 2, planeH = 1.2 }: { v
     return () => window.removeEventListener('pointerdown', onGesture);
   }, [withSound]);
 
-  // 포인터락 상태 추적 — 락 중(마우스 숨김)이면 클릭을 캔버스로 통과(카메라 조작),
-  // 락 해제(마우스 보임)면 iframe 클릭 가능(YouTube 컨트롤).
-  const [locked, setLocked] = useState(false);
-  useEffect(() => {
-    const onChange = () => setLocked(!!document.pointerLockElement);
-    document.addEventListener('pointerlockchange', onChange);
-    onChange();
-    return () => document.removeEventListener('pointerlockchange', onChange);
-  }, []);
-  const pe: 'none' | 'auto' = locked ? 'none' : 'auto';
+  // 영상은 항상 클릭 통과(pointerEvents:none) → 게임 카메라 회전/포인터락이 항상 정상 동작.
+  // (영상 제어(재생·탐색·URL 변경)는 iframe 직접 클릭이 아니라 별도 동기화 컨트롤로 처리)
+  const pe = 'none' as const;
 
   // drei <Html transform> 의 px→월드 환산이 작아서(scale 1 에서 640px ≈ 64유닛, 경험치).
   // 가로·세로 각각 평면 크기에 맞춰 비균등 스케일 → iframe 이 평면을 꽉 채움(16:9 아니어도).
