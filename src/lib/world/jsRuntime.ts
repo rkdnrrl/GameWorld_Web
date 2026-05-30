@@ -994,11 +994,23 @@ export class JsScript {
       this.interp.run(program);
       // 인스펙터에서 설정한 변수 오버라이드 — 스크립트가 선언한 top-level 변수 기본값 위에 덮어씀.
       // (유니티의 직렬화 필드처럼: 코드의 기본값 vs 인스펙터에서 조정한 값)
+      // 오브젝트 참조 변수(let x = null)는 드롭한 오브젝트 id 를 핸들로 변환해 주입 → x.setVisible() 등 제어 가능.
+      const objRefKeys = new Set<string>();
+      for (const stmt of (program.body as Node[])) {
+        if (stmt && stmt.type === 'VarDecl' && stmt.value && stmt.value.type === 'Null') objRefKeys.add(stmt.name);
+      }
       if (vars) {
         for (const k of Object.keys(vars)) {
-          if (this.interp.globalEnv.has(k)) {
-            try { this.interp.globalEnv.set(k, vars[k]); } catch { /* ignore */ }
-          }
+          if (!this.interp.globalEnv.has(k)) continue;
+          try {
+            if (objRefKeys.has(k)) {
+              const id = typeof vars[k] === 'string' ? (vars[k] as string) : '';
+              const found = id ? worldApi.findObject?.(id) : null;
+              this.interp.globalEnv.set(k, found ? wrapObjectAPI(found) : null);
+            } else {
+              this.interp.globalEnv.set(k, vars[k]);
+            }
+          } catch { /* ignore */ }
         }
       }
       this.ready = true;
@@ -1095,13 +1107,15 @@ export class JsScript {
    예) `let speed = 5;`  → { key:'speed', type:'number', default:5 }
        `let name = "go";` → { key:'name',  type:'string', default:'go' }
        `let on = true;`    → { key:'on',    type:'boolean', default:true }
-   - 초기값이 리터럴(숫자/문자열/불리언)인 것만 노출 (계산식·함수는 제외).
+       `let target = null;`→ { key:'target', type:'object', default:null }  ← 오브젝트 참조 슬롯
+   - 초기값이 리터럴(숫자/문자열/불리언) 또는 null(오브젝트 슬롯) 인 것만 노출 (계산식·함수는 제외).
    - `_` 로 시작하는 이름은 비공개로 간주해 제외.
+   - type:'object' 는 인스펙터에서 씬 오브젝트를 드래그해 지정 → 런타임에 그 오브젝트 핸들로 주입됨.
    ───────────────────────────────────────────── */
 export interface ScriptVarDef {
   key: string;
-  type: 'number' | 'string' | 'boolean';
-  default: number | string | boolean;
+  type: 'number' | 'string' | 'boolean' | 'object';
+  default: number | string | boolean | null;
 }
 
 export function extractScriptVars(source: string): ScriptVarDef[] {
@@ -1118,6 +1132,7 @@ export function extractScriptVars(source: string): ScriptVarDef[] {
       if (v.type === 'Num')       { out.push({ key: name, type: 'number',  default: Number(v.value) });   seen.add(name); }
       else if (v.type === 'Str')  { out.push({ key: name, type: 'string',  default: String(v.value) });   seen.add(name); }
       else if (v.type === 'Bool') { out.push({ key: name, type: 'boolean', default: Boolean(v.value) }); seen.add(name); }
+      else if (v.type === 'Null') { out.push({ key: name, type: 'object',  default: null });             seen.add(name); }
     }
     return out;
   } catch {

@@ -243,6 +243,9 @@ function ComponentsSection({
               key={idx}
               instance={c}
               scriptComponent={sc}
+              objectId={selected.id}
+              componentIdx={idx}
+              allObjects={allObjects}
               onRemove={() => removeComponent(idx)}
               onPropsChange={(props) => {
                 setObjects(prev => prev.map(o => {
@@ -360,13 +363,16 @@ function ComponentsSection({
 
 /* 유저 정의 컴포넌트 카드 — schema 가 있으면 타입별 input, 없으면 자유 key:value 편집 */
 function UserComponentCard({
-  instance, scriptComponent, onRemove, onPropsChange, onPropsCommit,
+  instance, scriptComponent, onRemove, onPropsChange, onPropsCommit, objectId, componentIdx, allObjects,
 }: {
   instance: ComponentInstance;
   scriptComponent: ScriptComponent | undefined;
   onRemove: () => void;
   onPropsChange: (props: Record<string, number | string | boolean>) => void;
   onPropsCommit: () => void;
+  objectId: string;
+  componentIdx: number;
+  allObjects: MapObject[];
 }) {
   const props = (instance.props ?? {}) as Record<string, number | string | boolean>;
   const [open, setOpen] = useState(true);
@@ -374,11 +380,13 @@ function UserComponentCard({
   // 유니티식 — 코드에 선언한 top-level 변수(let x = 5)를 자동 감지해 인스펙터에 노출.
   // 수동 propsSchema 에 이미 있는 키는 그쪽(라벨·min/max 등 풍부) 우선, 없는 것만 자동 추가.
   const autoVars = useMemo(() => scriptComponent?.code ? extractScriptVars(scriptComponent.code) : [], [scriptComponent?.code]);
+  // 오브젝트 참조 변수(let x = null) 는 드롭 슬롯으로 따로 렌더, 나머지(숫자/문자/불리언)만 schema 로.
+  const objectVars = autoVars.filter(v => v.type === 'object');
   const schema: ScriptComponentPropDef[] = [
     ...propsSchema,
     ...autoVars
-      .filter(v => !propsSchema.some(p => p.key === v.key))
-      .map(v => ({ key: v.key, label: v.key, type: v.type, default: v.default }) as ScriptComponentPropDef),
+      .filter(v => v.type !== 'object' && !propsSchema.some(p => p.key === v.key))
+      .map(v => ({ key: v.key, label: v.key, type: v.type as ScriptComponentPropDef['type'], default: v.default as (number | string | boolean) }) as ScriptComponentPropDef),
   ];
   const hasSchema = schema.length > 0;
   const [newKey, setNewKey] = useState('');
@@ -482,8 +490,40 @@ function UserComponentCard({
         );
       })}
 
-      {/* ── schema 없으면 free-form key:value 입력 ── */}
-      {!hasSchema && (
+      {/* ── 오브젝트 참조 변수(let x = null) — 씬 오브젝트를 드래그해 지정하는 드롭 슬롯 ── */}
+      {objectVars.map(v => {
+        const refId = props[v.key];
+        const refObj = typeof refId === 'string' ? allObjects.find(o => o.id === refId) : undefined;
+        return (
+          <div key={v.key} style={{ marginTop: 6 }}>
+            <div style={{ fontSize: 10, opacity: 0.75, marginBottom: 3 }}>🔗 {v.key}</div>
+            <div
+              data-objvar={`${objectId}|${componentIdx}|${v.key}`}
+              title="씬 트리에서 오브젝트를 드래그해 여기에 놓으세요"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 5, minHeight: 22,
+                border: `1px dashed ${refObj ? 'rgba(129,140,248,0.6)' : 'rgba(255,255,255,0.2)'}`,
+                background: refObj ? 'rgba(99,102,241,0.14)' : 'rgba(0,0,0,0.25)', fontSize: 10,
+              }}>
+              {refObj ? (
+                <>
+                  <span style={{ flex: 1, color: '#c7d2fe', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {KIND_ICONS[refObj.kind] ?? '📦'} {refObj.label || refObj.kind}
+                  </span>
+                  <button type="button" title="해제"
+                    onClick={() => { const next = { ...props }; delete next[v.key]; onPropsChange(next); onPropsCommit(); }}
+                    style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.75)', fontSize: 11, cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>
+                </>
+              ) : (
+                <span style={{ flex: 1, color: 'rgba(255,255,255,0.4)' }}>씬 오브젝트를 여기로 드래그</span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* ── schema·오브젝트변수 둘 다 없으면 free-form key:value 입력 ── */}
+      {!hasSchema && objectVars.length === 0 && (
         <>
           {Object.entries(props).map(([k, v]) => (
             <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
@@ -4050,6 +4090,29 @@ export default function StudioCanvas() {
       try { treeScrollRef.current?.releasePointerCapture(d.pointerId); } catch { /* noop */ }
       const dragged = d.id;
       const overEl = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+      // 인스펙터의 오브젝트 참조 변수 슬롯에 놓음 → 그 변수(컴포넌트 props)에 드래그한 오브젝트 지정
+      const slotEl = overEl?.closest('[data-objvar]') as HTMLElement | null;
+      if (slotEl) {
+        const [objId, idxStr, key] = (slotEl.getAttribute('data-objvar') || '').split('|');
+        const idx = Number(idxStr);
+        if (objId && key && Number.isInteger(idx)) {
+          setObjects(prev => {
+            const next = prev.map(o => {
+              if (o.id !== objId) return o;
+              const comps = [...(o.components ?? [])];
+              const comp = comps[idx];
+              if (!comp) return o;
+              comps[idx] = { ...comp, props: { ...(comp.props ?? {}), [key]: dragged } };
+              return { ...o, components: comps };
+            });
+            pushHistory(next);
+            return next;
+          });
+        }
+        treeDragOverRef.current = { overId: null, overMode: null };
+        setTreeDrag(null);
+        return;
+      }
       const vp = viewportRef.current;
       if (vp && overEl && vp.contains(overEl)) {
         // 뷰포트 위에 놓음 → 그 3D 오브젝트의 자식으로 (빈 곳이면 루트)
