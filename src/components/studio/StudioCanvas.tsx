@@ -2045,6 +2045,9 @@ function SimScene({ objects, transforms, myAssets, player }: {
   const clickBurstRef = useRef<Map<string, number>>(new Map());
   const triggerClickBurst = useCallback((objectId: string) => {
     clickBurstRef.current.set(objectId, (clickBurstRef.current.get(objectId) ?? 0) + 1);
+    // 시뮬은 단일 플레이어 — onClick 스크립트를 로컬에서 바로 실행 (월드는 호스트 권위로 처리)
+    luaScripts.current.get(objectId)?.callClick('player');
+    componentScripts.current.get(objectId)?.forEach(({ vm }) => vm.callClick('player'));
   }, []);
   // user 컴포넌트 코드 캐시 — id → ScriptComponent
   const scriptComponentDefsRef = useRef<Map<string, ScriptComponent>>(new Map());

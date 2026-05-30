@@ -566,10 +566,14 @@ function LuaUpdateLoop({
 }) {
   useFrame((_, dt) => {
     worldElapsed.current += dt;
-    for (const vm of luaScripts.current.values()) vm.callUpdate(dt);
-    // 유저 정의 컴포넌트 VM 들도 매 프레임 onUpdate
-    for (const arr of componentScripts.current.values()) {
-      for (const { vm } of arr) vm.callUpdate(dt);
+    // 스크립트 onUpdate 는 호스트만 실행 (권위). 비호스트는 호스트가 broadcast 한
+    // 오브젝트 상태를 sync 로 받아 반영 → 모두에게 동일한 결과. (호스트 바뀌면 새 호스트가 이어받음)
+    if (isHost) {
+      for (const vm of luaScripts.current.values()) vm.callUpdate(dt);
+      // 유저 정의 컴포넌트 VM 들도 매 프레임 onUpdate
+      for (const arr of componentScripts.current.values()) {
+        for (const { vm } of arr) vm.callUpdate(dt);
+      }
     }
 
     // ── 부모 → 자식 transform propagation ──
@@ -1150,9 +1154,7 @@ export function Player({
               if (ref.body.current === hitBody) { clickedId = id; break; }
             }
             if (clickedId) {
-              const clicker = playerId || 'player';
-              luaScripts?.current.get(clickedId)?.callClick(clicker);
-              componentScripts?.current.get(clickedId)?.forEach(({ vm }) => vm.callClick(clicker));
+              // 스크립트 실행/전달은 부모(onObjectClick)가 호스트 권위에 맞춰 처리. 여기선 알리기만.
               onObjectClick?.(clickedId);
               return;  // 클릭 소비 — 포인터락 유지
             }
@@ -2513,6 +2515,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   }, []);
   // 콜라이더 충돌/트리거 이벤트 → 해당 오브젝트의 메인 스크립트 + user 컴포넌트 스크립트로 디스패치
   const dispatchColliderEvent = useCallback((objId: string, otherId: string, kind: ColliderEventKind) => {
+    // 트리거/충돌 스크립트 이벤트는 호스트만 실행 (권위). 호스트는 원격 플레이어 아바타(kinematic
+    // 바디)의 진입도 감지하므로, 누가 트리거에 들어와도 호스트가 한 번 실행 → broadcast.
+    if (!isHostRef.current) return;
     const fire = (vm: import('@/lib/world/jsRuntime').JsScript) => {
       if (kind === 'triggerEnter') vm.callTriggerEnter(otherId);
       else if (kind === 'triggerExit') vm.callTriggerExit(otherId);
@@ -2586,6 +2591,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   useEffect(() => {
     if (!scriptEventRef) return;
     scriptEventRef.current = (objectId, event, data, fromId) => {
+      // 비호스트의 1인칭 클릭 전달 — 호스트만 권위적으로 onClick 실행 (클릭은 물리 이벤트가
+      // 아니라 호스트가 원격 클릭을 감지 못 하므로, 클릭한 클라가 호스트로 보내준 것)
+      if (event === '__click__') {
+        if (!isHostRef.current) return;
+        luaScripts.current.get(objectId)?.callClick(fromId);
+        componentScripts.current.get(objectId)?.forEach(({ vm }) => vm.callClick(fromId));
+        return;
+      }
       luaScripts.current.get(objectId)?.callNetEvent(event, data, fromId);
       // user 컴포넌트 VM 들에도 dispatch
       componentScripts.current.get(objectId)?.forEach(({ vm }) => vm.callNetEvent(event, data, fromId));
@@ -2790,19 +2803,32 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const isHostRef = useRef(isHost);
   useEffect(() => { isHostRef.current = isHost; }, [isHost]);
 
+  // 1인칭 클릭 핸들러 — 버스트는 본인 화면에서 즉시(로컬 피드백). onClick 스크립트는 호스트만
+  // 권위적으로 실행하고, 비호스트면 호스트로 전달(__click__)해 호스트가 실행 → broadcast.
+  const handleObjectClick = useCallback((objId: string) => {
+    triggerClickBurst(objId);
+    if (isHostRef.current) {
+      luaScripts.current.get(objId)?.callClick(playerId);
+      componentScripts.current.get(objId)?.forEach(({ vm }) => vm.callClick(playerId));
+    } else if (hostId) {
+      sendScriptEvent?.(objId, '__click__', {}, hostId);
+    }
+  }, [triggerClickBurst, playerId, hostId, sendScriptEvent]);
+
   // 입장자가 정확한 위치 받게 하려고 — 호스트는 1초에 한 번씩 모든 소유 오브젝트를
   // 강제 broadcast (move threshold 무시). DO 가 캐시해서 신규 입장자에게 init 으로 전달.
   // 비용: 정적 씬도 초당 1회 broadcast. 오브젝트 ~수십 개면 무시 가능.
   const forceBroadcastTickRef = useRef(0);
 
-  // 호스트 정보 도착 후 onStart 호출 (도착 전엔 world.isHost() 가 잘못된 값 반환)
+  // onStart 는 호스트만 실행 (스크립트 권위 = 호스트). 비호스트는 VM 을 pending 에 둔 채 실행 안 함.
+  // 호스트가 되는 순간(최초 또는 호스트 이전) pending 을 flush → 새 호스트가 스크립트를 이어받음.
   // pendingStartRef: VM 만들어졌지만 아직 onStart 안 부른 것들
   const pendingStartRef = useRef<Set<import('@/lib/world/jsRuntime').JsScript>>(new Set());
   useEffect(() => {
-    if (hostId === null) return; // 아직 호스트 정보 없음
+    if (!isHost) return; // 호스트만 onStart 실행
     for (const vm of pendingStartRef.current) vm.callStart();
     pendingStartRef.current.clear();
-  }, [hostId]);
+  }, [isHost]);
   const lastBroadcastPos = useRef<Map<string, [number, number, number]>>(new Map());
   const lastVelocityNonZeroRef = useRef<Map<string, boolean>>(new Map());
   // 마지막으로 broadcast 한 grabbedBy 값 — state 변화 감지용 (잡기 시작/놓기 순간 강제 broadcast)
@@ -3099,7 +3125,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       };
       luaScripts.current.set(obj.id, vm);
       vm.init(obj.script!, objectAPI, worldAPI, netAPI, undefined, obj.scriptVars);
-      if (hostId !== null) vm.callStart();
+      if (isHostRef.current) vm.callStart();   // 호스트만 onStart 실행 (비호스트는 pending → 호스트 되면 실행)
       else pendingStartRef.current.add(vm);
     }
 
@@ -3135,7 +3161,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         const vm2 = new JsScript();
         // props 를 props 글로벌 + 변수 오버라이드 둘 다로 전달 → 코드에서 props.speed 또는 let speed 둘 다 동작
         vm2.init(def.code, objAPI, worldAPI, userNetAPI, inst.props ?? {}, inst.props ?? {});
-        if (hostId !== null) vm2.callStart();
+        if (isHostRef.current) vm2.callStart();   // 호스트만 onStart (비호스트는 pending → 호스트 되면 실행)
         else pendingStartRef.current.add(vm2);
         vms.push({ vm: vm2, key: `${obj.id}::${idx}::${compId}` });
       }
@@ -3366,7 +3392,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={triggerClickBurst} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={handleObjectClick} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
             ))}
