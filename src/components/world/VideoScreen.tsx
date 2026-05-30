@@ -360,10 +360,16 @@ function hitTest(px: number, py: number): keyof typeof HIT | null {
   return null;
 }
 
-export function VideoRemotePanel({ registry, targetId, videoUrl, onSeekBy, onSeekTo, onTogglePlay, onChangeUrl }: {
+export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, height = 0.8, offsetY = 1, interactive = true, onSeekBy, onSeekTo, onTogglePlay, onChangeUrl }: {
   registry: VideoRegistry;
+  /** 비어 있으면 미리보기 모드 (조작 없이 시각화만). */
   targetId: string;
   videoUrl: string;
+  width?: number;
+  height?: number;
+  offsetY?: number;
+  /** false 면 onPointerDown 안 받음 (스튜디오 편집뷰 미리보기). */
+  interactive?: boolean;
   onSeekBy: (delta: number) => void;
   onSeekTo: (t: number) => void;
   onTogglePlay: (play: boolean) => void;
@@ -402,15 +408,15 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, onSeekBy, onSee
   }, [canvas]);
   useEffect(() => () => { texture.dispose(); }, [texture]);
 
-  // 영상 상태 폴링 — 250ms 마다 캔버스 다시 그림
+  // 영상 상태 폴링 — 250ms 마다 캔버스 다시 그림. 미리보기(targetId 없음)면 더미 값.
   useEffect(() => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const tick = () => {
-      const h = registry.current.get(targetId);
+      const h = targetId ? registry.current.get(targetId) : undefined;
       const cur = h?.getTime() || 0;
       const dur = h?.duration() || 0;
-      const paused = h?.paused() ?? false;
+      const paused = h?.paused() ?? true;
       drawRemote(ctx, shownTitle, cur, dur, paused);
       texture.needsUpdate = true;
     };
@@ -419,12 +425,10 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, onSeekBy, onSee
     return () => clearInterval(iv);
   }, [canvas, texture, registry, targetId, shownTitle]);
 
-  // mesh 크기 — 가로 1.6, 세로 0.8 (canvas 비율 2:1)
-  const W = 1.6, H = 0.8;
   return (
     <mesh
-      position={[0, 1, 0]}
-      onPointerDown={(e) => {
+      position={[0, offsetY, 0]}
+      onPointerDown={interactive ? (e) => {
         e.stopPropagation();
         if (!e.uv) return;
         const px = e.uv.x * CAN_W;
@@ -445,9 +449,9 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, onSeekBy, onSee
             onSeekTo(ratio * dur);
           }
         }
-      }}
+      } : undefined}
     >
-      <planeGeometry args={[W, H]} />
+      <planeGeometry args={[width, height]} />
       <meshBasicMaterial map={texture} transparent side={THREE.DoubleSide} toneMapped={false} />
     </mesh>
   );

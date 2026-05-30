@@ -3667,10 +3667,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                     const w = obj.parentId ? computeWorldTRS(obj, byId) : { position: obj.position };
                     const tid = target.id;
                     const curUrl = (videoUrlOverrides[tid] ?? target.videoUrl) || '';
+                    const rW  = Number(inst.props?.width  ?? 1.6);
+                    const rH  = Number(inst.props?.height ?? 0.8);
+                    const rOy = Number(inst.props?.offsetY ?? 1);
                     return (
                       <group key={'vr-' + obj.id} position={w.position}>
                         <VideoRemotePanel
                           registry={videoRegistry} targetId={tid} videoUrl={curUrl}
+                          width={rW} height={rH} offsetY={rOy}
                           onSeekBy={(d) => runVideoControl({ seekBy: d }, tid)}
                           onSeekTo={(t) => runVideoControl({ seekTo: t }, tid)}
                           onTogglePlay={(p) => runVideoControl({ playing: p }, tid)}

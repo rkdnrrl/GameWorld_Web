@@ -5796,10 +5796,14 @@ export default function StudioCanvas() {
                     if (!target) return null;
                     const pos = simTransforms[obj.id]?.pos ?? obj.position;
                     const tid = target.id;
+                    const rW  = Number(inst.props?.width  ?? 1.6);
+                    const rH  = Number(inst.props?.height ?? 0.8);
+                    const rOy = Number(inst.props?.offsetY ?? 1);
                     return (
                       <group key={'vr-' + obj.id} position={pos}>
                         <VideoRemotePanel
                           registry={simVideoRegistry} targetId={tid} videoUrl={target.videoUrl || ''}
+                          width={rW} height={rH} offsetY={rOy}
                           onSeekBy={(d) => runSimVideoControl({ seekBy: d }, tid)}
                           onSeekTo={(t) => runSimVideoControl({ seekTo: t }, tid)}
                           onTogglePlay={(p) => runSimVideoControl({ playing: p }, tid)}
@@ -5845,6 +5849,29 @@ export default function StudioCanvas() {
                 return (
                   <group key={'pfx-' + obj.id} position={w.p} rotation={w.r} scale={w.s}>
                     <Particles s={deriveParticleSettings(inst)} />
+                  </group>
+                );
+              })}
+              {/* 비디오 리모컨 미리보기 — 편집 모드에서 크기/위치 확인용 (interactive=false). 영상 없어도 표시. */}
+              {objects.filter(o => !o.hidden && o.components?.some(c => c.type === 'videoRemote')).map(obj => {
+                const inst = obj.components!.find(c => c.type === 'videoRemote')!;
+                const label = String(inst.props?.target ?? '').trim();
+                const target = label
+                  ? objects.find(x => (x.label || '') === label && x.videoUrl)
+                  : objects.find(x => x.videoUrl);
+                const curUrl = target?.videoUrl || '';
+                const w = worldTRSFor(obj);
+                const rW  = Number(inst.props?.width  ?? 1.6);
+                const rH  = Number(inst.props?.height ?? 0.8);
+                const rOy = Number(inst.props?.offsetY ?? 1);
+                return (
+                  <group key={'vr-prev-' + obj.id} position={w.p} rotation={w.r}>
+                    <VideoRemotePanel
+                      registry={simVideoRegistry} targetId="" videoUrl={curUrl}
+                      width={rW} height={rH} offsetY={rOy}
+                      interactive={false}
+                      onSeekBy={() => {}} onSeekTo={() => {}} onTogglePlay={() => {}} onChangeUrl={() => {}}
+                    />
                   </group>
                 );
               })}
