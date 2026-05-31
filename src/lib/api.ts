@@ -385,7 +385,32 @@ export function generateSessionId(): string {
   return out;
 }
 
+export interface WorldDataEntry { key: string; value: unknown; shared: boolean; updatedAt: string }
+
 export const api = {
+  /** 맵 KV 저장 — 스크립트 data.save 백엔드. shared=true 면 맵 전역, false 면 본인. */
+  worldDataSave(token: string, mapId: string, key: string, value: unknown, shared = false) {
+    return request<{ ok: true }>(`/api/world-data/${encodeURIComponent(mapId)}/save`, {
+      method: 'POST', headers: authHeaders(token),
+      body: JSON.stringify({ key, value, shared }),
+    });
+  },
+  worldDataLoad(token: string, mapId: string, key: string, shared = false) {
+    const qs = `?key=${encodeURIComponent(key)}${shared ? '&shared=1' : ''}`;
+    return request<{ value: unknown }>(`/api/world-data/${encodeURIComponent(mapId)}/load${qs}`, {
+      method: 'GET', headers: authHeaders(token),
+    });
+  },
+  worldDataList(token: string, mapId: string, scope: 'mine' | 'shared' | 'all' = 'all') {
+    return request<{ items: WorldDataEntry[] }>(`/api/world-data/${encodeURIComponent(mapId)}?scope=${scope}`, {
+      method: 'GET', headers: authHeaders(token),
+    });
+  },
+  worldDataDelete(token: string, mapId: string, key: string, shared = false) {
+    return request<{ ok: true }>(`/api/world-data/${encodeURIComponent(mapId)}/${encodeURIComponent(key)}${shared ? '?shared=1' : ''}`, {
+      method: 'DELETE', headers: authHeaders(token),
+    });
+  },
   signup(input: { email: string; nickname: string; password: string; redirectTo?: string }) {
     return request<SignupResponse>("/api/auth/signup", {
       method: "POST",
