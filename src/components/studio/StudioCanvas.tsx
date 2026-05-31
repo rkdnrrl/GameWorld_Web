@@ -185,7 +185,7 @@ interface Asset {
 /* ── Unity 스타일 컴포넌트 섹션 (인스펙터) ──
    부착된 컴포넌트 카드 + "+ 컴포넌트 추가" 버튼. 각 카드는 props 편집 input 포함. */
 function ComponentsSection({
-  selected, setObjects, pushHistory, allObjects, openPicker, scriptComponents, officialScriptComponents, onColliderAutoFit, onEditScriptComponent,
+  selected, setObjects, pushHistory, allObjects, openPicker, scriptComponents, officialScriptComponents, onColliderAutoFit, onEditScriptComponent, onSelectId,
 }: {
   selected: MapObject;
   setObjects: (updater: (prev: MapObject[]) => MapObject[]) => void;
@@ -195,8 +195,9 @@ function ComponentsSection({
   scriptComponents: ScriptComponent[];
   officialScriptComponents: ScriptComponent[];
   onColliderAutoFit: (compIdx: number) => void;
-  /** 내가 만든 스크립트 컴포넌트 코드 편집 (그 id 의 컴포넌트 편집 모달 오픈) */
   onEditScriptComponent: (scriptComponentId: string) => void;
+  /** target 리스트 row 클릭 시 그 id 를 씬 트리에서 선택 */
+  onSelectId: (id: string) => void;
 }) {
   const list = selected.components ?? [];
   // 레거시: grabbable 플래그도 가상 컴포넌트로 표시 (제거 시 plain false)
@@ -295,6 +296,67 @@ function ComponentsSection({
           >
             {def.props?.map(p => {
               const val = c.props?.[p.key] ?? p.default;
+              // 미디어 리모컨의 target prop — 리스트 UI (각 row 클릭 시 그 오브젝트 선택, × 로 삭제, 드래그 드롭으로 추가)
+              if (def.type === 'videoRemote' && p.key === 'target') {
+                const raw = String(val).trim();
+                const tokens = raw ? raw.split(/[,\s]+/).filter(Boolean) : [];
+                const writeTokens = (next: string[]) => {
+                  updateProp(idx, p.key, next.join(', '));
+                  pushHistory(allObjects);
+                };
+                const tokenLabel = (t: string) => {
+                  const o = allObjects.find(x => x.id === t);
+                  return o ? (o.label || (o as { name?: string }).name || o.id) : t;
+                };
+                const tokenExists = (t: string) => allObjects.some(x => x.id === t);
+                return (
+                  <div key={p.key} style={{ marginTop: 4 }}>
+                    <div style={{ fontSize: 10, opacity: 0.75, marginBottom: 3 }}>{p.label}</div>
+                    <div
+                      onDragOver={e => {
+                        if (e.dataTransfer.types.includes('application/x-alp-objid') || e.dataTransfer.types.includes('application/x-alp-objlabel')) {
+                          e.preventDefault(); e.dataTransfer.dropEffect = 'copy';
+                        }
+                      }}
+                      onDrop={e => {
+                        const dropped = e.dataTransfer.getData('application/x-alp-objid') || e.dataTransfer.getData('application/x-alp-objlabel');
+                        if (!dropped) return;
+                        e.preventDefault();
+                        if (tokens.includes(dropped)) return;
+                        writeTokens([...tokens, dropped]);
+                      }}
+                      style={{
+                        display: 'flex', flexDirection: 'column', gap: 3,
+                        background: 'rgba(0,0,0,0.25)', border: '1px dashed rgba(255,255,255,0.18)',
+                        borderRadius: 5, padding: 4, minHeight: 24,
+                      }}
+                    >
+                      {tokens.length === 0 && (
+                        <div style={{ fontSize: 10, opacity: 0.4, textAlign: 'center', padding: '4px 0' }}>
+                          비우면 모든 화면 · 씬 트리에서 드래그
+                        </div>
+                      )}
+                      {tokens.map(t => {
+                        const exists = tokenExists(t);
+                        return (
+                          <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 4, background: exists ? 'rgba(99,102,241,0.15)' : 'rgba(239,68,68,0.15)', border: `1px solid ${exists ? 'rgba(99,102,241,0.35)' : 'rgba(239,68,68,0.35)'}`, borderRadius: 4, padding: '3px 6px' }}>
+                            <button type="button"
+                              onClick={() => { if (exists) onSelectId(t); }}
+                              disabled={!exists}
+                              title={exists ? `씬 트리에서 선택 — ${t}` : `누락 — ${t}`}
+                              style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', color: exists ? '#c7d2fe' : '#fca5a5', fontSize: 10, cursor: exists ? 'pointer' : 'default', padding: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {tokenLabel(t)}
+                            </button>
+                            <button type="button" onClick={() => writeTokens(tokens.filter(x => x !== t))}
+                              title="삭제"
+                              style={{ background: 'rgba(239,68,68,0.25)', border: 'none', color: '#fca5a5', borderRadius: 3, padding: '0 5px', fontSize: 10, fontWeight: 700, cursor: 'pointer', lineHeight: 1.6 }}>×</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
               if (p.type === 'number') {
                 return (
                   <label key={p.key} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, opacity: 0.75, marginTop: 4 }}>
@@ -5757,6 +5819,7 @@ export default function StudioCanvas() {
                 officialScriptComponents={officialScriptComponents}
                 onColliderAutoFit={colliderAutoFit}
                 onEditScriptComponent={(id) => { setScriptEditId(id); setScriptComponentsModalOpen(true); }}
+                onSelectId={(id) => setSelectedId(id)}
               />
 
               {/* 조명 속성 (pointlight / spotlight 전용) */}
