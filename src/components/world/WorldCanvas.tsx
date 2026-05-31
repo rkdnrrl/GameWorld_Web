@@ -24,6 +24,7 @@ import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
+import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UI_SYNC_EVENT, DATA_SYNC_EVENT, type UiData } from '@/lib/world/uiObjects';
 import { api as backendApi } from '@/lib/api';
 import { retargetClipsToModel } from '@/lib/character/mixamoRig';
@@ -1867,7 +1868,13 @@ export type MaterialPreset = 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 
 
 interface UserMapObject {
   id: string;
-  kind: 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight' | 'spawn' | 'empty' | 'ui' | 'terrain';
+  kind: 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight' | 'spawn' | 'empty' | 'ui' | 'terrain' | 'sound';
+  /** Sound 데이터 (kind === 'sound' 일 때만) */
+  soundUrl?: string;
+  soundVolume?: number;
+  soundLoop?: boolean;
+  soundAutoplay?: boolean;
+  soundRadius?: number;
   /** UI 오브젝트 (kind === 'ui' 일 때만) */
   ui?: import('@/lib/world/uiObjects').UiData;
   /** Terrain heightmap (kind === 'terrain' 일 때만) */
@@ -4122,6 +4129,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                 const meshes = list
                   .filter(o => !o.hidden && o.kind !== 'pointlight' && o.kind !== 'spotlight' && o.kind !== 'dirlight' && o.kind !== 'spawn'
                     && o.kind !== 'ui'   // UI 오브젝트는 3D 씬 X, UIRenderer 가 HTML overlay 로 처리
+                    && o.kind !== 'sound'   // Sound 는 시각 X, SoundEmitter 가 처리
                     && (o.kind !== 'empty' || o.components?.some(c => c.type === 'collider')))   // 콜라이더 있는 빈 오브젝트(트리거 존)는 렌더
                   .map(obj => (
                     <UserMapObjectMesh key={obj.id} obj={obj}
@@ -4188,7 +4196,20 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                     return <FlashlightLight key={'fl-' + o.id} comp={comp} groupRef={gRef}
                       objId={o.id} playerId={playerId} grabbedStateRef={grabbedStateRef} />;
                   });
-                return <>{meshes}{particles}{remotes}{flashlights}</>;
+                // Sound 오브젝트 — 위치 기반 3D 사운드
+                const sounds = list
+                  .filter(o => !o.hidden && o.kind === 'sound' && o.soundUrl)
+                  .map(o => {
+                    const w = o.parentId ? computeWorldTRS(o, byId) : { position: o.position };
+                    return <SoundEmitter key={'snd-' + o.id}
+                      url={o.soundUrl!}
+                      position={w.position}
+                      volume={o.soundVolume ?? 0.8}
+                      loop={o.soundLoop !== false}
+                      autoplay={o.soundAutoplay !== false}
+                      radius={o.soundRadius ?? 10} />;
+                  });
+                return <>{meshes}{particles}{remotes}{flashlights}{sounds}</>;
               })()}</>
             ) : (
               // worldId 없음 (기본 월드) → 데모 섬

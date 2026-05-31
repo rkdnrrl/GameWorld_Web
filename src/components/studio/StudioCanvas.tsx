@@ -135,7 +135,7 @@ type OrbitRef = any;
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
 /* ── 데이터 모델 ───────────────────────────── */
-type ObjectKind = 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight' | 'spawn' | 'empty' | 'ui' | 'terrain';
+type ObjectKind = 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight' | 'spawn' | 'empty' | 'ui' | 'terrain' | 'sound';
 
 type MaterialPreset = 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 'plastic' | 'emissive';
 
@@ -181,6 +181,12 @@ interface MapObject {
   ui?: import('@/lib/world/uiObjects').UiData;
   // Terrain 데이터 (kind === 'terrain' 일 때만) — heightmap 기반 지면
   terrain?: import('@/lib/world/terrain').TerrainData;
+  // Sound 오브젝트 (kind === 'sound' 일 때만) — 위치 기반 사운드
+  soundUrl?: string;        // 오디오 파일 URL
+  soundVolume?: number;     // 0~1
+  soundLoop?: boolean;
+  soundAutoplay?: boolean;  // 시작 시 자동 재생
+  soundRadius?: number;     // 거리 감쇠 반경 (m), 0 = 거리 무관 (전역)
 }
 
 interface Asset {
@@ -3417,6 +3423,22 @@ export default function StudioCanvas() {
       .then(r => setOfficialScriptComponents(r.components))
       .catch(e => console.warn('[ScriptComponents] official load fail', e));
   }, []);
+  // ── 내 Script Asset 목록 — picker 에서 가져오기/부착 ──
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [scriptAssets, setScriptAssets] = useState<Array<{ id: string; name: string; metadata?: any }>>([]);
+  useEffect(() => {
+    const tok = session.getToken();
+    if (!tok) return;
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
+    fetch(`${API_BASE}/api/assets/my`, { headers: { Authorization: `Bearer ${tok}` } })
+      .then(r => r.json())
+      .then(d => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const list = (d.assets || []).filter((a: any) => a.kind === 'script');
+        setScriptAssets(list);
+      })
+      .catch(e => console.warn('[scriptAssets] load fail', e));
+  }, [scriptComponents.length]);
   // ── 프리팹 (Unity 스타일 오브젝트 스냅샷) ──
   const [prefabs, setPrefabs] = useState<Prefab[]>([]);
   const [prefabsLoading, setPrefabsLoading] = useState(false);
@@ -3945,9 +3967,15 @@ export default function StudioCanvas() {
     const tok = session.getToken();
     if (!tok) { alert('로그인이 필요합니다.'); return; }
 
-    // payload: 위치/회전 0 으로 정규화해 저장 (instantiate 때 드롭 위치로 덮어씀)
-    const snapshot = clone(selected);
-    snapshot.position = [0, 0, 0];
+    // ── 자식 트리 전체 수집 — 다중 오브젝트 프리팹 (fbx + 도형 + sound 등 묶음) ──
+    // root = selected. descendants = parentId 체인으로 root 까지 닿는 모든 오브젝트.
+    const descIds = collectDescendants(selected.id, objects);
+    const tree: MapObject[] = [clone(selected), ...objects.filter(o => descIds.has(o.id)).map(clone)];
+    // root 의 position 만 [0,0,0] 으로 정규화 — 자식은 부모 기준 로컬이라 그대로.
+    tree[0].position = [0, 0, 0];
+    tree[0].parentId = undefined;
+    // (참고용) 단일 root snapshot 호환 유지 — 1개일 때만
+    const snapshot = tree[0];
 
     // 썸네일 자동 캡처 (실패해도 저장 자체는 진행 — thumbnailUrl=null)
     let thumbnailUrl: string | undefined;
@@ -3966,7 +3994,8 @@ export default function StudioCanvas() {
     try {
       const res = await api.createPrefab(tok, {
         name: name.trim().slice(0, 100),
-        payload: { version: 1, root: snapshot },
+        // version 2: tree (다중 오브젝트). version 1 (root 단일) 도 instantiate 가 호환.
+        payload: { version: 2, root: snapshot, tree },
         thumbnailUrl,
       });
       setPrefabs(prev => [res.prefab, ...prev]);
@@ -3975,24 +4004,40 @@ export default function StudioCanvas() {
     }
   }
 
-  /* 프리팹을 씬에 인스턴스화 — 위치 인자로 받음 */
+  /* 프리팹을 씬에 인스턴스화 — 위치 인자로 받음.
+     version 2 (tree): 모든 오브젝트에 새 id 부여 + parentId remap. root 위치만 인자로 덮어씀.
+     version 1 (root): 기존 단일 오브젝트 호환. */
   function instantiatePrefab(prefab: Prefab, position: [number, number, number]) {
-    const payload = prefab.payload as { version?: number; root?: MapObject } | null;
-    const root = payload?.root;
-    if (!root) { alert('프리팹 payload 손상'); return; }
-    const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    const inst: MapObject = {
-      ...clone(root),
-      id,
-      label: root.label || prefab.name,
-      position,
-    };
+    const payload = prefab.payload as { version?: number; root?: MapObject; tree?: MapObject[] } | null;
+    const tree = payload?.tree && payload.tree.length > 0 ? payload.tree : (payload?.root ? [payload.root] : []);
+    if (tree.length === 0) { alert('프리팹 payload 손상'); return; }
+    const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    // 옛 id → 새 id 매핑
+    const idMap = new Map<string, string>();
+    tree.forEach((o, i) => idMap.set(o.id, `obj_${stamp}_${i}`));
+    // 모든 오브젝트 새 id + parentId remap
+    const newObjs: MapObject[] = tree.map((o, i) => {
+      const c = clone(o);
+      c.id = idMap.get(o.id)!;
+      // parent 가 트리 안에 있으면 remap, 없으면 (root) undefined
+      const np = o.parentId ? idMap.get(o.parentId) : undefined;
+      c.parentId = np;
+      // root (parent 없음) 만 외부 위치 적용
+      if (!c.parentId) {
+        c.position = position;
+        c.label = o.label || prefab.name;
+      }
+      // ui 안 nested label 도 unique 보장 — 단순화: 그대로
+      return c;
+    });
     setObjects(prev => {
-      const next = [...prev, inst];
+      const next = [...prev, ...newObjs];
       pushHistory(next);
       return next;
     });
-    setSelectedId(id);
+    // 첫 root 선택
+    const rootNew = newObjs.find(o => !o.parentId);
+    if (rootNew) setSelectedId(rootNew.id);
   }
 
   /* 프리팹 삭제 */
@@ -4164,6 +4209,27 @@ export default function StudioCanvas() {
 
   // 빈 오브젝트 — 컴포넌트 홀더(컨테이너/피벗). 기본 컴포넌트 없이 깨끗하게 생성.
   // (맵 중력은 worldPhysics 컴포넌트가 없으면 기본값(gravityY) 사용 — 필요하면 직접 부착)
+  /** Sound 오브젝트 추가 — 위치 기반 사운드. autoplay + loop 기본. */
+  function addSound() {
+    const id = `sound_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    setObjects(prev => {
+      const next: MapObject[] = [...prev, {
+        id, kind: 'sound', label: '사운드',
+        position: [0, 1, 0], rotation: [0, 0, 0], scale: [1, 1, 1],
+        color: '#a855f7',
+        soundUrl: '',
+        soundVolume: 0.8,
+        soundLoop: true,
+        soundAutoplay: true,
+        soundRadius: 10,
+      }];
+      pushHistory(next);
+      return next;
+    });
+    setSelectedId(id);
+    setStudioMode('scene');
+  }
+
   /** Terrain 추가 — 평탄 또는 noise 생성. 크기 50m, segments 64 기본. */
   function addTerrain(kind: 'flat' | 'noise' = 'flat') {
     const id = `terrain_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -5626,6 +5692,11 @@ export default function StudioCanvas() {
             🏔 언덕 지형
           </button>
         </div>
+        <button type="button" onClick={addSound}
+          title="사운드 오브젝트 — 위치 기반 3D 사운드. radius 안에 있을 때만 들림."
+          style={{ width: '100%', textAlign: 'left', background: 'rgba(168,85,247,0.14)', border: '1px solid rgba(168,85,247,0.45)', borderRadius: 6, color: '#e9d5ff', fontSize: 11, padding: '6px 9px', cursor: 'pointer', fontWeight: 700, marginTop: 4 }}>
+          🔊 사운드 추가
+        </button>
         {/* 🖼 UI 추가 — 유니티식 Canvas + Image/Text/Button/Panel (Phase 1: Screen Space 만) */}
         <button type="button" onClick={() => setUiAddPanelOpen(v => !v)}
           style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.8)', fontSize: 11, padding: '6px 9px', cursor: 'pointer', fontWeight: 600, marginTop: 4 }}>
@@ -6013,6 +6084,64 @@ export default function StudioCanvas() {
             <div style={{ fontSize: 11, opacity: 0.3, textAlign: 'center', paddingTop: 32 }}>
               {t('inspSelect')}
             </div>
+          ) : selected.kind === 'sound' ? (
+            <>
+              {!isMobile && (
+                <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, marginBottom: 8, letterSpacing: 0.5 }}>
+                  🔊 {selected.label || 'sound'}
+                </div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>
+                <div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>오디오 URL (.mp3 / .wav / .ogg)</div>
+                  <input type="text" value={selected.soundUrl || ''}
+                    placeholder="https://... .mp3"
+                    onChange={e => {
+                      const u = e.target.value;
+                      setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, soundUrl: u } : o));
+                    }}
+                    onBlur={() => pushHistory(objects)}
+                    style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
+                </div>
+                <div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>볼륨 ({(selected.soundVolume ?? 0.8).toFixed(2)})</div>
+                  <input type="range" min={0} max={1} step={0.05} value={selected.soundVolume ?? 0.8}
+                    onChange={e => {
+                      const v = Number(e.target.value);
+                      setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, soundVolume: v } : o));
+                    }}
+                    onMouseUp={() => pushHistory(objects)} onTouchEnd={() => pushHistory(objects)}
+                    style={{ width: '100%' }} />
+                </div>
+                <div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>가청 반경 (m, 0=전역)</div>
+                  <input type="number" min={0} max={500} step={1} value={selected.soundRadius ?? 10}
+                    onChange={e => {
+                      const r = Math.max(0, Math.min(500, Number(e.target.value) || 0));
+                      setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, soundRadius: r } : o));
+                    }}
+                    onBlur={() => pushHistory(objects)}
+                    style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={selected.soundLoop !== false}
+                    onChange={e => {
+                      setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, soundLoop: e.target.checked } : o));
+                      pushHistory(objects);
+                    }} /> 반복 재생 (loop)
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={selected.soundAutoplay !== false}
+                    onChange={e => {
+                      setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, soundAutoplay: e.target.checked } : o));
+                      pushHistory(objects);
+                    }} /> 자동 재생 (시작 시)
+                </label>
+                <div style={{ fontSize: 10, opacity: 0.45, marginTop: 4 }}>
+                  ※ 위치 기반 3D 사운드 — 가청 반경 안에서 거리 감쇠. 시각 X (편집에서 위치만).
+                </div>
+              </div>
+            </>
           ) : selected.kind === 'terrain' && selected.terrain ? (
             <>
               {!isMobile && (
@@ -7447,6 +7576,72 @@ export default function StudioCanvas() {
                   아직 만든 컴포넌트가 없습니다.<br/>
                   위 "관리/만들기" 로 새로 만들 수 있어요.
                 </div>
+              )}
+
+              {/* 내 Script Asset — 에셋 라이브러리에서 가져와 부착 */}
+              {scriptAssets.length > 0 && (
+                <>
+                  <div style={{ fontSize: 10, opacity: 0.5, fontWeight: 700, letterSpacing: 0.5, marginTop: 8, padding: '2px 0' }}>
+                    📜 FROM ASSETS ({scriptAssets.length})
+                  </div>
+                  {scriptAssets
+                    .filter(a => {
+                      const q = componentPickerSearch.toLowerCase().trim();
+                      if (!q) return true;
+                      return a.name.toLowerCase().includes(q);
+                    })
+                    .map(a => {
+                      // 이미 같은 이름의 내 컴포넌트 있으면 "이미 가져옴" 표시
+                      const already = scriptComponents.some(c => c.name === a.name);
+                      return (
+                        <button key={a.id} type="button"
+                          disabled={already}
+                          onClick={async () => {
+                            const tok = session.getToken();
+                            if (!tok) return;
+                            try {
+                              const meta = (a.metadata || {}) as { code?: string; icon?: string; propsSchema?: import('@/lib/api').ScriptComponentPropDef[] };
+                              const created = await api.createScriptComponent(tok, {
+                                name: a.name,
+                                icon: meta.icon || '📜',
+                                description: '에셋에서 가져옴',
+                                code: meta.code || '',
+                                propsSchema: Array.isArray(meta.propsSchema) ? meta.propsSchema : [],
+                              });
+                              // 목록 갱신 + 자동 부착
+                              setScriptComponents(prev => [...prev, created.component]);
+                              const initProps: Record<string, number | string | boolean> = {};
+                              (created.component.propsSchema ?? []).forEach(p => { initProps[p.key] = p.default; });
+                              addComponentToSelection(() => ({
+                                type: `user:${created.component.id}` as ComponentType,
+                                props: initProps,
+                              }), false);
+                            } catch (e) {
+                              console.warn('[scriptAsset] import fail', e);
+                            }
+                          }}
+                          style={{
+                            textAlign: 'left',
+                            background: already ? 'rgba(168,85,247,0.04)' : 'rgba(168,85,247,0.12)',
+                            border: `1px solid ${already ? 'rgba(168,85,247,0.15)' : 'rgba(168,85,247,0.4)'}`,
+                            borderRadius: 8, padding: '10px 12px',
+                            cursor: already ? 'default' : 'pointer',
+                            color: already ? 'rgba(255,255,255,0.4)' : '#fff',
+                            display: 'flex', flexDirection: 'column', gap: 3,
+                          }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700 }}>{(a.metadata?.icon as string) || '📜'} {a.name}</span>
+                            <span style={{ fontSize: 9, background: 'rgba(168,85,247,0.3)', color: '#e9d5ff', padding: '1px 6px', borderRadius: 3, fontWeight: 700 }}>에셋</span>
+                            {already && <span style={{ fontSize: 10, opacity: 0.65, marginLeft: 'auto' }}>이미 가져옴</span>}
+                          </div>
+                        </button>
+                      );
+                    })}
+                </>
+              )}
+
+              {!pickerCollapsed.my && false && (
+                <div style={{ display: 'none' }}></div>
               )}
             </div>
           </div>
