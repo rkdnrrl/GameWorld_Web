@@ -3057,13 +3057,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       if (!inst) continue;
       const cmdUrl = String(inst.props?.url ?? '').trim();
       if (!cmdUrl) continue;
-      const labelsRaw = String(inst.props?.target ?? '').trim();
-      const labels = labelsRaw ? labelsRaw.split(/[,\s]+/).filter(Boolean) : [];
-      const targets = labels.length === 0
+      const tokensRaw = String(inst.props?.target ?? '').trim();
+      const tokens = tokensRaw ? tokensRaw.split(/[,\s]+/).filter(Boolean) : [];
+      const targets = tokens.length === 0
         ? list.filter(x => x.videoUrl && !x.components?.some(c => c.type === 'videoRemote'))
         : list.filter(x => {
+            if (tokens.includes(x.id)) return true;
             const nm = (x as { label?: string; name?: string }).label || (x as { name?: string }).name || '';
-            return labels.includes(nm);
+            return !!nm && tokens.includes(nm);
           });
       for (const t of targets) {
         if (videoUrlOverridesRef.current[t.id] === cmdUrl) continue;
@@ -3732,13 +3733,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                   .filter(o => !o.hidden && o.components?.some(c => c.type === 'videoRemote'))
                   .map(obj => {
                     const inst = obj.components!.find(c => c.type === 'videoRemote')!;
-                    const labelsRaw = String(inst.props?.target ?? '').trim();
-                    const labels = labelsRaw ? labelsRaw.split(/[,\s]+/).filter(Boolean) : [];
-                    const targets = labels.length === 0
+                    const tokensRaw = String(inst.props?.target ?? '').trim();
+                    const tokens = tokensRaw ? tokensRaw.split(/[,\s]+/).filter(Boolean) : [];
+                    const targets = tokens.length === 0
                       ? list.filter(x => x.videoUrl && !x.components?.some(c => c.type === 'videoRemote'))
                       : list.filter(x => {
+                          if (tokens.includes(x.id)) return true;
                           const nm = (x as { label?: string; name?: string }).label || (x as { name?: string }).name || '';
-                          return labels.includes(nm);
+                          return !!nm && tokens.includes(nm);
                         });
                     if (targets.length === 0) return null;
                     const w = obj.parentId ? computeWorldTRS(obj, byId) : { position: obj.position };

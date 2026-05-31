@@ -360,12 +360,13 @@ function ComponentsSection({
                     onChange={e => updateProp(idx, p.key, e.target.value)}
                     onBlur={() => pushHistory(allObjects)}
                     onDragOver={e => {
-                      if (e.dataTransfer.types.includes('application/x-alp-objlabel')) {
+                      if (e.dataTransfer.types.includes('application/x-alp-objid') || e.dataTransfer.types.includes('application/x-alp-objlabel')) {
                         e.preventDefault(); e.dataTransfer.dropEffect = 'copy';
                       }
                     }}
                     onDrop={e => {
-                      const dropped = e.dataTransfer.getData('application/x-alp-objlabel');
+                      // id 우선 (라벨 변경에도 안정), 없으면 라벨 fallback
+                      const dropped = e.dataTransfer.getData('application/x-alp-objid') || e.dataTransfer.getData('application/x-alp-objlabel');
                       if (!dropped) return;
                       e.preventDefault();
                       const cur = String(val).trim();
@@ -1730,8 +1731,9 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
         data-node-id={obj.id}
         draggable={editingLabelId !== obj.id}
         onDragStart={e => {
-          // 미디어 리모컨 target input 등에 드롭하면 라벨/이름 채워주기
+          // target input 등에 드롭 — 안정적인 참조를 위해 id 우선 (라벨/이름 변경에도 매칭 유지)
           const labelOrName = (obj as { label?: string; name?: string }).label || (obj as { name?: string }).name || obj.id;
+          e.dataTransfer.setData('application/x-alp-objid', obj.id);
           e.dataTransfer.setData('application/x-alp-objlabel', labelOrName);
           e.dataTransfer.setData('text/plain', labelOrName);
           e.dataTransfer.effectAllowed = 'copyMove';
@@ -3222,7 +3224,7 @@ export default function StudioCanvas() {
   }, [objects, simVideoUrlOverrides]);
 
   // 미디어 리모컨 컴포넌트의 url prop → target 오브젝트의 videoUrl 에 직접 적용 (영구, 편집뷰·시뮬 둘 다).
-  // target 매칭: 라벨/이름. videoUrl 유무 무관 — 빈 mesh 도 영상 화면으로 변신 가능.
+  // target 토큰: obj.id 우선, label/이름 fallback. 빈 mesh 도 영상 화면으로 변신 가능.
   useEffect(() => {
     const updates = new Map<string, string>();
     for (const obj of objects) {
@@ -3230,13 +3232,14 @@ export default function StudioCanvas() {
       if (!inst) continue;
       const cmdUrl = String(inst.props?.url ?? '').trim();
       if (!cmdUrl) continue;
-      const labelsRaw = String(inst.props?.target ?? '').trim();
-      const labels = labelsRaw ? labelsRaw.split(/[,\s]+/).filter(Boolean) : [];
+      const tokensRaw = String(inst.props?.target ?? '').trim();
+      const tokens = tokensRaw ? tokensRaw.split(/[,\s]+/).filter(Boolean) : [];
       const matches = (x: MapObject) => {
-        if (x.components?.some(c => c.type === 'videoRemote')) return false;   // 리모컨 자신 제외
-        if (labels.length === 0) return x.kind === 'plane' || !!x.videoUrl;
+        if (x.components?.some(c => c.type === 'videoRemote')) return false;
+        if (tokens.length === 0) return x.kind === 'plane' || !!x.videoUrl;
+        if (tokens.includes(x.id)) return true;                                  // id 매칭 (드래그 결과)
         const nm = x.label || (x as { name?: string }).name || '';
-        return labels.includes(nm);
+        return !!nm && tokens.includes(nm);                                      // label/name 매칭 (수동 입력)
       };
       for (const t of objects.filter(matches)) {
         if (t.videoUrl !== cmdUrl) updates.set(t.id, cmdUrl);
@@ -6129,11 +6132,15 @@ export default function StudioCanvas() {
                   .filter(o => o.components?.some(c => c.type === 'videoRemote'))
                   .map(obj => {
                     const inst = obj.components!.find(c => c.type === 'videoRemote')!;
-                    const labelsRaw = String(inst.props?.target ?? '').trim();
-                    const labels = labelsRaw ? labelsRaw.split(/[,\s]+/).filter(Boolean) : [];
-                    const targets = labels.length === 0
+                    const tokensRaw = String(inst.props?.target ?? '').trim();
+                    const tokens = tokensRaw ? tokensRaw.split(/[,\s]+/).filter(Boolean) : [];
+                    const targets = tokens.length === 0
                       ? simObjs.filter(x => x.videoUrl && !x.components?.some(c => c.type === 'videoRemote'))
-                      : simObjs.filter(x => labels.includes(x.label || (x as { name?: string }).name || ''));
+                      : simObjs.filter(x => {
+                          if (tokens.includes(x.id)) return true;
+                          const nm = x.label || (x as { name?: string }).name || '';
+                          return !!nm && tokens.includes(nm);
+                        });
                     if (targets.length === 0) return null;
                     const pos = simTransforms[obj.id]?.pos ?? obj.position;
                     const firstId = targets[0].id;
@@ -6197,11 +6204,15 @@ export default function StudioCanvas() {
               {/* 비디오 리모컨 미리보기 — 편집 모드에서 크기/위치 확인용 (interactive=false). 영상 없어도 표시. */}
               {objects.filter(o => !o.hidden && o.components?.some(c => c.type === 'videoRemote')).map(obj => {
                 const inst = obj.components!.find(c => c.type === 'videoRemote')!;
-                const labelsRaw = String(inst.props?.target ?? '').trim();
-                const labels = labelsRaw ? labelsRaw.split(/[,\s]+/).filter(Boolean) : [];
-                const targets = labels.length === 0
+                const tokensRaw = String(inst.props?.target ?? '').trim();
+                const tokens = tokensRaw ? tokensRaw.split(/[,\s]+/).filter(Boolean) : [];
+                const targets = tokens.length === 0
                   ? objects.filter(x => x.videoUrl && !x.components?.some(c => c.type === 'videoRemote'))
-                  : objects.filter(x => labels.includes(x.label || (x as { name?: string }).name || ''));
+                  : objects.filter(x => {
+                      if (tokens.includes(x.id)) return true;
+                      const nm = x.label || (x as { name?: string }).name || '';
+                      return !!nm && tokens.includes(nm);
+                    });
                 const curUrl = targets[0]?.videoUrl || String(inst.props?.url ?? '');
                 const w = worldTRSFor(obj);
                 const rW  = Number(inst.props?.width  ?? 1.6);
