@@ -2016,7 +2016,7 @@ function colliderOtherId(p: { other: { rigidBodyObject?: THREE.Object3D | null }
   return ud?.objectId ?? ud?.playerId ?? 'player';
 }
 
-function UserMapObjectMesh({ obj, scriptBodyRefs, world, onColliderEvent }: {
+const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scriptBodyRefs, world, onColliderEvent }: {
   obj: UserMapObject;
   scriptBodyRefs?: React.MutableRefObject<Map<string, {
     body: React.MutableRefObject<RapierBodyApi | null>;
@@ -2151,9 +2151,9 @@ function UserMapObjectMesh({ obj, scriptBodyRefs, world, onColliderEvent }: {
       <PrimitiveMesh obj={obj} shape={shape} />
     </RigidBody>
   );
-}
+});
 
-function PrimitiveMesh({ obj, shape }: { obj: UserMapObject; shape: React.ReactElement }) {
+const PrimitiveMesh = React.memo(function PrimitiveMeshImpl({ obj, shape }: { obj: UserMapObject; shape: React.ReactElement }) {
   const material = React.useMemo(() => {
     const mat = buildMaterial(obj, obj.color);
     if (obj.kind === 'plane') mat.side = THREE.DoubleSide;
@@ -2190,7 +2190,7 @@ function PrimitiveMesh({ obj, shape }: { obj: UserMapObject; shape: React.ReactE
       {shape}
     </mesh>
   );
-}
+});
 
 function UserAsset({ url, matObj }: { url: string; matObj: UserMapObject }) {
   const [obj, setObj] = useState<THREE.Object3D | null>(null);

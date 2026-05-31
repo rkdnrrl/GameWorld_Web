@@ -215,10 +215,10 @@ export function YouTubeMeshMaterial({ videoId, selected, side = THREE.FrontSide 
   // 검은 화면 대신 썸네일이 보이게 (폴백).
   return <YouTubeThumbMaterial videoId={videoId} selected={selected} side={side} />;
 }
-export function YouTubeMaybeOverlay({ videoId, objId, planeW, planeH }: { videoId: string; objId?: string; planeW?: number; planeH?: number }) {
+export const YouTubeMaybeOverlay = memo(function YouTubeMaybeOverlayImpl({ videoId, objId, planeW, planeH }: { videoId: string; objId?: string; planeW?: number; planeH?: number }) {
   const { live } = useContext(VideoScreenCtx);
   return live ? <YouTubeOverlay videoId={videoId} objId={objId} planeW={planeW} planeH={planeH} /> : null;
-}
+});
 
 /* ── 멀티 동기화 — 호스트가 보낸 시각을 핸들에 반영 (0.5초 이상 차이날 때만 seek) ── */
 export function applyVideoSync(handle: VideoHandle, data: { t?: number; playing?: boolean }): void {
