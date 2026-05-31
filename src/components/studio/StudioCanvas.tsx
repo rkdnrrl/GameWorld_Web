@@ -2594,11 +2594,31 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
   const { camera, gl } = useThree();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dragRef = useRef<any>(null);
-  const [, force] = useState(0);
-  useFrame(() => { force(n => (n + 1) % 1000000); });   // 매 프레임 핸들 위치 갱신 (target 이 움직이면 따라감)
+  const groupRef = useRef<THREE.Group>(null);
+  const handleRefs = useRef<(THREE.Mesh | null)[]>([null, null, null, null, null, null]);
+  // 매 프레임 imperative 로 group + 핸들 위치 갱신. setState 안 함 (React re-render 없음 → 무한 루프 방지).
+  useFrame(() => {
+    if (!target || !groupRef.current) return;
+    target.updateWorldMatrix(true, false);
+    const wp = new THREE.Vector3(); target.getWorldPosition(wp);
+    const wq = new THREE.Quaternion(); target.getWorldQuaternion(wq);
+    const ws = new THREE.Vector3(); target.getWorldScale(ws);
+    groupRef.current.position.copy(wp);
+    groupRef.current.quaternion.copy(wq);
+    handleRefs.current.forEach((mesh, i) => {
+      if (!mesh) return;
+      const ax = i < 2 ? 0 : i < 4 ? 1 : 2;
+      const sgn = (i % 2 === 0) ? 1 : -1;
+      mesh.position.set(
+        ax === 0 ? sgn * ws.x * 0.5 : 0,
+        ax === 1 ? sgn * ws.y * 0.5 : 0,
+        ax === 2 ? sgn * ws.z * 0.5 : 0,
+      );
+    });
+  });
 
   if (!target) return null;
-  // mesh 의 world bounding box (default plane/cube geometry = local [-0.5, 0.5])
+  // 초기 mesh world transform (첫 렌더용 — 이후 매 프레임 useFrame 이 갱신)
   target.updateWorldMatrix(true, false);
   const ws = new THREE.Vector3(); target.getWorldScale(ws);
   const wp = new THREE.Vector3(); target.getWorldPosition(wp);
@@ -2705,12 +2725,12 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
   }, [camera, gl, onChange, onDragEnd]);
 
   return (
-    <group position={wp} quaternion={wq}>
+    <group ref={groupRef} position={wp} quaternion={wq}>
       {faces.map((f, i) => {
         const pos: [number,number,number] = [0, 0, 0];
         pos[f.axis] = f.sign * ws.getComponent(f.axis) * 0.5;
         return (
-          <mesh key={i} position={pos} onPointerDown={(e) => onPointerDown(e, f.axis, f.sign)}>
+          <mesh key={i} ref={(m) => { handleRefs.current[i] = m; }} position={pos} onPointerDown={(e) => onPointerDown(e, f.axis, f.sign)}>
             <boxGeometry args={[handleSize, handleSize, handleSize]} />
             <meshBasicMaterial color={f.color} depthTest={false} transparent opacity={0.9} />
           </mesh>
