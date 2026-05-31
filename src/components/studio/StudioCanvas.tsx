@@ -2617,6 +2617,54 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
     });
   });
 
+  // window pointermove/up listener — target null 시도 dragRef.current null 이라 안전.
+  // (hook 순서 보장 위해 early return 위에 둠 — React Hooks rule)
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const rect = gl.domElement.getBoundingClientRect();
+      if (d.mode === 'uniform') {
+        const dx = e.clientX - rect.left - d.centerPx.x;
+        const dy = e.clientY - rect.top - d.centerPx.y;
+        const curDist = Math.hypot(dx, dy);
+        const ratio = curDist / d.startDist;
+        const newScale: [number,number,number] = [
+          Math.max(0.01, d.startScale[0] * ratio),
+          Math.max(0.01, d.startScale[1] * ratio),
+          Math.max(0.01, d.startScale[2] * ratio),
+        ];
+        onChange(d.startPos, newScale);
+        return;
+      }
+      const ndc = new THREE.Vector2();
+      ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(ndc, camera);
+      const curT = closestPointOnLineToRay(d.axisCenterWorld, d.axisWorld, raycaster.ray);
+      const delta = curT - d.startT;
+      const newScaleAxis = Math.max(0.01, d.startScale[d.axis] + delta * d.sign);
+      const newScale: [number,number,number] = [d.startScale[0], d.startScale[1], d.startScale[2]];
+      newScale[d.axis] = newScaleAxis;
+      const newPos: [number,number,number] = [d.startPos[0], d.startPos[1], d.startPos[2]];
+      newPos[d.axis] = d.startPos[d.axis] + (delta * d.sign) / 2;
+      onChange(newPos, newScale);
+    };
+    const onUp = () => {
+      if (dragRef.current) {
+        dragRef.current = null;
+        onDragEnd?.();
+      }
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [camera, gl, onChange, onDragEnd]);
+
   if (!target) return null;
   // 초기 mesh world transform (첫 렌더용 — 이후 매 프레임 useFrame 이 갱신)
   target.updateWorldMatrix(true, false);
@@ -2675,54 +2723,6 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
     dragRef.current = { mode: 'uniform' as const, startScale, startPos, centerPx, startDist };
     onDragStart?.();
   };
-
-  useEffect(() => {
-    const onMove = (e: PointerEvent) => {
-      const d = dragRef.current;
-      if (!d) return;
-      const rect = gl.domElement.getBoundingClientRect();
-      if (d.mode === 'uniform') {
-        // 중심 → 마우스 거리 비율로 균등 scale
-        const dx = e.clientX - rect.left - d.centerPx.x;
-        const dy = e.clientY - rect.top - d.centerPx.y;
-        const curDist = Math.hypot(dx, dy);
-        const ratio = curDist / d.startDist;
-        const newScale: [number,number,number] = [
-          Math.max(0.01, d.startScale[0] * ratio),
-          Math.max(0.01, d.startScale[1] * ratio),
-          Math.max(0.01, d.startScale[2] * ratio),
-        ];
-        onChange(d.startPos, newScale);
-        return;
-      }
-      // axis 모드 — 한 축 면 드래그
-      const ndc = new THREE.Vector2();
-      ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      const raycaster = new THREE.Raycaster();
-      raycaster.setFromCamera(ndc, camera);
-      const curT = closestPointOnLineToRay(d.axisCenterWorld, d.axisWorld, raycaster.ray);
-      const delta = curT - d.startT;
-      const newScaleAxis = Math.max(0.01, d.startScale[d.axis] + delta * d.sign);
-      const newScale: [number,number,number] = [d.startScale[0], d.startScale[1], d.startScale[2]];
-      newScale[d.axis] = newScaleAxis;
-      const newPos: [number,number,number] = [d.startPos[0], d.startPos[1], d.startPos[2]];
-      newPos[d.axis] = d.startPos[d.axis] + (delta * d.sign) / 2;
-      onChange(newPos, newScale);
-    };
-    const onUp = () => {
-      if (dragRef.current) {
-        dragRef.current = null;
-        onDragEnd?.();
-      }
-    };
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    return () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-    };
-  }, [camera, gl, onChange, onDragEnd]);
 
   return (
     <group ref={groupRef} position={wp} quaternion={wq}>
