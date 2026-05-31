@@ -391,6 +391,7 @@ export interface ScriptAssetInput {
   name: string;
   code: string;
   icon?: string;
+  description?: string;
   propsSchema?: Array<{ key: string; label: string; type: string; default?: unknown; min?: number; max?: number; step?: number; options?: string[] }>;
   folder?: string;
 }

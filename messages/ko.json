@@ -1593,7 +1593,9 @@
       "btn_cancel": "취소",
       "btn_saving": "저장 중…",
       "btn_save_edit": "수정 저장",
-      "btn_create": "만들기"
+      "btn_create": "만들기",
+      "title_new_script": "새 스크립트",
+      "title_edit_script": "스크립트 편집"
     },
     "topBar": {
       "tb_map_info": "맵 정보",

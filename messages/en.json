@@ -1593,7 +1593,9 @@
       "btn_cancel": "Cancel",
       "btn_saving": "Saving…",
       "btn_save_edit": "Save Changes",
-      "btn_create": "Create"
+      "btn_create": "Create",
+      "title_new_script": "New script",
+      "title_edit_script": "Edit script"
     },
     "topBar": {
       "tb_map_info": "Map Info",

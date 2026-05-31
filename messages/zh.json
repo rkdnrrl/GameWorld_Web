@@ -1593,7 +1593,9 @@
       "btn_cancel": "取消",
       "btn_saving": "保存中…",
       "btn_save_edit": "保存修改",
-      "btn_create": "创建"
+      "btn_create": "创建",
+      "title_new_script": "新建脚本",
+      "title_edit_script": "编辑脚本"
     },
     "topBar": {
       "tb_map_info": "地图信息",

@@ -1593,7 +1593,9 @@
       "btn_cancel": "キャンセル",
       "btn_saving": "保存中…",
       "btn_save_edit": "編集を保存",
-      "btn_create": "作成"
+      "btn_create": "作成",
+      "title_new_script": "新規スクリプト",
+      "title_edit_script": "スクリプト編集"
     },
     "topBar": {
       "tb_map_info": "マップ情報",
