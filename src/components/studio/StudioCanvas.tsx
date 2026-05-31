@@ -2646,14 +2646,24 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
       raycaster.setFromCamera(ndc, camera);
       const curT = closestPointOnLineToRay(d.axisCenterWorld, d.axisWorld, raycaster.ray);
       const delta = curT - d.startT;
-      // scale: 잡은 face 가 sign 방향이라 delta * sign 만큼 늘어남. +X 핸들을 +X 로 끌면 scale 증가.
+      // scale: 잡은 face 가 sign 방향이라 delta * sign 만큼 늘어남.
       const newScaleAxis = Math.max(0.01, d.startScale[d.axis] + delta * d.sign);
-      // position: 반대편 face(anchor)가 같은 자리 유지하려면 mesh 중심은 sign 무관 delta/2 만큼 axis 방향으로 이동.
-      // (-X 핸들 오른쪽으로 끌면 mesh 중심도 오른쪽으로 delta/2 이동 → +X face 그대로, -X face 만 오른쪽으로)
       const newScale: [number,number,number] = [d.startScale[0], d.startScale[1], d.startScale[2]];
       newScale[d.axis] = newScaleAxis;
+      // position: anchor(반대편 face) world 위치 = mesh 새 중심 + axisWorld * sign * (newWorldHalfSize).
+      // → 새 중심 world = anchor - axisWorld * sign * (newWorldHalfSize).
+      // newWorldHalfSize = newScaleAxis * 0.5 (단순화: 부모 scale 영향 무시 — 부모 없거나 scale 1 인 경우 정확).
+      const newWorldHalfSize = newScaleAxis * 0.5;
+      const newCenterWorld = d.anchorWorld.clone().add(d.axisWorld.clone().multiplyScalar(d.sign * newWorldHalfSize));
+      // world → local 변환 (부모 matrix inverse)
       const newPos: [number,number,number] = [d.startPos[0], d.startPos[1], d.startPos[2]];
-      newPos[d.axis] = d.startPos[d.axis] + delta / 2;
+      if (d.parent) {
+        const inv = new THREE.Matrix4().copy(d.parent.matrixWorld).invert();
+        const local = newCenterWorld.clone().applyMatrix4(inv);
+        newPos[0] = local.x; newPos[1] = local.y; newPos[2] = local.z;
+      } else {
+        newPos[0] = newCenterWorld.x; newPos[1] = newCenterWorld.y; newPos[2] = newCenterWorld.z;
+      }
       onChange(newPos, newScale);
     };
     const onUp = () => {
@@ -2697,18 +2707,24 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
     e.nativeEvent.preventDefault();
     (e.target as Element).setPointerCapture?.(e.pointerId);
     target.updateWorldMatrix(true, false);
+    // world-space anchor 기록 — drag 중 그 위치가 같은 자리에 유지되게 mesh 갱신.
+    const ws0 = new THREE.Vector3(); target.getWorldScale(ws0);
+    const wp0 = new THREE.Vector3(); target.getWorldPosition(wp0);
+    const wq0 = new THREE.Quaternion(); target.getWorldQuaternion(wq0);
+    const axisLocal = new THREE.Vector3(axis === 0 ? 1 : 0, axis === 1 ? 1 : 0, axis === 2 ? 1 : 0);
+    const axisWorld = axisLocal.clone().applyQuaternion(wq0).normalize();
+    // anchor world position = 반대편 face 의 world position (현재 face 의 반대 방향)
+    const anchorWorld = wp0.clone().add(axisWorld.clone().multiplyScalar(-sign * ws0.getComponent(axis) * 0.5));
     const startScale: [number,number,number] = [target.scale.x, target.scale.y, target.scale.z];
     const startPos: [number,number,number] = [target.position.x, target.position.y, target.position.z];
-    const axisLocal = new THREE.Vector3(axis === 0 ? 1 : 0, axis === 1 ? 1 : 0, axis === 2 ? 1 : 0);
-    const axisWorld = axisLocal.clone().applyQuaternion(wq).normalize();
     const rect = gl.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2();
     ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
     const startRaycaster = new THREE.Raycaster();
     startRaycaster.setFromCamera(ndc, camera);
-    const startT = closestPointOnLineToRay(wp, axisWorld, startRaycaster.ray);
-    dragRef.current = { mode: 'axis' as const, axis, sign, startScale, startPos, axisWorld, axisCenterWorld: wp.clone(), startT };
+    const startT = closestPointOnLineToRay(wp0, axisWorld, startRaycaster.ray);
+    dragRef.current = { mode: 'axis' as const, axis, sign, startScale, startPos, axisWorld, axisCenterWorld: wp0.clone(), startT, anchorWorld, parent: target.parent };
     boxResizeActive.current = true;
     onDragStart?.();
   };
@@ -2744,19 +2760,41 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
         const pos: [number,number,number] = [0, 0, 0];
         pos[f.axis] = f.sign * ws.getComponent(f.axis) * 0.5;
         return (
-          <mesh key={i} ref={(m) => { handleRefs.current[i] = m; }} position={pos} onPointerDown={(e) => onPointerDown(e, f.axis, f.sign)}>
+          <mesh key={i}
+            ref={(m) => { handleRefs.current[i] = m; if (m) overrideRaycastFirst(m); }}
+            position={pos}
+            renderOrder={999}
+            onPointerDown={(e) => onPointerDown(e, f.axis, f.sign)}>
             <boxGeometry args={[handleSize, handleSize, handleSize]} />
             <meshBasicMaterial color={f.color} depthTest={false} transparent opacity={0.9} />
           </mesh>
         );
       })}
       {/* 중앙 uniform scale 핸들 — 노란색 큐브. 마우스 중심에서 멀리/가까이 끌면 3축 균등 scale. */}
-      <mesh position={[0, 0, 0]} onPointerDown={onUniformPointerDown}>
+      <mesh position={[0, 0, 0]}
+        ref={(m) => { if (m) overrideRaycastFirst(m); }}
+        renderOrder={999}
+        onPointerDown={onUniformPointerDown}>
         <boxGeometry args={[handleSize * 1.3, handleSize * 1.3, handleSize * 1.3]} />
         <meshBasicMaterial color="#fbbf24" depthTest={false} transparent opacity={0.9} />
       </mesh>
     </group>
   );
+}
+
+// mesh 의 raycast 결과 distance 를 0 으로 강제 → R3F 가 거리순 정렬할 때 항상 첫 hit (다른 mesh 의 onPointerDown 은
+// stopPropagation 으로 차단). 핸들이 mesh 표면 위에 겹쳐도 안정적으로 핸들이 우선 선택됨.
+function overrideRaycastFirst(mesh: THREE.Mesh) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((mesh as any).__rayPatched) return;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (mesh as any).__rayPatched = true;
+  const orig = mesh.raycast.bind(mesh);
+  mesh.raycast = (raycaster, intersects) => {
+    const own: THREE.Intersection[] = [];
+    orig(raycaster, own);
+    for (const h of own) intersects.push({ ...h, distance: 0 });
+  };
 }
 
 // Ray 와 line(point + direction) 의 closest point 의 line 상 parameter t.
