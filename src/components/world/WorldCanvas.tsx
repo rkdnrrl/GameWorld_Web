@@ -2854,6 +2854,10 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   useEffect(() => { customObjectsRef.current = customObjects; }, [customObjects]);
   // NPC 마지막 공격 시각 (cooldown 체크)
   const npcAttackRef = useRef<Map<string, number>>(new Map());
+  // NPC patrol target 위치 + 다음 target 갱신 시각
+  const npcPatrolRef = useRef<Map<string, { tx: number; tz: number; nextAt: number; homeX: number; homeZ: number }>>(new Map());
+  // Damage AOE 마지막 발동 시각 (interval 체크)
+  const damageAoeRef = useRef<Map<string, number>>(new Map());
   useEffect(() => { runtimeObjectsRef.current = runtimeObjects; }, [runtimeObjects]);
   // parent transform propagation 용 — customObjects + runtime 합쳐서 매 렌더 ref 갱신
   const allObjectsRef = useRef<UserMapObject[]>([]);
@@ -3238,6 +3242,39 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     if (!isHost) return;
     const tick = () => {
       const all = [...(customObjectsRef.current ?? []), ...runtimeObjectsRef.current];
+      // ── Damage AOE 모드 — 주변에 주기적 데미지 ──
+      const aoes = all.filter(o => o.components?.some(c => c.type === 'damage' && c.props?.mode === 'aoe'));
+      if (aoes.length > 0) {
+        const nowAoe = worldElapsed.current;
+        for (const src of aoes) {
+          const dmg = src.components!.find(c => c.type === 'damage' && c.props?.mode === 'aoe')!;
+          const interval = Number(dmg.props?.aoeInterval ?? 1);
+          const last = damageAoeRef.current.get(src.id) ?? -interval;
+          if (nowAoe - last < interval) continue;
+          damageAoeRef.current.set(src.id, nowAoe);
+          const srcBody = scriptBodyRefs.current.get(src.id)?.group?.current;
+          if (!srcBody) continue;
+          const sp = srcBody.position;
+          const radius = Number(dmg.props?.aoeRadius ?? 3);
+          const r2 = radius * radius;
+          const amount = Number(dmg.props?.amount ?? 10);
+          const srcTeam = String(dmg.props?.team ?? '');
+          for (const tgt of all) {
+            if (tgt.id === src.id) continue;
+            const tgtHealth = tgt.components?.find(c => c.type === 'health');
+            if (!tgtHealth) continue;
+            const tgtTeam = String(tgtHealth.props?.team ?? '');
+            if (srcTeam && tgtTeam && srcTeam === tgtTeam) continue;
+            const tg = scriptBodyRefs.current.get(tgt.id)?.group?.current;
+            if (!tg) continue;
+            const dx = tg.position.x - sp.x, dy = tg.position.y - sp.y, dz = tg.position.z - sp.z;
+            if (dx*dx + dy*dy + dz*dz <= r2) {
+              makeObjectAPIRef.current?.(tgt.id).damage?.(amount, { attackerId: src.id, ignoreInvuln: false });
+            }
+          }
+        }
+      }
+
       const npcs = all.filter(o => o.components?.some(c => c.type === 'npc'));
       if (npcs.length === 0) return;
       const players = Object.values(playersRef.current);
@@ -3267,7 +3304,44 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           const d = Math.hypot(dx, dz);
           if (d < nearestD) { nearestD = d; nearest = { id: p.id, x: pose.x, y: pose.y, z: pose.z }; }
         }
-        if (!nearest || nearestD > aggro) continue;   // 감지 안 됨
+        if (!nearest || nearestD > aggro) {
+          // 감지 X — patrol / both 면 시작 위치 반경 안 랜덤 배회
+          if (mode === 'patrol' || mode === 'both') {
+            const patrolRadius = Number(npcComp.props?.patrolRadius ?? 8);
+            let p = npcPatrolRef.current.get(obj.id);
+            if (!p) {
+              p = { tx: pos.x, tz: pos.z, nextAt: 0, homeX: pos.x, homeZ: pos.z };
+              npcPatrolRef.current.set(obj.id, p);
+            }
+            if (now >= p.nextAt || Math.hypot(p.tx - pos.x, p.tz - pos.z) < 0.5) {
+              // 새 target — 시작 위치 반경 안 랜덤
+              const r = Math.sqrt(Math.random()) * patrolRadius;
+              const a = Math.random() * Math.PI * 2;
+              p.tx = p.homeX + Math.cos(a) * r;
+              p.tz = p.homeZ + Math.sin(a) * r;
+              p.nextAt = now + 3 + Math.random() * 4;   // 3~7s 후 갱신
+            }
+            // target 방향으로 이동 (절반 속도)
+            const dx = p.tx - pos.x, dz = p.tz - pos.z;
+            const dist = Math.hypot(dx, dz);
+            if (dist > 0.05) {
+              const stepX = (dx / dist) * (moveSpeed * 0.5) * 0.1;
+              const stepZ = (dz / dist) * (moveSpeed * 0.5) * 0.1;
+              if (body) {
+                const cur = body.translation();
+                body.setTranslation({ x: cur.x + stepX, y: cur.y, z: cur.z + stepZ }, true);
+                const angle = Math.atan2(dx, dz);
+                const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, angle, 0));
+                body.setRotation?.({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+              } else {
+                group.position.x += stepX;
+                group.position.z += stepZ;
+                group.rotation.y = Math.atan2(dx, dz);
+              }
+            }
+          }
+          continue;
+        }
         // 추적
         if (nearestD > attackRange) {
           const dx = nearest.x - pos.x, dz = nearest.z - pos.z;
