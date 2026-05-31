@@ -44,9 +44,15 @@ export function execUiButtonScript(script: string, api: JsGameAPI, value?: unkno
   const world = {
     playSound: (url: unknown, o?: { volume?: number; loop?: boolean }) => api.playSound(String(url), o),
   };
+  const makeDataApi = (shared: boolean) => ({
+    get: (k: unknown, d?: unknown) => { const v = api.dataGet?.(String(k), shared); return v === undefined ? (d ?? null) : v; },
+    set: (k: unknown, v: unknown) => api.dataSet?.(String(k), v, shared),
+    all: () => api.dataAll?.(shared) ?? {},
+  });
+  const data = { ...makeDataApi(false), shared: makeDataApi(true) };
   try {
-    const fn = new Function('game', 'ui', 'world', 'value', script);
-    fn(game, ui, world, value);
+    const fn = new Function('game', 'ui', 'world', 'data', 'value', script);
+    fn(game, ui, world, data, value);
   } catch (e) {
     console.error('[ui-button-script] 실행 오류:', e, '\n--- script ---\n' + script);
   }

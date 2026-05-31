@@ -598,6 +598,7 @@ export default function WorldPage() {
       )}
       <WorldCanvas
         key={worldSocketKey}
+        worldId={effectiveWorldId ?? undefined}
         character={character ?? {}}
         playerId={userId}
         players={players}

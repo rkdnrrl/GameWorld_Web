@@ -1045,6 +1045,16 @@ export class JsScript {
         hide: (label: unknown) => { gameApi?.uiVisible?.(String(label), false); },
       };
 
+      // ── 맵 데이터 KV (영구 저장) ──
+      // data.get/set/all — 메모리 캐시. 호스트가 백그라운드로 서버에 sync.
+      // data.shared.* — 맵 전역 (모두 공유), 기본 data.* 는 플레이어 개인 (자기 자료만).
+      const makeDataApi = (shared: boolean) => ({
+        get: (k: unknown, d?: unknown) => { const v = gameApi?.dataGet?.(String(k), shared); return v === undefined ? (d ?? null) : v; },
+        set: (k: unknown, v: unknown) => { gameApi?.dataSet?.(String(k), v, shared); },
+        all: () => gameApi?.dataAll?.(shared) ?? {},
+      });
+      const data = { ...makeDataApi(false), shared: makeDataApi(true) };
+
       const MathLib = {
         sin: Math.sin, cos: Math.cos, tan: Math.tan, atan: Math.atan, atan2: Math.atan2,
         abs: Math.abs, floor: Math.floor, ceil: Math.ceil, round: Math.round,
@@ -1056,7 +1066,7 @@ export class JsScript {
       const console_ = { log: print };
 
       this.interp = new Interpreter({
-        self, world, net, game, ui,
+        self, world, net, game, ui, data,
         Math: MathLib,
         console: console_,
         print,

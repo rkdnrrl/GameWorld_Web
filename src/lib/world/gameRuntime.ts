@@ -58,6 +58,12 @@ export interface JsGameAPI {
   uiSet?: (label: string, patch: Record<string, unknown>) => void;
   /** UI 오브젝트 visibility 토글 — label 로 검색. */
   uiVisible?: (label: string, visible: boolean) => void;
+  /** 맵 데이터 KV — 메모리 캐시 기반 동기 read/write.
+   *  shared=true 면 맵 전역, false 면 플레이어 개인.
+   *  set 은 메모리 + 백그라운드 서버 save (호스트만). load 는 메모리만. */
+  dataGet?:  (key: string, shared: boolean) => unknown;
+  dataSet?:  (key: string, value: unknown, shared: boolean) => void;
+  dataAll?:  (shared: boolean) => Record<string, unknown>;
 }
 
 export interface GameRuntimeStore {
@@ -79,6 +85,10 @@ export interface GameRuntimeStore {
   applySnapshot(snap: GameSnapshot): void;
   /** 수신한 사운드 로컬 재생 (비호스트). */
   playRemoteSound(url: string, opts?: { volume?: number; loop?: boolean }): void;
+  /** 맵 데이터 캐시 — 호스트가 서버에서 load 후 한 번에 채움 (scope 별). */
+  loadDataSnapshot(entries: Array<{ key: string; value: unknown; shared: boolean }>): void;
+  /** 단일 entry 적용 — broadcast 수신용. */
+  applyDataPatch(key: string, value: unknown, shared: boolean): void;
 }
 
 /**
@@ -92,9 +102,15 @@ export function createGameRuntime(opts?: {
   onUiSet?: (label: string, patch: Record<string, unknown>) => void;
   /** UI 오브젝트 visibility 콜백. */
   onUiVisible?: (label: string, visible: boolean) => void;
+  /** 맵 데이터 변경 시 호스트가 받음 — 서버 save + broadcast 용. */
+  onDataSet?: (key: string, value: unknown, shared: boolean) => void;
 }): GameRuntimeStore {
   const state = new Map<string, unknown>();
   const hud = new Map<string, HudElement>();
+  // 맵 데이터 KV 캐시 — 개인(mine) / 전역(shared) 분리.
+  // load 시 서버에서 받아 채움 (호스트). set 시 메모리 + onDataSet 콜백 (호스트 save + broadcast).
+  const mineData = new Map<string, unknown>();
+  const sharedData = new Map<string, unknown>();
   const listeners = new Set<() => void>();
   let dirty = false;
   const notify = () => { for (const l of listeners) l(); };
@@ -123,6 +139,17 @@ export function createGameRuntime(opts?: {
     playSound: (url, o) => { playLocal(String(url), o); opts?.onSound?.(String(url), o); },
     uiSet:     (label, patch) => opts?.onUiSet?.(String(label), patch),
     uiVisible: (label, v)     => opts?.onUiVisible?.(String(label), !!v),
+    dataGet:   (key, shared) => (shared ? sharedData : mineData).get(String(key)),
+    dataSet:   (key, value, shared) => {
+      (shared ? sharedData : mineData).set(String(key), value);
+      opts?.onDataSet?.(String(key), value, !!shared);
+    },
+    dataAll:   (shared) => {
+      const m = shared ? sharedData : mineData;
+      const obj: Record<string, unknown> = {};
+      for (const [k, v] of m) obj[k] = v;
+      return obj;
+    },
   };
 
   return {
@@ -141,5 +168,15 @@ export function createGameRuntime(opts?: {
       notify();
     },
     playRemoteSound: (url, o) => playLocal(String(url), o),
+    loadDataSnapshot: (entries) => {
+      mineData.clear(); sharedData.clear();
+      for (const e of entries) {
+        if (e.shared) sharedData.set(e.key, e.value);
+        else          mineData.set(e.key, e.value);
+      }
+    },
+    applyDataPatch: (key, value, shared) => {
+      (shared ? sharedData : mineData).set(key, value);
+    },
   };
 }

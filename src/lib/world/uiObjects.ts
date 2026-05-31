@@ -15,6 +15,10 @@ export type UiElementType = 'canvas' | 'panel' | 'image' | 'text' | 'button' | '
  *  메시지 페이로드: { label: string, patch?: Record<string, unknown>, hidden?: boolean } */
 export const UI_SYNC_EVENT = '__uisync__';
 
+/** 맵 데이터 변경 멀티 동기화 — 호스트가 data.set 한 결과를 전원에게 broadcast.
+ *  shared=true (전역) 만 broadcast. 개인 데이터는 자기 화면에만. */
+export const DATA_SYNC_EVENT = '__datasync__';
+
 export interface RectTransform {
   /** Anchor min (0~1) — 부모 영역 안에서 어디에 매여 있는지. (0,0)=좌하 (1,1)=우상 (유니티 규약) */
   anchorMin: { x: number; y: number };

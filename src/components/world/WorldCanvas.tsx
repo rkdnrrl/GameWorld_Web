@@ -22,7 +22,8 @@ import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
 import { PerfManager } from '@/lib/world/PerfManager';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
-import { UI_SYNC_EVENT, type UiData } from '@/lib/world/uiObjects';
+import { UI_SYNC_EVENT, DATA_SYNC_EVENT, type UiData } from '@/lib/world/uiObjects';
+import { api as backendApi } from '@/lib/api';
 import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
@@ -2360,6 +2361,8 @@ interface WorldCanvasProps {
   // 플레이어가 포탈에 닿으면 onPortalEnter(worldId) 호출 → 페이지가 그 월드로 이동.
   portalApiRef?: React.MutableRefObject<{ open: (worldId: string, name: string) => void; close: () => void } | null>;
   onPortalEnter?: (worldId: string) => void;
+  /** 현재 월드 id — data.save/load 시 mapId 키로 사용. 없으면 데이터 저장 비활성. */
+  worldId?: string;
   // 카메라 시점 — 페이지(월드 설정)가 제어. 없으면 내부 상태(기본 3인칭) 사용.
   cameraMode?: CameraMode;
   onCameraModeChange?: (m: CameraMode) => void;
@@ -2571,7 +2574,10 @@ function MobileControls({ inputLocked }: { inputLocked: boolean }) {
   );
 }
 
-export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId, sendObjClaim, sendObjRelease, objectOwnerRef, sendObjSpawn, sendObjDestroy, objSpawnRef, objDestroyRef, sendSceneRegister, portalApiRef, onPortalEnter, cameraMode: cameraModeProp, onCameraModeChange, firstPersonFov = 75 }: WorldCanvasProps) {
+export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId, sendObjClaim, sendObjRelease, objectOwnerRef, sendObjSpawn, sendObjDestroy, objSpawnRef, objDestroyRef, sendSceneRegister, portalApiRef, onPortalEnter, cameraMode: cameraModeProp, onCameraModeChange, firstPersonFov = 75, worldId }: WorldCanvasProps) {
+  // data.save 콜백 closure 안에서 stale 값 안 잡히게 ref 로 미러
+  const worldIdRef = useRef<string | undefined>(worldId);
+  useEffect(() => { worldIdRef.current = worldId; }, [worldId]);
   // ── VRChat 식 포탈 ──
   const [portal, setPortal] = useState<PortalState | null>(null);
   const portalRef = useRef<PortalState | null>(null);
@@ -2683,6 +2689,18 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     onUiVisible: (label, visible) => {
       setUiOverrides(prev => ({ ...prev, [label]: { ...prev[label], hidden: !visible } }));
       sendScriptEvent?.('__ui__', UI_SYNC_EVENT, { label, hidden: !visible });
+    },
+    // 맵 데이터 변경 — 호스트만 호출. 서버 save + (shared 면) 전원 broadcast.
+    onDataSet: (key, value, shared) => {
+      const { session } = require('@/lib/api') as typeof import('@/lib/api');
+      const tok = session.getToken();
+      const wid = worldIdRef.current;
+      if (tok && wid) {
+        backendApi.worldDataSave(tok, wid, key, value, shared).catch(e => console.warn('[data] save fail', key, e));
+      }
+      if (shared) {
+        sendScriptEvent?.('__data__', DATA_SYNC_EVENT, { key, value });
+      }
     },
   }), []);
   // 비디오 URL 런타임 오버라이드 — 컨트롤 바에서 URL 변경 시(멀티 동기). objId→새 URL.
@@ -2826,6 +2844,15 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         if (!isHostRef.current) return;
         luaScripts.current.get(objectId)?.callClick(fromId);
         componentScripts.current.get(objectId)?.forEach(({ vm }) => vm.callClick(fromId));
+        return;
+      }
+      // 맵 데이터 변경 동기화 — 호스트가 data.shared.set 한 결과를 비호스트 캐시에 반영.
+      if (event === DATA_SYNC_EVENT) {
+        if (isHostRef.current) return;
+        if (!fromId || (hostIdRef.current && fromId !== hostIdRef.current)) return;
+        const d = data as { key?: string; value?: unknown };
+        if (typeof d?.key !== 'string') return;
+        gameRuntime.applyDataPatch(d.key, d.value, true);
         return;
       }
       // UI 동기화 — 호스트가 ui.set/show/hide 한 결과를 비호스트가 자기 UI 에 반영.
@@ -3165,6 +3192,31 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     if (Object.keys(uiOverrides).length === 0) return;
     for (const [label, ov] of Object.entries(uiOverrides)) {
       sendScriptEvent?.('__ui__', UI_SYNC_EVENT, { label, patch: ov.patch, hidden: ov.hidden });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHost, playerCount]);
+
+  // 맵 진입 시 worldData (개인 + 전역) 로드 → gameRuntime 캐시 채움.
+  useEffect(() => {
+    if (!worldId) return;
+    const { session } = require('@/lib/api') as typeof import('@/lib/api');
+    const tok = session.getToken();
+    if (!tok) return;
+    backendApi.worldDataList(tok, worldId, 'all')
+      .then(({ items }) => {
+        gameRuntime.loadDataSnapshot(items.map(e => ({ key: e.key, value: e.value, shared: e.shared })));
+      })
+      .catch(e => console.warn('[data] initial load fail', e));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [worldId]);
+  // 호스트는 새 플레이어 입장 시 자기 shared 데이터 전체를 dump broadcast → 늦은 입장자도 같은 전역 상태.
+  useEffect(() => {
+    if (!isHost) return;
+    const all = gameRuntime.api.dataAll?.(true) || {};
+    const entries = Object.entries(all);
+    if (entries.length === 0) return;
+    for (const [key, value] of entries) {
+      sendScriptEvent?.('__data__', DATA_SYNC_EVENT, { key, value });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHost, playerCount]);
