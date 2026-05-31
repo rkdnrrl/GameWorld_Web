@@ -2770,8 +2770,15 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           console.log('[VID] SYNC rejected — sender not real host', { fromId, realHost: hostIdRef.current });
           return;
         }
+        const d = data as { t?: number; playing?: boolean; url?: string };
+        // url 동기화 — 호스트가 리모컨으로 바꾼 영상 url 을 늦게 들어온 사람도 같은 영상 보게.
+        // 같은 url 이면 setState 새 객체 안 만들어 re-render 폭주 방지.
+        if (d.url) {
+          const newUrl = d.url;
+          setVideoUrlOverrides(prev => prev[objectId] === newUrl ? prev : ({ ...prev, [objectId]: newUrl }));
+        }
         const v = videoRegistry.current.get(objectId);
-        if (v) applyVideoSync(v, data as { t?: number; playing?: boolean });
+        if (v) applyVideoSync(v, d);
         return;
       }
       // 비디오 컨트롤 명령(앞/뒤 5초·URL 변경) — 호스트 포함 모든 클라가 반영 (누가 눌러도 동기화)
@@ -3012,13 +3019,17 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // 호스트: 비디오 스크린 재생시각을 2초마다 broadcast → 비호스트가 같은 시점으로 맞춤 (watch party)
   // 가드: hostId 가 명시적으로 본인이고 다른 player 가 있을 때만. (들어온 사람이 처음 hostId 초기값으로
   // 자기를 호스트로 오판정해 broadcast 하는 케이스 방지)
+  // url 도 함께 — 호스트가 리모컨으로 변경한 url 을 늦게 들어온 사람도 받아 같은 영상 보게.
+  const videoUrlOverridesRef = useRef(videoUrlOverrides);
+  useEffect(() => { videoUrlOverridesRef.current = videoUrlOverrides; }, [videoUrlOverrides]);
   useEffect(() => {
     if (!isHost || !sendScriptEvent || !hostId || hostId !== playerId) return;
     const iv = setInterval(() => {
       for (const [objId, v] of videoRegistry.current) {
         const t = v.getTime();
         if (!Number.isFinite(t) || t <= 0) continue;
-        sendScriptEvent(objId, VIDEO_SYNC_EVENT, { t, playing: !v.paused() });
+        const url = videoUrlOverridesRef.current[objId];
+        sendScriptEvent(objId, VIDEO_SYNC_EVENT, url ? { t, playing: !v.paused(), url } : { t, playing: !v.paused() });
       }
     }, 2000);
     return () => clearInterval(iv);
