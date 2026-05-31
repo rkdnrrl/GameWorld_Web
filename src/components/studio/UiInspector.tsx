@@ -221,6 +221,93 @@ export function UiInspector({ selected, onUpdate, onRectUpdate, onCommit, onTran
           </Section>
         </>
       )}
+
+      {ui.type === 'slider' && (
+        <>
+          <Section label="범위 (min ~ max)">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+              <NumIn label="min" value={ui.min ?? 0}   onChange={v => onUpdate({ min: v })}   onCommit={onCommit} />
+              <NumIn label="max" value={ui.max ?? 100} onChange={v => onUpdate({ max: v })}   onCommit={onCommit} />
+            </div>
+          </Section>
+          <Section label="현재 값">
+            <NumIn value={ui.value ?? 50} onChange={v => onUpdate({ value: v })} onCommit={onCommit} />
+          </Section>
+          <Section label="step">
+            <NumIn value={ui.step ?? 1} step={0.1} onChange={v => onUpdate({ step: v })} onCommit={onCommit} />
+          </Section>
+          <Section label="색상">
+            <ColorIn value={ui.color || '#4f46e5'} onChange={v => { onUpdate({ color: v }); onCommit(); }} />
+          </Section>
+          <Section label="onChange 스크립트" hint="값 변할 때 실행. value 변수로 슬라이더 값 사용.">
+            <TextIn value={ui.onChangeScript || ''} onChange={v => onUpdate({ onChangeScript: v })} onCommit={onCommit} multiline />
+          </Section>
+        </>
+      )}
+
+      {ui.type === 'input' && (
+        <>
+          <Section label="현재 값">
+            <TextIn value={ui.inputValue || ''} onChange={v => onUpdate({ inputValue: v })} onCommit={onCommit} multiline={ui.multiline} />
+          </Section>
+          <Section label="Placeholder">
+            <TextIn value={ui.placeholder || ''} onChange={v => onUpdate({ placeholder: v })} onCommit={onCommit} />
+          </Section>
+          <Section label="여러 줄">
+            <label style={{ fontSize: 11, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input type="checkbox" checked={!!ui.multiline} onChange={e => { onUpdate({ multiline: e.target.checked }); onCommit(); }} /> multiline (textarea)
+            </label>
+          </Section>
+          <Section label="폰트 크기">
+            <NumIn value={ui.fontSize ?? 14} onChange={v => onUpdate({ fontSize: v })} onCommit={onCommit} />
+          </Section>
+          <Section label="글자색"><ColorIn value={ui.color || '#ffffff'} onChange={v => { onUpdate({ color: v }); onCommit(); }} /></Section>
+          <Section label="배경색 (CSS rgba 가능)">
+            <TextIn value={ui.bgColor || 'rgba(0,0,0,0.5)'} onChange={v => onUpdate({ bgColor: v })} onCommit={onCommit} />
+          </Section>
+          <Section label="onChange 스크립트" hint="텍스트 변할 때 실행. value 변수로 텍스트 사용.">
+            <TextIn value={ui.onChangeScript || ''} onChange={v => onUpdate({ onChangeScript: v })} onCommit={onCommit} multiline />
+          </Section>
+        </>
+      )}
+
+      {ui.type === 'toggle' && (
+        <>
+          <Section label="라벨 텍스트">
+            <TextIn value={ui.text || ''} onChange={v => onUpdate({ text: v })} onCommit={onCommit} />
+          </Section>
+          <Section label="현재 체크 상태">
+            <label style={{ fontSize: 11, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input type="checkbox" checked={!!ui.checked} onChange={e => { onUpdate({ checked: e.target.checked }); onCommit(); }} /> checked
+            </label>
+          </Section>
+          <Section label="폰트 크기">
+            <NumIn value={ui.fontSize ?? 13} onChange={v => onUpdate({ fontSize: v })} onCommit={onCommit} />
+          </Section>
+          <Section label="글자색"><ColorIn value={ui.color || '#ffffff'} onChange={v => { onUpdate({ color: v }); onCommit(); }} /></Section>
+          <Section label="onChange 스크립트" hint="체크 변할 때 실행. value 변수로 true/false 사용.">
+            <TextIn value={ui.onChangeScript || ''} onChange={v => onUpdate({ onChangeScript: v })} onCommit={onCommit} multiline />
+          </Section>
+        </>
+      )}
+
+      {ui.type === 'scrollview' && (
+        <>
+          <Section label="배경색 (CSS rgba 가능)">
+            <TextIn value={ui.bgColor || 'rgba(0,0,0,0.3)'} onChange={v => onUpdate({ bgColor: v })} onCommit={onCommit} />
+          </Section>
+          <Section label="스크롤 방향">
+            <div style={{ display: 'flex', gap: 8 }}>
+              <label style={{ fontSize: 11, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <input type="checkbox" checked={ui.scrollVertical !== false} onChange={e => { onUpdate({ scrollVertical: e.target.checked }); onCommit(); }} /> 세로
+              </label>
+              <label style={{ fontSize: 11, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <input type="checkbox" checked={!!ui.scrollHorizontal} onChange={e => { onUpdate({ scrollHorizontal: e.target.checked }); onCommit(); }} /> 가로
+              </label>
+            </div>
+          </Section>
+        </>
+      )}
     </div>
   );
 }

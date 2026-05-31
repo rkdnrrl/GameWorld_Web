@@ -3828,6 +3828,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           }))}
           editMode={false}
           onButtonClick={(_id, script) => execUiButtonScript(script, gameRuntime.api)}
+        onValueChange={(_id, script, value) => execUiButtonScript(script, gameRuntime.api, value)}
         />
         <PostFX s={postFX} />
       </Canvas>
@@ -3837,6 +3838,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         objects={(customObjects ?? []).filter(o => o.kind === 'ui' && o.ui).map(o => ({ id: o.id, parentId: o.parentId, hidden: o.hidden, ui: o.ui! }))}
         editMode={false}
         onButtonClick={(_id, script) => execUiButtonScript(script, gameRuntime.api)}
+        onValueChange={(_id, script, value) => execUiButtonScript(script, gameRuntime.api, value)}
       />
       <MapLoadingOverlay />
     </>

@@ -9,7 +9,7 @@
  * 자식들의 RectTransform 은 부모 영역 기준 anchor/pivot/posX/posY/width/height.
  */
 
-export type UiElementType = 'canvas' | 'panel' | 'image' | 'text' | 'button';
+export type UiElementType = 'canvas' | 'panel' | 'image' | 'text' | 'button' | 'slider' | 'input' | 'toggle' | 'scrollview';
 
 export interface RectTransform {
   /** Anchor min (0~1) — 부모 영역 안에서 어디에 매여 있는지. (0,0)=좌하 (1,1)=우상 (유니티 규약) */
@@ -44,6 +44,24 @@ export interface UiData {
   alpha?: number;
   /** 버튼 onClick 스크립트 (button) — 누르면 실행 */
   onClickScript?: string;
+  /** slider 범위/값 */
+  min?: number;
+  max?: number;
+  value?: number;
+  step?: number;
+  /** input placeholder */
+  placeholder?: string;
+  /** input 텍스트 (현재 값) */
+  inputValue?: string;
+  /** input 여러 줄 (textarea) */
+  multiline?: boolean;
+  /** toggle 체크 상태 */
+  checked?: boolean;
+  /** scrollview 방향 — 둘 다 true 면 가로·세로 둘 다 스크롤 가능 */
+  scrollVertical?: boolean;
+  scrollHorizontal?: boolean;
+  /** slider/input/toggle 값 변경 시 실행되는 스크립트 (value 변수로 사용 가능) */
+  onChangeScript?: string;
 }
 
 /** 새 UI 오브젝트 생성 — 타입별 기본값. canvas 일 때 space 로 screen/world 선택. */
@@ -70,6 +88,10 @@ export function makeDefaultUiData(type: UiElementType, space: 'screen' | 'world'
   if (type === 'image')  return { type, rect: { ...baseRect, width: 200, height: 200 }, imageUrl: '', color: '#ffffff', alpha: 1 };
   if (type === 'button') return { type, rect: baseRect, text: '버튼', fontSize: 18, color: '#ffffff', bgColor: '#4f46e5', onClickScript: '' };
   if (type === 'panel')  return { type, rect: { ...baseRect, width: 300, height: 200 }, bgColor: 'rgba(0,0,0,0.5)' };
+  if (type === 'slider') return { type, rect: { ...baseRect, width: 240, height: 30 }, min: 0, max: 100, value: 50, step: 1, color: '#4f46e5', onChangeScript: '' };
+  if (type === 'input')  return { type, rect: { ...baseRect, width: 240, height: 36 }, inputValue: '', placeholder: '입력...', fontSize: 14, color: '#ffffff', bgColor: 'rgba(0,0,0,0.5)', multiline: false, onChangeScript: '' };
+  if (type === 'toggle') return { type, rect: { ...baseRect, width: 160, height: 28 }, checked: false, text: '체크박스', color: '#ffffff', fontSize: 13, onChangeScript: '' };
+  if (type === 'scrollview') return { type, rect: { ...baseRect, width: 300, height: 200 }, bgColor: 'rgba(0,0,0,0.3)', scrollVertical: true, scrollHorizontal: false };
   return { type, rect: baseRect };
 }
 

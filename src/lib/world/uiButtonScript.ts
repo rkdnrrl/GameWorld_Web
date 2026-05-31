@@ -6,7 +6,7 @@
  */
 import type { JsGameAPI } from './gameRuntime';
 
-export function execUiButtonScript(script: string, api: JsGameAPI): void {
+export function execUiButtonScript(script: string, api: JsGameAPI, value?: unknown): void {
   if (!script || !script.trim()) return;
   // game/ui/world.playSound 래퍼 — jsRuntime 과 동일 API 표면
   const numOr = (v: unknown, d: number) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
@@ -45,8 +45,8 @@ export function execUiButtonScript(script: string, api: JsGameAPI): void {
     playSound: (url: unknown, o?: { volume?: number; loop?: boolean }) => api.playSound(String(url), o),
   };
   try {
-    const fn = new Function('game', 'ui', 'world', script);
-    fn(game, ui, world);
+    const fn = new Function('game', 'ui', 'world', 'value', script);
+    fn(game, ui, world, value);
   } catch (e) {
     console.error('[ui-button-script] 실행 오류:', e, '\n--- script ---\n' + script);
   }

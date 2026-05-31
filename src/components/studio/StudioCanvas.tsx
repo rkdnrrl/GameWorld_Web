@@ -5540,6 +5540,22 @@ export default function StudioCanvas() {
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer', gridColumn: 'span 2' }}>
               🔘 Button
             </button>
+            <button onClick={() => addUi('slider')} title="슬라이더 (값 0~100)"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
+              🎚 Slider
+            </button>
+            <button onClick={() => addUi('input')} title="텍스트 입력"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
+              ⌨ Input
+            </button>
+            <button onClick={() => addUi('toggle')} title="체크박스"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
+              ☑ Toggle
+            </button>
+            <button onClick={() => addUi('scrollview')} title="스크롤 영역"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
+              📜 Scroll
+            </button>
           </div>
         )}
         </div>{/* /추가 그룹 (씬 탭) */}
@@ -6520,6 +6536,8 @@ export default function StudioCanvas() {
             }))}
             editMode={!simulating}
             onButtonClick={simulating ? (_id, script) => execUiButtonScript(script, simGameRuntime.api) : undefined}
+          onValueChange={simulating ? (_id, script, value) => execUiButtonScript(script, simGameRuntime.api, value) : undefined}
+          onLocalValueChange={(id, patch) => setObjects(prev => prev.map(o => o.id === id && o.ui ? { ...o, ui: { ...o.ui, ...patch } } : o))}
           />
           <PostFX s={postFX} />
         </Canvas>
@@ -6530,6 +6548,8 @@ export default function StudioCanvas() {
           objects={(simulating ? simObjs : objects).filter(o => o.kind === 'ui' && o.ui).map(o => ({ id: o.id, parentId: o.parentId ?? null, hidden: o.hidden, ui: o.ui! }))}
           editMode={!simulating}
           onButtonClick={simulating ? (_id, script) => execUiButtonScript(script, simGameRuntime.api) : undefined}
+          onValueChange={simulating ? (_id, script, value) => execUiButtonScript(script, simGameRuntime.api, value) : undefined}
+          onLocalValueChange={(id, patch) => setObjects(prev => prev.map(o => o.id === id && o.ui ? { ...o, ui: { ...o.ui, ...patch } } : o))}
         />
 
         {/* 게임 HUD — 스크립트 ui.text/ui.bar 가 그림. 시뮬레이션 중에만 뷰포트 위에 오버레이. */}
