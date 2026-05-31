@@ -2599,23 +2599,25 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
   const dragRef = useRef<any>(null);
   const groupRef = useRef<THREE.Group>(null);
   const handleRefs = useRef<(THREE.Mesh | null)[]>([null, null, null, null, null, null]);
-  // 매 프레임 imperative 로 group + 핸들 위치 갱신. setState 안 함 (React re-render 없음 → 무한 루프 방지).
+  // 매 프레임 imperative 로 group + 핸들 위치 갱신 — mesh 의 실제 visual bbox 기준 (pivot 이 어디든
+  // bbox 중심에 group, 6면에 핸들). bbox 는 world-axis-aligned 이라 group quaternion identity.
   useFrame(() => {
     if (!target || !groupRef.current) return;
     target.updateWorldMatrix(true, false);
-    const wp = new THREE.Vector3(); target.getWorldPosition(wp);
-    const wq = new THREE.Quaternion(); target.getWorldQuaternion(wq);
-    const ws = new THREE.Vector3(); target.getWorldScale(ws);
-    groupRef.current.position.copy(wp);
-    groupRef.current.quaternion.copy(wq);
+    const bbox = new THREE.Box3().setFromObject(target);
+    if (bbox.isEmpty()) return;
+    const bc = bbox.getCenter(new THREE.Vector3());
+    const size = bbox.getSize(new THREE.Vector3());
+    groupRef.current.position.copy(bc);
+    groupRef.current.quaternion.identity();
     handleRefs.current.forEach((mesh, i) => {
       if (!mesh) return;
       const ax = i < 2 ? 0 : i < 4 ? 1 : 2;
       const sgn = (i % 2 === 0) ? 1 : -1;
       mesh.position.set(
-        ax === 0 ? sgn * ws.x * 0.5 : 0,
-        ax === 1 ? sgn * ws.y * 0.5 : 0,
-        ax === 2 ? sgn * ws.z * 0.5 : 0,
+        ax === 0 ? sgn * size.x * 0.5 : 0,
+        ax === 1 ? sgn * size.y * 0.5 : 0,
+        ax === 2 ? sgn * size.z * 0.5 : 0,
       );
     });
   });
@@ -2677,11 +2679,14 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
   }, [camera, gl, onChange, onDragEnd]);
 
   if (!target) return null;
-  // 초기 mesh world transform (첫 렌더용 — 이후 매 프레임 useFrame 이 갱신)
+  // 초기 bbox 기반 위치 (첫 렌더용 — 이후 매 프레임 useFrame 이 갱신)
   target.updateWorldMatrix(true, false);
-  const ws = new THREE.Vector3(); target.getWorldScale(ws);
-  const wp = new THREE.Vector3(); target.getWorldPosition(wp);
-  const wq = new THREE.Quaternion(); target.getWorldQuaternion(wq);
+  const initBbox = new THREE.Box3().setFromObject(target);
+  const wp = initBbox.isEmpty() ? new THREE.Vector3() : initBbox.getCenter(new THREE.Vector3());
+  const initSize = initBbox.isEmpty() ? new THREE.Vector3(1, 1, 1) : initBbox.getSize(new THREE.Vector3());
+  // ws 는 face 위치 계산용 (size/2 의 형태로 ws.getComponent 사용)
+  const ws = initSize;
+  const wq = new THREE.Quaternion();   // bbox 는 axis-aligned 이라 identity
 
   // 6면 face 정의 — axis index (0=x, 1=y, 2=z), sign (+1/-1)
   const faces: Array<{ axis: 0|1|2; sign: 1|-1; color: string }> = [
