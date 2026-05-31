@@ -23,7 +23,7 @@ import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
-import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, VideoRemotePanel, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
+import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, parseUrlKind, ImageMaterial, GenericIframeOverlay, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, VideoRemotePanel, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
 import { createGameRuntime, GAME_SYNC_EVENT, GAME_SOUND_EVENT, type GameSnapshot } from '@/lib/world/gameRuntime';
 import GameHud from './GameHud';
 
@@ -2162,11 +2162,12 @@ const PrimitiveMesh = React.memo(function PrimitiveMeshImpl({ obj, shape }: { ob
 
   React.useEffect(() => () => disposeMaterial(material), [material]);
 
-  // 비디오 스크린 — 표면에 영상 재생 (소리/동기화는 VideoScreenCtx 로 제어)
+  // 비디오 스크린 — URL 종류에 따라 분기. YouTube/영상파일/이미지(GIF)/generic iframe.
   if (obj.videoUrl) {
     const vidSide = obj.kind === 'plane' ? THREE.DoubleSide : THREE.FrontSide;
-    const ytId = parseYouTubeId(obj.videoUrl);
-    if (ytId) {
+    const kind = parseUrlKind(obj.videoUrl);
+    if (kind === 'youtube') {
+      const ytId = parseYouTubeId(obj.videoUrl)!;
       return (
         <>
           <mesh castShadow receiveShadow>
@@ -2177,12 +2178,34 @@ const PrimitiveMesh = React.memo(function PrimitiveMeshImpl({ obj, shape }: { ob
         </>
       );
     }
-    return (
-      <mesh castShadow receiveShadow>
-        {shape}
-        <VideoScreenMaterial url={obj.videoUrl} objId={obj.id} side={vidSide} />
-      </mesh>
-    );
+    if (kind === 'videoFile') {
+      return (
+        <mesh castShadow receiveShadow>
+          {shape}
+          <VideoScreenMaterial url={obj.videoUrl} objId={obj.id} side={vidSide} />
+        </mesh>
+      );
+    }
+    if (kind === 'image') {
+      return (
+        <mesh castShadow receiveShadow>
+          {shape}
+          <ImageMaterial url={obj.videoUrl} side={vidSide} />
+        </mesh>
+      );
+    }
+    if (kind === 'iframe') {
+      // 호스팅 게임 / 외부 사이트 등 generic embed.
+      return (
+        <>
+          <mesh castShadow receiveShadow>
+            {shape}
+            <meshBasicMaterial color="#000" side={vidSide} />
+          </mesh>
+          <GenericIframeOverlay url={obj.videoUrl} planeW={obj.scale[0]} planeH={obj.scale[1]} />
+        </>
+      );
+    }
   }
 
   return (
@@ -3683,28 +3706,30 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                   .filter(o => !o.hidden && o.components?.some(c => c.type === 'videoRemote'))
                   .map(obj => {
                     const inst = obj.components!.find(c => c.type === 'videoRemote')!;
-                    const label = String(inst.props?.target ?? '').trim();
-                    const target = label
-                      ? list.find(x => ((x as { label?: string }).label || '') === label && x.videoUrl)
-                      : list.find(x => x.videoUrl);
-                    if (!target) return null;
+                    const labelsRaw = String(inst.props?.target ?? '').trim();
+                    const labels = labelsRaw ? labelsRaw.split(/[,\s]+/).filter(Boolean) : [];
+                    const targets = labels.length === 0
+                      ? list.filter(x => x.videoUrl)
+                      : list.filter(x => labels.includes((x as { label?: string }).label || '') && x.videoUrl);
+                    if (targets.length === 0) return null;
                     const w = obj.parentId ? computeWorldTRS(obj, byId) : { position: obj.position };
-                    const tid = target.id;
-                    const curUrl = (videoUrlOverrides[tid] ?? target.videoUrl) || '';
+                    const firstId = targets[0].id;
+                    const targetIds = targets.map(t => t.id);
+                    const curUrl = (videoUrlOverrides[firstId] ?? targets[0].videoUrl) || '';
                     const rW  = Number(inst.props?.width  ?? 1.6);
                     const rH  = Number(inst.props?.height ?? 0.8);
                     const rOy = Number(inst.props?.offsetY ?? 1);
                     return (
                       <group key={'vr-' + obj.id} position={w.position}>
                         <VideoRemotePanel
-                          registry={videoRegistry} targetId={tid} videoUrl={curUrl}
+                          registry={videoRegistry} targetId={firstId} videoUrl={curUrl}
                           width={rW} height={rH} offsetY={rOy}
-                          onSeekBy={(d) => runVideoControl({ seekBy: d }, tid)}
-                          onSeekTo={(t) => runVideoControl({ seekTo: t }, tid)}
-                          onTogglePlay={(p) => runVideoControl({ playing: p }, tid)}
+                          onSeekBy={(d) => targetIds.forEach(tid => runVideoControl({ seekBy: d }, tid))}
+                          onSeekTo={(t) => targetIds.forEach(tid => runVideoControl({ seekTo: t }, tid))}
+                          onTogglePlay={(p) => targetIds.forEach(tid => runVideoControl({ playing: p }, tid))}
                           onChangeUrl={() => {
-                            const u = window.prompt('새 유튜브 URL (또는 영상 파일 URL)', target.videoUrl || '');
-                            if (u && u.trim()) runVideoControl({ url: u.trim() }, tid);
+                            const u = window.prompt('새 URL (YouTube / mp4 / gif / 호스팅 게임 등)', targets[0].videoUrl || '');
+                            if (u && u.trim()) targetIds.forEach(tid => runVideoControl({ url: u.trim() }, tid));
                           }}
                         />
                       </group>

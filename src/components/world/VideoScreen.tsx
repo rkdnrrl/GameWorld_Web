@@ -43,6 +43,17 @@ export function parseYouTubeId(url: string): string | null {
   return null;
 }
 
+/** URL 분류 — 어떤 종류의 콘텐츠인지 분기. */
+export type VideoUrlKind = 'youtube' | 'videoFile' | 'image' | 'iframe' | 'none';
+export function parseUrlKind(url: string): VideoUrlKind {
+  if (!url) return 'none';
+  if (parseYouTubeId(url)) return 'youtube';
+  if (/\.(mp4|webm|mov|m4v|ogv)(\?|$)/i.test(url)) return 'videoFile';
+  if (/\.(gif|png|jpe?g|webp|avif|bmp|svg)(\?|$)/i.test(url)) return 'image';
+  if (/^https?:\/\//i.test(url)) return 'iframe';   // 그 외 http(s) URL = generic iframe embed (호스팅 게임 등)
+  return 'none';
+}
+
 /* ── 1) 영상 파일 — VideoTexture 재질 ───────────────────────── */
 export function VideoScreenMaterial({ url, objId, selected, side = THREE.FrontSide }: {
   url: string; objId?: string; selected?: boolean; side?: THREE.Side;
@@ -250,6 +261,59 @@ export function YouTubeMeshMaterial({ videoId, selected, side = THREE.FrontSide 
 export const YouTubeMaybeOverlay = memo(function YouTubeMaybeOverlayImpl({ videoId, objId, planeW, planeH }: { videoId: string; objId?: string; planeW?: number; planeH?: number }) {
   const { live } = useContext(VideoScreenCtx);
   return live ? <YouTubeOverlay videoId={videoId} objId={objId} planeW={planeW} planeH={planeH} /> : null;
+});
+
+/* ── 이미지/GIF 재질 — mesh 표면에 정적 이미지 또는 GIF 텍스처. ── */
+export function ImageMaterial({ url, selected, side = THREE.FrontSide }: {
+  url: string; selected?: boolean; side?: THREE.Side;
+}) {
+  const texture = useMemo(() => {
+    const t = new THREE.TextureLoader().load(url);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }, [url]);
+  useEffect(() => () => texture.dispose(), [texture]);
+  return <meshBasicMaterial map={texture} color={selected ? '#9fb8ff' : '#ffffff'} toneMapped={false} side={side} transparent />;
+}
+
+/* ── Generic iframe 오버레이 — YouTube 가 아닌 일반 http(s) URL (호스팅 게임, 외부 사이트 등).
+   YouTubeOverlay 와 같은 패턴 — drei Html transform + imperative iframe + re-parent. */
+export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url, planeW = 2, planeH = 1.2 }: { url: string; planeW?: number; planeH?: number }) {
+  const { live } = useContext(VideoScreenCtx);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  const setContainerRef = (div: HTMLDivElement | null) => {
+    if (div && iframeRef.current && iframeRef.current.parentElement !== div) {
+      div.appendChild(iframeRef.current);
+    }
+  };
+
+  useEffect(() => {
+    if (!live) return;
+    const iframe = document.createElement('iframe');
+    iframe.width = String(YT_IFRAME_W);
+    iframe.height = String(YT_IFRAME_H);
+    iframe.src = url;
+    iframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+    iframe.tabIndex = -1;
+    iframe.style.cssText = 'border:none;display:block;background:#000;pointer-events:none;width:100%;height:100%';
+    iframeRef.current = iframe;
+    return () => {
+      try { iframe.remove(); } catch { /* noop */ }
+      iframeRef.current = null;
+    };
+  }, [url, live]);
+
+  if (!live) return null;
+  const PX_TO_UNIT = 0.03;
+  const sx = Math.max(0.01, planeW) / (YT_IFRAME_W * PX_TO_UNIT);
+  const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);
+  return (
+    <Html transform occlude="blending" pointerEvents="none" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center>
+      <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000' }} />
+    </Html>
+  );
 });
 
 /* ── 멀티 동기화 — 호스트가 보낸 시각을 핸들에 반영 (0.5초 이상 차이날 때만 seek) ── */

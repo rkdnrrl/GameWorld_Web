@@ -15,7 +15,7 @@ import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { createGameRuntime } from '@/lib/world/gameRuntime';
 import GameHud from '@/components/world/GameHud';
-import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, VideoScreenCtx, parseYouTubeId, VideoRemotePanel, type VideoRegistry, type VideoHandle } from '@/components/world/VideoScreen';
+import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, VideoScreenCtx, parseYouTubeId, parseUrlKind, ImageMaterial, GenericIframeOverlay, VideoRemotePanel, type VideoRegistry, type VideoHandle } from '@/components/world/VideoScreen';
 import AiGuideModal from './AiGuideModal';
 import StudioTopBar from './StudioTopBar';
 import StudioShortcutsModal from './StudioShortcutsModal';
@@ -1336,7 +1336,8 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
     obj.kind === 'plane'    ? <planeGeometry args={[1, 1]} /> :
                               <boxGeometry args={[1, 1, 1]} />;
   const vidSide = obj.kind === 'plane' ? THREE.DoubleSide : THREE.FrontSide;
-  const ytId = obj.videoUrl ? parseYouTubeId(obj.videoUrl) : null;
+  const urlKind = obj.videoUrl ? parseUrlKind(obj.videoUrl) : 'none';
+  const ytId = urlKind === 'youtube' ? parseYouTubeId(obj.videoUrl!) : null;
   // noTransform=true: 위치/userData는 외부 SceneNode group이 담당
   return (
     <>
@@ -1347,13 +1348,18 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
         onPointerDown={handle} castShadow receiveShadow
         userData={noTransform ? {} : { id: obj.id }}>
         {geometry}
-        {ytId
+        {urlKind === 'youtube' && ytId
           ? <YouTubeMeshMaterial videoId={ytId} selected={selected} side={vidSide} />
-          : obj.videoUrl
-            ? <VideoScreenMaterial url={obj.videoUrl} objId={obj.id} selected={selected} side={vidSide} />
-            : <PrimitiveMaterial obj={obj} selected={selected} />}
+          : urlKind === 'videoFile'
+            ? <VideoScreenMaterial url={obj.videoUrl!} objId={obj.id} selected={selected} side={vidSide} />
+            : urlKind === 'image'
+              ? <ImageMaterial url={obj.videoUrl!} selected={selected} side={vidSide} />
+              : urlKind === 'iframe'
+                ? <meshBasicMaterial color="#000" side={vidSide} />
+                : <PrimitiveMaterial obj={obj} selected={selected} />}
       </mesh>
       {ytId && <YouTubeMaybeOverlay videoId={ytId} objId={obj.id} planeW={obj.scale[0]} planeH={obj.scale[1]} />}
+      {urlKind === 'iframe' && <GenericIframeOverlay url={obj.videoUrl!} planeW={obj.scale[0]} planeH={obj.scale[1]} />}
     </>
   );
 }
@@ -6074,27 +6080,29 @@ export default function StudioCanvas() {
                   .filter(o => o.components?.some(c => c.type === 'videoRemote'))
                   .map(obj => {
                     const inst = obj.components!.find(c => c.type === 'videoRemote')!;
-                    const label = String(inst.props?.target ?? '').trim();
-                    const target = label
-                      ? simObjs.find(x => (x.label || '') === label && x.videoUrl)
-                      : simObjs.find(x => x.videoUrl);
-                    if (!target) return null;
+                    const labelsRaw = String(inst.props?.target ?? '').trim();
+                    const labels = labelsRaw ? labelsRaw.split(/[,\s]+/).filter(Boolean) : [];
+                    const targets = labels.length === 0
+                      ? simObjs.filter(x => x.videoUrl)
+                      : simObjs.filter(x => labels.includes(x.label || '') && x.videoUrl);
+                    if (targets.length === 0) return null;
                     const pos = simTransforms[obj.id]?.pos ?? obj.position;
-                    const tid = target.id;
+                    const firstId = targets[0].id;
+                    const targetIds = targets.map(t => t.id);
                     const rW  = Number(inst.props?.width  ?? 1.6);
                     const rH  = Number(inst.props?.height ?? 0.8);
                     const rOy = Number(inst.props?.offsetY ?? 1);
                     return (
                       <group key={'vr-' + obj.id} position={pos}>
                         <VideoRemotePanel
-                          registry={simVideoRegistry} targetId={tid} videoUrl={target.videoUrl || ''}
+                          registry={simVideoRegistry} targetId={firstId} videoUrl={targets[0].videoUrl || ''}
                           width={rW} height={rH} offsetY={rOy}
-                          onSeekBy={(d) => runSimVideoControl({ seekBy: d }, tid)}
-                          onSeekTo={(t) => runSimVideoControl({ seekTo: t }, tid)}
-                          onTogglePlay={(p) => runSimVideoControl({ playing: p }, tid)}
+                          onSeekBy={(d) => targetIds.forEach(tid => runSimVideoControl({ seekBy: d }, tid))}
+                          onSeekTo={(t) => targetIds.forEach(tid => runSimVideoControl({ seekTo: t }, tid))}
+                          onTogglePlay={(p) => targetIds.forEach(tid => runSimVideoControl({ playing: p }, tid))}
                           onChangeUrl={() => {
-                            const u = window.prompt('새 유튜브 URL (또는 영상 파일 URL)', target.videoUrl || '');
-                            if (u && u.trim()) runSimVideoControl({ url: u.trim() }, tid);
+                            const u = window.prompt('새 URL (YouTube / mp4 / gif / 호스팅 게임 등)', targets[0].videoUrl || '');
+                            if (u && u.trim()) targetIds.forEach(tid => runSimVideoControl({ url: u.trim() }, tid));
                           }}
                         />
                       </group>
@@ -6140,11 +6148,12 @@ export default function StudioCanvas() {
               {/* 비디오 리모컨 미리보기 — 편집 모드에서 크기/위치 확인용 (interactive=false). 영상 없어도 표시. */}
               {objects.filter(o => !o.hidden && o.components?.some(c => c.type === 'videoRemote')).map(obj => {
                 const inst = obj.components!.find(c => c.type === 'videoRemote')!;
-                const label = String(inst.props?.target ?? '').trim();
-                const target = label
-                  ? objects.find(x => (x.label || '') === label && x.videoUrl)
-                  : objects.find(x => x.videoUrl);
-                const curUrl = target?.videoUrl || '';
+                const labelsRaw = String(inst.props?.target ?? '').trim();
+                const labels = labelsRaw ? labelsRaw.split(/[,\s]+/).filter(Boolean) : [];
+                const targets = labels.length === 0
+                  ? objects.filter(x => x.videoUrl)
+                  : objects.filter(x => labels.includes(x.label || '') && x.videoUrl);
+                const curUrl = targets[0]?.videoUrl || '';
                 const w = worldTRSFor(obj);
                 const rW  = Number(inst.props?.width  ?? 1.6);
                 const rH  = Number(inst.props?.height ?? 0.8);
