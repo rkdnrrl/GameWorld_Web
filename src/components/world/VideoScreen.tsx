@@ -123,39 +123,60 @@ function loadYTApi(): Promise<void> {
 const YT_IFRAME_W = 640;   // iframe 픽셀 크기 (16:9). 비균등 scale 로 평면 가로·세로에 각각 맞춤.
 const YT_IFRAME_H = 360;
 // drei <Html transform> 은 부모 스케일을 무시(위치·회전만 따름)하므로 평면 월드 가로/세로를 직접 받아 스케일링.
-// React.memo 로 감싸 — 부모 re-render 시 props 같으면 자식 render skip → iframe element 가 새로 만들어지지
-// 않아 src 재로드 / 영상 reset 방지. 새 플레이어 입장 등 외부 state 변화로 부모가 re-render 돼도 영향 X.
+// React.memo + imperative iframe — drei portal 안 div container 에 iframe 을 createElement 로 직접 넣어
+// React reconcile 이 iframe 자체를 절대 못 건드리게. 부모 re-render / fiber 교체 영향 X → 영상 끊김 / 리모컨
+// 먹통 방지.
 export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId, planeW = 2, planeH = 1.2 }: { videoId: string; objId?: string; planeW?: number; planeH?: number }) {
   const { withSound, registry } = useContext(VideoScreenCtx);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const playerRef = useRef<any>(null);
 
-  // 플레이어 생성 (IFrame API)
+  // 플레이어 생성 — videoId 변경 시만. div container 가 drei portal 마운트로 늦게 잡힐 수 있어 rAF 폴링.
   useEffect(() => {
     console.log('[YT] mount/effect player', videoId, objId);
     let cancelled = false;
-    loadYTApi().then(() => {
-      if (cancelled || !iframeRef.current) return;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const YT = (window as any).YT;
-      playerRef.current = new YT.Player(iframeRef.current, {
-        events: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          onReady: (e: any) => { console.log('[YT] onReady', objId); try { e.target.mute(); e.target.playVideo(); } catch { /* noop */ } },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          onStateChange: (e: any) => {
-            const t = (() => { try { return e.target.getCurrentTime?.() ?? '?'; } catch { return '?'; } })();
-            console.log('[YT] state', objId, 'state', e.data, 'time', t);
+    let raf = 0;
+    const start = () => {
+      if (cancelled) return;
+      if (!containerRef.current) { raf = requestAnimationFrame(start); return; }
+      const iframe = document.createElement('iframe');
+      iframe.width = String(YT_IFRAME_W);
+      iframe.height = String(YT_IFRAME_H);
+      iframe.src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`;
+      iframe.title = 'YouTube';
+      iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
+      iframe.style.cssText = 'border:none;display:block;background:#000;pointer-events:none;width:100%;height:100%';
+      containerRef.current.appendChild(iframe);
+      iframeRef.current = iframe;
+      loadYTApi().then(() => {
+        if (cancelled || !iframeRef.current) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const YT = (window as any).YT;
+        playerRef.current = new YT.Player(iframeRef.current, {
+          events: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            onReady: (e: any) => { console.log('[YT] onReady', objId); try { e.target.mute(); e.target.playVideo(); } catch { /* noop */ } },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            onStateChange: (e: any) => {
+              const t = (() => { try { return e.target.getCurrentTime?.() ?? '?'; } catch { return '?'; } })();
+              console.log('[YT] state', objId, 'state', e.data, 'time', t);
+            },
           },
-        },
+        });
       });
-    });
+    };
+    start();
     return () => {
       console.log('[YT] cleanup/destroy player', videoId, objId);
       cancelled = true;
+      cancelAnimationFrame(raf);
       try { playerRef.current?.destroy?.(); } catch { /* noop */ }
       playerRef.current = null;
+      const iframe = iframeRef.current;
+      iframeRef.current = null;
+      try { iframe?.remove(); } catch { /* noop */ }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
@@ -190,19 +211,9 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
   const PX_TO_UNIT = 0.06;
   const sx = Math.max(0.01, planeW) / (YT_IFRAME_W * PX_TO_UNIT);   // 가로 → planeW
   const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);   // 세로 → planeH
-  const src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`;
   return (
     <Html transform occlude="blending" pointerEvents="none" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center>
-      <iframe
-        ref={iframeRef}
-        width={YT_IFRAME_W}
-        height={YT_IFRAME_H}
-        src={src}
-        title="YouTube"
-        frameBorder={0}
-        allow="autoplay; encrypted-media; picture-in-picture"
-        style={{ border: 'none', display: 'block', background: '#000', pointerEvents: 'none' }}
-      />
+      <div ref={containerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000' }} />
     </Html>
   );
 });
