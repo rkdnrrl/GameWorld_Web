@@ -9,9 +9,11 @@
  * Thumbnail — 첫 줄 코드 미리보기 (코드 아이콘 박스)
  * Preview — 모달에 코드 textarea (편집은 Phase 2에서 활성화)
  */
+import React, { useState } from 'react';
 import { registerKind } from '../registry';
 import type { Asset } from '../types';
 import AssetPreviewModal from '@/components/assets/AssetPreviewModal';
+import { api, session } from '@/lib/api';
 
 interface ScriptMeta {
   code?: string;
@@ -50,6 +52,31 @@ function ScriptThumbnail({ asset }: { asset: Asset }) {
 function ScriptPreview({ asset, onClose }: { asset: Asset; onClose: () => void }) {
   const meta = (asset.metadata ?? {}) as ScriptMeta;
   const code = meta.code || '';
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+
+  // 스튜디오 ScriptComponent 라이브러리에 복사 — 인스펙터에서 사용 가능.
+  const importToLibrary = async () => {
+    const tok = session.getToken();
+    if (!tok) { setImportMsg('로그인 필요'); return; }
+    setImporting(true); setImportMsg(null);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await api.createScriptComponent(tok, {
+        name: asset.name,
+        icon: meta.icon || '📜',
+        description: '에셋에서 가져옴',
+        code,
+        propsSchema: Array.isArray(meta.propsSchema) ? meta.propsSchema as any : [],
+      });
+      setImportMsg('✓ 내 컴포넌트 라이브러리에 추가됨 — 스튜디오에서 사용 가능');
+    } catch (e) {
+      setImportMsg('실패: ' + (e as Error).message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <AssetPreviewModal asset={asset} onClose={onClose}>
       <div style={{
@@ -59,11 +86,33 @@ function ScriptPreview({ asset, onClose }: { asset: Asset; onClose: () => void }
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
           <span style={{ fontSize: 28 }}>{meta.icon || '📜'}</span>
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>{asset.name}</span>
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', flex: 1 }}>{asset.name}</span>
+          <button
+            type="button"
+            onClick={importToLibrary}
+            disabled={importing}
+            style={{
+              background: importing ? 'rgba(99,102,241,0.5)' : 'linear-gradient(135deg,#6366f1,#a855f7)',
+              border: 'none', color: '#fff', borderRadius: 8,
+              padding: '7px 14px', fontSize: 12, fontWeight: 700,
+              cursor: importing ? 'default' : 'pointer',
+            }}>
+            {importing ? '추가 중...' : '📥 내 컴포넌트로 가져오기'}
+          </button>
         </div>
         {meta.propsSchema && meta.propsSchema.length > 0 && (
           <div style={{ marginBottom: 10, fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>
             인스펙터 변수: {meta.propsSchema.map(p => p.key).join(', ')}
+          </div>
+        )}
+        {importMsg && (
+          <div style={{
+            marginBottom: 10, fontSize: 11, padding: '6px 10px', borderRadius: 6,
+            background: importMsg.startsWith('✓') ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+            color: importMsg.startsWith('✓') ? '#86efac' : '#fca5a5',
+            border: '1px solid ' + (importMsg.startsWith('✓') ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'),
+          }}>
+            {importMsg}
           </div>
         )}
         <pre style={{
@@ -77,7 +126,7 @@ function ScriptPreview({ asset, onClose }: { asset: Asset; onClose: () => void }
           {code || '// (빈 스크립트)'}
         </pre>
         <div style={{ marginTop: 12, fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
-          ※ 편집은 Phase 2 — 인스펙터 통합 후 가능. 현재는 보기 전용.
+          ※ 가져온 후 ScriptComponentsModal 에서 코드 수정 가능. 마켓플레이스 공유는 에셋 공개 토글로.
         </div>
       </div>
     </AssetPreviewModal>
