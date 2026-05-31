@@ -8,6 +8,38 @@
 
 import * as THREE from 'three';
 
+// DRACO 디코더 (CDN 호스팅 WASM) — 같은 인스턴스를 모든 GLB 로드에 재사용 (워커 thread 풀 공유).
+// 압축 GLB (DRACO 적용) 면 모델 크기 5~10× 작아지고 디코딩 후 같은 BufferGeometry.
+let _dracoLoaderPromise: Promise<unknown> | null = null;
+async function getSharedDracoLoader() {
+  if (!_dracoLoaderPromise) {
+    _dracoLoaderPromise = (async () => {
+      const { DRACOLoader } = await import('three/examples/jsm/loaders/DRACOLoader.js');
+      const loader = new DRACOLoader();
+      loader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
+      loader.setDecoderConfig({ type: 'js' });   // 'wasm' 도 있지만 호환성 위해 js
+      return loader;
+    })();
+  }
+  return _dracoLoaderPromise;
+}
+
+// Meshopt 디코더 — gltf-pack 등으로 압축된 GLB 디코딩.
+let _meshoptPromise: Promise<unknown> | null = null;
+async function getSharedMeshopt() {
+  if (!_meshoptPromise) {
+    _meshoptPromise = (async () => {
+      const mod = await import('three/examples/jsm/libs/meshopt_decoder.module.js');
+      // ready 가 Promise 면 await
+      const decoder = (mod as { MeshoptDecoder: unknown }).MeshoptDecoder;
+      const ready = (decoder as { ready?: Promise<void> }).ready;
+      if (ready) await ready;
+      return decoder;
+    })();
+  }
+  return _meshoptPromise;
+}
+
 export type SupportedModelExt = 'fbx' | 'glb' | 'gltf' | 'dae' | 'obj';
 
 export const SUPPORTED_MODEL_EXTENSIONS: readonly SupportedModelExt[] = ['fbx', 'glb', 'gltf', 'dae', 'obj'];
@@ -32,9 +64,18 @@ export async function loadStaticModel(url: string, manager?: THREE.LoadingManage
   const ext = detectModelExt(url);
 
   if (ext === 'glb' || ext === 'gltf') {
-    const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+    const [{ GLTFLoader }, draco, meshopt] = await Promise.all([
+      import('three/examples/jsm/loaders/GLTFLoader.js'),
+      getSharedDracoLoader(),
+      getSharedMeshopt(),
+    ]);
     return new Promise((resolve, reject) => {
-      new GLTFLoader(manager).load(url, (gltf) => resolve(gltf.scene), undefined, reject);
+      const loader = new GLTFLoader(manager);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      loader.setDRACOLoader(draco as any);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      loader.setMeshoptDecoder(meshopt as any);
+      loader.load(url, (gltf) => resolve(gltf.scene), undefined, reject);
     });
   }
 
