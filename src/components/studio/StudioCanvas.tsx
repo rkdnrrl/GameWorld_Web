@@ -1,7 +1,7 @@
 'use client';
 import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { OrbitControls, TransformControls, Grid, Sky, Environment } from '@react-three/drei';
 import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
 import * as THREE from 'three';
@@ -2581,6 +2581,155 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
 }
 
 /* ── 변환 컨트롤 ──────────────────────────── */
+/* ── BoxResizeGizmo — 유니티 식 6면 박스 리사이즈. 면 잡고 끌면 그 방향으로만 늘어남(반대편 고정).
+   scale 모드 대체용. mesh 의 world bounding 기반으로 6면 핸들(작은 큐브) 띄움.
+   드래그: pointerdown 시 anchor (반대편 face world position) 기록 → window pointermove 로 mouse ray 와
+   axis line 의 최근접점 계산 → 새 face position → mesh scale + position 동시 갱신. */
+function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
+  target: THREE.Object3D | null;
+  onChange: (p: [number,number,number], s: [number,number,number]) => void;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
+}) {
+  const { camera, gl } = useThree();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dragRef = useRef<any>(null);
+  const [, force] = useState(0);
+  useFrame(() => { force(n => (n + 1) % 1000000); });   // 매 프레임 핸들 위치 갱신 (target 이 움직이면 따라감)
+
+  if (!target) return null;
+  // mesh 의 world bounding box (default plane/cube geometry = local [-0.5, 0.5])
+  target.updateWorldMatrix(true, false);
+  const ws = new THREE.Vector3(); target.getWorldScale(ws);
+  const wp = new THREE.Vector3(); target.getWorldPosition(wp);
+  const wq = new THREE.Quaternion(); target.getWorldQuaternion(wq);
+
+  // 6면 face 정의 — axis index (0=x, 1=y, 2=z), sign (+1/-1)
+  const faces: Array<{ axis: 0|1|2; sign: 1|-1; color: string }> = [
+    { axis: 0, sign: +1, color: '#ef4444' },
+    { axis: 0, sign: -1, color: '#ef4444' },
+    { axis: 1, sign: +1, color: '#10b981' },
+    { axis: 1, sign: -1, color: '#10b981' },
+    { axis: 2, sign: +1, color: '#3b82f6' },
+    { axis: 2, sign: -1, color: '#3b82f6' },
+  ];
+
+  const handleSize = 0.15;
+
+  const onPointerDown = (e: ThreeEvent<PointerEvent>, axis: 0|1|2, sign: 1|-1) => {
+    e.stopPropagation();
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    target.updateWorldMatrix(true, false);
+    // 시작 state — local scale, local position
+    const startScale: [number,number,number] = [target.scale.x, target.scale.y, target.scale.z];
+    const startPos: [number,number,number] = [target.position.x, target.position.y, target.position.z];
+    // axis world direction (회전 적용)
+    const axisLocal = new THREE.Vector3(axis === 0 ? 1 : 0, axis === 1 ? 1 : 0, axis === 2 ? 1 : 0);
+    const axisWorld = axisLocal.clone().applyQuaternion(wq).normalize();
+    // 시작 마우스 ray 와 axis line 의 closest point
+    const rect = gl.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2();
+    ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    const startRaycaster = new THREE.Raycaster();
+    startRaycaster.setFromCamera(ndc, camera);
+    const startT = closestPointOnLineToRay(wp, axisWorld, startRaycaster.ray);
+    dragRef.current = { axis, sign, startScale, startPos, axisWorld, axisCenterWorld: wp.clone(), startT, rect };
+    onDragStart?.();
+  };
+
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const rect = gl.domElement.getBoundingClientRect();
+      const ndc = new THREE.Vector2();
+      ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(ndc, camera);
+      const curT = closestPointOnLineToRay(d.axisCenterWorld, d.axisWorld, raycaster.ray);
+      // 핸들 이동량 (world 단위) = curT - startT (sign 방향 보정 불필요, signed scalar)
+      const delta = curT - d.startT;
+      // 새 scale[axis] = 시작 scale + delta * sign (면을 sign 방향으로 끌면 scale 증가)
+      const newScaleAxis = Math.max(0.01, d.startScale[d.axis] + delta * d.sign);
+      // 새 position = anchor 고정 → 중심을 (delta * sign / 2) 만큼 sign 방향으로 이동
+      // anchor 는 반대편 face. 그 face world position 은 wp - axisWorld * (startScale * 0.5).
+      // 새 mesh 중심 world = anchor + axisWorld * sign * (newScale / 2)
+      // local position 변경량: world 변위 / 부모 scale. 부모 식별 어려워 단순화 — local axis 방향으로 (delta/2) 이동.
+      const newScale: [number,number,number] = [d.startScale[0], d.startScale[1], d.startScale[2]];
+      newScale[d.axis] = newScaleAxis;
+      const newPos: [number,number,number] = [d.startPos[0], d.startPos[1], d.startPos[2]];
+      newPos[d.axis] = d.startPos[d.axis] + (delta * d.sign) / 2;
+      onChange(newPos, newScale);
+    };
+    const onUp = () => {
+      if (dragRef.current) {
+        dragRef.current = null;
+        onDragEnd?.();
+      }
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [camera, gl, onChange, onDragEnd]);
+
+  return (
+    <group position={wp} quaternion={wq}>
+      {faces.map((f, i) => {
+        const pos: [number,number,number] = [0, 0, 0];
+        pos[f.axis] = f.sign * ws.getComponent(f.axis) * 0.5;
+        return (
+          <mesh key={i} position={pos} onPointerDown={(e) => onPointerDown(e, f.axis, f.sign)}>
+            <boxGeometry args={[handleSize, handleSize, handleSize]} />
+            <meshBasicMaterial color={f.color} depthTest={false} transparent opacity={0.9} />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
+// Ray 와 line(point + direction) 의 closest point 의 line 상 parameter t.
+function closestPointOnLineToRay(linePoint: THREE.Vector3, lineDir: THREE.Vector3, ray: THREE.Ray): number {
+  const w0 = new THREE.Vector3().subVectors(linePoint, ray.origin);
+  const a = lineDir.dot(lineDir);
+  const b = lineDir.dot(ray.direction);
+  const c = ray.direction.dot(ray.direction);
+  const d = lineDir.dot(w0);
+  const e = ray.direction.dot(w0);
+  const denom = a * c - b * b;
+  if (Math.abs(denom) < 1e-6) return 0;
+  // t along line: (b*e - c*d) / denom
+  return (b * e - c * d) / denom;
+}
+
+/* BoxResizeGizmo 를 targetId 로 사용 — scene 트리 traverse 해서 target 찾고 BoxResizeGizmo 에 넘김. */
+function BoxResizeWrap({ targetId, onChange, onDragStart, onDragEnd }: {
+  targetId: string | null;
+  onChange: (id: string, p: [number,number,number], s: [number,number,number]) => void;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
+}) {
+  const { scene } = useThree();
+  const [target, setTarget] = useState<THREE.Object3D | null>(null);
+  useFrame(() => {
+    if (!targetId) { if (target) setTarget(null); return; }
+    let found: THREE.Object3D | null = null;
+    scene.traverse(o => { if (o.userData?.id === targetId) found = o; });
+    if (found && (found as THREE.Object3D).parent) { if (target !== found) setTarget(found); }
+    else { if (target) setTarget(null); }
+  });
+  return (
+    <BoxResizeGizmo target={target}
+      onChange={(p, s) => { if (targetId) onChange(targetId, p, s); }}
+      onDragStart={onDragStart} onDragEnd={onDragEnd} />
+  );
+}
+
 function SelectedTransform({ targetId, mode, onChange, toLocal, onDragEnd, onDragStart, snapTranslate, snapRotate, snapScale }: {
   targetId: string | null;
   mode: 'translate' | 'rotate' | 'scale';
@@ -5875,21 +6024,29 @@ export default function StudioCanvas() {
                   </group>
                 );
               })}
-              <SelectedTransform
-                targetId={objects.find(o => o.id === selectedId)?.locked ? null : selectedId}
-                mode={mode}
-                toLocal={worldTRSToLocal}
-                onChange={updateObjectTransform}
-                onDragStart={onTransformDragStart}
-                onDragEnd={() => {
-                  // 기즈모 이동은 위치만 바꾼다 — 부모 설정은 씬 트리에서 드래그로 명시적으로만.
-                  // (예전엔 다른 오브젝트 AABB 안에 들어가면 자동 자식 편입했으나, 의도치 않은 부모편입이 잦아 제거)
-                  pushHistory(objects);
-                }}
-                snapTranslate={snapEnabled ? snapSize : null}
-                snapRotate={snapEnabled ? (Math.PI / 12) : null}
-                snapScale={snapEnabled ? 0.1 : null}
-              />
+              {mode === 'scale' ? (
+                <BoxResizeWrap
+                  targetId={objects.find(o => o.id === selectedId)?.locked ? null : selectedId}
+                  onChange={(id, p, s) => { updateObjectTransform(id, { p, r: [0,0,0], s }, 'scale'); /* rotation 은 무시 */ }}
+                  onDragStart={onTransformDragStart}
+                  onDragEnd={() => pushHistory(objects)}
+                />
+              ) : (
+                <SelectedTransform
+                  targetId={objects.find(o => o.id === selectedId)?.locked ? null : selectedId}
+                  mode={mode}
+                  toLocal={worldTRSToLocal}
+                  onChange={updateObjectTransform}
+                  onDragStart={onTransformDragStart}
+                  onDragEnd={() => {
+                    // 기즈모 이동은 위치만 바꾼다 — 부모 설정은 씬 트리에서 드래그로 명시적으로만.
+                    pushHistory(objects);
+                  }}
+                  snapTranslate={snapEnabled ? snapSize : null}
+                  snapRotate={snapEnabled ? (Math.PI / 12) : null}
+                  snapScale={snapEnabled ? 0.1 : null}
+                />
+              )}
             </>
           )}
           <SceneRefCapture target={threeSceneRef} />
