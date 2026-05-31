@@ -341,7 +341,9 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   useFrame((state, dt) => {
     if (!mixer.current) return;
     let skipMixer = false;
-    if (obj) {
+    // 탭 백그라운드면 mixer skip — 보이지도 않는데 본 계산 불필요
+    if (typeof document !== 'undefined' && document.hidden) skipMixer = true;
+    if (!skipMixer && obj) {
       const cam = state.camera.position;
       const root = obj as THREE.Object3D;
       // root.position 은 부모(group) 기준 로컬일 수 있어 world position 사용

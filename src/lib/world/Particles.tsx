@@ -157,6 +157,8 @@ export default function Particles({ s, objId, burstRef }: {
   useFrame((state, dt) => {
     const pts = pointsRef.current;
     if (!pts) return;
+    // 탭 백그라운드면 update skip
+    if (typeof document !== 'undefined' && document.hidden) return;
     // ── distance cull — 멀면 update + 렌더 모두 skip ──
     pts.getWorldPosition(cullPos.current);
     if (cullPos.current.distanceToSquared(state.camera.position) > cullDist2) {

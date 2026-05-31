@@ -29,6 +29,8 @@ export function PerfManager({ cullDistance, followShadows = true, lightShadowCul
   const tmp = useRef(new THREE.Vector3());
 
   useFrame((state) => {
+    // 탭이 백그라운드면 무거운 작업 skip — R3F 렌더는 브라우저가 자동 throttle 함.
+    if (typeof document !== 'undefined' && document.hidden) return;
     const cam = state.camera.position;
     const v = tmp.current;
 
