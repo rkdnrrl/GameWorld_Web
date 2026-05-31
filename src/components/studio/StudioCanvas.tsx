@@ -263,7 +263,8 @@ function ComponentsSection({
       onDragOver={e => {
         if (!e.dataTransfer.types.includes('text/plain')) return;
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'copy';
+        // dropEffect 는 소스의 effectAllowed 와 호환돼야 — 'move' 로 맞춤 (StudioAssetCard 가 'move' 로 설정)
+        e.dataTransfer.dropEffect = 'move';
         if (!dropOver) setDropOver(true);
       }}
       onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropOver(false); }}
@@ -271,6 +272,7 @@ function ComponentsSection({
         e.preventDefault(); e.stopPropagation();
         setDropOver(false);
         const id = e.dataTransfer.getData('text/plain');
+        console.log('[ComponentsSection.drop] assetId=', id);
         if (id) onAttachFromAsset(id);
       }}
     >
@@ -5576,7 +5578,9 @@ export default function StudioCanvas() {
   // 이름이 같은 ScriptComponent 가 이미 라이브러리에 있으면 재사용 (간단 dedup).
   async function attachScriptAssetToSelection(assetId: string) {
     const asset = myAssets.find(a => a.id === assetId);
-    if (!asset || asset.kind !== 'script') return; // 스크립트 에셋만
+    console.log('[attachScriptAsset]', { assetId, found: !!asset, kind: asset?.kind, name: asset?.name, hasMeta: !!asset?.metadata });
+    if (!asset) { console.warn('[attachScriptAsset] asset not in myAssets — id=', assetId); return; }
+    if (asset.kind !== 'script') { console.warn('[attachScriptAsset] kind is', asset.kind, '— not script. Skip.'); return; }
     let comp = scriptComponents.find(c => c.name === asset.name);
     if (!comp) {
       const tok = token();
