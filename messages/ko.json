@@ -1501,7 +1501,8 @@
       "prefab_empty_hint": "오브젝트 선택 후\"💾 프리팹으로 저장\"",
       "sound_volume_label": "볼륨 ({volume})",
       "legacy_physics_warn": "⚠ 레거시 물리 설정 ({physics}). Physics 컴포넌트로 마이그레이션 권장:",
-      "ai_ui_json_intro": "ChatGPT / Claude 등 AI 에게 아래 스펙 + 만들고 싶은 UI 설명 을 같이 주면 JSON 을 만들어 줍니다. 그 JSON 을 아래 칸에 붙여넣고 가져오기."
+      "ai_ui_json_intro": "ChatGPT / Claude 등 AI 에게 아래 스펙 + 만들고 싶은 UI 설명 을 같이 주면 JSON 을 만들어 줍니다. 그 JSON 을 아래 칸에 붙여넣고 가져오기.",
+      "ctx_new_script": "📜 새 스크립트"
     },
     "aiGuide": {
       "request_placeholder_default": "(여기에 만들고 싶은 씬을 한국어 또는 영어로 자유롭게 적어주세요)",

@@ -1501,7 +1501,8 @@
       "prefab_empty_hint": "Select an object then \"💾 Save as Prefab\"",
       "sound_volume_label": "Volume ({volume})",
       "legacy_physics_warn": "⚠ Legacy physics setting ({physics}). Migration to Physics component recommended:",
-      "ai_ui_json_intro": "Give the spec below plus a description of the UI you want to ChatGPT / Claude, etc., and the AI will generate JSON. Paste that JSON in the box below and import."
+      "ai_ui_json_intro": "Give the spec below plus a description of the UI you want to ChatGPT / Claude, etc., and the AI will generate JSON. Paste that JSON in the box below and import.",
+      "ctx_new_script": "📜 New script"
     },
     "aiGuide": {
       "request_placeholder_default": "(Describe the scene you want to build here, in Korean or English)",

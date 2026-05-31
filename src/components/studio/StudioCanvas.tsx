@@ -30,6 +30,7 @@ import AiGuideModal from './AiGuideModal';
 import StudioTopBar from './StudioTopBar';
 import StudioShortcutsModal from './StudioShortcutsModal';
 import ScriptComponentsModal from './ScriptComponentsModal';
+import ScriptAssetEditor from '@/components/assets/ScriptAssetEditor';
 import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, type ComponentInstance, type ComponentType } from '@/lib/world/components';
 import { Player, type PlayerControl } from '@/components/world/WorldCanvas';
 
@@ -196,6 +197,7 @@ interface Asset {
   name: string;
   modelUrl: string;
   folder?: string | null;
+  kind?: string | null;     // asset_kinds.id — 'model' | 'script' | 'image' | ...
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   materialConfig?: any;     // 구버전 (DEPRECATED)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -205,7 +207,7 @@ interface Asset {
 /* ── Unity 스타일 컴포넌트 섹션 (인스펙터) ──
    부착된 컴포넌트 카드 + "+ 컴포넌트 추가" 버튼. 각 카드는 props 편집 input 포함. */
 function ComponentsSection({
-  selected, setObjects, pushHistory, allObjects, openPicker, scriptComponents, officialScriptComponents, onColliderAutoFit, onEditScriptComponent, onSelectId,
+  selected, setObjects, pushHistory, allObjects, openPicker, scriptComponents, officialScriptComponents, onColliderAutoFit, onEditScriptComponent, onSelectId, onAttachFromAsset,
 }: {
   selected: MapObject;
   setObjects: (updater: (prev: MapObject[]) => MapObject[]) => void;
@@ -218,9 +220,12 @@ function ComponentsSection({
   onEditScriptComponent: (scriptComponentId: string) => void;
   /** target 리스트 row 클릭 시 그 id 를 씬 트리에서 선택 */
   onSelectId: (id: string) => void;
+  /** 에셋 그리드에서 드래그된 스크립트 에셋을 컴포넌트로 부착 */
+  onAttachFromAsset: (assetId: string) => void;
 }) {
   const tCanvas = useTranslations('Studio.canvas');
   const list = selected.components ?? [];
+  const [dropOver, setDropOver] = useState(false);
   // 레거시: grabbable 플래그도 가상 컴포넌트로 표시 (제거 시 plain false)
   const legacyGrab = !!selected.grabbable && !list.some(c => c.type === 'grab');
 
@@ -247,7 +252,28 @@ function ComponentsSection({
   };
 
   return (
-    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)', marginBottom: 10 }}>
+    <div
+      style={{
+        marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)', marginBottom: 10,
+        outline: dropOver ? '2px dashed #34d399' : 'none',
+        background: dropOver ? 'rgba(52,211,153,0.06)' : 'transparent',
+        borderRadius: dropOver ? 6 : 0,
+        transition: 'outline 0.1s, background 0.1s',
+      }}
+      onDragOver={e => {
+        if (!e.dataTransfer.types.includes('text/plain')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        if (!dropOver) setDropOver(true);
+      }}
+      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropOver(false); }}
+      onDrop={e => {
+        e.preventDefault(); e.stopPropagation();
+        setDropOver(false);
+        const id = e.dataTransfer.getData('text/plain');
+        if (id) onAttachFromAsset(id);
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
         <div style={{ fontSize: 10, opacity: 0.5, fontWeight: 700, letterSpacing: 0.5 }}>COMPONENTS</div>
         <button type="button" onClick={openPicker}
@@ -3781,6 +3807,8 @@ export default function StudioCanvas() {
   useEffect(() => { setAssetSel(new Set()); }, [selectedFolder]);
   // 에셋 그리드 빈 영역 우클릭 컨텍스트 메뉴 (폴더 만들기)
   const [assetCtxMenu, setAssetCtxMenu] = useState<{ x: number; y: number } | null>(null);
+  // 스크립트 에셋 신규 작성 모달 — selectedFolder 에 저장
+  const [scriptEditorOpen, setScriptEditorOpen] = useState(false);
   // 씬 트리 우클릭 컨텍스트 메뉴 — objId=null 이면 빈 영역(추가), 있으면 노드(빼기/삭제)
   const [treeCtxMenu, setTreeCtxMenu] = useState<{ x: number; y: number; objId: string | null } | null>(null);
   // 씬 트리 — 커스텀 포인터 드래그(네이티브 X → 드래그 중에도 휠 스크롤 동작) + 가장자리 자동 스크롤
@@ -5544,6 +5572,41 @@ export default function StudioCanvas() {
     setComponentPickerOpen(false);
     setComponentPickerSearch('');
   }
+  // 스크립트 에셋을 컴포넌트 패널에 드롭 → ScriptComponent 로 가져온 뒤 선택 전체에 부착.
+  // 이름이 같은 ScriptComponent 가 이미 라이브러리에 있으면 재사용 (간단 dedup).
+  async function attachScriptAssetToSelection(assetId: string) {
+    const asset = myAssets.find(a => a.id === assetId);
+    if (!asset || asset.kind !== 'script') return; // 스크립트 에셋만
+    let comp = scriptComponents.find(c => c.name === asset.name);
+    if (!comp) {
+      const tok = token();
+      if (!tok) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const meta = (asset.metadata ?? {}) as { code?: string; icon?: string; propsSchema?: any[] };
+      try {
+        const res = await api.createScriptComponent(tok, {
+          name: asset.name,
+          icon: meta.icon || '📜',
+          description: '에셋에서 가져옴',
+          code: meta.code || '',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          propsSchema: (Array.isArray(meta.propsSchema) ? meta.propsSchema : []) as any,
+        });
+        comp = res.component;
+        setScriptComponents(prev => [...prev, comp!]);
+      } catch (e) {
+        console.error('[attachScriptAsset] failed', e);
+        return;
+      }
+    }
+    const compId = comp.id;
+    const propsSchema = comp.propsSchema ?? [];
+    addComponentToSelection(() => {
+      const initProps: Record<string, number | string | boolean> = {};
+      propsSchema.forEach(p => { initProps[p.key] = p.default; });
+      return { type: `user:${compId}` as ComponentType, props: initProps };
+    }, false);
+  }
   // 선택된 오브젝트가 "전부" 해당 컴포넌트를 가지고 있는지 (빌트인 버튼 비활성화 판단용)
   function allSelectedHaveComponent(type: string): boolean {
     const ids = componentTargetIds();
@@ -6614,6 +6677,7 @@ export default function StudioCanvas() {
                 onColliderAutoFit={colliderAutoFit}
                 onEditScriptComponent={(id) => { setScriptEditId(id); setScriptComponentsModalOpen(true); }}
                 onSelectId={(id) => setSelectedId(id)}
+                onAttachFromAsset={attachScriptAssetToSelection}
               />
 
               {/* 조명 속성 (pointlight / spotlight 전용) */}
@@ -7551,6 +7615,21 @@ export default function StudioCanvas() {
         />
       )}
 
+      {/* 스크립트 에셋 신규 작성 모달 — 컨텍스트 메뉴 "스크립트 생성" 진입점 */}
+      <ScriptAssetEditor
+        open={scriptEditorOpen}
+        editing={null}
+        folder={selectedFolder}
+        onClose={() => setScriptEditorOpen(false)}
+        onSaved={() => {
+          // myAssets 목록 새로고침
+          fetch(`${API}/api/assets/my`, { headers: { Authorization: `Bearer ${token()}` } })
+            .then(r => r.json())
+            .then(d => setMyAssets(d.assets || []))
+            .catch(() => {});
+        }}
+      />
+
       {/* 에셋 그리드 빈 영역 우클릭 → 폴더 만들기 컨텍스트 메뉴 */}
       {assetCtxMenu && (
         <>
@@ -7572,6 +7651,15 @@ export default function StudioCanvas() {
               onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
             >
               📁 {t('newFolder')}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setScriptEditorOpen(true); setAssetCtxMenu(null); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', background: 'none', border: 'none', color: '#fff', fontSize: 12, fontWeight: 600, padding: '9px 11px', borderRadius: 6, cursor: 'pointer' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(129,140,248,0.22)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+            >
+              📜 {tCanvas("ctx_new_script")}
             </button>
           </div>
         </>
