@@ -18,15 +18,21 @@ import { useFrame } from '@react-three/fiber';
 import { useRef } from 'react';
 import * as THREE from 'three';
 
-export function PerfManager({ cullDistance, followShadows = true, lightShadowCullDistance = 80 }: {
+export function PerfManager({ cullDistance, followShadows = false, lightShadowCullDistance = 80 }: {
   cullDistance: number;
-  /** directionalLight 의 shadow frustum 을 카메라 따라 이동. 기본 켬. */
+  /** directionalLight 의 shadow frustum 을 카메라 따라 이동. 기본 꺼짐 — 텍셀 정렬 어려워 대각 이동 시
+   *  그림자 가장자리가 떨림 (shadow shimmering). 큰 맵엔 ALP 의 기본 shadow bounds (-60..60) 로 충분. */
   followShadows?: boolean;
   /** point/spot 라이트가 카메라에서 이 거리 너머면 castShadow=false (그림자 비용 ↓). */
   lightShadowCullDistance?: number;
 }) {
   const frameRef = useRef(0);
   const tmp = useRef(new THREE.Vector3());
+  // shadow follow 의 light view 벡터 재사용 (allocation 회피)
+  const _tmpFwd   = useRef(new THREE.Vector3()).current;
+  const _tmpAxis  = useRef(new THREE.Vector3()).current;
+  const _tmpRight = useRef(new THREE.Vector3()).current;
+  const _tmpUp    = useRef(new THREE.Vector3()).current;
 
   useFrame((state) => {
     // 탭이 백그라운드면 무거운 작업 skip — R3F 렌더는 브라우저가 자동 throttle 함.
@@ -34,42 +40,55 @@ export function PerfManager({ cullDistance, followShadows = true, lightShadowCul
     const cam = state.camera.position;
     const v = tmp.current;
 
-    // ── (2) Shadow camera follow — 매 프레임 (light 위치는 카메라 빠르게 따라가야 함) ──
-    // 카메라 위치를 그대로 따라가면 텍셀이 매 프레임 다른 픽셀에 샘플링되어 그림자 가장자리가 "기어다님"
-    // (shadow shimmering / crawling). → 월드 좌표를 텍셀 크기 단위로 round 해 텍셀 정렬 보장.
+    // ── (2) Shadow camera follow ── 기본 꺼짐. 켤 경우 light view 의 local 축 으로 texel snap.
     if (followShadows) {
       state.scene.traverse((obj) => {
         const l = obj as THREE.DirectionalLight;
         if (!l.isDirectionalLight || !l.castShadow) return;
-        // 첫 호출 시 원본 offset 기록 + target scene 에 등록
         if (!l.userData.alpFollowInit) {
           l.userData.alpFollowInit = true;
           l.userData.alpFollowOffset = l.position.clone();
           if (l.target && !l.target.parent) state.scene.add(l.target);
         }
         const offset = l.userData.alpFollowOffset as THREE.Vector3;
-
-        // ── Texel snap ──
-        // shadow.camera 는 OrthographicCamera. (right-left)/mapSize = 텍셀당 월드 단위.
-        // light/target 좌표를 그 단위로 round → 카메라가 미세 이동해도 그림자 텍셀이 같은 픽셀에 머무름.
+        // ── light view local 축 기준 texel snap ──
+        // world X/Z 가 아니라 light view 의 x/y 축으로 round (light 방향이 비스듬해도 정확).
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const sc: any = l.shadow?.camera;
         const mapSize = l.shadow?.mapSize?.x || 1024;
-        let snapX = cam.x, snapZ = cam.z;
+        // 1) 원래 follow 위치 (snap 전)
+        const tx = cam.x, ty = cam.y, tz = cam.z;
+        // 2) light 의 view rotation (lookAt 기반)
+        const fwd = _tmpFwd; fwd.set(-offset.x, -offset.y, -offset.z).normalize();   // light → target 방향
+        if (fwd.lengthSq() < 1e-6) fwd.set(0, -1, 0);
+        // light up (대략 Y, fwd 와 평행 시 다른 축 선택)
+        const upGuess = Math.abs(fwd.y) > 0.99 ? _tmpAxis.set(0, 0, 1) : _tmpAxis.set(0, 1, 0);
+        const right = _tmpRight.copy(upGuess).cross(fwd).normalize();
+        const up    = _tmpUp.copy(fwd).cross(right).normalize();
         if (sc && typeof sc.right === 'number' && typeof sc.left === 'number') {
           const worldPerTexel = (sc.right - sc.left) / mapSize;
           if (worldPerTexel > 0) {
-            snapX = Math.round(cam.x / worldPerTexel) * worldPerTexel;
-            snapZ = Math.round(cam.z / worldPerTexel) * worldPerTexel;
+            // target 위치를 light view 의 right/up 축으로 투영해 round
+            const px = right.x * tx + right.y * ty + right.z * tz;
+            const py = up.x    * tx + up.y    * ty + up.z    * tz;
+            const fz = fwd.x   * tx + fwd.y   * ty + fwd.z   * tz;
+            const sx = Math.round(px / worldPerTexel) * worldPerTexel;
+            const sy = Math.round(py / worldPerTexel) * worldPerTexel;
+            // 다시 world 로
+            const wx = right.x * sx + up.x * sy + fwd.x * fz;
+            const wy = right.y * sx + up.y * sy + fwd.y * fz;
+            const wz = right.z * sx + up.z * sy + fwd.z * fz;
+            l.position.set(wx + offset.x, wy + offset.y, wz + offset.z);
+            if (l.target) {
+              l.target.position.set(wx, wy, wz);
+              l.target.updateMatrixWorld();
+            }
+            return;
           }
         }
-        // Y 는 texel snap 안 해도 무방 (수평 이동이 주). round 하면 더 안정.
-        const snapY = cam.y;
-        l.position.set(snapX + offset.x, snapY + offset.y, snapZ + offset.z);
-        if (l.target) {
-          l.target.position.set(snapX, snapY, snapZ);
-          l.target.updateMatrixWorld();
-        }
+        // shadow camera 없으면 그냥 따라감 (fallback)
+        l.position.set(tx + offset.x, ty + offset.y, tz + offset.z);
+        if (l.target) { l.target.position.set(tx, ty, tz); l.target.updateMatrixWorld(); }
       });
     }
 
