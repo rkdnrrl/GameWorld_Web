@@ -14,7 +14,7 @@
  */
 import { createContext, memo, useContext, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Html } from '@react-three/drei';
-import { useThree } from '@react-three/fiber';
+import { useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 export const VIDEO_SYNC_EVENT = '__video__';
@@ -307,8 +307,6 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
     iframe.height = String(YT_IFRAME_H);
     iframe.src = url;
     iframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
-    // itch.io 같은 호스팅 게임/외부 사이트는 마우스·키보드 상호작용 필요 → pointer-events:auto, tabIndex 정상.
-    // (단점: iframe 클릭 시 focus 잡혀 외부 단축키 안 먹음 — 게임 끝나면 캔버스 다른 곳 클릭으로 focus 해제)
     iframe.style.cssText = 'border:none;display:block;background:#000;pointer-events:auto;width:100%;height:100%';
     iframeRef.current = iframe;
     return () => {
@@ -316,6 +314,18 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
       iframeRef.current = null;
     };
   }, [url, live]);
+
+  // 상호작용 가능하게 — drei portal 의 wrapper div 들 zIndex 를 캔버스(16777271)보다 위로 강제.
+  // 그래야 마우스 클릭이 iframe 으로 가서 호스팅 게임 조작 가능. drei 가 매 프레임 8388634 로 갱신하므로
+  // useFrame 으로 매 프레임 덮어씀.
+  useFrame(() => {
+    if (!live) return;
+    let cur: HTMLElement | null = iframeRef.current?.parentElement ?? null;
+    for (let i = 0; i < 5 && cur && cur.tagName !== 'BODY'; i++) {
+      if (cur.style.zIndex !== '16777272') cur.style.zIndex = '16777272';
+      cur = cur.parentElement;
+    }
+  });
 
   if (!live) return null;
   const PX_TO_UNIT = 0.03;
