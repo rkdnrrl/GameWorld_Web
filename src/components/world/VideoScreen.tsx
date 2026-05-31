@@ -222,10 +222,9 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
     return () => window.removeEventListener('pointerdown', onGesture);
   }, [withSound]);
 
-  // drei <Html transform> 의 px→월드 환산 — drei Html.js 271행 기본 distanceFactor=10 → factor 40 →
-  // **1 월드 단위 = 40px**. 따라서 iframe 1px = 1/40 unit. PX_TO_UNIT = 1/40 = 0.025 가 정확.
-  // sx = planeW / (640 * 0.025) → iframe 가로가 정확히 planeW. 미리보기 mesh 와 일치.
-  const PX_TO_UNIT = 1 / 40;
+  // drei <Html transform> 의 px→월드 환산 (perspective + cameraTransform 복합이라 정확한 공식 못 찾고
+  // 실험으로 조정). 0.025 너무 큼, 0.06 약간 큼 → 0.09 시도. mesh 와 정확히 안 맞으면 이 값 미세 조정.
+  const PX_TO_UNIT = 0.09;
   const sx = Math.max(0.01, planeW) / (YT_IFRAME_W * PX_TO_UNIT);
   const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);
   return (
