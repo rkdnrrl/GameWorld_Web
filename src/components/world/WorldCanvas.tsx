@@ -2763,6 +2763,29 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     const main = luaScripts.current.get(objId); if (main) fire(main);
     componentScripts.current.get(objId)?.forEach(({ vm }) => fire(vm));
 
+    // Pickup 자동 hookup — pickup 컴포넌트 가진 오브젝트의 trigger 영역에 다른 오브젝트(플레이어 등) 진입 시
+    // (mode='touch' 만 자동 — interact 는 1인칭 클릭 onClick 으로 사용자가 처리).
+    // 호스트가 ui.text 등 broadcast 효과 + oneShot 이면 destroy. 인벤토리 데이터는 사용자가 data.add 로.
+    if (kind === 'triggerEnter') {
+      const cur = customObjects?.find(o => o.id === objId) ?? runtimeObjectsRef.current.find(o => o.id === objId);
+      const pickupComp = cur?.components?.find(c => c.type === 'pickup');
+      if (pickupComp && pickupComp.props?.mode === 'touch') {
+        const itemKey = String(pickupComp.props?.itemKey ?? 'item');
+        const displayName = String(pickupComp.props?.displayName ?? itemKey);
+        const value = Number(pickupComp.props?.value ?? 0);
+        // 줍힘 broadcast — 모든 클라가 onNetEvent('__pickup__') 으로 받아 인벤토리 갱신
+        sendScriptEvent?.('__pickup__', '__pickup__', {
+          itemKey, displayName, value, pickerId: otherId, objId,
+        });
+        const oneShot = pickupComp.props?.oneShot !== false;
+        if (oneShot) {
+          if (objId.startsWith('rt_')) destroyObject(objId);
+          // 저장된 오브젝트는 hidden 처리 — 사용자가 다음 라운드 시 다시 show 가능
+          // (현재 hidden 동기화 멀티 sync 없음 — 다음 phase)
+        }
+      }
+    }
+
     // Damage 컴포넌트 자동 hookup — objId 가 damage 컴포넌트 부착됐고 otherId 가 health 있으면 자동 피해.
     // contact 모드 = collisionEnter / trigger 모드 = triggerEnter 만 발동. team 같으면 skip.
     if (kind === 'collisionEnter' || kind === 'triggerEnter') {

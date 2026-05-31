@@ -6,4 +6,5 @@ import './model';
 import './image';
 import './audio';
 import './video';
+import './script';
 // 새 kind 추가 시 여기에 import 한 줄 추가

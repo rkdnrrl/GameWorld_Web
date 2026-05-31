@@ -56,19 +56,43 @@ const AI_PROMPT_TEMPLATE = `당신은 ALP 가상 월드 빌더 도우미입니�
       // 물리 (선택, primitives)
       "physics": "fixed",         // none | fixed | dynamic
 
-      // Unity 식 컴포넌트 (선택)
+      // Unity 식 컴포넌트 (선택). 게임 로직 컴포넌트 5개 + 기존 6개 = 11종.
       "components": [
         { "type": "worldPhysics", "props": { "gravity": -22, "jumpPower": 7 } },
         { "type": "physics",      "props": { "mode": "dynamic" } },
         { "type": "collider",     "props": { "sizeX": 1, "sizeY": 1, "sizeZ": 1, "trigger": false } },
         { "type": "grab" },
         { "type": "particle",     "props": { "preset": "fire", "count": 200, "size": 1 } },
-        { "type": "postProcess",  "props": { "bloom": true, "bloomIntensity": 0.6 } }
+        { "type": "postProcess",  "props": { "bloom": true, "bloomIntensity": 0.6 } },
+
+        // ── 게임 로직 (호러/액션/RPG 등) ──
+        { "type": "health",   "props": { "maxHp": 100, "invulnTime": 0.3, "destroyOnDeath": true, "team": "enemy",
+                                          "onDeathScript": "ui.text('msg', '처치!');" } },
+        { "type": "damage",   "props": { "amount": 15, "mode": "contact", "team": "enemy", "destroyOnHit": false } },
+        // mode: contact (충돌) | trigger (영역 진입) | aoe (주변 주기)
+        // aoe 시: aoeRadius, aoeInterval 추가
+        { "type": "npc",      "props": { "mode": "both", "aggroRange": 15, "attackRange": 1.5,
+                                          "attackCooldown": 1.5, "moveSpeed": 3, "patrolRadius": 8, "team": "enemy" } },
+        // mode: idle | patrol (배회) | chase (감지 시 추적) | both (배회+감지시 추적)
+        // npc 는 호스트 10Hz 자동 추적 + 사거리 도달 시 '__npcattack__' 이벤트 broadcast
+        { "type": "flashlight","props": { "range": 15, "angle": 35, "intensity": 5,
+                                           "color": "#fff5dd", "followCamera": true, "on": true } }
+        // grab 컴포넌트 같이 부착 → 손전등 줍고 1인칭이면 카메라 따라감
       ],
 
       // 스크립트 (선택)
       "script": "function onUpdate(dt) { self.setRotation(0, world.time, 0); }",
       "scriptVars": { "speed": 1.5 },
+
+      // Terrain (kind === "terrain" 일 때만) — heightmap 기반 지면
+      "terrain": {
+        "size": 50,
+        "segments": 64,
+        "heights": [],         // (segments+1)^2 = 4225 개 Float. 빈 배열이면 평탄 (Y=0)
+        "baseColor": "#5a8a4a",
+        "textureUrl": "",      // 잔디/모래/돌 텍스처 URL
+        "textureRepeat": 8
+      },
 
       // UI 오브젝트 (kind === "ui" 일 때만)
       "ui": {
@@ -108,6 +132,7 @@ const AI_PROMPT_TEMPLATE = `당신은 ALP 가상 월드 빌더 도우미입니�
 # 스크립트 API
 self.setPosition(x,y,z) / setRotation(rx,ry,rz) / applyImpulse(x,y,z)
 self.setVisible(b) / setColor(hex) / setIntensity(n) / destroy()
+self.getHp() / damage(n, opts) / heal(n)             // health 컴포넌트 있을 때
 world.time / getPlayers() / find(idOrLabel) / spawn(opts) / isHost() / runtimeCount() / playSound(url)
 game.get(key, d) / set(key, v) / add(key, n)          // 메모리 게임 상태
 ui.text(id, text, opts) / bar(id, value, max, opts)  // 화면 HUD (간단)
@@ -116,6 +141,11 @@ data.get(key, d) / set(key, v) / all()               // 플레이어 개인 영�
 data.shared.get(key, d) / set(key, v) / all()        // 맵 전역 영구 저장 (모두 공유)
 net.sendAll(event, data) / sendTo(playerId, event, data)
 Math.sin / cos / abs / floor / round / random / PI
+
+# 멀티 플레이 권위 모델
+- 호스트만 NPC AI, damage, hp 계산. 비호스트는 broadcast 받아 시각 반영.
+- npc 가 공격하면 '__npcattack__' 이벤트 broadcast → 모든 클라가 onNetEvent 로 받음.
+  onNetEvent(event, data) { if (event === '__npcattack__') { if (data.targetId === self.id) game.add('hp', -data.amount); } }
 
 # 이벤트 함수 (스크립트)
 function onStart() {}        // 호스트 결정 후 1회
@@ -142,7 +172,35 @@ function onTriggerEnter(otherId) {}
 }
 \`\`\`
 
-# 예시 2 — 점수 시스템 (UI + data)
+# 예시 2 — 호러 게임 미니 (적 + 손전등 + 함정)
+\`\`\`json
+{
+  "objects": [
+    { "kind":"plane", "position":[0,0,0], "rotation":[-1.5708,0,0], "scale":[40,40,1], "color":"#1a1a1a" },
+    { "kind":"empty", "label":"환경", "position":[0,0,0],
+      "components":[{ "type":"postProcess", "props":{ "brightness":-0.3, "vignette":0.7 } }] },
+    { "kind":"cube", "label":"손전등", "position":[2,1,0], "scale":[0.2,0.2,0.6], "color":"#444",
+      "components":[
+        { "type":"physics", "props":{ "mode":"dynamic" } }, { "type":"grab" },
+        { "type":"flashlight", "props":{ "range":18, "angle":40, "intensity":7, "followCamera":true } }
+      ] },
+    { "kind":"cube", "label":"좀비", "position":[10,1,5], "color":"#3a5",
+      "components":[
+        { "type":"physics", "props":{ "mode":"dynamic" } }, { "type":"collider" },
+        { "type":"health", "props":{ "maxHp":80, "team":"enemy", "onDeathScript":"world.playSound('/sounds/die.mp3');" } },
+        { "type":"damage", "props":{ "amount":15, "mode":"contact", "team":"enemy" } },
+        { "type":"npc", "props":{ "mode":"both", "aggroRange":12, "attackRange":1.8, "moveSpeed":3, "patrolRadius":6 } }
+      ] },
+    { "kind":"cylinder", "label":"독구름", "position":[5,0.5,5], "scale":[6,1,6], "color":"#5a4",
+      "components":[
+        { "type":"collider", "props":{ "trigger":true, "sizeY":3 } },
+        { "type":"damage", "props":{ "amount":3, "mode":"aoe", "aoeRadius":4, "aoeInterval":1, "team":"trap" } }
+      ] }
+  ]
+}
+\`\`\`
+
+# 예시 3 — 점수 시스템 (UI + data)
 \`\`\`json
 {
   "objects": [

@@ -387,7 +387,29 @@ export function generateSessionId(): string {
 
 export interface WorldDataEntry { key: string; value: unknown; shared: boolean; updatedAt: string }
 
+export interface ScriptAssetInput {
+  name: string;
+  code: string;
+  icon?: string;
+  propsSchema?: Array<{ key: string; label: string; type: string; default?: unknown; min?: number; max?: number; step?: number; options?: string[] }>;
+  folder?: string;
+}
+
 export const api = {
+  /** 스크립트 asset 생성 (파일 X, 코드 텍스트만) */
+  createScriptAsset(token: string, input: ScriptAssetInput) {
+    return request<{ asset: unknown }>("/api/assets/script", {
+      method: "POST", headers: authHeaders(token),
+      body: JSON.stringify(input),
+    });
+  },
+  /** 스크립트 asset 코드/메타 업데이트 (본인만) */
+  updateScriptAsset(token: string, id: string, patch: Partial<ScriptAssetInput>) {
+    return request<{ asset: unknown }>(`/api/assets/${encodeURIComponent(id)}/script`, {
+      method: "PATCH", headers: authHeaders(token),
+      body: JSON.stringify(patch),
+    });
+  },
   /** 맵 KV 저장 — 스크립트 data.save 백엔드. shared=true 면 맵 전역, false 면 본인. */
   worldDataSave(token: string, mapId: string, key: string, value: unknown, shared = false) {
     return request<{ ok: true }>(`/api/world-data/${encodeURIComponent(mapId)}/save`, {

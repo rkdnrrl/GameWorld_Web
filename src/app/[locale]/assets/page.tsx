@@ -17,6 +17,7 @@ import '@/lib/assets/kinds';
 import CreatorNav         from '@/components/creator/CreatorNav';
 import AssetSidebar       from '@/components/assets/AssetSidebar';
 import AssetToolbar       from '@/components/assets/AssetToolbar';
+import ScriptAssetEditor  from '@/components/assets/ScriptAssetEditor';
 import AssetGrid          from '@/components/assets/AssetGrid';
 import AssetActiveFilters from '@/components/assets/AssetActiveFilters';
 import AssetTagEditor     from '@/components/assets/AssetTagEditor';
@@ -174,6 +175,8 @@ export default function AssetsPage() {
 
   /* ── 업로드 ── */
   const [uploading, setUploading] = useState(false);
+  // 스크립트 에셋 편집 모달 — null 이면 신규, Asset 이면 편집
+  const [scriptEditorOpen, setScriptEditorOpen] = useState<{ editing: import('@/lib/assets/types').Asset | null } | null>(null);
   const [progress,  setProgress]  = useState(0);
   const [batchDone,  setBatchDone]  = useState(0);
   const [batchTotal, setBatchTotal] = useState(0);
@@ -698,6 +701,35 @@ export default function AssetsPage() {
               }}>
                 ⚠️ {error}
               </div>
+            )}
+
+            {/* 📜 스크립트 만들기 — 파일 없이 코드 직접 입력 */}
+            <button
+              type="button"
+              onClick={() => setScriptEditorOpen({ editing: null })}
+              style={{
+                width: '100%', marginBottom: 14, padding: '11px 16px',
+                background: 'linear-gradient(135deg, rgba(99,102,241,0.18), rgba(168,85,247,0.18))',
+                border: '1px dashed rgba(168,85,247,0.55)', borderRadius: 12,
+                color: '#e9d5ff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}
+            >
+              📜 새 스크립트 만들기 <span style={{ opacity: 0.5, fontSize: 11, fontWeight: 500 }}>(코드 직접 입력)</span>
+            </button>
+
+            {scriptEditorOpen && (
+              <ScriptAssetEditor
+                open={true}
+                editing={scriptEditorOpen.editing}
+                folder={selectedFolder || null}
+                onClose={() => setScriptEditorOpen(null)}
+                onSaved={() => {
+                  // 저장 후 목록 새로고침
+                  fetch(`${API}/api/assets/my`, { headers: { Authorization: `Bearer ${token()}` } })
+                    .then(r => r.json()).then(d => setAssets(d.assets || [])).catch(() => {});
+                }}
+              />
             )}
 
             {/* 툴바 */}

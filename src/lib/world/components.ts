@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -165,6 +165,22 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'color',     label: '색',                                type: 'color',   default: '#fff5dd' },
       { key: 'followCamera', label: '1인칭 카메라 따라감 (이 오브젝트 잡을 때만)', type: 'boolean', default: true },
       { key: 'on',        label: '기본 켜짐',                         type: 'boolean', default: true },
+    ],
+  },
+  {
+    type: 'pickup',
+    name: 'Pickup (줍기/스크랩)',
+    icon: '📦',
+    description: '아이템화 — 플레이어가 닿거나 1인칭에서 E 로 줍기. 인벤토리 추가 + 오브젝트 제거 (또는 hidden). 스크랩 가치/무게/타입 지정. 인벤토리 = data 시스템 (data.get("inventory") 배열로 저장).',
+    props: [
+      { key: 'itemKey',    label: '아이템 키 (data 식별자)',   type: 'string',  default: 'item' },
+      { key: 'displayName', label: '표시 이름',                 type: 'string',  default: '아이템' },
+      { key: 'icon',       label: '아이콘 이모지 (선택)',       type: 'string',  default: '📦' },
+      { key: 'value',      label: '가치 (스크랩 가격 등)',      type: 'number',  default: 10, min: 0, max: 1000000, step: 1 },
+      { key: 'weight',     label: '무게 (kg)',                  type: 'number',  default: 1, min: 0, max: 1000, step: 0.1 },
+      { key: 'mode',       label: '줍기 방식 (touch=닿으면 / interact=E 키)', type: 'enum', default: 'interact', options: ['touch', 'interact'] },
+      { key: 'oneShot',    label: '일회성 (줍고 사라짐 / false=계속 줍힘)', type: 'boolean', default: true },
+      { key: 'maxStack',   label: '최대 스택 (인벤토리)',       type: 'number',  default: 99, min: 1, max: 9999, step: 1 },
     ],
   },
   {
