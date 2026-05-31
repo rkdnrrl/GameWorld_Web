@@ -222,13 +222,17 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
     return () => window.removeEventListener('pointerdown', onGesture);
   }, [withSound]);
 
-  // drei <Html transform> 의 px→월드 환산 (perspective + cameraTransform 복합이라 정확한 공식 못 찾고
-  // 실험으로 조정). 0.025 너무 큼, 0.06 약간 큼 → 0.09 시도. mesh 와 정확히 안 맞으면 이 값 미세 조정.
-  const PX_TO_UNIT = 0.0255;
-  const sx = Math.max(0.01, planeW) / (YT_IFRAME_W * PX_TO_UNIT);
-  const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);
+  // drei <Html transform> 은 부모 mesh 의 world matrix(=부모 scale 포함) 를 상속함.
+  // 따라서 sx 에 planeW 곱하면 부모 scale 과 중복으로 W² 비선형 늘어남.
+  // 올바른 공식: sx = 1 / (640 * 0.025), sy = 1 / (360 * 0.025). 부모 mesh scale 이 자동 fit.
+  // drei Html.js 271행: multiplier = 1/((distanceFactor||10)/400) = 40 → 1 unit = 40px → PX_TO_UNIT = 1/40.
+  // (planeW, planeH 는 안 씀 — 부모 scale 이 모든 걸 처리)
+  const PX_TO_UNIT = 1 / 40;
+  void planeW; void planeH;  // 더 이상 사용 안 함 (부모 scale 이 fit 담당)
+  const sx = 1 / (YT_IFRAME_W * PX_TO_UNIT);
+  const sy = 1 / (YT_IFRAME_H * PX_TO_UNIT);
   return (
-    <Html transform occlude="blending" pointerEvents="none" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center>
+    <Html transform occlude="blending" pointerEvents="none" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center>
       <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000' }} />
     </Html>
   );
