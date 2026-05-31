@@ -2589,6 +2589,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // data.save 콜백 closure 안에서 stale 값 안 잡히게 ref 로 미러
   const worldIdRef = useRef<string | undefined>(worldId);
   useEffect(() => { worldIdRef.current = worldId; }, [worldId]);
+  // Health 컴포넌트 — 오브젝트별 현재 HP 캐시 (lazy init) + 피격 무적 마지막 시각
+  const healthStoreRef = useRef<Map<string, number>>(new Map());
+  const healthInvulnRef = useRef<Map<string, number>>(new Map());
   // ── VRChat 식 포탈 ──
   const [portal, setPortal] = useState<PortalState | null>(null);
   const portalRef = useRef<PortalState | null>(null);
@@ -3509,6 +3512,64 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         // 1인칭 grab 상태 조회 — 로컬 클라 기준 (네트워크 동기 X)
         isGrabbed: () => grabbedStateRef.current.has(targetId),
         grabber: () => grabbedStateRef.current.get(targetId) ?? null,
+        // Health — components.health 가 있어야 동작. 없으면 null/0.
+        getHp: () => {
+          const target = customObjects?.find(o => o.id === targetId) ?? runtimeObjectsRef.current.find(o => o.id === targetId);
+          const h = target?.components?.find(c => c.type === 'health');
+          if (!h) return null;
+          if (!healthStoreRef.current.has(targetId)) {
+            const start = Number(h.props?.startHp ?? -1);
+            const mx = Number(h.props?.maxHp ?? 100);
+            healthStoreRef.current.set(targetId, start < 0 ? mx : start);
+          }
+          return healthStoreRef.current.get(targetId) ?? 0;
+        },
+        damage: (amount, opts) => {
+          const target = customObjects?.find(o => o.id === targetId) ?? runtimeObjectsRef.current.find(o => o.id === targetId);
+          const h = target?.components?.find(c => c.type === 'health');
+          if (!h) return 0;
+          const mx = Number(h.props?.maxHp ?? 100);
+          if (!healthStoreRef.current.has(targetId)) {
+            const start = Number(h.props?.startHp ?? -1);
+            healthStoreRef.current.set(targetId, start < 0 ? mx : start);
+          }
+          // invuln 처리
+          const invuln = Number(h.props?.invulnTime ?? 0.3);
+          if (!opts?.ignoreInvuln && invuln > 0) {
+            const last = healthInvulnRef.current.get(targetId) ?? -Infinity;
+            const now = worldElapsed.current;
+            if (now - last < invuln) return healthStoreRef.current.get(targetId) ?? 0;
+            healthInvulnRef.current.set(targetId, now);
+          }
+          const cur = healthStoreRef.current.get(targetId) ?? 0;
+          const next = Math.max(0, cur - Math.max(0, amount));
+          healthStoreRef.current.set(targetId, next);
+          if (next <= 0) {
+            // 사망 처리 — onDeathScript 호출 + destroyOnDeath 면 자동 제거
+            try {
+              const deathScript = String(h.props?.onDeathScript || '').trim();
+              if (deathScript) {
+                // eslint-disable-next-line @typescript-eslint/no-implied-eval
+                new Function('attackerId', deathScript)(opts?.attackerId || null);
+              }
+            } catch (e) { console.warn('[health] onDeath script error', e); }
+            const destroyOn = h.props?.destroyOnDeath !== false;
+            if (destroyOn && targetId.startsWith('rt_')) destroyObject(targetId);
+            healthStoreRef.current.delete(targetId);
+            healthInvulnRef.current.delete(targetId);
+          }
+          return next;
+        },
+        heal: (amount) => {
+          const target = customObjects?.find(o => o.id === targetId) ?? runtimeObjectsRef.current.find(o => o.id === targetId);
+          const h = target?.components?.find(c => c.type === 'health');
+          if (!h) return 0;
+          const mx = Number(h.props?.maxHp ?? 100);
+          const cur = healthStoreRef.current.get(targetId) ?? mx;
+          const next = Math.min(mx, cur + Math.max(0, amount));
+          healthStoreRef.current.set(targetId, next);
+          return next;
+        },
       });
 
     // worldAPI 도 obj 의존성 없음 — hoist

@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -124,6 +124,63 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     name: 'Grab (잡기)',
     icon: '✋',
     description: '1인칭 모드에서 E 키로 잡을 수 있게 함. Physics handle 처럼 카메라 앞을 따라옴. (Physics dynamic 컴포넌트 같이 부착 권장)',
+  },
+  {
+    type: 'health',
+    name: 'Health (HP)',
+    icon: '❤️',
+    description: '오브젝트에 HP 부여. 데미지 받으면 감소, 0 이면 onDeath 실행 후 destroy (옵션). 스크립트에서 self.heal(n) / self.damage(n) / self.getHp() 호출 가능. damage 컴포넌트 가 닿으면 자동 감소.',
+    props: [
+      { key: 'maxHp',         label: '최대 HP',                  type: 'number',  default: 100, min: 1, max: 100000, step: 1 },
+      { key: 'startHp',       label: '시작 HP (-1=maxHp)',       type: 'number',  default: -1, min: -1, max: 100000, step: 1 },
+      { key: 'invulnTime',    label: '피격 무적 시간 (s)',       type: 'number',  default: 0.3, min: 0, max: 5, step: 0.1 },
+      { key: 'destroyOnDeath', label: '사망 시 자동 제거',         type: 'boolean', default: true },
+      { key: 'team',          label: '팀 (같은 팀끼리 무피해)',   type: 'string',  default: '' },
+      { key: 'onDeathScript', label: 'onDeath 스크립트 (JS)',    type: 'string',  default: '' },
+    ],
+  },
+  {
+    type: 'damage',
+    name: 'Damage (피해 가하기)',
+    icon: '⚔️',
+    description: '이 오브젝트가 다른 오브젝트(health 있음)와 닿거나 트리거 진입 시 피해를 가함. team 같으면 피해 X. 발사체/적/함정 등에 부착.',
+    props: [
+      { key: 'amount',     label: '피해량',                          type: 'number',  default: 10, min: 1, max: 10000, step: 1 },
+      { key: 'mode',       label: '모드 (contact=닿으면 / trigger=영역 진입 / aoe=주기적 주변)', type: 'enum', default: 'contact', options: ['contact', 'trigger', 'aoe'] },
+      { key: 'aoeRadius',  label: 'AOE 반경 (m, aoe 모드만)',         type: 'number',  default: 3, min: 0.1, max: 50, step: 0.1 },
+      { key: 'aoeInterval', label: 'AOE 주기 (s, aoe 모드만)',         type: 'number',  default: 1, min: 0.1, max: 60, step: 0.1 },
+      { key: 'team',       label: '팀 (대상 team 과 같으면 피해 X)',  type: 'string',  default: '' },
+      { key: 'destroyOnHit', label: '히트 후 자동 제거 (발사체용)',   type: 'boolean', default: false },
+    ],
+  },
+  {
+    type: 'flashlight',
+    name: 'Flashlight (손전등)',
+    icon: '🔦',
+    description: '오브젝트 위치에 spotlight 부착 + 카메라(1인칭) 따라가게 옵션. 호러/탐험 게임에 사용. range/angle 로 빔 형태 조절. 토글로 ON/OFF.',
+    props: [
+      { key: 'range',     label: '빔 거리 (m)',                       type: 'number',  default: 15, min: 1, max: 100, step: 0.5 },
+      { key: 'angle',     label: '빔 각도 (degree)',                  type: 'number',  default: 35, min: 5, max: 90, step: 1 },
+      { key: 'intensity', label: '밝기',                              type: 'number',  default: 5, min: 0, max: 50, step: 0.5 },
+      { key: 'color',     label: '색',                                type: 'color',   default: '#fff5dd' },
+      { key: 'followCamera', label: '1인칭 카메라 따라감 (이 오브젝트 잡을 때만)', type: 'boolean', default: true },
+      { key: 'on',        label: '기본 켜짐',                         type: 'boolean', default: true },
+    ],
+  },
+  {
+    type: 'npc',
+    name: 'NPC (적 AI)',
+    icon: '👹',
+    description: '단순 AI — 배회 → 가장 가까운 플레이어 감지 → 추적 → 사거리 도달 시 공격 (damage 컴포넌트 필요). aggroRange 안 들어오면 idle. 호스트만 실행 (권위 모델).',
+    props: [
+      { key: 'mode',        label: 'AI (idle=정지 / patrol=배회 / chase=추적 / both=감지시 추적)', type: 'enum', default: 'both', options: ['idle', 'patrol', 'chase', 'both'] },
+      { key: 'aggroRange',  label: '감지 반경 (m)',                  type: 'number', default: 15, min: 0.5, max: 100, step: 0.5 },
+      { key: 'attackRange', label: '공격 사거리 (m)',                type: 'number', default: 1.5, min: 0.1, max: 50, step: 0.1 },
+      { key: 'attackCooldown', label: '공격 쿨다운 (s)',             type: 'number', default: 1.5, min: 0.1, max: 30, step: 0.1 },
+      { key: 'moveSpeed',   label: '이동 속도 (m/s)',                type: 'number', default: 3, min: 0.1, max: 20, step: 0.1 },
+      { key: 'patrolRadius', label: '배회 반경 (patrol 모드, m)',     type: 'number', default: 8, min: 0.5, max: 50, step: 0.5 },
+      { key: 'team',        label: '팀',                              type: 'string', default: 'enemy' },
+    ],
   },
   {
     type: 'videoRemote',

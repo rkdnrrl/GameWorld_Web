@@ -825,6 +825,12 @@ export interface JsObjectAPI {
   isGrabbed?(): boolean;
   /** 잡고 있는 플레이어 id — 안 잡혀있으면 null. (로컬 클라 기준) */
   grabber?(): string | null;
+  /** Health 컴포넌트 있는 오브젝트의 HP 조회. 없으면 null. */
+  getHp?(): number | null;
+  /** Health 컴포넌트 있는 오브젝트의 HP 감소. amount 양수. invuln 무시 옵션. 반환=현재 HP. */
+  damage?(amount: number, opts?: { ignoreInvuln?: boolean; attackerId?: string }): number;
+  /** Health 컴포넌트 있는 오브젝트의 HP 회복. amount 양수. 반환=현재 HP. */
+  heal?(amount: number): number;
 }
 
 /** world.spawn() 옵션 — UserMapObject 부분 집합 */
@@ -916,6 +922,11 @@ export class JsScript {
         setColor: (hex: string) => obj.setColor?.(String(hex)),
         setIntensity: (v: number) => obj.setIntensity?.(Number(v)),
         destroy: () => obj.destroy?.(),
+        // Health 컴포넌트 — 없으면 noop/0
+        getHp:  () => obj.getHp?.() ?? 0,
+        damage: (n: number, opts?: { ignoreInvuln?: boolean; attackerId?: string }) =>
+          obj.damage?.(Number(n) || 0, opts) ?? 0,
+        heal:   (n: number) => obj.heal?.(Number(n) || 0) ?? 0,
       };
 
       // 다른 오브젝트를 self와 동일한 인터페이스로 감싸는 헬퍼
