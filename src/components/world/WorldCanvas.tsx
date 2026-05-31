@@ -1,7 +1,7 @@
 'use client';
 import React, { Suspense, useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Html, Sky, Text, Environment, useProgress } from '@react-three/drei';
+import { Html, Sky, Text, Environment, useProgress, PerformanceMonitor } from '@react-three/drei';
 import { Physics, RigidBody, CapsuleCollider, CuboidCollider, useRapier } from '@react-three/rapier';
 
 /** Rapier 강체 — 우리가 호출하는 메서드만 추린 미니 인터페이스 (버전 무관) */
@@ -2602,6 +2602,10 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     return Math.max(1, Math.min(graphics.dpr, budget));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graphics.dpr]);
+  // PerformanceMonitor 기반 동적 dpr factor — fps 떨어지면 자동으로 dpr 낮춤 (0.5~1.0).
+  // effectiveDpr 위에 곱셈으로 적용 → 최대값은 effectiveDpr 유지, 약한 GPU 에서만 자동 낮아짐.
+  const [dprFactor, setDprFactor] = useState(1);
+  const adaptiveDpr = Math.max(1, effectiveDpr * dprFactor);
   const ss = sceneSettings ?? {};
   const ambientIntensity = typeof ss.lightAmbient === 'number' ? ss.lightAmbient : 0.04;
   const dirIntensity     = typeof ss.lightDir     === 'number' ? ss.lightDir     : 0.0;
@@ -3617,7 +3621,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       <Canvas
         shadows={{ enabled: true, type: THREE.PCFShadowMap, autoUpdate: true }}
         camera={{ fov: 60, near: 0.3, far: graphics.farClip, position: [0, 8, 12] }}
-        dpr={effectiveDpr}
+        dpr={adaptiveDpr}
         gl={{
           alpha: true,
           antialias: true,
@@ -3690,6 +3694,13 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         {shadowsEnabled && <ShadowUpdateThrottle hz={30} />}
         {/* 거리 기반 culling — 카메라에서 cullDistance 너머 mesh 안 그림 */}
         <PerfManager cullDistance={graphics.cullDistance} />
+        {/* fps 자동 측정 — 60fps 못 유지하면 dpr 0.75 단계로 낮춤. 회복되면 다시 올림.
+            min/max bound 로 0.5~1.0 사이만 조정 — 너무 흐려지지 않게. */}
+        <PerformanceMonitor bounds={() => [50, 60]} flipflops={3}
+          onIncline={() => setDprFactor(1)}
+          onDecline={() => setDprFactor((f) => Math.max(0.5, f - 0.25))}
+          onFallback={() => setDprFactor(0.5)}
+        />
         <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
         <CanvasPointerEventsKeeper />
 
