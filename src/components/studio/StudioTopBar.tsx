@@ -37,6 +37,7 @@ export default function StudioTopBar({
   mapMenuOpen = false, onToggleMapMenu,
 }: StudioTopBarProps) {
   const t = useTranslations('Studio');
+  const tTopBar = useTranslations('Studio.topBar');
   const router = useRouter();
 
   const confirmAndExit = () => {
@@ -63,7 +64,7 @@ export default function StudioTopBar({
         <button onClick={confirmAndExit} title={t('tbExit')} style={mBtn('rgba(255,255,255,0.06)')}>←</button>
         <button onClick={onToggleLeft} title={t('scSceneObjects')}
           style={mBtn(leftPanelOpen ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.06)')}>☰</button>
-        <button onClick={onToggleMapMenu} title="맵 정보"
+        <button onClick={onToggleMapMenu} title={tTopBar("tb_map_info")}
           style={mBtn(mapMenuOpen ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.06)')}>ℹ️</button>
         <input
           value={name}
@@ -125,7 +126,7 @@ export default function StudioTopBar({
 
       {/* 좌·우 패널 토글 — 한 쌍(뷰 컨트롤)으로 묶음 */}
       <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-        <button onClick={onToggleLeft} title="좌측 패널 (씬·도구)"
+        <button onClick={onToggleLeft} title={tTopBar("tb_left_panel_tooltip")}
           style={{
             width: 32, height: 32, flexShrink: 0,
             background: leftPanelOpen ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.06)',
@@ -134,7 +135,7 @@ export default function StudioTopBar({
           }}>
           ⬛◧
         </button>
-        <button onClick={onToggleRight} title="우측 패널 (인스펙터)"
+        <button onClick={onToggleRight} title={tTopBar("tb_right_panel_tooltip")}
           style={{
             width: 32, height: 32, flexShrink: 0,
             background: rightPanelOpen ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.06)',
@@ -162,14 +163,14 @@ export default function StudioTopBar({
       />
 
       {/* 맵 정보 드롭다운 토글 (내맵/새월드/설명/공개) */}
-      <button onClick={onToggleMapMenu} title="맵 정보 (내 맵·새 월드·설명·공개)"
+      <button onClick={onToggleMapMenu} title={tTopBar("tb_map_menu_tooltip")}
         style={{
           flexShrink: 0, height: 34, padding: '0 11px', borderRadius: 8, cursor: 'pointer',
           background: mapMenuOpen ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.06)',
           border: `1px solid ${mapMenuOpen ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`,
           color: '#fff', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
         }}>
-        ℹ️ 맵 {mapMenuOpen ? '▴' : '▾'}
+        ℹ️ {tTopBar("tb_map_label")} {mapMenuOpen ? '▴' : '▾'}
       </button>
 
       <div style={{

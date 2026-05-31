@@ -10,6 +10,7 @@
  *  - boolean: 체크박스
  *  - enum: 가로 radio 버튼 (options 배열)
  */
+import { useTranslations } from 'next-intl';
 import type { ScriptComponentPropDef } from '@/lib/api';
 
 interface Props {
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export default function PropsSchemaEditor({ schema, onChange }: Props) {
+  const tStudio = useTranslations('Studio.propsSchema');
   const updateAt = (idx: number, patch: Partial<ScriptComponentPropDef>) => {
     onChange(schema.map((p, i) => i === idx ? { ...p, ...patch } : p));
   };
@@ -32,26 +34,26 @@ export default function PropsSchemaEditor({ schema, onChange }: Props) {
     <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '10px 12px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0' }}>Props 스키마 (선택)</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0' }}>{tStudio("props_schema_title")}</div>
           <div style={{ fontSize: 10, opacity: 0.55, marginTop: 2 }}>
-            유저가 부착할 때 보이는 input UI. 비워두면 자유 key:value 입력 모드.
+            {tStudio("props_schema_desc")}
           </div>
         </div>
         <button type="button" onClick={addNew}
           style={{ background: 'rgba(99,102,241,0.25)', border: '1px solid rgba(99,102,241,0.5)', color: '#a5b4fc', borderRadius: 5, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-          + prop 추가
+          {tStudio("btn_add_prop")}
         </button>
       </div>
       {schema.length === 0 && (
-        <div style={{ fontSize: 10, opacity: 0.4, textAlign: 'center', padding: '6px 0' }}>없음</div>
+        <div style={{ fontSize: 10, opacity: 0.4, textAlign: 'center', padding: '6px 0' }}>{tStudio("msg_empty")}</div>
       )}
       {schema.map((p, idx) => (
         <div key={idx} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: 8, marginTop: 6 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 90px 28px', gap: 5 }}>
-            <input type="text" placeholder="key (예: speed)" value={p.key}
+            <input type="text" placeholder={tStudio("placeholder_key")} value={p.key}
               onChange={(e) => updateAt(idx, { key: e.target.value.trim() })}
               style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '5px 7px', borderRadius: 4, outline: 'none' }} />
-            <input type="text" placeholder="라벨 (예: 속도)" value={p.label}
+            <input type="text" placeholder={tStudio("placeholder_label")} value={p.label}
               onChange={(e) => updateAt(idx, { label: e.target.value })}
               style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '5px 7px', borderRadius: 4, outline: 'none' }} />
             <select value={p.type}
@@ -70,7 +72,7 @@ export default function PropsSchemaEditor({ schema, onChange }: Props) {
               style={{ background: 'rgba(239,68,68,0.18)', border: '1px solid rgba(239,68,68,0.35)', color: '#fca5a5', borderRadius: 4, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>✕</button>
           </div>
           <div style={{ display: 'flex', gap: 5, marginTop: 5, alignItems: 'center' }}>
-            <span style={{ fontSize: 10, opacity: 0.6, minWidth: 50 }}>기본값</span>
+            <span style={{ fontSize: 10, opacity: 0.6, minWidth: 50 }}>{tStudio("label_default")}</span>
             {p.type === 'boolean' ? (
               <input type="checkbox" checked={!!p.default}
                 onChange={(e) => updateAt(idx, { default: e.target.checked })} />
@@ -82,8 +84,8 @@ export default function PropsSchemaEditor({ schema, onChange }: Props) {
           </div>
           {p.type === 'enum' && (
             <div style={{ display: 'flex', gap: 5, marginTop: 5, alignItems: 'center' }}>
-              <span style={{ fontSize: 10, opacity: 0.6, minWidth: 50 }}>선택지</span>
-              <input type="text" placeholder="x,y,z (쉼표 구분)"
+              <span style={{ fontSize: 10, opacity: 0.6, minWidth: 50 }}>{tStudio("label_options")}</span>
+              <input type="text" placeholder={tStudio("placeholder_enum_options")}
                 value={(p.options ?? []).join(',')}
                 onChange={(e) => {
                   // 입력 중 빈 항목 허용 (콤마 직후 등). 저장 시 filter.

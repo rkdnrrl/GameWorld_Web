@@ -5,6 +5,7 @@
  * Phase 2 prototype: 입력 단순 (text input 위주, 시각 핸들 X). Phase 후속에서 시각 anchor/pivot picker.
  */
 import React, { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import type { UiData, RectTransform } from '@/lib/world/uiObjects';
 
 interface UiObj {
@@ -42,20 +43,21 @@ const ANCHOR_PRESETS: { label: string; min: { x: number; y: number }; max: { x: 
 ];
 
 export function UiInspector({ selected, onUpdate, onRectUpdate, onCommit, onTransformUpdate }: Props) {
+  const t = useTranslations('Studio.uiInspector');
   const ui = selected.ui;
-  if (!ui) return <div style={{ fontSize: 11, opacity: 0.5 }}>(ui 데이터 없음)</div>;
+  if (!ui) return <div style={{ fontSize: 11, opacity: 0.5 }}>{t("no_ui_data")}</div>;
   const r = ui.rect;
   const isCanvas = ui.type === 'canvas';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ fontSize: 10, opacity: 0.7 }}>
-        UI 요소: <b style={{ color: '#a5b4fc' }}>{ui.type}</b>
+        {t("ui_element_label")} <b style={{ color: '#a5b4fc' }}>{ui.type}</b>
       </div>
 
       {/* ── Canvas: space 선택 ── */}
       {isCanvas && (
-        <Section label="Space" hint={(ui.space ?? 'screen') === 'world' ? '3D 공간 — MapObject position/rotation/scale 로 위치 조절' : 'HTML overlay — 화면 고정'}>
+        <Section label="Space" hint={(ui.space ?? 'screen') === 'world' ? t("space_world_hint") : t("space_screen_hint")}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
             {(['screen', 'world'] as const).map(s => (
               <button key={s}
@@ -84,7 +86,7 @@ export function UiInspector({ selected, onUpdate, onRectUpdate, onCommit, onTran
 
       {/* ── World Canvas: 영역 크기 (px) ── */}
       {isCanvas && (ui.space ?? 'screen') === 'world' && (
-        <Section label="Canvas 영역 (px)" hint="자식 RectTransform 의 기준 영역. 실제 3D 크기는 오브젝트 scale 로 조절">
+        <Section label={t("canvas_area_px")} hint={t("canvas_area_hint")}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
             <NumIn label="W" value={r.width}  onChange={v => onRectUpdate({ width: v })}  onCommit={onCommit} />
             <NumIn label="H" value={r.height} onChange={v => onRectUpdate({ height: v })} onCommit={onCommit} />
@@ -95,21 +97,21 @@ export function UiInspector({ selected, onUpdate, onRectUpdate, onCommit, onTran
       {/* ── World Canvas: 3D Transform ── */}
       {isCanvas && (ui.space ?? 'screen') === 'world' && onTransformUpdate && selected.position && selected.rotation && selected.scale && (
         <>
-          <Section label="3D 위치 (m)">
+          <Section label={t("transform_position_3d")}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
               <NumIn label="X" step={0.1} value={selected.position[0]} onChange={v => onTransformUpdate({ position: [v, selected.position![1], selected.position![2]] })} onCommit={onCommit} />
               <NumIn label="Y" step={0.1} value={selected.position[1]} onChange={v => onTransformUpdate({ position: [selected.position![0], v, selected.position![2]] })} onCommit={onCommit} />
               <NumIn label="Z" step={0.1} value={selected.position[2]} onChange={v => onTransformUpdate({ position: [selected.position![0], selected.position![1], v] })} onCommit={onCommit} />
             </div>
           </Section>
-          <Section label="3D 회전 (rad)">
+          <Section label={t("transform_rotation_3d")}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
               <NumIn label="X" step={0.05} value={selected.rotation[0]} onChange={v => onTransformUpdate({ rotation: [v, selected.rotation![1], selected.rotation![2]] })} onCommit={onCommit} />
               <NumIn label="Y" step={0.05} value={selected.rotation[1]} onChange={v => onTransformUpdate({ rotation: [selected.rotation![0], v, selected.rotation![2]] })} onCommit={onCommit} />
               <NumIn label="Z" step={0.05} value={selected.rotation[2]} onChange={v => onTransformUpdate({ rotation: [selected.rotation![0], selected.rotation![1], v] })} onCommit={onCommit} />
             </div>
           </Section>
-          <Section label="3D 크기" hint="기본 0.005 (1920px ≈ 9.6m 시 ~5m). 작을수록 작게 보임">
+          <Section label={t("transform_scale_3d")} hint={t("transform_scale_hint")}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
               <NumIn label="X" step={0.001} value={selected.scale[0]} onChange={v => onTransformUpdate({ scale: [v, selected.scale![1], selected.scale![2]] })} onCommit={onCommit} />
               <NumIn label="Y" step={0.001} value={selected.scale[1]} onChange={v => onTransformUpdate({ scale: [selected.scale![0], v, selected.scale![2]] })} onCommit={onCommit} />
@@ -122,7 +124,7 @@ export function UiInspector({ selected, onUpdate, onRectUpdate, onCommit, onTran
       {/* ── 자식 요소 (Canvas 아님): RectTransform ── */}
       {!isCanvas && (
         <>
-          <Section label="Anchor / Pivot 프리셋">
+          <Section label={t("anchor_pivot_preset")}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3 }}>
               {ANCHOR_PRESETS.map((p, i) => {
                 const active = r.anchorMin.x === p.min.x && r.anchorMin.y === p.min.y && r.anchorMax.x === p.max.x && r.anchorMax.y === p.max.y;
@@ -167,13 +169,13 @@ export function UiInspector({ selected, onUpdate, onRectUpdate, onCommit, onTran
       {/* ── 요소별 props ── */}
       {(ui.type === 'text' || ui.type === 'button') && (
         <>
-          <Section label="텍스트">
+          <Section label={t("text")}>
             <TextIn value={ui.text || ''} onChange={v => onUpdate({ text: v })} onCommit={onCommit} multiline />
           </Section>
-          <Section label="폰트 크기">
+          <Section label={t("font_size")}>
             <NumIn value={ui.fontSize ?? (ui.type === 'text' ? 24 : 18)} onChange={v => onUpdate({ fontSize: v })} onCommit={onCommit} />
           </Section>
-          <Section label="글자색">
+          <Section label={t("font_color")}>
             <ColorIn value={ui.color || '#ffffff'} onChange={v => { onUpdate({ color: v }); onCommit(); }} />
           </Section>
         </>
@@ -181,10 +183,10 @@ export function UiInspector({ selected, onUpdate, onRectUpdate, onCommit, onTran
 
       {ui.type === 'button' && (
         <>
-          <Section label="배경색">
+          <Section label={t("bg_color")}>
             <ColorIn value={ui.bgColor || '#4f46e5'} onChange={v => { onUpdate({ bgColor: v }); onCommit(); }} />
           </Section>
-          <Section label="onClick 스크립트 (JS)" hint="누르면 실행. game.* / ui.* 등 ALP API 사용 가능">
+          <Section label={t("onclick_script")} hint={t("onclick_script_hint")}>
             <TextIn value={ui.onClickScript || ''} onChange={v => onUpdate({ onClickScript: v })} onCommit={onCommit} multiline />
           </Section>
         </>
@@ -192,10 +194,10 @@ export function UiInspector({ selected, onUpdate, onRectUpdate, onCommit, onTran
 
       {ui.type === 'image' && (
         <>
-          <Section label="이미지 URL">
-            <TextIn value={ui.imageUrl || ''} onChange={v => onUpdate({ imageUrl: v })} onCommit={onCommit} placeholder="https://... 또는 /path/to/image.png" />
+          <Section label={t("image_url")}>
+            <TextIn value={ui.imageUrl || ''} onChange={v => onUpdate({ imageUrl: v })} onCommit={onCommit} placeholder={t("image_url_placeholder")} />
           </Section>
-          <Section label={`투명도 (${(ui.alpha ?? 1).toFixed(2)})`}>
+          <Section label={t("opacity_label", { alpha: (ui.alpha ?? 1).toFixed(2) })}>
             <input type="range" min={0} max={1} step={0.05}
               value={ui.alpha ?? 1}
               onChange={e => onUpdate({ alpha: Number(e.target.value) })}
@@ -208,10 +210,10 @@ export function UiInspector({ selected, onUpdate, onRectUpdate, onCommit, onTran
 
       {ui.type === 'panel' && (
         <>
-          <Section label="배경색 (CSS rgba 가능)">
+          <Section label={t("bg_color_css")}>
             <TextIn value={ui.bgColor || 'rgba(0,0,0,0.5)'} onChange={v => onUpdate({ bgColor: v })} onCommit={onCommit} />
           </Section>
-          <Section label={`투명도 (${(ui.alpha ?? 1).toFixed(2)})`}>
+          <Section label={t("opacity_label", { alpha: (ui.alpha ?? 1).toFixed(2) })}>
             <input type="range" min={0} max={1} step={0.05}
               value={ui.alpha ?? 1}
               onChange={e => onUpdate({ alpha: Number(e.target.value) })}
@@ -224,22 +226,22 @@ export function UiInspector({ selected, onUpdate, onRectUpdate, onCommit, onTran
 
       {ui.type === 'slider' && (
         <>
-          <Section label="범위 (min ~ max)">
+          <Section label={t("range_min_max")}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
               <NumIn label="min" value={ui.min ?? 0}   onChange={v => onUpdate({ min: v })}   onCommit={onCommit} />
               <NumIn label="max" value={ui.max ?? 100} onChange={v => onUpdate({ max: v })}   onCommit={onCommit} />
             </div>
           </Section>
-          <Section label="현재 값">
+          <Section label={t("current_value")}>
             <NumIn value={ui.value ?? 50} onChange={v => onUpdate({ value: v })} onCommit={onCommit} />
           </Section>
           <Section label="step">
             <NumIn value={ui.step ?? 1} step={0.1} onChange={v => onUpdate({ step: v })} onCommit={onCommit} />
           </Section>
-          <Section label="색상">
+          <Section label={t("color")}>
             <ColorIn value={ui.color || '#4f46e5'} onChange={v => { onUpdate({ color: v }); onCommit(); }} />
           </Section>
-          <Section label="onChange 스크립트" hint="값 변할 때 실행. value 변수로 슬라이더 값 사용.">
+          <Section label={t("onchange_script")} hint={t("onchange_script_slider_hint")}>
             <TextIn value={ui.onChangeScript || ''} onChange={v => onUpdate({ onChangeScript: v })} onCommit={onCommit} multiline />
           </Section>
         </>
@@ -247,25 +249,25 @@ export function UiInspector({ selected, onUpdate, onRectUpdate, onCommit, onTran
 
       {ui.type === 'input' && (
         <>
-          <Section label="현재 값">
+          <Section label={t("current_value")}>
             <TextIn value={ui.inputValue || ''} onChange={v => onUpdate({ inputValue: v })} onCommit={onCommit} multiline={ui.multiline} />
           </Section>
           <Section label="Placeholder">
             <TextIn value={ui.placeholder || ''} onChange={v => onUpdate({ placeholder: v })} onCommit={onCommit} />
           </Section>
-          <Section label="여러 줄">
+          <Section label={t("multiline")}>
             <label style={{ fontSize: 11, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
               <input type="checkbox" checked={!!ui.multiline} onChange={e => { onUpdate({ multiline: e.target.checked }); onCommit(); }} /> multiline (textarea)
             </label>
           </Section>
-          <Section label="폰트 크기">
+          <Section label={t("font_size")}>
             <NumIn value={ui.fontSize ?? 14} onChange={v => onUpdate({ fontSize: v })} onCommit={onCommit} />
           </Section>
-          <Section label="글자색"><ColorIn value={ui.color || '#ffffff'} onChange={v => { onUpdate({ color: v }); onCommit(); }} /></Section>
-          <Section label="배경색 (CSS rgba 가능)">
+          <Section label={t("font_color")}><ColorIn value={ui.color || '#ffffff'} onChange={v => { onUpdate({ color: v }); onCommit(); }} /></Section>
+          <Section label={t("bg_color_css")}>
             <TextIn value={ui.bgColor || 'rgba(0,0,0,0.5)'} onChange={v => onUpdate({ bgColor: v })} onCommit={onCommit} />
           </Section>
-          <Section label="onChange 스크립트" hint="텍스트 변할 때 실행. value 변수로 텍스트 사용.">
+          <Section label={t("onchange_script")} hint={t("onchange_script_input_hint")}>
             <TextIn value={ui.onChangeScript || ''} onChange={v => onUpdate({ onChangeScript: v })} onCommit={onCommit} multiline />
           </Section>
         </>
@@ -273,19 +275,19 @@ export function UiInspector({ selected, onUpdate, onRectUpdate, onCommit, onTran
 
       {ui.type === 'toggle' && (
         <>
-          <Section label="라벨 텍스트">
+          <Section label={t("label_text")}>
             <TextIn value={ui.text || ''} onChange={v => onUpdate({ text: v })} onCommit={onCommit} />
           </Section>
-          <Section label="현재 체크 상태">
+          <Section label={t("current_checked")}>
             <label style={{ fontSize: 11, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
               <input type="checkbox" checked={!!ui.checked} onChange={e => { onUpdate({ checked: e.target.checked }); onCommit(); }} /> checked
             </label>
           </Section>
-          <Section label="폰트 크기">
+          <Section label={t("font_size")}>
             <NumIn value={ui.fontSize ?? 13} onChange={v => onUpdate({ fontSize: v })} onCommit={onCommit} />
           </Section>
-          <Section label="글자색"><ColorIn value={ui.color || '#ffffff'} onChange={v => { onUpdate({ color: v }); onCommit(); }} /></Section>
-          <Section label="onChange 스크립트" hint="체크 변할 때 실행. value 변수로 true/false 사용.">
+          <Section label={t("font_color")}><ColorIn value={ui.color || '#ffffff'} onChange={v => { onUpdate({ color: v }); onCommit(); }} /></Section>
+          <Section label={t("onchange_script")} hint={t("onchange_script_toggle_hint")}>
             <TextIn value={ui.onChangeScript || ''} onChange={v => onUpdate({ onChangeScript: v })} onCommit={onCommit} multiline />
           </Section>
         </>
@@ -293,20 +295,20 @@ export function UiInspector({ selected, onUpdate, onRectUpdate, onCommit, onTran
 
       {ui.type === 'scrollview' && (
         <>
-          <Section label="배경색 (CSS rgba 가능)">
+          <Section label={t("bg_color_css")}>
             <TextIn value={ui.bgColor || 'rgba(0,0,0,0.3)'} onChange={v => onUpdate({ bgColor: v })} onCommit={onCommit} />
           </Section>
-          <Section label="스크롤 방향">
+          <Section label={t("scroll_direction")}>
             <div style={{ display: 'flex', gap: 8 }}>
               <label style={{ fontSize: 11, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <input type="checkbox" checked={ui.scrollVertical !== false} onChange={e => { onUpdate({ scrollVertical: e.target.checked }); onCommit(); }} /> 세로
+                <input type="checkbox" checked={ui.scrollVertical !== false} onChange={e => { onUpdate({ scrollVertical: e.target.checked }); onCommit(); }} /> {t("scroll_vertical")}
               </label>
               <label style={{ fontSize: 11, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <input type="checkbox" checked={!!ui.scrollHorizontal} onChange={e => { onUpdate({ scrollHorizontal: e.target.checked }); onCommit(); }} /> 가로
+                <input type="checkbox" checked={!!ui.scrollHorizontal} onChange={e => { onUpdate({ scrollHorizontal: e.target.checked }); onCommit(); }} /> {t("scroll_horizontal")}
               </label>
             </div>
           </Section>
-          <Section label="Content 영역 (px)" hint="자식 RectTransform 기준 영역. 영역 크기보다 크면 스크롤. 0 = 영역과 같음">
+          <Section label={t("content_area_px")} hint={t("content_area_hint")}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
               <NumIn label="W" value={ui.scrollContentWidth  ?? 0} onChange={v => onUpdate({ scrollContentWidth: v })}  onCommit={onCommit} />
               <NumIn label="H" value={ui.scrollContentHeight ?? 0} onChange={v => onUpdate({ scrollContentHeight: v })} onCommit={onCommit} />

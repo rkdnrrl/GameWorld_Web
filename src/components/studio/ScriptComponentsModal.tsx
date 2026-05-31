@@ -5,6 +5,7 @@
  * 새 컴포넌트 만들기 / 편집 / 삭제. 부착은 인스펙터의 컴포넌트 picker 에서.
  */
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { api, session, type ScriptComponent, type ScriptComponentPropDef } from '@/lib/api';
 import PropsSchemaEditor, { normalizePropsSchema } from './PropsSchemaEditor';
 import { SCRIPT_SNIPPETS, SNIPPET_CATEGORIES } from '@/lib/world/scriptSnippets';
@@ -43,6 +44,7 @@ function onRelease(grabberId) {
 `;
 
 export default function ScriptComponentsModal({ open, onClose, components, onChanged, editId }: Props) {
+  const t = useTranslations('Studio.scriptComponents');
   // 'list' = 목록, 'edit' = 새/편집 폼
   const [view, setView] = useState<'list' | 'edit'>('list');
   const [editing, setEditing] = useState<ScriptComponent | null>(null); // null = 새로 만들기
@@ -59,8 +61,8 @@ export default function ScriptComponentsModal({ open, onClose, components, onCha
   // 예제 스니펫 삽입 — 코드가 비었거나 기본 템플릿이면 교체, 아니면 끝에 덧붙임(유저가 합침).
   function insertSnippet(snippetCode: string) {
     setCode(prev => {
-      const t = prev.trim();
-      if (t === '' || prev === DEFAULT_CODE) return snippetCode;
+      const trimmed = prev.trim();
+      if (trimmed === '' || prev === DEFAULT_CODE) return snippetCode;
       return prev.replace(/\s*$/, '') + '\n\n' + snippetCode;
     });
   }
@@ -99,8 +101,8 @@ export default function ScriptComponentsModal({ open, onClose, components, onCha
 
   const save = async () => {
     const tok = session.getToken();
-    if (!tok) { alert('로그인이 필요합니다.'); return; }
-    if (!name.trim()) { alert('이름을 입력하세요.'); return; }
+    if (!tok) { alert(t('msg_login_required')); return; }
+    if (!name.trim()) { alert(t('msg_enter_name')); return; }
     setSaving(true);
     try {
       const body = {
@@ -117,21 +119,21 @@ export default function ScriptComponentsModal({ open, onClose, components, onCha
       }
       setView('list');
     } catch (e) {
-      alert('저장 실패: ' + (e as Error).message);
+      alert(t('msg_save_failed', { message: (e as Error).message }));
     } finally {
       setSaving(false);
     }
   };
 
   const remove = async (id: string) => {
-    if (!confirm('이 컴포넌트를 삭제할까요? (부착된 인스턴스는 동작 안 함)')) return;
+    if (!confirm(t('confirm_delete_component'))) return;
     const tok = session.getToken();
     if (!tok) return;
     try {
       await api.deleteScriptComponent(tok, id);
       onChanged(components.filter(c => c.id !== id));
     } catch (e) {
-      alert('삭제 실패: ' + (e as Error).message);
+      alert(t('msg_delete_failed', { message: (e as Error).message }));
     }
   };
 
@@ -147,10 +149,10 @@ export default function ScriptComponentsModal({ open, onClose, components, onCha
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {view === 'edit' && (
               <button type="button" onClick={() => setView('list')}
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontWeight: 700, fontSize: 12 }}>← 목록</button>
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontWeight: 700, fontSize: 12 }}>{t('btn_back_to_list')}</button>
             )}
             <div style={{ fontSize: 15, fontWeight: 800 }}>
-              {view === 'list' ? '🧩 내 컴포넌트' : (editing ? '컴포넌트 편집' : '새 컴포넌트')}
+              {view === 'list' ? t('title_my_components') : (editing ? t('title_edit_component') : t('title_new_component'))}
             </div>
           </div>
           <button type="button" onClick={onClose}
@@ -162,13 +164,13 @@ export default function ScriptComponentsModal({ open, onClose, components, onCha
           <div style={{ padding: 14, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <button type="button" onClick={startNew}
               style={{ alignSelf: 'flex-start', background: 'rgba(99,102,241,0.25)', border: '1px solid rgba(99,102,241,0.5)', color: '#a5b4fc', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
-              + 새 컴포넌트
+              {t('btn_new_component')}
             </button>
             {components.length === 0 && (
               <div style={{ fontSize: 12, opacity: 0.45, textAlign: 'center', padding: '20px 0', lineHeight: 1.5 }}>
-                아직 컴포넌트가 없습니다.<br/>
-                "+ 새 컴포넌트" 로 만들어 보세요.<br/>
-                (예: Door, Bouncer, AutoTeleport 등)
+                {t('msg_no_components')}<br/>
+                {t('msg_create_hint')}<br/>
+                {t('msg_example_names')}
               </div>
             )}
             {components.map(c => (
@@ -183,9 +185,9 @@ export default function ScriptComponentsModal({ open, onClose, components, onCha
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                   <button type="button" onClick={() => startEdit(c)}
-                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', borderRadius: 5, padding: '4px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>편집</button>
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', borderRadius: 5, padding: '4px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>{t('btn_edit')}</button>
                   <button type="button" onClick={() => remove(c.id)}
-                    style={{ background: 'rgba(239,68,68,0.18)', border: '1px solid rgba(239,68,68,0.4)', color: '#fca5a5', borderRadius: 5, padding: '4px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>삭제</button>
+                    style={{ background: 'rgba(239,68,68,0.18)', border: '1px solid rgba(239,68,68,0.4)', color: '#fca5a5', borderRadius: 5, padding: '4px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>{t('btn_delete')}</button>
                 </div>
               </div>
             ))}
@@ -194,37 +196,37 @@ export default function ScriptComponentsModal({ open, onClose, components, onCha
           <div style={{ padding: 14, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 8 }}>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.7 }}>
-                이름 *
+                {t('label_name')}
                 <input value={name} onChange={e => setName(e.target.value)} maxLength={60}
-                  placeholder="예: Door, Bouncer"
+                  placeholder={t('ph_name')}
                   style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 6, padding: '7px 9px', fontSize: 12, outline: 'none' }} />
               </label>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.7 }}>
-                아이콘
+                {t('label_icon')}
                 <input value={icon} onChange={e => setIcon(e.target.value)} maxLength={4}
                   placeholder="🚪"
                   style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 6, padding: '7px 9px', fontSize: 14, outline: 'none', textAlign: 'center' }} />
               </label>
             </div>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.7 }}>
-              설명 (선택)
+              {t('label_description')}
               <input value={description} onChange={e => setDescription(e.target.value)} maxLength={300}
-                placeholder="이 컴포넌트가 뭐 하는지 한 줄로"
+                placeholder={t('ph_description')}
                 style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 6, padding: '7px 9px', fontSize: 12, outline: 'none' }} />
             </label>
             {/* Props 스키마 편집기 */}
             <PropsSchemaEditor schema={propsSchema} onChange={setPropsSchema} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.7 }}>
               <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                코드 *
+                {t('label_code')}
                 <button type="button" onClick={() => setSnippetsOpen(o => !o)}
                   style={{ background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.45)', color: '#c7d2fe', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                  📚 예제 {snippetsOpen ? '▲' : '▼'}
+                  {t('btn_examples', { arrow: snippetsOpen ? '▲' : '▼' })}
                 </button>
               </span>
               {snippetsOpen && (
                 <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, padding: 8, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 8 }}>
-                  <div style={{ fontSize: 10.5, opacity: 0.6 }}>클릭하면 코드에 삽입됩니다. (collider trigger 필요한 건 설명에 표시)</div>
+                  <div style={{ fontSize: 10.5, opacity: 0.6 }}>{t('msg_snippet_hint')}</div>
                   {SNIPPET_CATEGORIES.map(cat => (
                     <div key={cat} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       <div style={{ fontSize: 10.5, fontWeight: 800, color: '#a5b4fc', opacity: 0.9 }}>{cat}</div>
@@ -248,22 +250,22 @@ export default function ScriptComponentsModal({ open, onClose, components, onCha
                 onKeyDown={e => {
                   if (e.key === 'Tab') {
                     e.preventDefault();
-                    const t = e.currentTarget;
-                    const s = t.selectionStart, end = t.selectionEnd;
-                    const v = t.value;
-                    t.value = v.slice(0, s) + '  ' + v.slice(end);
-                    t.selectionStart = t.selectionEnd = s + 2;
-                    setCode(t.value);
+                    const ta = e.currentTarget;
+                    const s = ta.selectionStart, end = ta.selectionEnd;
+                    const v = ta.value;
+                    ta.value = v.slice(0, s) + '  ' + v.slice(end);
+                    ta.selectionStart = ta.selectionEnd = s + 2;
+                    setCode(ta.value);
                   }
                 }}
               />
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button type="button" onClick={() => setView('list')}
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>취소</button>
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>{t('btn_cancel')}</button>
               <button type="button" onClick={save} disabled={saving}
                 style={{ background: 'linear-gradient(135deg, #10b981, #06b6d4)', border: 'none', color: '#fff', borderRadius: 6, padding: '8px 18px', cursor: saving ? 'default' : 'pointer', fontSize: 12, fontWeight: 800, opacity: saving ? 0.6 : 1 }}>
-                {saving ? '저장 중…' : (editing ? '수정 저장' : '만들기')}
+                {saving ? t('btn_saving') : (editing ? t('btn_save_edit') : t('btn_create'))}
               </button>
             </div>
           </div>

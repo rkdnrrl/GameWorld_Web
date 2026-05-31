@@ -23,8 +23,8 @@ export default getRequestConfig(async ({ requestLocale }) => {
   const messages = locale === 'en'
     ? enMessages
     : mergeWithEnFallback(
-        enMessages as Record<string, Record<string, string>>,
-        (await import(`../../messages/${locale}.json`)).default as Record<string, Record<string, string>>,
+        enMessages as unknown as Record<string, Record<string, string>>,
+        (await import(`../../messages/${locale}.json`)).default as unknown as Record<string, Record<string, string>>,
       );
 
   return { locale, messages };

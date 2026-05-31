@@ -14,6 +14,8 @@ import type { Asset as RegistryAsset } from '@/lib/assets/types';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { PerfManager } from '@/lib/world/PerfManager';
+import { FlashlightLight } from '@/lib/world/FlashlightLight';
+import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
@@ -217,6 +219,7 @@ function ComponentsSection({
   /** target 리스트 row 클릭 시 그 id 를 씬 트리에서 선택 */
   onSelectId: (id: string) => void;
 }) {
+  const tCanvas = useTranslations('Studio.canvas');
   const list = selected.components ?? [];
   // 레거시: grabbable 플래그도 가상 컴포넌트로 표시 (제거 시 plain false)
   const legacyGrab = !!selected.grabbable && !list.some(c => c.type === 'grab');
@@ -249,13 +252,13 @@ function ComponentsSection({
         <div style={{ fontSize: 10, opacity: 0.5, fontWeight: 700, letterSpacing: 0.5 }}>COMPONENTS</div>
         <button type="button" onClick={openPicker}
           style={{ background: 'rgba(99,102,241,0.22)', border: '1px solid rgba(99,102,241,0.45)', color: '#a5b4fc', borderRadius: 5, padding: '3px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>
-          + 컴포넌트 추가
+          {tCanvas("btn_add_component")}
         </button>
       </div>
       {/* 레거시 grabbable 표시 */}
       {legacyGrab && (
         <ComponentCard
-          icon="✋" name="Grab (잡기) — legacy"
+          icon="✋" name={tCanvas("comp_grab_legacy")}
           onRemove={removeLegacyGrab}
         />
       )}
@@ -341,7 +344,7 @@ function ComponentsSection({
                     >
                       {tokens.length === 0 && (
                         <div style={{ fontSize: 10, opacity: 0.4, textAlign: 'center', padding: '4px 0' }}>
-                          비우면 모든 화면 · 씬 트리에서 드래그
+                          {tCanvas("vr_target_empty_hint")}
                         </div>
                       )}
                       {tokens.map(t => {
@@ -351,12 +354,12 @@ function ComponentsSection({
                             <button type="button"
                               onClick={() => { if (exists) onSelectId(t); }}
                               disabled={!exists}
-                              title={exists ? `씬 트리에서 선택 — ${t}` : `누락 — ${t}`}
+                              title={exists ? tCanvas("tooltip_select_in_tree", { id: t }) : tCanvas("tooltip_missing_token", { id: t })}
                               style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', color: exists ? '#c7d2fe' : '#fca5a5', fontSize: 10, cursor: exists ? 'pointer' : 'default', padding: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {tokenLabel(t)}
                             </button>
                             <button type="button" onClick={() => writeTokens(tokens.filter(x => x !== t))}
-                              title="삭제"
+                              title={tCanvas("btn_delete")}
                               style={{ background: 'rgba(239,68,68,0.25)', border: 'none', color: '#fca5a5', borderRadius: 3, padding: '0 5px', fontSize: 10, fontWeight: 700, cursor: 'pointer', lineHeight: 1.6 }}>×</button>
                           </div>
                         );
@@ -445,7 +448,7 @@ function ComponentsSection({
                       updateProp(idx, p.key, tokens.join(', '));
                       pushHistory(allObjects);
                     }}
-                    placeholder={p.label.includes('드래그') || p.key === 'target' ? '씬 트리에서 오브젝트 드래그 OK' : undefined}
+                    placeholder={p.label.includes('드래그') || p.key === 'target' ? tCanvas("placeholder_drag_object_from_tree") : undefined}
                     style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
                 </label>
               );
@@ -454,7 +457,7 @@ function ComponentsSection({
         );
       })}
       {list.length === 0 && !legacyGrab && (
-        <div style={{ fontSize: 10, opacity: 0.35, textAlign: 'center', padding: '8px 0' }}>컴포넌트 없음</div>
+        <div style={{ fontSize: 10, opacity: 0.35, textAlign: 'center', padding: '8px 0' }}>{tCanvas("msg_no_components")}</div>
       )}
     </div>
   );
@@ -477,6 +480,7 @@ function UserComponentCard({
   /** 오브젝트 참조 슬롯에 표시된 ref 라벨 클릭 시 그 오브젝트를 씬 트리에서 선택 */
   onSelectId?: (id: string) => void;
 }) {
+  const tCanvas = useTranslations('Studio.canvas');
   const props = (instance.props ?? {}) as Record<string, number | string | boolean>;
   const [open, setOpen] = useState(true);
   const propsSchema = scriptComponent?.propsSchema ?? [];
@@ -514,20 +518,20 @@ function UserComponentCard({
       borderRadius: 6, padding: '6px 8px', marginBottom: 5,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-        <button type="button" onClick={() => setOpen(o => !o)} title={open ? '접기' : '펼치기'}
+        <button type="button" onClick={() => setOpen(o => !o)} title={open ? tCanvas("tooltip_collapse") : tCanvas("tooltip_expand")}
           style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', color: '#e2e8f0', cursor: 'pointer', padding: 0, textAlign: 'left' }}>
           <span style={{ fontSize: 9, width: 8, flexShrink: 0, opacity: 0.6 }}>{open ? '▾' : '▸'}</span>
           <span style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {scriptComponent?.icon || '🧩'} {scriptComponent?.name || '(삭제된 컴포넌트)'}
+            {scriptComponent?.icon || '🧩'} {scriptComponent?.name || tCanvas("msg_deleted_component")}
           </span>
         </button>
         {onEdit && (
-          <button type="button" onClick={onEdit} title="코드 편집"
+          <button type="button" onClick={onEdit} title={tCanvas("tooltip_edit_code")}
             style={{ background: 'rgba(99,102,241,0.18)', border: '1px solid rgba(99,102,241,0.4)', color: '#a5b4fc', fontSize: 10, fontWeight: 700, cursor: 'pointer', padding: '2px 6px', borderRadius: 4, lineHeight: 1, flexShrink: 0 }}>
             ✎ edit
           </button>
         )}
-        <button type="button" onClick={onRemove} title="제거"
+        <button type="button" onClick={onRemove} title={tCanvas("tooltip_remove")}
           style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontSize: 12, cursor: 'pointer', padding: '0 4px', lineHeight: 1, flexShrink: 0 }}>
           ✕
         </button>
@@ -535,7 +539,7 @@ function UserComponentCard({
       {open && (<>
       {!scriptComponent && (
         <div style={{ fontSize: 9, opacity: 0.5, marginTop: 3, color: '#fca5a5' }}>
-          원본 컴포넌트가 삭제됨 — 이 인스턴스는 동작하지 않습니다.
+          {tCanvas("msg_component_orphaned")}
         </div>
       )}
 
@@ -610,7 +614,7 @@ function UserComponentCard({
             <div style={{ fontSize: 10, opacity: 0.75, marginBottom: 3 }}>🔗 {v.key}</div>
             <div
               data-objvar={`${objectId}|${componentIdx}|${v.key}`}
-              title="씬 트리에서 오브젝트를 드래그해 여기에 놓으세요"
+              title={tCanvas("tooltip_drop_object_slot")}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 5, minHeight: 22,
                 border: `1px dashed ${refObj ? 'rgba(129,140,248,0.6)' : 'rgba(255,255,255,0.2)'}`,
@@ -620,16 +624,16 @@ function UserComponentCard({
                 <>
                   <button type="button"
                     onClick={() => onSelectId?.(refObj.id)}
-                    title="씬 트리에서 선택"
+                    title={tCanvas("tooltip_select_in_tree_short")}
                     style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', color: '#c7d2fe', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer', textAlign: 'left', padding: 0, fontSize: 10 }}>
                     {KIND_ICONS[refObj.kind] ?? '📦'} {refObj.label || refObj.kind}
                   </button>
-                  <button type="button" title="해제"
+                  <button type="button" title={tCanvas("tooltip_unlink")}
                     onClick={() => { const next = { ...props }; delete next[v.key]; onPropsChange(next); onPropsCommit(); }}
                     style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.75)', fontSize: 11, cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>
                 </>
               ) : (
-                <span style={{ flex: 1, color: 'rgba(255,255,255,0.4)' }}>씬 오브젝트를 여기로 드래그</span>
+                <span style={{ flex: 1, color: 'rgba(255,255,255,0.4)' }}>{tCanvas("msg_drop_object_here")}</span>
               )}
             </div>
           </div>
@@ -681,6 +685,7 @@ function ComponentCard({
   onRemove: () => void;
   children?: React.ReactNode;
 }) {
+  const tCanvas = useTranslations('Studio.canvas');
   const [open, setOpen] = useState(true);
   const hasBody = !!children;
   return (
@@ -690,13 +695,13 @@ function ComponentCard({
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
         <button type="button" onClick={() => { if (hasBody) setOpen(o => !o); }}
-          title={hasBody ? (open ? '접기' : '펼치기') : undefined}
+          title={hasBody ? (open ? tCanvas("tooltip_collapse") : tCanvas("tooltip_expand")) : undefined}
           style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', color: '#e2e8f0', cursor: hasBody ? 'pointer' : 'default', padding: 0, textAlign: 'left' }}>
           <span style={{ fontSize: 9, width: 8, flexShrink: 0, opacity: hasBody ? 0.6 : 0 }}>{open ? '▾' : '▸'}</span>
           <span style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{icon} {name}</span>
         </button>
         <button type="button" onClick={onRemove}
-          title="제거"
+          title={tCanvas("tooltip_remove")}
           style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontSize: 12, cursor: 'pointer', padding: '0 4px', lineHeight: 1, flexShrink: 0 }}>
           ✕
         </button>
@@ -714,6 +719,7 @@ function ColliderCard({ instance, onRemove, onChange, onCommit, onAutoFit }: {
   onCommit: () => void;
   onAutoFit: () => void;
 }) {
+  const tCanvas = useTranslations('Studio.canvas');
   const trig = !!instance.props?.trigger;
   const sx = Number(instance.props?.sizeX ?? 1);
   const sy = Number(instance.props?.sizeY ?? 1);
@@ -723,8 +729,8 @@ function ColliderCard({ instance, onRemove, onChange, onCommit, onAutoFit }: {
   const oz = Number(instance.props?.offsetZ ?? 0);
   const fieldStyle: React.CSSProperties = { background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' };
   return (
-    <ComponentCard icon="🟩" name="Collider (충돌 박스)" onRemove={onRemove}>
-      <div style={{ fontSize: 9, opacity: 0.5, marginTop: 4 }}>크기</div>
+    <ComponentCard icon="🟩" name={tCanvas("comp_collider_name")} onRemove={onRemove}>
+      <div style={{ fontSize: 9, opacity: 0.5, marginTop: 4 }}>{tCanvas("label_size")}</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, marginTop: 2 }}>
         {([['sizeX', 'X', sx], ['sizeY', 'Y', sy], ['sizeZ', 'Z', sz]] as const).map(([key, label, val]) => (
           <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, opacity: 0.75 }}>
@@ -733,7 +739,7 @@ function ColliderCard({ instance, onRemove, onChange, onCommit, onAutoFit }: {
           </label>
         ))}
       </div>
-      <div style={{ fontSize: 9, opacity: 0.5, marginTop: 6 }}>오프셋 (위치)</div>
+      <div style={{ fontSize: 9, opacity: 0.5, marginTop: 6 }}>{tCanvas("label_offset_position")}</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, marginTop: 2 }}>
         {([['offsetX', 'X', ox], ['offsetY', 'Y', oy], ['offsetZ', 'Z', oz]] as const).map(([key, label, val]) => (
           <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, opacity: 0.75 }}>
@@ -744,12 +750,12 @@ function ColliderCard({ instance, onRemove, onChange, onCommit, onAutoFit }: {
       </div>
       <button type="button" onClick={onAutoFit}
         style={{ marginTop: 6, width: '100%', background: 'rgba(52,211,153,0.18)', border: '1px solid rgba(52,211,153,0.4)', color: '#6ee7b7', fontSize: 10, fontWeight: 700, padding: '4px', borderRadius: 5, cursor: 'pointer' }}>
-        📐 자동 맞춤 (크기 + 위치)
+        {tCanvas("btn_collider_auto_fit")}
       </button>
       <label style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 10, opacity: 0.85, marginTop: 8, cursor: 'pointer', lineHeight: 1.3 }}>
         <input type="checkbox" checked={trig} style={{ marginTop: 1 }}
           onChange={e => { onChange('trigger', e.target.checked); onCommit(); }} />
-        <span>트리거(센서) — 막지 않고 통과, 닿으면 <code>onTriggerEnter</code></span>
+        <span>{tCanvas("label_collider_trigger")}</span>
       </label>
     </ComponentCard>
   );
@@ -808,6 +814,7 @@ function AxisField({ color, axis, value, onChange, onCommit, step = 0.1 }: {
   onCommit: () => void;
   step?: number;
 }) {
+  const tCanvas = useTranslations('Studio.canvas');
   const [text, setText] = useState(String(value));
   const focused = useRef(false);
   const scrub = useRef<{ active: boolean; acc: number }>({ active: false, acc: 0 });
@@ -842,7 +849,7 @@ function AxisField({ color, axis, value, onChange, onCommit, step = 0.1 }: {
         onPointerMove={onLabelMove}
         onPointerUp={onLabelUp}
         onPointerCancel={onLabelUp}
-        title="드래그하여 값 조절"
+        title={tCanvas("tooltip_drag_to_scrub")}
         style={{ color, fontSize: 10, fontWeight: 700, width: 12, textAlign: 'center', cursor: 'ew-resize', userSelect: 'none', touchAction: 'none' }}>{axis}</span>
       <input
         type="text"
@@ -992,6 +999,7 @@ function StudioAssetCard({ asset, onDelete, onRename, onPreview, selected }: {
   onPreview: (a: Asset) => void;
   selected?: boolean;
 }) {
+  const tCanvas = useTranslations('Studio.canvas');
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -1035,7 +1043,7 @@ function StudioAssetCard({ asset, onDelete, onRename, onPreview, selected }: {
         {/* 썸네일 (클릭=미리보기) */}
         <div
           onClick={e => { e.stopPropagation(); onPreview(asset); }}
-          title="클릭하여 미리보기"
+          title={tCanvas("tooltip_click_to_preview")}
           style={{
             width: '100%', aspectRatio: '1', borderRadius: 6, overflow: 'hidden',
             background: 'radial-gradient(circle at 50% 35%, #232c44, #0e1424)',
@@ -1073,7 +1081,7 @@ function StudioAssetCard({ asset, onDelete, onRename, onPreview, selected }: {
           {/* 미리보기 버튼 — 좌상단 */}
           <button
             onClick={e => { e.stopPropagation(); onPreview(asset); }}
-            title="미리보기"
+            title={tCanvas("tooltip_preview")}
             style={{
               position: 'absolute', top: 3, left: 3,
               background: 'rgba(15,23,42,0.85)', border: 'none', borderRadius: 4,
@@ -1082,7 +1090,7 @@ function StudioAssetCard({ asset, onDelete, onRename, onPreview, selected }: {
           {/* 삭제 버튼 — 우상단 */}
           <button
             onClick={e => { e.stopPropagation(); onDelete(asset.id); }}
-            title="에셋 삭제"
+            title={tCanvas("tooltip_delete_asset")}
             style={{
               position: 'absolute', top: 3, right: 3,
               background: 'rgba(239,68,68,0.85)', border: 'none', borderRadius: 4,
@@ -1233,6 +1241,7 @@ function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onT
   onDeleteFolder: (path: string) => void;
   onRenameFolder: (oldPath: string, newSegment: string) => void;
 }) {
+  const tCanvas = useTranslations('Studio.canvas');
   const [hovered, setHovered] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editVal, setEditVal] = useState('');
@@ -1288,7 +1297,7 @@ function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onT
           ) : (
             <span
               onDoubleClick={e => { e.stopPropagation(); setEditVal(node.name); setEditing(true); }}
-              title="더블클릭하여 이름 변경"
+              title={tCanvas("tooltip_double_click_rename")}
               style={{ fontSize: 12, fontWeight: isSelected ? 700 : 400, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {node.name}
             </span>
@@ -1296,7 +1305,7 @@ function FbxFolderNode({ node, depth, openFolders, selectedFolder, onSelect, onT
         </div>
         <button
           onClick={e => { e.stopPropagation(); onDeleteFolder(node.path); }}
-          title="폴더 삭제"
+          title={tCanvas("tooltip_delete_folder")}
           style={{
             opacity: hovered ? 1 : 0, transition: 'opacity 0.15s',
             background: 'none', border: 'none', color: 'rgba(239,68,68,0.75)',
@@ -1779,6 +1788,7 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
   onFocusObject: (id: string) => void;
   onContextMenu: (objId: string, x: number, y: number) => void;
 }) {
+  const tCanvas = useTranslations('Studio.canvas');
   const { collapsed, toggle } = useContext(TreeCollapseCtx);
   const open = !collapsed.has(obj.id);   // 기본 펼침, collapsed 에 있으면 접힘
   const children = allObjects.filter(c => c.parentId === obj.id);
@@ -1841,7 +1851,7 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
         ) : (
           <span
             onDoubleClick={e => { e.stopPropagation(); setEditingLabelId(obj.id); setEditingLabelValue(obj.label || `${KIND_LABELS[obj.kind] ?? obj.kind} ${i + 1}`); }}
-            title="더블클릭 이름 변경 / 드래그하여 부모 설정"
+            title={tCanvas("tooltip_node_rename_parent")}
             style={{ flex: 1, fontSize: 11, fontWeight: isSel ? 700 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isSel ? '#a5b4fc' : '#e2e8f0' }}>
             {obj.label || `${KIND_LABELS[obj.kind] ?? obj.kind} ${i + 1}`}
           </span>
@@ -2217,6 +2227,12 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
   const [runtimeObjects, setRuntimeObjects] = useState<MapObject[]>([]);
   const runtimeObjectsRef = useRef<MapObject[]>([]);
   useEffect(() => { runtimeObjectsRef.current = runtimeObjects; }, [runtimeObjects]);
+  // ── 게임 컴포넌트 런타임 store (WorldCanvas 와 동일 패턴 — 시뮬에서도 작동) ──
+  const healthStoreRef = useRef<Map<string, number>>(new Map());
+  const healthInvulnRef = useRef<Map<string, number>>(new Map());
+  const npcAttackRef = useRef<Map<string, number>>(new Map());
+  const npcPatrolRef = useRef<Map<string, { tx: number; tz: number; nextAt: number; homeX: number; homeZ: number }>>(new Map());
+  const damageAoeRef = useRef<Map<string, number>>(new Map());
 
   // 스크립트가 오브젝트를 제어하려고 참조하는 ref 레지스트리
   const scriptBodyRefs = useRef<Map<string, SimBodyRefs>>(new Map());
@@ -2629,6 +2645,7 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
   }, [scriptsKey, scriptCompsLoaded]);
 
   // 콜라이더 충돌/트리거 이벤트 → 해당 오브젝트의 메인 스크립트 + user 컴포넌트 스크립트로 디스패치
+  // 또 게임 컴포넌트 (pickup, damage) 자동 hookup — WorldCanvas 와 동일 패턴.
   const dispatchColliderEvent = useCallback((objId: string, otherId: string, kind: ColliderEventKind) => {
     const fire = (vm: import('@/lib/world/jsRuntime').JsScript) => {
       if (kind === 'triggerEnter') vm.callTriggerEnter(otherId);
@@ -2638,7 +2655,70 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
     };
     const main = luaScripts.current.get(objId); if (main) fire(main);
     componentScripts.current.get(objId)?.forEach(({ vm }) => fire(vm));
-  }, []);
+
+    // ── Pickup 자동 hookup (touch 모드 + triggerEnter) ──
+    if (kind === 'triggerEnter') {
+      const cur = allObjects.find(o => o.id === objId);
+      const pickupComp = cur?.components?.find(c => c.type === 'pickup');
+      if (pickupComp && pickupComp.props?.mode === 'touch') {
+        // 시뮬에선 solo 라 그냥 onClick 동작 호환 — game state 로 처리하게 사용자가 onPickup 스크립트
+        if (pickupComp.props?.oneShot !== false && objId.startsWith('obj_')) {
+          // 시뮬 런타임 오브젝트만 자동 제거 (저장된 오브젝트 보호)
+          setRuntimeObjects(prev => prev.filter(o => o.id !== objId));
+        }
+      }
+    }
+
+    // ── Damage 자동 hookup (contact/trigger) ──
+    if (kind === 'collisionEnter' || kind === 'triggerEnter') {
+      const cur = allObjects.find(o => o.id === objId);
+      const damageComp = cur?.components?.find(c => c.type === 'damage');
+      if (damageComp) {
+        const mode = String(damageComp.props?.mode ?? 'contact');
+        const matchMode = (mode === 'contact' && kind === 'collisionEnter')
+                       || (mode === 'trigger' && kind === 'triggerEnter');
+        if (matchMode) {
+          const target = allObjects.find(o => o.id === otherId);
+          const targetHealth = target?.components?.find(c => c.type === 'health');
+          if (targetHealth) {
+            const myTeam = String(damageComp.props?.team ?? '');
+            const otherTeam = String(targetHealth.props?.team ?? '');
+            if (!myTeam || !otherTeam || myTeam !== otherTeam) {
+              const amount = Number(damageComp.props?.amount ?? 10);
+              const mx = Number(targetHealth.props?.maxHp ?? 100);
+              if (!healthStoreRef.current.has(otherId)) {
+                const start = Number(targetHealth.props?.startHp ?? -1);
+                healthStoreRef.current.set(otherId, start < 0 ? mx : start);
+              }
+              const invuln = Number(targetHealth.props?.invulnTime ?? 0.3);
+              const now = worldElapsed.current;
+              const last = healthInvulnRef.current.get(otherId) ?? -Infinity;
+              if (now - last >= invuln) {
+                healthInvulnRef.current.set(otherId, now);
+                const cur2 = healthStoreRef.current.get(otherId) ?? mx;
+                const next = Math.max(0, cur2 - amount);
+                healthStoreRef.current.set(otherId, next);
+                if (next <= 0) {
+                  // 사망: onDeathScript 실행 + 자동 제거
+                  try {
+                    const ds = String(targetHealth.props?.onDeathScript || '').trim();
+                    if (ds) new Function('attackerId', ds)(objId);
+                  } catch (e) { console.warn('[health-sim] onDeath error', e); }
+                  if (targetHealth.props?.destroyOnDeath !== false && otherId.startsWith('obj_')) {
+                    setRuntimeObjects(prev => prev.filter(o => o.id !== otherId));
+                  }
+                }
+                if (damageComp.props?.destroyOnHit && objId.startsWith('obj_')) {
+                  setRuntimeObjects(prev => prev.filter(o => o.id !== objId));
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allObjects]);
 
   return (
     <>
@@ -2691,8 +2771,165 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
           spawnRef={spawnRef}
         />
       )}
+      {/* 게임 컴포넌트 런타임 (시뮬용) — NPC AI 추적/공격, Damage AOE 주기. WorldCanvas 와 동일 로직. */}
+      <SimGameComponentTick allObjects={allObjects} scriptBodyRefs={scriptBodyRefs}
+        npcAttackRef={npcAttackRef} npcPatrolRef={npcPatrolRef}
+        damageAoeRef={damageAoeRef} healthStoreRef={healthStoreRef} healthInvulnRef={healthInvulnRef} />
+      {/* Flashlight — 부착된 오브젝트의 spotlight + 1인칭 카메라 follow */}
+      {allObjects.filter(o => !o.hidden && o.components?.some(c => c.type === 'flashlight')).map(o => {
+        const comp = o.components!.find(c => c.type === 'flashlight')!;
+        const bodyRef = scriptBodyRefs.current.get(o.id);
+        const gRef = (bodyRef?.group ?? { current: null }) as React.MutableRefObject<THREE.Group | null>;
+        return <FlashlightLight key={'fl-' + o.id} comp={comp} groupRef={gRef}
+          objId={o.id} playerId="__sim_player__"
+          grabbedStateRef={player?.grabbedStateRef ?? (emptyMapRef as React.MutableRefObject<Map<string, string>>)} />;
+      })}
+      {/* Sound — 위치 기반 3D 사운드 */}
+      {allObjects.filter(o => !o.hidden && o.kind === 'sound' && o.soundUrl).map(o => {
+        const tr = transforms[o.id] ?? { pos: o.position };
+        return <SoundEmitter key={'snd-' + o.id} url={o.soundUrl!}
+          position={tr.pos} volume={o.soundVolume ?? 0.8}
+          loop={o.soundLoop !== false} autoplay={o.soundAutoplay !== false}
+          radius={o.soundRadius ?? 10} />;
+      })}
     </>
   );
+}
+
+// FlashlightLight 에 전달할 빈 grabbedStateRef (player 없는 시뮬 안전망)
+const emptyMapRef = { current: new Map<string, string>() };
+
+/* ── SimScene 안 NPC AI + Damage AOE tick — WorldCanvas 동일 로직. useFrame 10Hz throttle. ── */
+function SimGameComponentTick({ allObjects, scriptBodyRefs, npcAttackRef, npcPatrolRef, damageAoeRef, healthStoreRef, healthInvulnRef }: {
+  allObjects: MapObject[];
+  scriptBodyRefs: React.MutableRefObject<Map<string, SimBodyRefs>>;
+  npcAttackRef: React.MutableRefObject<Map<string, number>>;
+  npcPatrolRef: React.MutableRefObject<Map<string, { tx: number; tz: number; nextAt: number; homeX: number; homeZ: number }>>;
+  damageAoeRef: React.MutableRefObject<Map<string, number>>;
+  healthStoreRef: React.MutableRefObject<Map<string, number>>;
+  healthInvulnRef: React.MutableRefObject<Map<string, number>>;
+}) {
+  const lastTick = useRef(0);
+  useFrame((state) => {
+    const now = state.clock.elapsedTime;
+    if (now - lastTick.current < 0.1) return;   // 100ms throttle
+    lastTick.current = now;
+    // 카메라 위치를 "플레이어" 로 사용 (시뮬은 solo)
+    const cam = state.camera;
+    const playerPos = { x: cam.position.x, y: cam.position.y, z: cam.position.z };
+
+    // ── Damage AOE ──
+    const aoes = allObjects.filter(o => o.components?.some(c => c.type === 'damage' && c.props?.mode === 'aoe'));
+    for (const src of aoes) {
+      const dmg = src.components!.find(c => c.type === 'damage' && c.props?.mode === 'aoe')!;
+      const interval = Number(dmg.props?.aoeInterval ?? 1);
+      const last = damageAoeRef.current.get(src.id) ?? -interval;
+      if (now - last < interval) continue;
+      damageAoeRef.current.set(src.id, now);
+      const srcGroup = scriptBodyRefs.current.get(src.id)?.group?.current;
+      if (!srcGroup) continue;
+      const sp = srcGroup.position;
+      const radius = Number(dmg.props?.aoeRadius ?? 3);
+      const r2 = radius * radius;
+      const amount = Number(dmg.props?.amount ?? 10);
+      const srcTeam = String(dmg.props?.team ?? '');
+      for (const tgt of allObjects) {
+        if (tgt.id === src.id) continue;
+        const th = tgt.components?.find(c => c.type === 'health');
+        if (!th) continue;
+        const tt = String(th.props?.team ?? '');
+        if (srcTeam && tt && srcTeam === tt) continue;
+        const tg = scriptBodyRefs.current.get(tgt.id)?.group?.current;
+        if (!tg) continue;
+        const dx = tg.position.x - sp.x, dy = tg.position.y - sp.y, dz = tg.position.z - sp.z;
+        if (dx*dx + dy*dy + dz*dz <= r2) {
+          // HP 감소 (간단 — invuln 무시, sim 단순화)
+          const mx = Number(th.props?.maxHp ?? 100);
+          if (!healthStoreRef.current.has(tgt.id)) healthStoreRef.current.set(tgt.id, mx);
+          const cur = healthStoreRef.current.get(tgt.id)!;
+          healthStoreRef.current.set(tgt.id, Math.max(0, cur - amount));
+        }
+      }
+    }
+
+    // ── NPC AI 추적/공격 ──
+    const npcs = allObjects.filter(o => o.components?.some(c => c.type === 'npc'));
+    for (const obj of npcs) {
+      const npc = obj.components!.find(c => c.type === 'npc')!;
+      const mode = String(npc.props?.mode ?? 'both');
+      if (mode === 'idle') continue;
+      const aggro = Number(npc.props?.aggroRange ?? 15);
+      const attackRange = Number(npc.props?.attackRange ?? 1.5);
+      const cd = Number(npc.props?.attackCooldown ?? 1.5);
+      const moveSpeed = Number(npc.props?.moveSpeed ?? 3);
+      const bodyRef = scriptBodyRefs.current.get(obj.id);
+      const group = bodyRef?.group?.current;
+      const body = bodyRef?.body?.current;
+      if (!group) continue;
+      const pos = group.position;
+      const dx0 = playerPos.x - pos.x, dz0 = playerPos.z - pos.z;
+      const dist = Math.hypot(dx0, dz0);
+      if (dist > aggro) {
+        // patrol
+        if (mode === 'patrol' || mode === 'both') {
+          const patrolRadius = Number(npc.props?.patrolRadius ?? 8);
+          let p = npcPatrolRef.current.get(obj.id);
+          if (!p) {
+            p = { tx: pos.x, tz: pos.z, nextAt: 0, homeX: pos.x, homeZ: pos.z };
+            npcPatrolRef.current.set(obj.id, p);
+          }
+          if (now >= p.nextAt || Math.hypot(p.tx - pos.x, p.tz - pos.z) < 0.5) {
+            const r = Math.sqrt(Math.random()) * patrolRadius;
+            const a = Math.random() * Math.PI * 2;
+            p.tx = p.homeX + Math.cos(a) * r;
+            p.tz = p.homeZ + Math.sin(a) * r;
+            p.nextAt = now + 3 + Math.random() * 4;
+          }
+          const dx = p.tx - pos.x, dz = p.tz - pos.z;
+          const d = Math.hypot(dx, dz);
+          if (d > 0.05) {
+            const stepX = (dx / d) * (moveSpeed * 0.5) * 0.1;
+            const stepZ = (dz / d) * (moveSpeed * 0.5) * 0.1;
+            if (body) {
+              const cur = body.translation();
+              body.setTranslation({ x: cur.x + stepX, y: cur.y, z: cur.z + stepZ }, true);
+              const ang = Math.atan2(dx, dz);
+              const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ang, 0));
+              body.setRotation?.({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+            } else {
+              group.position.x += stepX; group.position.z += stepZ;
+              group.rotation.y = Math.atan2(dx, dz);
+            }
+          }
+        }
+        continue;
+      }
+      // 추적
+      if (dist > attackRange) {
+        const stepX = (dx0 / dist) * moveSpeed * 0.1;
+        const stepZ = (dz0 / dist) * moveSpeed * 0.1;
+        if (body) {
+          const cur = body.translation();
+          body.setTranslation({ x: cur.x + stepX, y: cur.y, z: cur.z + stepZ }, true);
+          const ang = Math.atan2(dx0, dz0);
+          const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ang, 0));
+          body.setRotation?.({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+        } else {
+          group.position.x += stepX; group.position.z += stepZ;
+          group.rotation.y = Math.atan2(dx0, dz0);
+        }
+      } else {
+        // 공격 사거리 — cooldown
+        const last = npcAttackRef.current.get(obj.id) ?? 0;
+        if (now - last < cd) continue;
+        npcAttackRef.current.set(obj.id, now);
+        // 시뮬은 solo — 콘솔 로그만 (사용자 게임 스크립트는 game.add('hp', -n) 으로 처리 가능)
+        console.log('[sim-npc] attack', obj.id, 'amount', npc.props?.amount ?? 10);
+      }
+    }
+    void healthInvulnRef;   // 시뮬 단순화 — invuln 안 씀
+  });
+  return null;
 }
 
 /* ── 변환 컨트롤 ──────────────────────────── */
@@ -3295,6 +3532,7 @@ function useSheetDrag(initial = 62) {
 export default function StudioCanvas() {
   useEffect(() => { silenceConsoleSpam(); }, []);
   const t            = useTranslations('Studio');
+  const tCanvas      = useTranslations('Studio.canvas');
   const leftSheet    = useSheetDrag(62);
   const rightSheet   = useSheetDrag(62);
   // 우측 인스펙터 너비 (px). 사용자가 좌측 핸들 드래그로 조정 → localStorage 영구.
@@ -3768,7 +4006,7 @@ export default function StudioCanvas() {
       })
       .then(d => {
         if (!d.world) {
-          setLoadError(d.error?.message || '월드를 찾을 수 없습니다.');
+          setLoadError(d.error?.message || tCanvas("msg_world_not_found"));
           return;
         }
         console.log('[studio] loaded:', d.world.name, 'objects:', d.world.mapData?.objects?.length ?? 0);
@@ -3979,10 +4217,10 @@ export default function StudioCanvas() {
      썸네일은 현재 뷰포트를 자동 캡처해서 R2 에 업로드. */
   async function savePrefab() {
     if (!selected) return;
-    const name = prompt('프리팹 이름:', selected.label || makeLabel(selected.kind));
+    const name = prompt(tCanvas("prompt_prefab_name"), selected.label || makeLabel(selected.kind));
     if (!name || !name.trim()) return;
     const tok = session.getToken();
-    if (!tok) { alert('로그인이 필요합니다.'); return; }
+    if (!tok) { alert(tCanvas("alert_login_required")); return; }
 
     // ── 자식 트리 전체 수집 — 다중 오브젝트 프리팹 (fbx + 도형 + sound 등 묶음) ──
     // root = selected. descendants = parentId 체인으로 root 까지 닿는 모든 오브젝트.
@@ -4017,7 +4255,7 @@ export default function StudioCanvas() {
       });
       setPrefabs(prev => [res.prefab, ...prev]);
     } catch (e) {
-      alert('프리팹 저장 실패: ' + (e as Error).message);
+      alert(tCanvas("alert_prefab_save_failed", { message: (e as Error).message }));
     }
   }
 
@@ -4027,7 +4265,7 @@ export default function StudioCanvas() {
   function instantiatePrefab(prefab: Prefab, position: [number, number, number]) {
     const payload = prefab.payload as { version?: number; root?: MapObject; tree?: MapObject[] } | null;
     const tree = payload?.tree && payload.tree.length > 0 ? payload.tree : (payload?.root ? [payload.root] : []);
-    if (tree.length === 0) { alert('프리팹 payload 손상'); return; }
+    if (tree.length === 0) { alert(tCanvas("alert_prefab_payload_corrupt")); return; }
     const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     // 옛 id → 새 id 매핑
     const idMap = new Map<string, string>();
@@ -4059,14 +4297,14 @@ export default function StudioCanvas() {
 
   /* 프리팹 삭제 */
   async function removePrefab(id: string) {
-    if (!confirm('이 프리팹을 삭제할까요?')) return;
+    if (!confirm(tCanvas("confirm_delete_prefab"))) return;
     const tok = session.getToken();
     if (!tok) return;
     try {
       await api.deletePrefab(tok, id);
       setPrefabs(prev => prev.filter(p => p.id !== id));
     } catch (e) {
-      alert('삭제 실패: ' + (e as Error).message);
+      alert(tCanvas("alert_delete_failed", { message: (e as Error).message }));
     }
   }
 
@@ -4231,7 +4469,7 @@ export default function StudioCanvas() {
     const id = `sound_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     setObjects(prev => {
       const next: MapObject[] = [...prev, {
-        id, kind: 'sound', label: '사운드',
+        id, kind: 'sound', label: tCanvas("default_label_sound"),
         position: [0, 1, 0], rotation: [0, 0, 0], scale: [1, 1, 1],
         color: '#a855f7',
         soundUrl: '',
@@ -4255,7 +4493,7 @@ export default function StudioCanvas() {
       : makeFlatTerrain(50, 64);
     setObjects(prev => {
       const next: MapObject[] = [...prev, {
-        id, kind: 'terrain', label: kind === 'noise' ? '언덕 지형' : '평탄 지형',
+        id, kind: 'terrain', label: kind === 'noise' ? tCanvas("default_label_noise_terrain") : tCanvas("default_label_flat_terrain"),
         position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1],
         color: '#5a8a4a',
         terrain: t,
@@ -4332,11 +4570,11 @@ export default function StudioCanvas() {
   function importUiFromJson(jsonText: string): { ok: true; count: number } | { ok: false; error: string } {
     let parsed: AiUiRoot;
     try { parsed = JSON.parse(jsonText); }
-    catch (e) { return { ok: false, error: 'JSON 파싱 실패: ' + (e as Error).message }; }
+    catch (e) { return { ok: false, error: tCanvas("err_json_parse_failed", { message: (e as Error).message }) }; }
     let flat;
     try { flat = parseAiUiRoot(parsed, `ui_${Date.now()}`); }
-    catch (e) { return { ok: false, error: 'UI 트리 변환 실패: ' + (e as Error).message }; }
-    if (flat.length === 0) return { ok: false, error: '추가할 UI 오브젝트가 없습니다.' };
+    catch (e) { return { ok: false, error: tCanvas("err_ui_tree_convert_failed", { message: (e as Error).message }) }; }
+    if (flat.length === 0) return { ok: false, error: tCanvas("err_no_ui_objects") };
     setObjects(prev => {
       // 라벨 중복 방지
       const existing = new Set(prev.filter(o => !!o.label).map(o => o.label as string));
@@ -4607,7 +4845,7 @@ export default function StudioCanvas() {
   /** 선택된 에셋 일괄 삭제 — 확인 1회 후 전부 삭제 */
   async function deleteAssetsBatch(ids: string[]) {
     if (ids.length === 0) return;
-    if (!window.confirm(`선택한 에셋 ${ids.length}개를 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    if (!window.confirm(tCanvas("confirm_delete_assets", { count: ids.length }))) return;
     const idSet = new Set(ids);
     setMyAssets(prev => prev.filter(a => !idSet.has(a.id)));
     setAssetSel(new Set());
@@ -5429,7 +5667,7 @@ export default function StudioCanvas() {
             background: '#1e293b', border: '1px solid rgba(129,140,248,0.35)', borderRadius: 12,
             boxShadow: '0 14px 44px rgba(0,0,0,0.55)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10,
           }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,0.45)', letterSpacing: 0.6, textTransform: 'uppercase' }}>맵 정보</div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,0.45)', letterSpacing: 0.6, textTransform: 'uppercase' }}>{tCanvas("section_map_info")}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
               <button onClick={() => { setMyWorldsOpen(true); setMapMenuOpen(false); }}
                 style={{ padding: '8px 9px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(99,102,241,0.24)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
@@ -5488,7 +5726,7 @@ export default function StudioCanvas() {
       {!isMobile && (
         <div
           onPointerDown={e => beginResize(e, { axis: 'x', from: leftWidth, dir: 1, min: 220, max: 600, set: setLeftWidth })}
-          title="드래그로 패널 너비 조절"
+          title={tCanvas("tooltip_drag_panel_width")}
           style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 7, cursor: 'ew-resize', zIndex: 4 }}
           onMouseEnter={e => { e.currentTarget.style.background = 'rgba(129,140,248,0.35)'; }}
           onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
@@ -5497,7 +5735,7 @@ export default function StudioCanvas() {
       {/* 데스크톱 전용 패널 닫기 버튼 (우측 상단 corner) */}
       {!isMobile && (
         <button type="button" onClick={() => { console.log('[CLOSE-LEFT] click'); setLeftPanelOpen(false); }}
-          title="패널 닫기"
+          title={tCanvas("tooltip_close_panel")}
           style={{
             position: 'absolute', top: 6, right: 6, zIndex: 5,
             width: 22, height: 22, border: 'none', borderRadius: 4,
@@ -5539,7 +5777,7 @@ export default function StudioCanvas() {
       {/* 좌측 패널 탭 — 한 컬럼에 다 쌓지 않고 전환 (씬=트리+추가 / 환경 / 프리팹) */}
       {!isMobile && (
         <div style={{ display: 'flex', gap: 3, padding: '6px 10px', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-          {([['scene', '🧩 씬'], ['env', '🌐 환경'], ['prefab', '💾 프리팹']] as const).map(([id, label]) => (
+          {([['scene', tCanvas("tab_scene")], ['env', tCanvas("tab_env")], ['prefab', tCanvas("tab_prefab")]] as const).map(([id, label]) => (
             <button key={id} type="button" onClick={() => setLeftTab(id)}
               style={{ flex: 1, padding: '6px 4px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
                 background: leftTab === id ? 'rgba(99,102,241,0.28)' : 'rgba(255,255,255,0.04)',
@@ -5651,7 +5889,7 @@ export default function StudioCanvas() {
       <div style={{ flexShrink: 0, borderTop: (!isMobile && leftTab !== 'scene') ? 'none' : '1px solid rgba(255,255,255,0.08)', padding: '8px 10px 10px', maxHeight: '65vh', overflowY: 'auto' }}>
         {/* '추가' 그룹 — 씬 탭에서만 (도형/스폰/빈/조명, 일관 스타일) */}
         <div style={{ display: (!isMobile && leftTab !== 'scene') ? 'none' : 'block' }}>
-        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.6, color: 'rgba(255,255,255,0.38)', textTransform: 'uppercase', margin: '0 0 6px 2px' }}>+ 추가</div>
+        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.6, color: 'rgba(255,255,255,0.38)', textTransform: 'uppercase', margin: '0 0 6px 2px' }}>{tCanvas("section_add")}</div>
         <button type="button" onClick={() => setShapePanelOpen(v => !v)}
           style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.8)', fontSize: 11, padding: '6px 9px', cursor: 'pointer', fontWeight: 600, marginBottom: 4 }}>
           📦 {t('addShape')} {shapePanelOpen ? '▲' : '▼'}
@@ -5668,102 +5906,102 @@ export default function StudioCanvas() {
         )}
         {/* 🎯 스폰 포인트 추가 — 월드 진입 시 플레이어가 여기서 등장. 여러 개 가능 (랜덤 선택). */}
         <button type="button" onClick={addSpawn}
-          title="플레이어 스폰 위치. 여러 개 두면 랜덤으로 선택됨. 회전 = 초기 바라보는 방향."
+          title={tCanvas("tooltip_add_spawn")}
           style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.8)', fontSize: 11, padding: '6px 9px', cursor: 'pointer', fontWeight: 600, marginBottom: 4 }}>
-          🎯 스폰 포인트 추가
+          {tCanvas("btn_add_spawn")}
         </button>
         {/* 🔵 빈 오브젝트 추가 — World Physics(중력/점프력) 컴포넌트 홀더 (기본 부착). */}
         <button type="button" onClick={addEmpty}
-          title="빈 오브젝트. 컴포넌트(예: World Physics 중력/점프력)를 부착해 관리. 플레이 시 안 보임."
+          title={tCanvas("tooltip_add_empty")}
           style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.8)', fontSize: 11, padding: '6px 9px', cursor: 'pointer', fontWeight: 600, marginBottom: 4 }}>
           🔵 {t('addEmpty')}
         </button>
         <button type="button" onClick={() => setLightAddPanelOpen(v => !v)}
           style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.8)', fontSize: 11, padding: '6px 9px', cursor: 'pointer', fontWeight: 600 }}>
-          💡 조명 추가 {lightAddPanelOpen ? '▲' : '▼'}
+          {tCanvas("btn_add_light_2", { arrow: lightAddPanelOpen ? '▲' : '▼' })}
         </button>
         {lightAddPanelOpen && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3, marginTop: 4 }}>
             <button onClick={() => addLight('pointlight')}
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
-              💡 포인트
+              {tCanvas("btn_light_point")}
             </button>
             <button onClick={() => addLight('spotlight')}
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
-              🔦 스폿
+              {tCanvas("btn_light_spot")}
             </button>
             <button onClick={() => addLight('dirlight')}
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
-              ☀ 방향광
+              {tCanvas("btn_light_dir")}
             </button>
           </div>
         )}
         {/* 🗻 Terrain 추가 — heightmap 기반 지면. flat (평탄) 또는 noise (자연스러운 언덕) */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, marginTop: 4 }}>
-          <button onClick={() => addTerrain('flat')} title="평탄 지형 (50m × 50m)"
+          <button onClick={() => addTerrain('flat')} title={tCanvas("tooltip_add_terrain_flat")}
             style={{ background: 'rgba(132,204,22,0.14)', border: '1px solid rgba(132,204,22,0.45)', borderRadius: 5, color: '#d9f99d', fontSize: 10, padding: '6px 4px', cursor: 'pointer', fontWeight: 700 }}>
-            🗻 평탄 지형
+            {tCanvas("btn_add_terrain_flat")}
           </button>
-          <button onClick={() => addTerrain('noise')} title="자연스러운 언덕 (Perlin 노이즈 기반)"
+          <button onClick={() => addTerrain('noise')} title={tCanvas("tooltip_add_terrain_noise")}
             style={{ background: 'rgba(132,204,22,0.14)', border: '1px solid rgba(132,204,22,0.45)', borderRadius: 5, color: '#d9f99d', fontSize: 10, padding: '6px 4px', cursor: 'pointer', fontWeight: 700 }}>
-            🏔 언덕 지형
+            {tCanvas("btn_add_terrain_noise")}
           </button>
         </div>
         <button type="button" onClick={addSound}
-          title="사운드 오브젝트 — 위치 기반 3D 사운드. radius 안에 있을 때만 들림."
+          title={tCanvas("tooltip_add_sound")}
           style={{ width: '100%', textAlign: 'left', background: 'rgba(168,85,247,0.14)', border: '1px solid rgba(168,85,247,0.45)', borderRadius: 6, color: '#e9d5ff', fontSize: 11, padding: '6px 9px', cursor: 'pointer', fontWeight: 700, marginTop: 4 }}>
-          🔊 사운드 추가
+          {tCanvas("btn_add_sound")}
         </button>
         {/* 🖼 UI 추가 — 유니티식 Canvas + Image/Text/Button/Panel (Phase 1: Screen Space 만) */}
         <button type="button" onClick={() => setUiAddPanelOpen(v => !v)}
           style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.8)', fontSize: 11, padding: '6px 9px', cursor: 'pointer', fontWeight: 600, marginTop: 4 }}>
-          🖼 UI 추가 {uiAddPanelOpen ? '▲' : '▼'}
+          {tCanvas("btn_add_ui_2", { arrow: uiAddPanelOpen ? '▲' : '▼' })}
         </button>
         {uiAddPanelOpen && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, marginTop: 4 }}>
-            <button onClick={() => addUi('canvas', 'screen')} title="Screen Canvas — 화면 고정 HUD"
+            <button onClick={() => addUi('canvas', 'screen')} title={tCanvas("tooltip_ui_screen_canvas")}
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
               🖥 Screen Canvas
             </button>
-            <button onClick={() => addUi('canvas', 'world')} title="World Canvas — 3D 공간에 떠 있는 UI (간판, 메뉴 등)"
+            <button onClick={() => addUi('canvas', 'world')} title={tCanvas("tooltip_ui_world_canvas")}
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
               🌍 World Canvas
             </button>
-            <button onClick={() => addUi('panel')} title="배경 패널"
+            <button onClick={() => addUi('panel')} title={tCanvas("tooltip_ui_panel")}
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
               🟦 Panel
             </button>
-            <button onClick={() => addUi('image')} title="이미지"
+            <button onClick={() => addUi('image')} title={tCanvas("tooltip_ui_image")}
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
               🖼 Image
             </button>
-            <button onClick={() => addUi('text')} title="텍스트"
+            <button onClick={() => addUi('text')} title={tCanvas("tooltip_ui_text")}
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
               📝 Text
             </button>
-            <button onClick={() => addUi('button')} title="버튼"
+            <button onClick={() => addUi('button')} title={tCanvas("tooltip_ui_button")}
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer', gridColumn: 'span 2' }}>
               🔘 Button
             </button>
-            <button onClick={() => addUi('slider')} title="슬라이더 (값 0~100)"
+            <button onClick={() => addUi('slider')} title={tCanvas("tooltip_ui_slider")}
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
               🎚 Slider
             </button>
-            <button onClick={() => addUi('input')} title="텍스트 입력"
+            <button onClick={() => addUi('input')} title={tCanvas("tooltip_ui_input")}
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
               ⌨ Input
             </button>
-            <button onClick={() => addUi('toggle')} title="체크박스"
+            <button onClick={() => addUi('toggle')} title={tCanvas("tooltip_ui_toggle")}
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
               ☑ Toggle
             </button>
-            <button onClick={() => addUi('scrollview')} title="스크롤 영역"
+            <button onClick={() => addUi('scrollview')} title={tCanvas("tooltip_ui_scroll")}
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
               📜 Scroll
             </button>
-            <button onClick={() => { setUiJsonText(''); setUiJsonError(null); setUiJsonModalOpen(true); }} title="ChatGPT 등 AI 에게 받은 JSON 으로 UI 일괄 생성"
+            <button onClick={() => { setUiJsonText(''); setUiJsonError(null); setUiJsonModalOpen(true); }} title={tCanvas("tooltip_ai_ui_json")}
               style={{ background: 'rgba(168,85,247,0.18)', border: '1px solid rgba(168,85,247,0.5)', borderRadius: 5, color: '#e9d5ff', fontSize: 10, padding: '5px 3px', cursor: 'pointer', gridColumn: 'span 2', fontWeight: 700 }}>
-              🤖 AI JSON 가져오기
+              {tCanvas("btn_ai_json_import")}
             </button>
           </div>
         )}
@@ -5778,7 +6016,7 @@ export default function StudioCanvas() {
         }}>
           <button type="button" onClick={() => setEnvPanelOpen(v => !v)}
             style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '4px 0', cursor: 'pointer', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>🌐 환경 / HDRI</span>
+            <span>{tCanvas("section_env_hdri")}</span>
             <span>{envPanelOpen ? '▲' : '▼'}</span>
           </button>
           {envPanelOpen && (
@@ -5787,16 +6025,16 @@ export default function StudioCanvas() {
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, opacity: 0.8, cursor: 'pointer' }}>
                 <input type="checkbox" checked={skyEnabled}
                   onChange={e => { setSkyEnabled(e.target.checked); pushHistory(objects); }} />
-                ☁ 하늘 (Sky)
+                {tCanvas("label_sky_toggle")}
               </label>
 
               {/* HDRI preset */}
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.75 }}>
-                HDRI 프리셋
+                {tCanvas("label_hdri_preset")}
                 <select value={hdriPreset}
                   onChange={e => { setHdriPreset(e.target.value as HdriPreset); pushHistory(objects); }}
                   style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 5, padding: '5px 7px', fontSize: 11, outline: 'none' }}>
-                  <option value="none">없음</option>
+                  <option value="none">{tCanvas("opt_none")}</option>
                   <option value="apartment">apartment</option>
                   <option value="city">city</option>
                   <option value="dawn">dawn</option>
@@ -5812,11 +6050,11 @@ export default function StudioCanvas() {
 
               {/* HDRI URL (커스텀) — preset 보다 우선 */}
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.75 }}>
-                HDRI URL (.hdr / .exr, 선택)
+                {tCanvas("label_hdri_url")}
                 <input type="text" value={hdriUrl}
                   onChange={e => setHdriUrl(e.target.value)}
                   onBlur={() => pushHistory(objects)}
-                  placeholder="https://... (비우면 프리셋 사용)"
+                  placeholder={tCanvas("placeholder_hdri_url")}
                   style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 5, padding: '5px 7px', fontSize: 11, outline: 'none' }} />
               </label>
 
@@ -5824,36 +6062,36 @@ export default function StudioCanvas() {
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, opacity: 0.8, cursor: 'pointer' }}>
                 <input type="checkbox" checked={hdriBackground}
                   onChange={e => { setHdriBackground(e.target.checked); pushHistory(objects); }} />
-                HDRI 를 배경으로 표시
+                {tCanvas("label_hdri_background")}
               </label>
 
               {/* 노출 (tone mapping exposure) */}
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.75 }}>
-                노출 (exposure): {exposure.toFixed(2)}
+                {tCanvas("exposure_label", { exposure: exposure.toFixed(2) })}
                 <input type="range" min={0.1} max={2} step={0.05} value={exposure}
                   onChange={e => setExposure(Number(e.target.value))}
                   onMouseUp={() => pushHistory(objects)}
                   style={{ accentColor: '#fb923c' }} />
                 <span style={{ fontSize: 10, opacity: 0.55, marginTop: 1 }}>
-                  땅이 너무 밝으면 0.4~0.6, 너무 어두우면 1.0+ 로 조정
+                  {tCanvas("hint_exposure")}
                 </span>
               </label>
 
               {/* HDRI 환경광(IBL) 강도 — Ambient/태양광 슬라이더와는 별개. HDRI 가 머티리얼에 주는 빛 세기. */}
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.75 }}>
-                HDRI 강도: {hdriIntensity.toFixed(2)}
+                {tCanvas("hdri_intensity_label", { hdriIntensity: hdriIntensity.toFixed(2) })}
                 <input type="range" min={0} max={3} step={0.05} value={hdriIntensity}
                   onChange={e => setHdriIntensity(Number(e.target.value))}
                   onMouseUp={() => pushHistory(objects)}
                   style={{ accentColor: '#22d3ee' }} />
                 <span style={{ fontSize: 10, opacity: 0.55, marginTop: 1 }}>
-                  HDRI 가 씬에 주는 빛 세기 (Ambient/태양광과 별개). 0 = HDRI 끔 효과.
+                  {tCanvas("hint_hdri_intensity")}
                 </span>
               </label>
 
               {/* Ambient light 강도 */}
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.75 }}>
-                Ambient 강도: {lightAmbient.toFixed(2)}
+                {tCanvas("ambient_strength_label", { lightAmbient: lightAmbient.toFixed(2) })}
                 <input type="range" min={0} max={2} step={0.05} value={lightAmbient}
                   onChange={e => setLightAmbient(Number(e.target.value))}
                   onMouseUp={() => pushHistory(objects)}
@@ -5862,7 +6100,7 @@ export default function StudioCanvas() {
 
               {/* Directional light 강도 */}
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.75 }}>
-                태양광 강도: {lightDir.toFixed(2)}
+                {tCanvas("sun_strength_label", { lightDir: lightDir.toFixed(2) })}
                 <input type="range" min={0} max={5} step={0.1} value={lightDir}
                   onChange={e => setLightDir(Number(e.target.value))}
                   onMouseUp={() => pushHistory(objects)}
@@ -5881,17 +6119,17 @@ export default function StudioCanvas() {
         }}>
           <button type="button" onClick={() => setPrefabPanelOpen(v => !v)}
             style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '4px 0', cursor: 'pointer', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>💾 프리팹 ({prefabs.length})</span>
+            <span>{tCanvas("section_prefabs", { count: prefabs.length })}</span>
             <span>{prefabPanelOpen ? '▲' : '▼'}</span>
           </button>
           {prefabPanelOpen && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 4 }}>
               {prefabsLoading && (
-                <div style={{ fontSize: 10, opacity: 0.4, textAlign: 'center', padding: '6px 0' }}>로드 중…</div>
+                <div style={{ fontSize: 10, opacity: 0.4, textAlign: 'center', padding: '6px 0' }}>{tCanvas("msg_loading")}</div>
               )}
               {!prefabsLoading && prefabs.length === 0 && (
                 <div style={{ fontSize: 10, opacity: 0.35, textAlign: 'center', padding: '6px 0', lineHeight: 1.4 }}>
-                  오브젝트 선택 후<br/>"💾 프리팹으로 저장"
+                  {tCanvas("prefab_empty_hint")}
                 </div>
               )}
               {prefabs.map(pf => (
@@ -5899,7 +6137,7 @@ export default function StudioCanvas() {
                   draggable
                   onDragStart={e => { e.dataTransfer.setData('application/x-alp-prefab', pf.id); e.dataTransfer.effectAllowed = 'copy'; }}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, padding: '4px 6px', cursor: 'grab' }}
-                  title="드래그해서 뷰포트에 놓기"
+                  title={tCanvas("tooltip_drag_prefab_to_viewport")}
                 >
                   {/* 썸네일 — 저장 시 자동 캡처. 없으면 📦 */}
                   <div
@@ -5917,7 +6155,7 @@ export default function StudioCanvas() {
                   </div>
                   <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{pf.name}</span>
                   <button type="button" onClick={(ev) => { ev.stopPropagation(); removePrefab(pf.id); }}
-                    title="삭제"
+                    title={tCanvas("btn_delete")}
                     style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontSize: 11, cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>
                     ✕
                   </button>
@@ -5929,7 +6167,7 @@ export default function StudioCanvas() {
 
         <button type="button" onClick={() => setAiGuideOpen(true)}
           style={{ width: '100%', textAlign: 'left', background: 'rgba(99,102,241,0.18)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 6, color: '#a5b4fc', fontSize: 11, padding: '6px 8px', cursor: 'pointer', fontWeight: 700, marginTop: 6 }}>
-          🤖 AI 로 맵 만들기
+          {tCanvas("btn_ai_make_map")}
         </button>
         <button type="button" onClick={() => setShortcutsOpen(true)}
           style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.6)', fontSize: 11, padding: '6px 8px', cursor: 'pointer', fontWeight: 600, marginTop: 4 }}>
@@ -5954,9 +6192,9 @@ export default function StudioCanvas() {
                   return next;
                 });
               }}
-              title="WebGL 텍스처 슬롯 한계(16) 초과 방지"
+              title={tCanvas("tooltip_webgl_shadow_limit")}
               style={{ width: '100%', textAlign: 'left', background: 'rgba(251,191,36,0.18)', border: '1px solid rgba(251,191,36,0.4)', borderRadius: 6, color: '#fbbf24', fontSize: 10, padding: '6px 8px', cursor: 'pointer', fontWeight: 700, marginTop: 4 }}>
-              ⚠ 그림자 조명 {shadowLightCount}개 → 전체 OFF
+              {tCanvas("btn_shadow_lights_off", { count: shadowLightCount })}
             </button>
           );
         })()}
@@ -6049,7 +6287,7 @@ export default function StudioCanvas() {
             onPointerMove={onInspectorResizeMove}
             onPointerUp={onInspectorResizeUp}
             onPointerCancel={onInspectorResizeUp}
-            title="드래그로 인스펙터 너비 조절"
+            title={tCanvas("tooltip_drag_inspector_width")}
             style={{
               position: 'absolute', left: -3, top: 0, bottom: 0, width: 6, zIndex: 6,
               cursor: 'ew-resize', background: 'transparent',
@@ -6062,7 +6300,7 @@ export default function StudioCanvas() {
         {/* 데스크톱 전용 패널 닫기 버튼 (좌측 상단 corner) */}
         {!isMobile && (
           <button type="button" onClick={() => { console.log('[CLOSE-RIGHT] click'); setRightPanelOpen(false); }}
-            title="패널 닫기"
+            title={tCanvas("tooltip_close_panel")}
             style={{
               position: 'absolute', top: 6, left: 6, zIndex: 5,
               width: 22, height: 22, border: 'none', borderRadius: 4,
@@ -6110,7 +6348,7 @@ export default function StudioCanvas() {
               )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>
                 <div>
-                  <div style={{ opacity: 0.65, marginBottom: 4 }}>오디오 URL (.mp3 / .wav / .ogg)</div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_audio_url")}</div>
                   <input type="text" value={selected.soundUrl || ''}
                     placeholder="https://... .mp3"
                     onChange={e => {
@@ -6121,7 +6359,7 @@ export default function StudioCanvas() {
                     style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
                 </div>
                 <div>
-                  <div style={{ opacity: 0.65, marginBottom: 4 }}>볼륨 ({(selected.soundVolume ?? 0.8).toFixed(2)})</div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("sound_volume_label", { volume: (selected.soundVolume ?? 0.8).toFixed(2) })}</div>
                   <input type="range" min={0} max={1} step={0.05} value={selected.soundVolume ?? 0.8}
                     onChange={e => {
                       const v = Number(e.target.value);
@@ -6131,7 +6369,7 @@ export default function StudioCanvas() {
                     style={{ width: '100%' }} />
                 </div>
                 <div>
-                  <div style={{ opacity: 0.65, marginBottom: 4 }}>가청 반경 (m, 0=전역)</div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_audible_radius")}</div>
                   <input type="number" min={0} max={500} step={1} value={selected.soundRadius ?? 10}
                     onChange={e => {
                       const r = Math.max(0, Math.min(500, Number(e.target.value) || 0));
@@ -6145,17 +6383,17 @@ export default function StudioCanvas() {
                     onChange={e => {
                       setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, soundLoop: e.target.checked } : o));
                       pushHistory(objects);
-                    }} /> 반복 재생 (loop)
+                    }} /> {tCanvas("label_sound_loop")}
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                   <input type="checkbox" checked={selected.soundAutoplay !== false}
                     onChange={e => {
                       setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, soundAutoplay: e.target.checked } : o));
                       pushHistory(objects);
-                    }} /> 자동 재생 (시작 시)
+                    }} /> {tCanvas("label_sound_autoplay")}
                 </label>
                 <div style={{ fontSize: 10, opacity: 0.45, marginTop: 4 }}>
-                  ※ 위치 기반 3D 사운드 — 가청 반경 안에서 거리 감쇠. 시각 X (편집에서 위치만).
+                  {tCanvas("hint_sound_3d")}
                 </div>
               </div>
             </>
@@ -6169,7 +6407,7 @@ export default function StudioCanvas() {
               {/* Terrain 인스펙터 — size, segments, baseColor, textureUrl + 재생성 (flat/noise) */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>
                 <div>
-                  <div style={{ opacity: 0.65, marginBottom: 4 }}>크기 (m, 정사각형)</div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_terrain_size")}</div>
                   <input type="number" min={5} max={500} step={5} value={selected.terrain.size}
                     onChange={e => {
                       const sz = Math.max(5, Math.min(500, Number(e.target.value) || 50));
@@ -6180,7 +6418,7 @@ export default function StudioCanvas() {
                     style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
                 </div>
                 <div>
-                  <div style={{ opacity: 0.65, marginBottom: 4 }}>해상도 segments (32 ~ 256)</div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_terrain_segments")}</div>
                   <input type="number" min={8} max={256} step={8} value={selected.terrain.segments}
                     onChange={e => {
                       const seg = Math.max(8, Math.min(256, Math.floor(Number(e.target.value) || 64)));
@@ -6189,10 +6427,10 @@ export default function StudioCanvas() {
                     }}
                     onBlur={() => pushHistory(objects)}
                     style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
-                  <div style={{ fontSize: 10, opacity: 0.45, marginTop: 3 }}>※ 해상도 변경 시 heightmap 초기화됨</div>
+                  <div style={{ fontSize: 10, opacity: 0.45, marginTop: 3 }}>{tCanvas("hint_terrain_segments_reset")}</div>
                 </div>
                 <div>
-                  <div style={{ opacity: 0.65, marginBottom: 4 }}>베이스 색상</div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_terrain_base_color")}</div>
                   <input type="color" value={selected.terrain.baseColor || '#5a8a4a'}
                     onChange={e => {
                       const c = e.target.value;
@@ -6203,7 +6441,7 @@ export default function StudioCanvas() {
                     style={{ width: 60, height: 28, background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, cursor: 'pointer', padding: 0 }} />
                 </div>
                 <div>
-                  <div style={{ opacity: 0.65, marginBottom: 4 }}>텍스처 URL (선택)</div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_terrain_texture_url")}</div>
                   <input type="text" value={selected.terrain.textureUrl || ''}
                     placeholder="https://... .jpg/.png"
                     onChange={e => {
@@ -6215,7 +6453,7 @@ export default function StudioCanvas() {
                     style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
                 </div>
                 <div>
-                  <div style={{ opacity: 0.65, marginBottom: 4 }}>텍스처 반복 (UV)</div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_terrain_texture_repeat")}</div>
                   <input type="number" min={1} max={64} step={1} value={selected.terrain.textureRepeat ?? 8}
                     onChange={e => {
                       const r = Math.max(1, Math.min(64, Math.floor(Number(e.target.value) || 8)));
@@ -6226,7 +6464,7 @@ export default function StudioCanvas() {
                     style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
                 </div>
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ opacity: 0.7, fontSize: 11, fontWeight: 700 }}>지형 재생성</div>
+                  <div style={{ opacity: 0.7, fontSize: 11, fontWeight: 700 }}>{tCanvas("section_terrain_regenerate")}</div>
                   <button type="button"
                     onClick={() => {
                       const cur = selected.terrain!;
@@ -6235,7 +6473,7 @@ export default function StudioCanvas() {
                       pushHistory(objects);
                     }}
                     style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 6, padding: '6px 10px', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
-                    🟰 평탄화 (모두 0)
+                    {tCanvas("btn_terrain_flatten")}
                   </button>
                   <button type="button"
                     onClick={() => {
@@ -6246,11 +6484,11 @@ export default function StudioCanvas() {
                       pushHistory(objects);
                     }}
                     style={{ background: 'rgba(132,204,22,0.18)', border: '1px solid rgba(132,204,22,0.4)', color: '#d9f99d', borderRadius: 6, padding: '6px 10px', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
-                    🏔 자연 언덕 생성 (랜덤 노이즈)
+                    {tCanvas("btn_terrain_noise")}
                   </button>
                 </div>
                 <div style={{ fontSize: 10, opacity: 0.4, marginTop: 6 }}>
-                  ※ 브러시 편집 (raise/lower/smooth) 은 Phase 2 에서 추가됩니다.
+                  {tCanvas("hint_terrain_brush_phase2")}
                 </div>
               </div>
             </>
@@ -6349,7 +6587,7 @@ export default function StudioCanvas() {
                   레거시 obj.physics 필드 있는 경우 안내: */}
               {selected.physics && selected.physics !== 'none' && !selected.components?.some(c => c.type === 'physics') && (
                 <div style={{ marginBottom: 10, padding: '8px 10px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: 6, fontSize: 10, color: '#fbbf24', lineHeight: 1.5 }}>
-                  ⚠ 레거시 물리 설정 ({selected.physics}). Physics 컴포넌트로 마이그레이션 권장:
+                  {tCanvas("legacy_physics_warn", { physics: selected.physics })}
                   <button type="button"
                     onClick={() => {
                       const inst: ComponentInstance = { type: 'physics' as ComponentType, props: { mode: selected.physics === 'dynamic' ? 'dynamic' : 'fixed' } };
@@ -6359,7 +6597,7 @@ export default function StudioCanvas() {
                       pushHistory(objects);
                     }}
                     style={{ display: 'block', marginTop: 5, background: 'rgba(251,191,36,0.2)', border: '1px solid rgba(251,191,36,0.5)', color: '#fbbf24', borderRadius: 4, padding: '4px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer', width: '100%' }}>
-                    Physics 컴포넌트로 변환
+                    {tCanvas("btn_migrate_to_physics")}
                   </button>
                 </div>
               )}
@@ -6513,7 +6751,7 @@ export default function StudioCanvas() {
                           <>
                             <div
                               onClick={() => setTexPicker(slot)}
-                              title="클릭하여 텍스처 변경"
+                              title={tCanvas("tooltip_click_change_texture")}
                               style={{ width: 22, height: 22, background: `url(${value}) center/cover`, borderRadius: 3, cursor: 'pointer', flexShrink: 0 }} />
                             <button onClick={() => { updateMaterialField(field, undefined); pushHistory(objects); }}
                               style={{ flex: 1, fontSize: 9, padding: '3px', background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: 'none', borderRadius: 3, cursor: 'pointer' }}>{t('texRemove')}</button>
@@ -6521,7 +6759,7 @@ export default function StudioCanvas() {
                         ) : (
                           <button onClick={() => setTexPicker(slot)}
                             style={{ flex: 1, fontSize: 10, padding: '3px', background: dragOverTex === slot ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.06)', color: '#a5b4fc', border: `1px dashed ${dragOverTex === slot ? '#818cf8' : 'rgba(255,255,255,0.15)'}`, borderRadius: 3, cursor: 'pointer' }}>
-                            {dragOverTex === slot ? '📥 여기에 놓기' : t('texChoose')}
+                            {dragOverTex === slot ? tCanvas("msg_drop_here") : t('texChoose')}
                           </button>
                         )}
                       </div>
@@ -6550,27 +6788,27 @@ export default function StudioCanvas() {
                       const asset = myAssets.find(a => a.id === e.dataTransfer.getData('text/plain'));
                       if (asset && /\.(mp4|webm|mov)$/i.test(asset.modelUrl)) { updateMaterialField('videoUrl', asset.modelUrl); pushHistory(objects); }
                     }}>
-                    <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4 }}>📺 비디오 스크린</div>
+                    <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4 }}>{tCanvas("section_video_screen")}</div>
                     {selected.videoUrl ? (
                       <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                         <span style={{ flex: 1, fontSize: 10, color: '#86efac', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {parseYouTubeId(selected.videoUrl) ? '▶ YouTube 설정됨' : '✓ 영상 파일 설정됨'}
+                          {parseYouTubeId(selected.videoUrl) ? tCanvas("msg_youtube_set") : tCanvas("msg_video_file_set")}
                         </span>
-                        <button onClick={() => { updateMaterialField('videoUrl', undefined); pushHistory(objects); }} style={{ fontSize: 9, padding: '3px 6px', background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: 'none', borderRadius: 3, cursor: 'pointer' }}>제거</button>
+                        <button onClick={() => { updateMaterialField('videoUrl', undefined); pushHistory(objects); }} style={{ fontSize: 9, padding: '3px 6px', background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: 'none', borderRadius: 3, cursor: 'pointer' }}>{tCanvas("tooltip_remove")}</button>
                       </div>
                     ) : (
                       <>
                         <button onClick={() => setVideoPicker(true)}
                           style={{ width: '100%', fontSize: 10, padding: '5px', marginBottom: 4, background: dragOverTex === 'video' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.06)', color: '#a5b4fc', border: `1px dashed ${dragOverTex === 'video' ? '#818cf8' : 'rgba(255,255,255,0.15)'}`, borderRadius: 4, cursor: 'pointer' }}>
-                          {dragOverTex === 'video' ? '📥 여기에 놓기' : '영상 파일 선택 (또는 에셋 드래그)'}
+                          {dragOverTex === 'video' ? tCanvas("msg_drop_here") : tCanvas("btn_pick_video")}
                         </button>
-                        <input key={selected.id} type="text" placeholder="또는 YouTube 링크 붙여넣기"
+                        <input key={selected.id} type="text" placeholder={tCanvas("placeholder_youtube_link")}
                           onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                           onBlur={e => { const v = e.target.value.trim(); if (v && parseYouTubeId(v)) { updateMaterialField('videoUrl', v); pushHistory(objects); } }}
                           style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(0,0,0,0.4)', border: 'none', color: '#fff', fontSize: 10, padding: '5px', borderRadius: 4, outline: 'none' }} />
                       </>
                     )}
-                    <div style={{ fontSize: 9, opacity: 0.4, marginTop: 3, lineHeight: 1.4 }}>평면(plane)에 적용하면 TV 화면처럼 됩니다. 영상 파일(mp4) 또는 YouTube 링크. 소리·멀티 동기화는 월드(플레이)에서 동작.</div>
+                    <div style={{ fontSize: 9, opacity: 0.4, marginTop: 3, lineHeight: 1.4 }}>{tCanvas("hint_video_screen")}</div>
                   </div>
                 </>
               )}
@@ -6580,7 +6818,7 @@ export default function StudioCanvas() {
               <div style={{ display: 'flex', gap: 4, marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                 <button onClick={duplicate}
                   style={{ flex: 1, background: 'rgba(99,102,241,0.2)', border: 'none', color: '#a5b4fc', fontSize: 11, padding: '7px', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
-                  복제 (Ctrl+D)
+                  {tCanvas("btn_duplicate")}
                 </button>
                 <button onClick={deleteSelected}
                   style={{ flex: 1, background: 'rgba(239,68,68,0.2)', border: 'none', color: '#fca5a5', fontSize: 11, padding: '7px', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
@@ -6590,7 +6828,7 @@ export default function StudioCanvas() {
               {/* 프리팹으로 저장 */}
               <button onClick={savePrefab}
                 style={{ width: '100%', marginTop: 4, background: 'rgba(251,191,36,0.18)', border: '1px solid rgba(251,191,36,0.4)', color: '#fbbf24', fontSize: 11, padding: '7px', borderRadius: 6, cursor: 'pointer', fontWeight: 700 }}>
-                💾 프리팹으로 저장
+                {tCanvas("btn_save_as_prefab")}
               </button>
 
               <div style={{ fontSize: 10, opacity: 0.3, marginTop: 10, textAlign: 'center' }}>
@@ -6612,7 +6850,7 @@ export default function StudioCanvas() {
           setLeftPanelOpen(true);
           if (isMobile) setStudioMode('settings');
         }}
-        title="좌측 패널 열기"
+        title={tCanvas("tooltip_open_left_panel")}
         style={{
           display: leftPanelOpen ? 'none' : 'flex',
           position: 'absolute', left: 0, top: 0, bottom: activeAssetPicker ? 340 : 0, width: 40, zIndex: 9999,
@@ -6624,7 +6862,7 @@ export default function StudioCanvas() {
           pointerEvents: 'auto',
         }}>
         <span style={{ fontSize: 22 }}>▶</span>
-        <span style={{ fontSize: 12, letterSpacing: 2, writingMode: 'vertical-rl' }}>씬·도구</span>
+        <span style={{ fontSize: 12, letterSpacing: 2, writingMode: 'vertical-rl' }}>{tCanvas("strip_scene_tools")}</span>
       </button>
       <button
         type="button"
@@ -6635,7 +6873,7 @@ export default function StudioCanvas() {
           setRightPanelOpen(true);
           if (isMobile) setStudioMode('scene');
         }}
-        title="우측 패널 열기"
+        title={tCanvas("tooltip_open_right_panel")}
         style={{
           display: rightPanelOpen ? 'none' : 'flex',
           position: 'absolute', right: 0, top: 0, bottom: activeAssetPicker ? 340 : 0, width: 40, zIndex: 9999,
@@ -6647,7 +6885,7 @@ export default function StudioCanvas() {
           pointerEvents: 'auto',
         }}>
         <span style={{ fontSize: 22 }}>◀</span>
-        <span style={{ fontSize: 12, letterSpacing: 2, writingMode: 'vertical-rl' }}>인스펙터</span>
+        <span style={{ fontSize: 12, letterSpacing: 2, writingMode: 'vertical-rl' }}>{tCanvas("strip_inspector")}</span>
       </button>
 
       {/* ── 3D 뷰포트 ─────────────────────── */}
@@ -6777,7 +7015,7 @@ export default function StudioCanvas() {
                           onSeekTo={(t) => targetIds.forEach(tid => runSimVideoControl({ seekTo: t }, tid))}
                           onTogglePlay={(p) => targetIds.forEach(tid => runSimVideoControl({ playing: p }, tid))}
                           onChangeUrl={() => {
-                            const u = window.prompt('새 URL (YouTube / mp4 / gif / 호스팅 게임 등)', targets[0].videoUrl || '');
+                            const u = window.prompt(tCanvas("prompt_new_url"), targets[0].videoUrl || '');
                             if (u && u.trim()) targetIds.forEach(tid => runSimVideoControl({ url: u.trim() }, tid));
                           }}
                         />
@@ -6942,8 +7180,8 @@ export default function StudioCanvas() {
         {simulating && simCharacter && simCamView === 'follow' && simCameraMode === 'first' && (() => {
           const ch = simCrosshair === 'grab' ? '#fbbf24' : simCrosshair === 'aim' ? '#34d399' : '#fff';
           const useBlend = simCrosshair === 'idle';
-          const hint = simCrosshair === 'grab' ? 'E — 놓기 · 좌클릭 — 던지기 · 휠 — 거리'
-                     : simCrosshair === 'aim'  ? 'E — 잡기' : null;
+          const hint = simCrosshair === 'grab' ? tCanvas("hint_crosshair_grab")
+                     : simCrosshair === 'aim'  ? tCanvas("hint_crosshair_aim") : null;
           return (
             <>
               <div style={{ position: 'fixed', top: canvasCenter.y, left: canvasCenter.x, transform: 'translate(-50%, -50%)', pointerEvents: 'none', zIndex: 16777274, mixBlendMode: useBlend ? 'difference' : 'normal' }}>
@@ -6975,7 +7213,7 @@ export default function StudioCanvas() {
               color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', backdropFilter: 'blur(6px)',
             }}
           >
-            {simCamView === 'free' ? '🚁 자유시점' : '🎮 캐릭터 빙의'} (F8)
+            {simCamView === 'free' ? tCanvas("btn_freecam") : tCanvas("btn_follow_cam")} (F8)
           </button>
         )}
 
@@ -6983,8 +7221,8 @@ export default function StudioCanvas() {
         {simulating && simCharacter && (
           <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none', zIndex: 20, fontSize: 11, color: 'rgba(255,255,255,0.7)', background: 'rgba(0,0,0,0.45)', padding: '6px 14px', borderRadius: 8, backdropFilter: 'blur(6px)', whiteSpace: 'nowrap' }}>
             {simCamView === 'free'
-              ? '자유시점 · 우클릭 드래그 회전 · WASD/QE 이동 · F8 빙의 · ESC 중지'
-              : '클릭하여 마우스 잠금 · WASD 이동 · Shift 달리기 · Space 점프 · C 앉기 · Z 엎드리기 · V 시점 · E 잡기 · F8 자유시점 · ESC 해제/중지'}
+              ? tCanvas("hint_sim_freecam")
+              : tCanvas("hint_sim_follow")}
           </div>
         )}
 
@@ -7069,9 +7307,9 @@ export default function StudioCanvas() {
         {!isMobile && (
         <div style={{ position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', pointerEvents: 'none' }}>
           {[
-            ['W', '이동'], ['E', '회전'], ['R', '스케일'],
-            ['우클릭+WASD', '카메라'], ['우클릭+QE', '상승/하강'], ['Shift', '가속'],
-            ['F', '포커스'], ['Ctrl+D', '복제'], ['Ctrl+Z', '실행취소'], ['Del', '삭제'],
+            ['W', tCanvas("shortcut_move")], ['E', tCanvas("shortcut_rotate")], ['R', tCanvas("shortcut_scale")],
+            ['우클릭+WASD', tCanvas("shortcut_camera")], ['우클릭+QE', tCanvas("shortcut_up_down")], ['Shift', tCanvas("shortcut_accel")],
+            ['F', tCanvas("shortcut_focus")], ['Ctrl+D', tCanvas("shortcut_duplicate")], ['Ctrl+Z', tCanvas("shortcut_undo")], ['Del', tCanvas("btn_delete")],
           ].map(([key, desc]) => (
             <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(0,0,0,0.5)', borderRadius: 6, padding: '3px 7px', backdropFilter: 'blur(6px)' }}>
               <kbd style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 3, padding: '1px 5px', fontSize: 10, fontFamily: 'monospace', color: '#e2e8f0', fontWeight: 700 }}>{key}</kbd>
@@ -7100,7 +7338,7 @@ export default function StudioCanvas() {
           <TexturePickerModal
             assets={myAssets}
             mode="video"
-            title="비디오 스크린 선택"
+            title={tCanvas("title_video_picker")}
             onClose={() => setVideoPicker(false)}
             onSelect={(url) => { updateMaterialField('videoUrl', url); pushHistory(objects); setVideoPicker(false); }}
           />
@@ -7140,7 +7378,7 @@ export default function StudioCanvas() {
           {/* 높이 리사이즈 핸들 (위쪽 가장자리 드래그 ↑ 크게) */}
           <div
             onPointerDown={e => beginResize(e, { axis: 'y', from: assetH, dir: -1, min: 180, max: Math.round((typeof window !== 'undefined' ? window.innerHeight : 900) * 0.8), set: setAssetH })}
-            title="드래그로 높이 조절"
+            title={tCanvas("tooltip_drag_height")}
             style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 7, cursor: 'ns-resize', zIndex: 2 }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(129,140,248,0.35)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
@@ -7172,7 +7410,7 @@ export default function StudioCanvas() {
                       value={newFolderName}
                       onChange={e => setNewFolderName(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') confirmNewFolder(); if (e.key === 'Escape') { setShowNewFolder(false); setNewFolderName(''); } }}
-                      placeholder="폴더명"
+                      placeholder={tCanvas("placeholder_folder_name")}
                       style={{ flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.4)', border: '1px solid #6366f1', borderRadius: 5, color: '#fff', fontSize: 11, padding: '4px 6px', outline: 'none' }}
                     />
                     <button onClick={confirmNewFolder} style={{ background: '#4f46e5', border: 'none', borderRadius: 5, color: '#fff', fontSize: 11, padding: '4px 7px', cursor: 'pointer' }}>✓</button>
@@ -7210,7 +7448,7 @@ export default function StudioCanvas() {
               >
                 <span style={{ width: 12 }} />
                 <span style={{ fontSize: 13 }}>🗂️</span>
-                <span>전체 (루트)</span>
+                <span>{tCanvas("folder_root_all")}</span>
               </div>
 
               {/* 폴더 트리 */}
@@ -7243,22 +7481,22 @@ export default function StudioCanvas() {
               {assetSel.size > 0 && (
                 <div style={{ position: 'sticky', top: -8, zIndex: 3, margin: '-8px -10px 6px', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 8,
                   background: 'rgba(30,41,59,0.96)', borderBottom: '1px solid rgba(129,140,248,0.25)' }}>
-                  <span style={{ fontSize: 11, color: '#c7d2fe', fontWeight: 600 }}>{assetSel.size}개 선택됨</span>
+                  <span style={{ fontSize: 11, color: '#c7d2fe', fontWeight: 600 }}>{tCanvas("msg_count_selected", { count: assetSel.size })}</span>
                   <button onClick={() => deleteAssetsBatch([...assetSel])}
-                    style={{ background: 'rgba(239,68,68,0.85)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 11, padding: '4px 10px', cursor: 'pointer', fontWeight: 600 }}>🗑 선택 삭제</button>
+                    style={{ background: 'rgba(239,68,68,0.85)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 11, padding: '4px 10px', cursor: 'pointer', fontWeight: 600 }}>{tCanvas("btn_delete_selected")}</button>
                   <button onClick={() => setAssetSel(new Set())}
-                    style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 5, color: '#cbd5e1', fontSize: 11, padding: '4px 10px', cursor: 'pointer' }}>선택 해제</button>
+                    style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 5, color: '#cbd5e1', fontSize: 11, padding: '4px 10px', cursor: 'pointer' }}>{tCanvas("btn_deselect")}</button>
                 </div>
               )}
               {/* 드롭 오버레이 */}
               {dropZoneActive && (
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 1 }}>
-                  <div style={{ fontSize: 13, color: '#6ee7b7', fontWeight: 700 }}>📂 여기에 놓으면 업로드됩니다</div>
+                  <div style={{ fontSize: 13, color: '#6ee7b7', fontWeight: 700 }}>{tCanvas("msg_drop_to_upload")}</div>
                 </div>
               )}
               {uploading && (
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(2,6,23,0.6)', zIndex: 2, fontSize: 13, color: '#a5b4fc', fontWeight: 700 }}>
-                  ⏳ 업로드 중...
+                  {tCanvas("msg_uploading")}
                 </div>
               )}
               {fbxAssets.length === 0 && selectedSubfolders.length === 0 ? (
@@ -7286,7 +7524,7 @@ export default function StudioCanvas() {
                   {/* 폴더/파일 모두 없을 때 안내 */}
                   {selectedSubfolders.length === 0 && selectedFolderAssets.length === 0 && (
                     <div style={{ gridColumn: '1 / -1', fontSize: 12, opacity: 0.35, textAlign: 'center', paddingTop: 16 }}>
-                      FBX 파일을 여기에 드래그하여 업로드
+                      {tCanvas("msg_drop_fbx_here")}
                     </div>
                   )}
                 </div>
@@ -7433,7 +7671,7 @@ export default function StudioCanvas() {
           <div onClick={e => e.stopPropagation()}
             style={{ width: 'min(520px, 96vw)', maxHeight: '80vh', overflow: 'hidden', borderRadius: 12, border: '1px solid rgba(255,255,255,0.16)', background: 'linear-gradient(180deg, rgba(30,41,59,0.97), rgba(15,23,42,0.97))', color: '#fff', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontSize: 14, fontWeight: 800 }}>컴포넌트 추가</div>
+              <div style={{ fontSize: 14, fontWeight: 800 }}>{tCanvas("modal_title_add_component")}</div>
               <button type="button" onClick={() => setComponentPickerOpen(false)}
                 style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
@@ -7442,7 +7680,7 @@ export default function StudioCanvas() {
                 autoFocus
                 value={componentPickerSearch}
                 onChange={e => setComponentPickerSearch(e.target.value)}
-                placeholder="컴포넌트 검색 (예: grab, rotate)"
+                placeholder={tCanvas("placeholder_component_search")}
                 style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 6, padding: '7px 10px', fontSize: 12, outline: 'none' }}
               />
             </div>
@@ -7488,7 +7726,7 @@ export default function StudioCanvas() {
                       }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ fontSize: 13, fontWeight: 700 }}>{def.icon} {def.name}</span>
-                        {alreadyHas && <span style={{ fontSize: 10, opacity: 0.65 }}>이미 추가됨</span>}
+                        {alreadyHas && <span style={{ fontSize: 10, opacity: 0.65 }}>{tCanvas("msg_already_added")}</span>}
                       </div>
                       <span style={{ fontSize: 11, opacity: 0.7, fontWeight: 400, lineHeight: 1.4 }}>{def.description}</span>
                     </button>
@@ -7529,7 +7767,7 @@ export default function StudioCanvas() {
                       }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 13, fontWeight: 700 }}>{c.icon || '🧩'} {c.name}</span>
-                        <span style={{ fontSize: 9, background: 'rgba(52,211,153,0.3)', color: '#86efac', padding: '1px 6px', borderRadius: 3, fontWeight: 700 }}>공식</span>
+                        <span style={{ fontSize: 9, background: 'rgba(52,211,153,0.3)', color: '#86efac', padding: '1px 6px', borderRadius: 3, fontWeight: 700 }}>{tCanvas("badge_official")}</span>
                       </div>
                       {c.description && (
                         <span style={{ fontSize: 11, opacity: 0.7, fontWeight: 400, lineHeight: 1.4 }}>{c.description}</span>
@@ -7538,7 +7776,7 @@ export default function StudioCanvas() {
                   );
                 })}
               {!pickerCollapsed.official && officialScriptComponents.length === 0 && (
-                <div style={{ fontSize: 10, opacity: 0.35, textAlign: 'center', padding: '6px 0' }}>공식 컴포넌트 없음</div>
+                <div style={{ fontSize: 10, opacity: 0.35, textAlign: 'center', padding: '6px 0' }}>{tCanvas("msg_no_official_components")}</div>
               )}
 
               {/* 내 (유저 정의) 컴포넌트 */}
@@ -7551,7 +7789,7 @@ export default function StudioCanvas() {
                 <button type="button"
                   onClick={() => { setComponentPickerOpen(false); setScriptComponentsModalOpen(true); }}
                   style={{ background: 'rgba(99,102,241,0.18)', border: '1px solid rgba(99,102,241,0.4)', color: '#a5b4fc', borderRadius: 5, padding: '2px 8px', cursor: 'pointer', fontSize: 10, fontWeight: 700 }}>
-                  관리/만들기
+                  {tCanvas("btn_manage_create")}
                 </button>
               </div>
               {!pickerCollapsed.my && scriptComponents
@@ -7590,8 +7828,8 @@ export default function StudioCanvas() {
                 })}
               {!pickerCollapsed.my && scriptComponents.length === 0 && (
                 <div style={{ fontSize: 11, opacity: 0.4, textAlign: 'center', padding: '10px 0', lineHeight: 1.5 }}>
-                  아직 만든 컴포넌트가 없습니다.<br/>
-                  위 "관리/만들기" 로 새로 만들 수 있어요.
+                  {tCanvas("msg_no_my_components")}<br/>
+                  {tCanvas("msg_create_via_manage")}
                 </div>
               )}
 
@@ -7621,7 +7859,7 @@ export default function StudioCanvas() {
                               const created = await api.createScriptComponent(tok, {
                                 name: a.name,
                                 icon: meta.icon || '📜',
-                                description: '에셋에서 가져옴',
+                                description: tCanvas("desc_imported_from_asset"),
                                 code: meta.code || '',
                                 propsSchema: Array.isArray(meta.propsSchema) ? meta.propsSchema : [],
                               });
@@ -7648,8 +7886,8 @@ export default function StudioCanvas() {
                           }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{ fontSize: 13, fontWeight: 700 }}>{(a.metadata?.icon as string) || '📜'} {a.name}</span>
-                            <span style={{ fontSize: 9, background: 'rgba(168,85,247,0.3)', color: '#e9d5ff', padding: '1px 6px', borderRadius: 3, fontWeight: 700 }}>에셋</span>
-                            {already && <span style={{ fontSize: 10, opacity: 0.65, marginLeft: 'auto' }}>이미 가져옴</span>}
+                            <span style={{ fontSize: 9, background: 'rgba(168,85,247,0.3)', color: '#e9d5ff', padding: '1px 6px', borderRadius: 3, fontWeight: 700 }}>{tCanvas("kind_asset")}</span>
+                            {already && <span style={{ fontSize: 10, opacity: 0.65, marginLeft: 'auto' }}>{tCanvas("msg_already_imported")}</span>}
                           </div>
                         </button>
                       );
@@ -7676,26 +7914,25 @@ export default function StudioCanvas() {
             style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 14, width: 'min(720px, 100%)', maxHeight: '90vh', padding: 20, color: '#fff', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 16, fontWeight: 800 }}>🤖 AI JSON 으로 UI 만들기</div>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>{tCanvas("modal_title_ai_ui_json")}</div>
               <button onClick={() => setUiJsonModalOpen(false)}
                 style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: 22, cursor: 'pointer', padding: '0 6px' }}>×</button>
             </div>
             <div style={{ fontSize: 11, opacity: 0.7, lineHeight: 1.5 }}>
-              ChatGPT / Claude 등 AI 에게 아래 <b style={{ color: '#c4b5fd' }}>스펙 + 만들고 싶은 UI 설명</b> 을 같이 주면 JSON 을 만들어 줍니다.
-              그 JSON 을 아래 칸에 붙여넣고 <b>가져오기</b>.
+              {tCanvas("ai_ui_json_intro")}
             </div>
             <details style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '8px 12px' }}>
-              <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#c4b5fd' }}>📋 AI 에게 줄 스펙 (클릭해서 펼침 + 복사)</summary>
+              <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#c4b5fd' }}>{tCanvas("section_ai_spec")}</summary>
               <textarea readOnly value={AI_UI_PROMPT_GUIDE}
                 style={{ width: '100%', height: 240, marginTop: 8, background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#cbd5e1', fontFamily: 'monospace', fontSize: 11, padding: 10, resize: 'vertical', outline: 'none' }}
                 onClick={e => (e.target as HTMLTextAreaElement).select()} />
               <button
                 onClick={() => { navigator.clipboard?.writeText(AI_UI_PROMPT_GUIDE).catch(() => {}); }}
                 style={{ marginTop: 6, background: 'rgba(168,85,247,0.18)', border: '1px solid rgba(168,85,247,0.4)', borderRadius: 6, color: '#e9d5ff', fontSize: 11, padding: '5px 12px', cursor: 'pointer', fontWeight: 700 }}>
-                📋 스펙 복사
+                {tCanvas("btn_copy_spec")}
               </button>
             </details>
-            <div style={{ fontSize: 11, opacity: 0.7 }}>JSON 붙여넣기:</div>
+            <div style={{ fontSize: 11, opacity: 0.7 }}>{tCanvas("label_json_paste")}</div>
             <textarea
               value={uiJsonText}
               onChange={e => { setUiJsonText(e.target.value); setUiJsonError(null); }}
@@ -7706,7 +7943,7 @@ export default function StudioCanvas() {
             )}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setUiJsonModalOpen(false)}
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 7, color: '#fff', fontSize: 12, padding: '8px 16px', cursor: 'pointer' }}>취소</button>
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 7, color: '#fff', fontSize: 12, padding: '8px 16px', cursor: 'pointer' }}>{tCanvas("btn_cancel")}</button>
               <button
                 onClick={() => {
                   const res = importUiFromJson(uiJsonText);
@@ -7714,7 +7951,7 @@ export default function StudioCanvas() {
                   else setUiJsonError(res.error);
                 }}
                 style={{ background: 'linear-gradient(135deg,#a855f7,#7c3aed)', border: 'none', borderRadius: 7, color: '#fff', fontSize: 12, padding: '8px 18px', cursor: 'pointer', fontWeight: 700 }}>
-                ✨ 가져오기
+                {tCanvas("btn_import")}
               </button>
             </div>
           </div>

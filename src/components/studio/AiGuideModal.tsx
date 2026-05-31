@@ -1,5 +1,6 @@
 'use client';
 import { useState, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 
 interface MapObjectLike {
   id?: string;
@@ -216,6 +217,7 @@ function onTriggerEnter(otherId) {}
 `;
 
 export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalProps) {
+  const t = useTranslations('Studio.aiGuide');
   const [jsonText, setJsonText] = useState('');
   const [userRequest, setUserRequest] = useState('');
   const [copied, setCopied] = useState(false);
@@ -224,7 +226,7 @@ export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalPr
 
   // 사용자 요청을 토큰 자리에 끼워넣은 최종 프롬프트
   const fullPrompt = useMemo(
-    () => AI_PROMPT_TEMPLATE.replace('{{USER_REQUEST}}', userRequest.trim() || '(여기에 만들고 싶은 씬을 한국어 또는 영어로 자유롭게 적어주세요)'),
+    () => AI_PROMPT_TEMPLATE.replace('{{USER_REQUEST}}', userRequest.trim() || t("request_placeholder_default")),
     [userRequest]
   );
 
@@ -254,7 +256,7 @@ export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalPr
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      setError('클립보드 복사 실패. 직접 선택해서 복사하세요.');
+      setError(t("msg_clipboard_failed"));
     }
   };
 
@@ -280,17 +282,17 @@ export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalPr
     try {
       const cleaned = extractJson(jsonText);
       if (!cleaned) {
-        setError('붙여넣을 JSON 이 비어 있습니다.');
+        setError(t("msg_json_empty"));
         return;
       }
       const data = JSON.parse(cleaned);
       const arr: MapObjectLike[] = Array.isArray(data) ? data : (data.objects || []);
       if (!Array.isArray(arr)) {
-        setError('JSON 에 objects 배열이 없습니다.');
+        setError(t("msg_no_objects_array"));
         return;
       }
       if (arr.length === 0) {
-        setError('오브젝트 배열이 비어 있습니다.');
+        setError(t("msg_objects_empty"));
         return;
       }
       // 기본 필드 보강 (AI 가 누락한 경우)
@@ -306,7 +308,7 @@ export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalPr
       setJsonText('');
       onClose();
     } catch (e) {
-      setError('JSON 파싱 실패: ' + (e as Error).message);
+      setError(t("msg_json_parse_failed", { message: (e as Error).message }));
     }
   };
 
@@ -329,27 +331,27 @@ export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalPr
       >
         {/* 헤더 */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-          <div style={{ fontSize: 17, fontWeight: 800 }}>🤖 AI 로 맵 만들기</div>
-          <button onClick={onClose} style={{ border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', fontWeight: 700 }}>닫기</button>
+          <div style={{ fontSize: 17, fontWeight: 800 }}>{t("modal_title")}</div>
+          <button onClick={onClose} style={{ border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', fontWeight: 700 }}>{t("btn_close")}</button>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
           {/* 안내 */}
           <div style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 10, padding: '10px 12px', fontSize: 12, lineHeight: 1.55, marginBottom: 16 }}>
-            AI 비용은 본인 계정에서 발생합니다. ChatGPT, Claude, Gemini 등 원하는 AI 도구를 사용해서 JSON 을 받아 붙여넣으세요.
-            <br />최신 스펙: 3D 오브젝트 + UI 시스템 (Canvas/Text/Button/Slider 등) + 컴포넌트 (Physics/Particle 등) + 영구 데이터 저장 (data API).
+            {t("info_ai_cost")}
+            <br />{t("info_latest_spec")}
           </div>
 
           {/* Step 1 — 요청 입력 */}
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ background: '#6366f1', color: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>1</span>
-              만들고 싶은 씬 설명
+              {t("step1_label")}
             </div>
             <textarea
               value={userRequest}
               onChange={e => setUserRequest(e.target.value)}
-              placeholder="예: 어두운 던전. 횃불 4개 + 입구에 보물상자 + 함정 트리거 / 점수 HUD 와 +1 버튼 UI"
+              placeholder={t("request_placeholder")}
               style={{
                 width: '100%', height: 80, background: 'rgba(0,0,0,0.4)',
                 border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
@@ -362,7 +364,7 @@ export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalPr
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ background: '#6366f1', color: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>2</span>
-              프롬프트 복사 후 AI 에 붙여넣기
+              {t("step2_label")}
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
               <button
@@ -372,12 +374,12 @@ export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalPr
                   borderRadius: 8, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
                 }}
               >
-                {copied ? '✓ 복사됨 (스펙 + 요청 합쳐서)' : '📋 프롬프트 복사 (스펙 + 요청)'}
+                {copied ? t("btn_copied") : t("btn_copy_prompt")}
               </button>
               <button
                 onClick={() => setShowFullPrompt(v => !v)}
                 style={{ background: 'rgba(255,255,255,0.06)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '8px 12px', fontSize: 11, cursor: 'pointer' }}>
-                {showFullPrompt ? '프롬프트 숨기기' : '프롬프트 미리보기'}
+                {showFullPrompt ? t("btn_hide_prompt") : t("btn_preview_prompt")}
               </button>
               <a href="https://chat.openai.com" target="_blank" rel="noopener noreferrer"
                 style={{ background: 'rgba(255,255,255,0.06)', color: '#fff', textDecoration: 'none', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '8px 12px', fontSize: 11, fontWeight: 600 }}>ChatGPT ↗</a>
@@ -404,12 +406,12 @@ export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalPr
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ background: '#6366f1', color: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>3</span>
-              AI 응답 붙여넣기 + 적용
+              {t("step3_label")}
             </div>
             <textarea
               value={jsonText}
               onChange={e => { setJsonText(e.target.value); setError(null); }}
-              placeholder='AI 가 준 응답 전체를 그대로 붙여넣어도 됩니다 (코드 블록·설명 포함). 자동으로 JSON 만 추출합니다.'
+              placeholder={t("response_placeholder")}
               style={{
                 width: '100%', height: 160, background: 'rgba(0,0,0,0.4)',
                 border: `1px solid ${error ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.12)'}`,
@@ -420,7 +422,7 @@ export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalPr
             {/* 미리보기 — 분석 결과 (몇 개, 종류별) */}
             {preview && (
               <div style={{ marginTop: 6, fontSize: 11, color: '#a5b4fc', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', padding: '6px 10px', borderRadius: 6 }}>
-                ✓ {preview.total} 개 오브젝트 인식 — {Object.entries(preview.counts).map(([k, v]) => `${k}:${v}`).join(', ')}
+                {t("preview_count", { total: preview.total, breakdown: Object.entries(preview.counts).map(([k, v]) => `${k}:${v}`).join(', ') })}
               </div>
             )}
             {error && (
@@ -439,7 +441,7 @@ export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalPr
                   opacity: jsonText.trim() ? 1 : 0.5,
                 }}
               >
-                ⊕ 현재 씬에 추가
+                {t("btn_add_to_scene")}
               </button>
               <button
                 onClick={() => handleImport('replace')}
@@ -451,7 +453,7 @@ export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalPr
                   opacity: jsonText.trim() ? 1 : 0.5,
                 }}
               >
-                ↻ 씬 전체 교체
+                {t("btn_replace_scene")}
               </button>
             </div>
           </div>
