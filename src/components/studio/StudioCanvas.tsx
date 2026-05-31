@@ -19,6 +19,7 @@ import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { makeDefaultUiData, type UiElementType, type UiData, type RectTransform } from '@/lib/world/uiObjects';
 import { UiInspector } from './UiInspector';
 import { createGameRuntime } from '@/lib/world/gameRuntime';
+import { execUiButtonScript } from '@/lib/world/uiButtonScript';
 import GameHud from '@/components/world/GameHud';
 import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, VideoScreenCtx, parseYouTubeId, parseUrlKind, normalizeMediaUrl, ImageMaterial, GenericIframeOverlay, VideoRemotePanel, type VideoRegistry, type VideoHandle } from '@/components/world/VideoScreen';
 import AiGuideModal from './AiGuideModal';
@@ -3270,7 +3271,22 @@ export default function StudioCanvas() {
   // 시뮬레이션
   const [simulating, setSimulating] = useState(false);
   // 게임 로직 레이어(시뮬용) — 스크립트의 game/ui/world.playSound 가 들어오고 <GameHud> 가 그림.
-  const simGameRuntime = useMemo(() => createGameRuntime(), []);
+  // ui.set/show/hide 콜백 — label 로 ui 오브젝트 찾아 props 패치 또는 hidden 토글.
+  const onUiSet = useCallback((label: string, patch: Record<string, unknown>) => {
+    setObjects(prev => prev.map(o => {
+      if (o.kind !== 'ui' || !o.ui) return o;
+      if (o.label !== label) return o;
+      return { ...o, ui: { ...o.ui, ...patch } as UiData };
+    }));
+  }, []);
+  const onUiVisible = useCallback((label: string, visible: boolean) => {
+    setObjects(prev => prev.map(o => {
+      if (o.kind !== 'ui' || !o.ui) return o;
+      if (o.label !== label) return o;
+      return { ...o, hidden: !visible };
+    }));
+  }, []);
+  const simGameRuntime = useMemo(() => createGameRuntime({ onUiSet, onUiVisible }), [onUiSet, onUiVisible]);
   // 영상 컨트롤(스크러버/재생·정지/±5초) 용 레지스트리 — 시뮬 영상 핸들 등록처. 단일 플레이라 로컬 조작.
   const simVideoRegistry: VideoRegistry = useRef<Map<string, VideoHandle>>(new Map());
   // 시뮬 중 URL 변경(리모컨 🔗) 오버라이드 — objId→새 URL. stopSim 에서 초기화.
@@ -6503,12 +6519,18 @@ export default function StudioCanvas() {
               rotation: o.rotation, scale: o.scale,
             }))}
             editMode={!simulating}
+            onButtonClick={simulating ? (_id, script) => execUiButtonScript(script, simGameRuntime.api) : undefined}
           />
           <PostFX s={postFX} />
         </Canvas>
 
-        {/* UI Renderer — Screen Space HTML overlay (Phase 1). 편집 모드에선 editMode=true (인터랙션 비활성). */}
-        <UIRenderer objects={(simulating ? simObjs : objects).filter(o => o.kind === 'ui' && o.ui).map(o => ({ id: o.id, parentId: o.parentId ?? null, hidden: o.hidden, ui: o.ui! }))} editMode={!simulating} />
+        {/* UI Renderer — Screen Space HTML overlay (Phase 1). 편집 모드에선 editMode=true (인터랙션 비활성).
+            onButtonClick: simulating 일 때만 onClickScript 실행. game/ui API 주입. */}
+        <UIRenderer
+          objects={(simulating ? simObjs : objects).filter(o => o.kind === 'ui' && o.ui).map(o => ({ id: o.id, parentId: o.parentId ?? null, hidden: o.hidden, ui: o.ui! }))}
+          editMode={!simulating}
+          onButtonClick={simulating ? (_id, script) => execUiButtonScript(script, simGameRuntime.api) : undefined}
+        />
 
         {/* 게임 HUD — 스크립트 ui.text/ui.bar 가 그림. 시뮬레이션 중에만 뷰포트 위에 오버레이. */}
         {simulating && <GameHud runtime={simGameRuntime} />}

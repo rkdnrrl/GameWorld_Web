@@ -53,6 +53,11 @@ export interface JsGameAPI {
   hudClear(id: string): void;
   hudClearAll(): void;
   playSound(url: string, opts?: { volume?: number; loop?: boolean }): void;
+  /** UI 시스템 (kind === 'ui' 인 MapObject) 의 props 패치 — label 로 검색.
+   *  호스트(StudioCanvas/WorldCanvas)가 setObjects 와 연결. 없으면 noop. */
+  uiSet?: (label: string, patch: Record<string, unknown>) => void;
+  /** UI 오브젝트 visibility 토글 — label 로 검색. */
+  uiVisible?: (label: string, visible: boolean) => void;
 }
 
 export interface GameRuntimeStore {
@@ -83,6 +88,10 @@ export interface GameRuntimeStore {
  */
 export function createGameRuntime(opts?: {
   onSound?: (url: string, o?: { volume?: number; loop?: boolean }) => void;
+  /** UI 시스템(kind='ui' MapObject) props 패치 콜백 — 호스트가 setObjects 로 연결. */
+  onUiSet?: (label: string, patch: Record<string, unknown>) => void;
+  /** UI 오브젝트 visibility 콜백. */
+  onUiVisible?: (label: string, visible: boolean) => void;
 }): GameRuntimeStore {
   const state = new Map<string, unknown>();
   const hud = new Map<string, HudElement>();
@@ -112,6 +121,8 @@ export function createGameRuntime(opts?: {
     hudClear: (id) => { if (hud.delete(id)) { dirty = true; notify(); } },
     hudClearAll: () => { if (hud.size) { hud.clear(); dirty = true; notify(); } },
     playSound: (url, o) => { playLocal(String(url), o); opts?.onSound?.(String(url), o); },
+    uiSet:     (label, patch) => opts?.onUiSet?.(String(label), patch),
+    uiVisible: (label, v)     => opts?.onUiVisible?.(String(label), !!v),
   };
 
   return {

@@ -28,6 +28,7 @@ import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, parseUrlKind, normalizeMediaUrl, ImageMaterial, GenericIframeOverlay, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, VideoRemotePanel, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
 import { createGameRuntime, GAME_SYNC_EVENT, GAME_SOUND_EVENT, type GameSnapshot } from '@/lib/world/gameRuntime';
+import { execUiButtonScript } from '@/lib/world/uiButtonScript';
 import GameHud from './GameHud';
 
 const PLAYER_CAPSULE_HALF_HEIGHT = 0.35;
@@ -3826,11 +3827,17 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             position: o.position, rotation: o.rotation, scale: o.scale,
           }))}
           editMode={false}
+          onButtonClick={(_id, script) => execUiButtonScript(script, gameRuntime.api)}
         />
         <PostFX s={postFX} />
       </Canvas>
-      {/* UI Renderer — Screen Space HTML overlay (Phase 1). 월드/플레이 모드에선 editMode=false. */}
-      <UIRenderer objects={(customObjects ?? []).filter(o => o.kind === 'ui' && o.ui).map(o => ({ id: o.id, parentId: o.parentId, hidden: o.hidden, ui: o.ui! }))} editMode={false} />
+      {/* UI Renderer — Screen Space HTML overlay (Phase 1). 월드/플레이 모드에선 editMode=false.
+          onButtonClick: Button 의 onClickScript 실행 (game state + hud 변경 가능. ui.set 멀티 동기화는 후속). */}
+      <UIRenderer
+        objects={(customObjects ?? []).filter(o => o.kind === 'ui' && o.ui).map(o => ({ id: o.id, parentId: o.parentId, hidden: o.hidden, ui: o.ui! }))}
+        editMode={false}
+        onButtonClick={(_id, script) => execUiButtonScript(script, gameRuntime.api)}
+      />
       <MapLoadingOverlay />
     </>
   );

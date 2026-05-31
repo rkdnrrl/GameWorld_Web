@@ -1036,6 +1036,13 @@ export class JsScript {
         },
         clear: (id: unknown) => { gameApi?.hudClear(String(id)); },
         clearAll: () => { gameApi?.hudClearAll(); },
+        // ── 신규 UI 시스템 (kind='ui' MapObject) 제어 — label 로 검색 ──
+        // ui.set("내버튼", { text: "OK", color: "#f00" })
+        set: (label: unknown, patch: unknown) => {
+          if (patch && typeof patch === 'object') gameApi?.uiSet?.(String(label), patch as Record<string, unknown>);
+        },
+        show: (label: unknown) => { gameApi?.uiVisible?.(String(label), true); },
+        hide: (label: unknown) => { gameApi?.uiVisible?.(String(label), false); },
       };
 
       const MathLib = {
