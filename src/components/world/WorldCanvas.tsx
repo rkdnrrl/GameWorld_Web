@@ -3060,10 +3060,12 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       const labelsRaw = String(inst.props?.target ?? '').trim();
       const labels = labelsRaw ? labelsRaw.split(/[,\s]+/).filter(Boolean) : [];
       const targets = labels.length === 0
-        ? list.filter(x => x.videoUrl)
-        : list.filter(x => labels.includes((x as { label?: string }).label || '') && x.videoUrl);
+        ? list.filter(x => x.videoUrl && !x.components?.some(c => c.type === 'videoRemote'))
+        : list.filter(x => {
+            const nm = (x as { label?: string; name?: string }).label || (x as { name?: string }).name || '';
+            return labels.includes(nm);
+          });
       for (const t of targets) {
-        // 이미 같은 url 면 skip (재 broadcast 폭주 방지)
         if (videoUrlOverridesRef.current[t.id] === cmdUrl) continue;
         runVideoControl({ url: cmdUrl }, t.id);
       }
@@ -3733,8 +3735,11 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                     const labelsRaw = String(inst.props?.target ?? '').trim();
                     const labels = labelsRaw ? labelsRaw.split(/[,\s]+/).filter(Boolean) : [];
                     const targets = labels.length === 0
-                      ? list.filter(x => x.videoUrl)
-                      : list.filter(x => labels.includes((x as { label?: string }).label || '') && x.videoUrl);
+                      ? list.filter(x => x.videoUrl && !x.components?.some(c => c.type === 'videoRemote'))
+                      : list.filter(x => {
+                          const nm = (x as { label?: string; name?: string }).label || (x as { name?: string }).name || '';
+                          return labels.includes(nm);
+                        });
                     if (targets.length === 0) return null;
                     const w = obj.parentId ? computeWorldTRS(obj, byId) : { position: obj.position };
                     const firstId = targets[0].id;

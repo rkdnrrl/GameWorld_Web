@@ -3221,12 +3221,10 @@ export default function StudioCanvas() {
     return base.map(o => simVideoUrlOverrides[o.id] !== undefined ? { ...o, videoUrl: simVideoUrlOverrides[o.id] } : o);
   }, [objects, simVideoUrlOverrides]);
 
-  // 미디어 리모컨 컴포넌트의 url prop → target 화면에 자동 적용 (시뮬·편집뷰 미리보기 둘 다).
-  // 시뮬: simVideoUrlOverrides 에 set → simObjs 가 변환된 url 로 렌더.
-  // 편집뷰: 별도 처리 X (편집뷰는 영상 obj 의 원본 url 그대로 — sim 시작하면 prop url 적용됨).
+  // 미디어 리모컨 컴포넌트의 url prop → target 오브젝트의 videoUrl 에 직접 적용 (영구, 편집뷰·시뮬 둘 다).
+  // target 매칭: 라벨/이름. videoUrl 유무 무관 — 빈 mesh 도 영상 화면으로 변신 가능.
   useEffect(() => {
-    const next: Record<string, string> = {};
-    let changed = false;
+    const updates = new Map<string, string>();
     for (const obj of objects) {
       const inst = obj.components?.find(c => c.type === 'videoRemote');
       if (!inst) continue;
@@ -3234,18 +3232,19 @@ export default function StudioCanvas() {
       if (!cmdUrl) continue;
       const labelsRaw = String(inst.props?.target ?? '').trim();
       const labels = labelsRaw ? labelsRaw.split(/[,\s]+/).filter(Boolean) : [];
-      const targets = labels.length === 0
-        ? objects.filter(x => x.videoUrl)
-        : objects.filter(x => labels.includes(x.label || '') && x.videoUrl);
-      for (const t of targets) {
-        if (simVideoUrlOverrides[t.id] !== cmdUrl) {
-          next[t.id] = cmdUrl;
-          changed = true;
-        }
+      const matches = (x: MapObject) => {
+        if (x.components?.some(c => c.type === 'videoRemote')) return false;   // 리모컨 자신 제외
+        if (labels.length === 0) return x.kind === 'plane' || !!x.videoUrl;
+        const nm = x.label || (x as { name?: string }).name || '';
+        return labels.includes(nm);
+      };
+      for (const t of objects.filter(matches)) {
+        if (t.videoUrl !== cmdUrl) updates.set(t.id, cmdUrl);
       }
     }
-    if (changed) setSimVideoUrlOverrides(m => ({ ...m, ...next }));
-  }, [objects, simVideoUrlOverrides]);
+    if (updates.size === 0) return;
+    setObjects(prev => prev.map(o => updates.has(o.id) ? { ...o, videoUrl: updates.get(o.id)! } : o));
+  }, [objects]);
   // 시뮬레이션 플레이어 — 본인 캐릭터로 직접 플레이 (월드와 동일 조작)
   const [simCharacter, setSimCharacter] = useState<Record<string, unknown> | null>(null);
   const [simCameraMode, setSimCameraMode] = useState<'first' | 'third'>('first');
@@ -6133,8 +6132,8 @@ export default function StudioCanvas() {
                     const labelsRaw = String(inst.props?.target ?? '').trim();
                     const labels = labelsRaw ? labelsRaw.split(/[,\s]+/).filter(Boolean) : [];
                     const targets = labels.length === 0
-                      ? simObjs.filter(x => x.videoUrl)
-                      : simObjs.filter(x => labels.includes(x.label || '') && x.videoUrl);
+                      ? simObjs.filter(x => x.videoUrl && !x.components?.some(c => c.type === 'videoRemote'))
+                      : simObjs.filter(x => labels.includes(x.label || (x as { name?: string }).name || ''));
                     if (targets.length === 0) return null;
                     const pos = simTransforms[obj.id]?.pos ?? obj.position;
                     const firstId = targets[0].id;
@@ -6201,9 +6200,9 @@ export default function StudioCanvas() {
                 const labelsRaw = String(inst.props?.target ?? '').trim();
                 const labels = labelsRaw ? labelsRaw.split(/[,\s]+/).filter(Boolean) : [];
                 const targets = labels.length === 0
-                  ? objects.filter(x => x.videoUrl)
-                  : objects.filter(x => labels.includes(x.label || '') && x.videoUrl);
-                const curUrl = targets[0]?.videoUrl || '';
+                  ? objects.filter(x => x.videoUrl && !x.components?.some(c => c.type === 'videoRemote'))
+                  : objects.filter(x => labels.includes(x.label || (x as { name?: string }).name || ''));
+                const curUrl = targets[0]?.videoUrl || String(inst.props?.url ?? '');
                 const w = worldTRSFor(obj);
                 const rW  = Number(inst.props?.width  ?? 1.6);
                 const rH  = Number(inst.props?.height ?? 0.8);
