@@ -315,18 +315,7 @@ function ComponentsSection({
                   <div key={p.key} style={{ marginTop: 4 }}>
                     <div style={{ fontSize: 10, opacity: 0.75, marginBottom: 3 }}>{p.label}</div>
                     <div
-                      onDragOver={e => {
-                        if (e.dataTransfer.types.includes('application/x-alp-objid') || e.dataTransfer.types.includes('application/x-alp-objlabel')) {
-                          e.preventDefault(); e.dataTransfer.dropEffect = 'copy';
-                        }
-                      }}
-                      onDrop={e => {
-                        const dropped = e.dataTransfer.getData('application/x-alp-objid') || e.dataTransfer.getData('application/x-alp-objlabel');
-                        if (!dropped) return;
-                        e.preventDefault();
-                        if (tokens.includes(dropped)) return;
-                        writeTokens([...tokens, dropped]);
-                      }}
+                      data-videoremote-target={`${selected.id}|${idx}`}
                       style={{
                         display: 'flex', flexDirection: 'column', gap: 3,
                         background: 'rgba(0,0,0,0.25)', border: '1px dashed rgba(255,255,255,0.18)',
@@ -605,14 +594,6 @@ function UserComponentCard({
             <div
               data-objvar={`${objectId}|${componentIdx}|${v.key}`}
               title="씬 트리에서 오브젝트를 드래그해 여기에 놓으세요"
-              onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'link'; }}
-              onDrop={e => {
-                e.preventDefault();
-                const id = e.dataTransfer.getData('application/x-alp-objid');
-                if (!id) return;
-                onPropsChange({ ...props, [v.key]: id });
-                onPropsCommit();
-              }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 5, minHeight: 22,
                 border: `1px dashed ${refObj ? 'rgba(129,140,248,0.6)' : 'rgba(255,255,255,0.2)'}`,
@@ -1761,7 +1742,7 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
  *  collapsed 에 든 id = 접힘. 자식 선택 시 조상을 펼치려고 외부에서 제어. */
 const TreeCollapseCtx = createContext<{ collapsed: Set<string>; toggle: (id: string) => void }>({ collapsed: new Set(), toggle: () => {} });
 
-function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, editingLabelId, editingLabelValue, setEditingLabelId, setEditingLabelValue, setObjects, selectedCallback, pushHistory, dragActive, overId, overMode, onNodePointerDown, onFocusObject, onContextMenu, onReparent, onReorderBefore }: {
+function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, editingLabelId, editingLabelValue, setEditingLabelId, setEditingLabelValue, setObjects, selectedCallback, pushHistory, dragActive, overId, overMode, onNodePointerDown, onFocusObject, onContextMenu }: {
   obj: MapObject;
   allObjects: MapObject[];
   depth: number;
@@ -1780,10 +1761,6 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
   onNodePointerDown: (id: string, e: React.PointerEvent) => void;
   onFocusObject: (id: string) => void;
   onContextMenu: (objId: string, x: number, y: number) => void;
-  /** native HTML5 drop 핸들러 — pointer drag 가 native dragstart 에 가로채여 작동 안 하므로
-   *  reorder/reparent 를 native drop 으로도 받는다. */
-  onReparent: (childId: string, newParentId: string) => void;
-  onReorderBefore: (draggedId: string, targetId: string) => void;
 }) {
   const { collapsed, toggle } = useContext(TreeCollapseCtx);
   const open = !collapsed.has(obj.id);   // 기본 펼침, collapsed 에 있으면 접힘
@@ -1802,15 +1779,6 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
           native drop 도 받음 (pointer drag 가 dragstart 후 작동 안 하므로). */}
       <div
         data-reorder-before={obj.id}
-        onDragOver={e => {
-          if (e.dataTransfer.types.includes('application/x-alp-objid')) {
-            e.preventDefault(); e.dataTransfer.dropEffect = 'move';
-          }
-        }}
-        onDrop={e => {
-          const id = e.dataTransfer.getData('application/x-alp-objid');
-          if (id && id !== obj.id) { e.preventDefault(); onReorderBefore(id, obj.id); }
-        }}
         style={{ height: 12, margin: '-6px 0', display: 'flex', alignItems: 'center', position: 'relative', zIndex: 2, pointerEvents: dragActive ? 'auto' : 'none' }}
       >
         <div style={{
@@ -1822,25 +1790,6 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
       </div>
       <div
         data-node-id={obj.id}
-        draggable={editingLabelId !== obj.id}
-        onDragStart={e => {
-          // target input 등에 드롭 — 안정적인 참조를 위해 id 우선 (라벨/이름 변경에도 매칭 유지)
-          const labelOrName = (obj as { label?: string; name?: string }).label || (obj as { name?: string }).name || obj.id;
-          e.dataTransfer.setData('application/x-alp-objid', obj.id);
-          e.dataTransfer.setData('application/x-alp-objlabel', labelOrName);
-          e.dataTransfer.setData('text/plain', labelOrName);
-          e.dataTransfer.effectAllowed = 'copyMove';
-        }}
-        onDragOver={e => {
-          // 이 노드 위에 다른 노드를 떨어뜨리면 → 자식으로 reparent
-          if (e.dataTransfer.types.includes('application/x-alp-objid')) {
-            e.preventDefault(); e.dataTransfer.dropEffect = 'move';
-          }
-        }}
-        onDrop={e => {
-          const id = e.dataTransfer.getData('application/x-alp-objid');
-          if (id && id !== obj.id) { e.preventDefault(); e.stopPropagation(); onReparent(id, obj.id); }
-        }}
         onPointerDown={e => onNodePointerDown(obj.id, e)}
         onContextMenu={e => { e.preventDefault(); e.stopPropagation(); onContextMenu(obj.id, e.clientX, e.clientY); }}
         onClick={() => { if (editingLabelId !== obj.id) selectedCallback(obj.id); }}
@@ -1901,8 +1850,7 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
           setObjects={setObjects} selectedCallback={selectedCallback}
           pushHistory={pushHistory}
           dragActive={dragActive} overId={overId} overMode={overMode} onNodePointerDown={onNodePointerDown}
-          onFocusObject={onFocusObject} onContextMenu={onContextMenu}
-          onReparent={onReparent} onReorderBefore={onReorderBefore} />
+          onFocusObject={onFocusObject} onContextMenu={onContextMenu} />
       ))}
     </div>
   );
@@ -4923,6 +4871,33 @@ export default function StudioCanvas() {
         setTreeDrag(null);
         return;
       }
+      // 미디어 리모컨 target 리스트 슬롯에 놓음 → 그 컴포넌트의 target prop 에 토큰 추가
+      const vrSlot = overEl?.closest('[data-videoremote-target]') as HTMLElement | null;
+      if (vrSlot) {
+        const [objId, idxStr] = (vrSlot.getAttribute('data-videoremote-target') || '').split('|');
+        const idx = Number(idxStr);
+        if (objId && Number.isInteger(idx)) {
+          setObjects(prev => {
+            const next = prev.map(o => {
+              if (o.id !== objId) return o;
+              const comps = [...(o.components ?? [])];
+              const comp = comps[idx];
+              if (!comp) return o;
+              const cur = String(comp.props?.target ?? '').trim();
+              const tokens = cur ? cur.split(/[,\s]+/).filter(Boolean) : [];
+              if (tokens.includes(dragged)) return o;
+              tokens.push(dragged);
+              comps[idx] = { ...comp, props: { ...(comp.props ?? {}), target: tokens.join(', ') } };
+              return { ...o, components: comps };
+            });
+            pushHistory(next);
+            return next;
+          });
+        }
+        treeDragOverRef.current = { overId: null, overMode: null };
+        setTreeDrag(null);
+        return;
+      }
       // ── 멀티 이동 — 드래그한 게 현재 선택에 포함되면 선택된 "최상위"들을 다같이 이동 ──
       const selNow = selRef.current;
       const draggedInSel = dragged === selNow.sel || selNow.multi.has(dragged);
@@ -5400,8 +5375,6 @@ export default function StudioCanvas() {
                 onNodePointerDown={onTreeNodePointerDown}
                 onFocusObject={focusObject}
                 onContextMenu={(objId, x, y) => setTreeCtxMenu({ x, y, objId })}
-                onReparent={reparentObject}
-                onReorderBefore={(draggedId, targetId) => reorderObject(draggedId, targetId, 'before')}
                 selectedCallback={id => {
                   if (shiftHeldRef.current) {
                     rangeSelectObject(id);
