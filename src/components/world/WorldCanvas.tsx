@@ -23,6 +23,7 @@ import { PerfManager } from '@/lib/world/PerfManager';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
+import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { UI_SYNC_EVENT, DATA_SYNC_EVENT, type UiData } from '@/lib/world/uiObjects';
 import { api as backendApi } from '@/lib/api';
 import { retargetClipsToModel } from '@/lib/character/mixamoRig';
@@ -2761,7 +2762,35 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     };
     const main = luaScripts.current.get(objId); if (main) fire(main);
     componentScripts.current.get(objId)?.forEach(({ vm }) => fire(vm));
+
+    // Damage 컴포넌트 자동 hookup — objId 가 damage 컴포넌트 부착됐고 otherId 가 health 있으면 자동 피해.
+    // contact 모드 = collisionEnter / trigger 모드 = triggerEnter 만 발동. team 같으면 skip.
+    if (kind === 'collisionEnter' || kind === 'triggerEnter') {
+      const cur = customObjects?.find(o => o.id === objId) ?? runtimeObjectsRef.current.find(o => o.id === objId);
+      const damageComp = cur?.components?.find(c => c.type === 'damage');
+      if (damageComp) {
+        const mode = String(damageComp.props?.mode ?? 'contact');
+        const matchMode = (mode === 'contact' && kind === 'collisionEnter')
+                       || (mode === 'trigger' && kind === 'triggerEnter');
+        if (matchMode) {
+          const target = customObjects?.find(o => o.id === otherId) ?? runtimeObjectsRef.current.find(o => o.id === otherId);
+          const targetHealth = target?.components?.find(c => c.type === 'health');
+          if (targetHealth) {
+            const myTeam = String(damageComp.props?.team ?? '');
+            const otherTeam = String(targetHealth.props?.team ?? '');
+            if (!myTeam || !otherTeam || myTeam !== otherTeam) {
+              const amount = Number(damageComp.props?.amount ?? 10);
+              makeObjectAPIRef.current?.(otherId).damage?.(amount, { attackerId: objId });
+              if (damageComp.props?.destroyOnHit && objId.startsWith('rt_')) destroyObject(objId);
+            }
+          }
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // dispatchColliderEvent 안에서 makeObjectAPI 호출 — closure 순환 의존 피하려고 ref 로 미러.
+  const makeObjectAPIRef = useRef<((id: string, fallback?: UserMapObject) => import('@/lib/world/jsRuntime').JsObjectAPI) | null>(null);
   // 유저 정의 컴포넌트 코드 캐시 — id → ScriptComponent (코드/이름)
   const scriptComponentDefsRef = useRef<Map<string, import('@/lib/api').ScriptComponent>>(new Map());
   // 컴포넌트 코드 변경 감지용 (state — 변경되면 VM 재생성 트리거)
@@ -2821,6 +2850,10 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const [runtimeObjects, setRuntimeObjects] = useState<UserMapObject[]>([]);
   // 스크립트 콜백에서 stale state 피하려는 최신 ref
   const runtimeObjectsRef = useRef<UserMapObject[]>([]);
+  const customObjectsRef = useRef(customObjects);
+  useEffect(() => { customObjectsRef.current = customObjects; }, [customObjects]);
+  // NPC 마지막 공격 시각 (cooldown 체크)
+  const npcAttackRef = useRef<Map<string, number>>(new Map());
   useEffect(() => { runtimeObjectsRef.current = runtimeObjects; }, [runtimeObjects]);
   // parent transform propagation 용 — customObjects + runtime 합쳐서 매 렌더 ref 갱신
   const allObjectsRef = useRef<UserMapObject[]>([]);
@@ -3200,6 +3233,79 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const playerCount = Object.keys(players).length;
   useEffect(() => { if (isHost) gameRuntime.markDirty(); }, [isHost, playerCount, gameRuntime]);
 
+  // ── NPC AI — 호스트만 실행 (권위). 10Hz 로 가장 가까운 플레이어 추적/공격. ──
+  useEffect(() => {
+    if (!isHost) return;
+    const tick = () => {
+      const all = [...(customObjectsRef.current ?? []), ...runtimeObjectsRef.current];
+      const npcs = all.filter(o => o.components?.some(c => c.type === 'npc'));
+      if (npcs.length === 0) return;
+      const players = Object.values(playersRef.current);
+      if (players.length === 0) return;
+      const now = worldElapsed.current;
+      for (const obj of npcs) {
+        const npcComp = obj.components!.find(c => c.type === 'npc')!;
+        const mode = String(npcComp.props?.mode ?? 'both');
+        if (mode === 'idle') continue;
+        const aggro = Number(npcComp.props?.aggroRange ?? 15);
+        const attackRange = Number(npcComp.props?.attackRange ?? 1.5);
+        const cd = Number(npcComp.props?.attackCooldown ?? 1.5);
+        const moveSpeed = Number(npcComp.props?.moveSpeed ?? 3);
+        // 현재 위치
+        const bodyRef = scriptBodyRefs.current.get(obj.id);
+        const group = bodyRef?.group.current;
+        const body = bodyRef?.body.current;
+        if (!group) continue;
+        const pos = group.position;
+        // 가장 가까운 플레이어
+        let nearest: { id: string; x: number; y: number; z: number } | null = null;
+        let nearestD = Infinity;
+        for (const p of players) {
+          const pose = posesRef?.current?.get(p.id);
+          if (!pose) continue;
+          const dx = pose.x - pos.x, dz = pose.z - pos.z;
+          const d = Math.hypot(dx, dz);
+          if (d < nearestD) { nearestD = d; nearest = { id: p.id, x: pose.x, y: pose.y, z: pose.z }; }
+        }
+        if (!nearest || nearestD > aggro) continue;   // 감지 안 됨
+        // 추적
+        if (nearestD > attackRange) {
+          const dx = nearest.x - pos.x, dz = nearest.z - pos.z;
+          const dist = Math.hypot(dx, dz);
+          if (dist > 0.01) {
+            const stepX = (dx / dist) * moveSpeed * 0.1;   // 100ms tick
+            const stepZ = (dz / dist) * moveSpeed * 0.1;
+            if (body) {
+              const cur = body.translation();
+              body.setTranslation({ x: cur.x + stepX, y: cur.y, z: cur.z + stepZ }, true);
+              const angle = Math.atan2(dx, dz);
+              const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, angle, 0));
+              body.setRotation?.({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+            } else {
+              group.position.x += stepX;
+              group.position.z += stepZ;
+              group.rotation.y = Math.atan2(dx, dz);
+            }
+          }
+        } else {
+          // 공격 사거리 도달 — cooldown
+          const last = npcAttackRef.current.get(obj.id) ?? 0;
+          if (now - last < cd) continue;
+          npcAttackRef.current.set(obj.id, now);
+          // damage 컴포넌트 amount + 'npcAttack' 이벤트 broadcast (게임 스크립트가 받음)
+          const dmgComp = obj.components!.find(c => c.type === 'damage');
+          const amount = dmgComp ? Number(dmgComp.props?.amount ?? 10) : 10;
+          sendScriptEvent?.('__npc__', '__npcattack__', {
+            npcId: obj.id, targetId: nearest.id, amount, team: String(npcComp.props?.team ?? 'enemy'),
+          });
+        }
+      }
+    };
+    const iv = setInterval(tick, 100);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHost]);
+
   // 새 플레이어 입장 시 호스트는 자기 uiOverrides 전체를 dump broadcast → 늦은 입장자도 같은 UI 상태.
   useEffect(() => {
     if (!isHost) return;
@@ -3423,7 +3529,11 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     const { JsScript } = require('@/lib/world/jsRuntime') as typeof import('@/lib/world/jsRuntime');
 
     // 어떤 오브젝트 id에 대해서든 JsObjectAPI 만드는 헬퍼 — world.find() / user 컴포넌트에서 재사용
-    const makeObjectAPI = (targetId: string, fallbackObj?: UserMapObject): import('@/lib/world/jsRuntime').JsObjectAPI => ({
+    const makeObjectAPI = (targetId: string, fallbackObj?: UserMapObject): import('@/lib/world/jsRuntime').JsObjectAPI => {
+      makeObjectAPIRef.current = makeObjectAPI;   // collider 이벤트에서 호출되게 ref 등록
+      return makeObjectAPIImpl(targetId, fallbackObj);
+    };
+    const makeObjectAPIImpl = (targetId: string, fallbackObj?: UserMapObject): import('@/lib/world/jsRuntime').JsObjectAPI => ({
         id: targetId,
         getPosition: () => {
           // 라이트 우선 (라이트는 RigidBody 없이 position만 가짐)
@@ -3971,7 +4081,17 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                       </group>
                     );
                   });
-                return <>{meshes}{particles}{remotes}</>;
+                // Flashlight 컴포넌트 — 부착된 오브젝트들의 spotlight 따로 마운트
+                const flashlights = list
+                  .filter(o => !o.hidden && o.components?.some(c => c.type === 'flashlight'))
+                  .map(o => {
+                    const comp = o.components!.find(c => c.type === 'flashlight')!;
+                    const bodyRef = scriptBodyRefs.current.get(o.id);
+                    const gRef = (bodyRef?.group ?? { current: null }) as React.MutableRefObject<THREE.Group | null>;
+                    return <FlashlightLight key={'fl-' + o.id} comp={comp} groupRef={gRef}
+                      objId={o.id} playerId={playerId} grabbedStateRef={grabbedStateRef} />;
+                  });
+                return <>{meshes}{particles}{remotes}{flashlights}</>;
               })()}</>
             ) : (
               // worldId 없음 (기본 월드) → 데모 섬
