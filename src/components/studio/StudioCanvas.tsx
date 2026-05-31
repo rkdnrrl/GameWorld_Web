@@ -6354,7 +6354,7 @@ export default function StudioCanvas() {
 
         {/* 1인칭 시뮬레이션 크로스헤어 — follow 모드 + 1인칭일 때만. idle=흰, aim=초록, grab=노랑 */}
         {simulating && simCharacter && simCamView === 'follow' && simCameraMode === 'first' && (
-          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 16777274, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
             <div style={{
               width: 14, height: 14, borderRadius: '50%',
               border: `2px solid ${simCrosshair === 'grab' ? '#fbbf24' : simCrosshair === 'aim' ? '#4ade80' : 'rgba(255,255,255,0.85)'}`,
