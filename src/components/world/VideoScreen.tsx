@@ -307,8 +307,9 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
     iframe.height = String(YT_IFRAME_H);
     iframe.src = url;
     iframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
-    iframe.tabIndex = -1;
-    iframe.style.cssText = 'border:none;display:block;background:#000;pointer-events:none;width:100%;height:100%';
+    // itch.io 같은 호스팅 게임/외부 사이트는 마우스·키보드 상호작용 필요 → pointer-events:auto, tabIndex 정상.
+    // (단점: iframe 클릭 시 focus 잡혀 외부 단축키 안 먹음 — 게임 끝나면 캔버스 다른 곳 클릭으로 focus 해제)
+    iframe.style.cssText = 'border:none;display:block;background:#000;pointer-events:auto;width:100%;height:100%';
     iframeRef.current = iframe;
     return () => {
       try { iframe.remove(); } catch { /* noop */ }
@@ -321,8 +322,8 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
   const sx = Math.max(0.01, planeW) / (YT_IFRAME_W * PX_TO_UNIT);
   const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);
   return (
-    <Html transform occlude="blending" pointerEvents="none" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center>
-      <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000' }} />
+    <Html transform occlude="blending" pointerEvents="auto" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center>
+      <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000', pointerEvents: 'auto' }} />
     </Html>
   );
 });
