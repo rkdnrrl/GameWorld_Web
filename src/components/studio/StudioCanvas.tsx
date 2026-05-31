@@ -2620,13 +2620,10 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
     e.stopPropagation();
     (e.target as Element).setPointerCapture?.(e.pointerId);
     target.updateWorldMatrix(true, false);
-    // 시작 state — local scale, local position
     const startScale: [number,number,number] = [target.scale.x, target.scale.y, target.scale.z];
     const startPos: [number,number,number] = [target.position.x, target.position.y, target.position.z];
-    // axis world direction (회전 적용)
     const axisLocal = new THREE.Vector3(axis === 0 ? 1 : 0, axis === 1 ? 1 : 0, axis === 2 ? 1 : 0);
     const axisWorld = axisLocal.clone().applyQuaternion(wq).normalize();
-    // 시작 마우스 ray 와 axis line 의 closest point
     const rect = gl.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2();
     ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -2634,7 +2631,28 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
     const startRaycaster = new THREE.Raycaster();
     startRaycaster.setFromCamera(ndc, camera);
     const startT = closestPointOnLineToRay(wp, axisWorld, startRaycaster.ray);
-    dragRef.current = { axis, sign, startScale, startPos, axisWorld, axisCenterWorld: wp.clone(), startT, rect };
+    dragRef.current = { mode: 'axis' as const, axis, sign, startScale, startPos, axisWorld, axisCenterWorld: wp.clone(), startT };
+    onDragStart?.();
+  };
+
+  // 중앙 uniform scale 핸들 — 마우스를 중심에서 멀리/가까이 끌면 3축 균등 scale.
+  const onUniformPointerDown = (e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation();
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    target.updateWorldMatrix(true, false);
+    const startScale: [number,number,number] = [target.scale.x, target.scale.y, target.scale.z];
+    const startPos: [number,number,number] = [target.position.x, target.position.y, target.position.z];
+    // mesh 중심의 화면 좌표 (NDC → pixel)
+    const centerNdc = wp.clone().project(camera);
+    const rect = gl.domElement.getBoundingClientRect();
+    const centerPx = {
+      x: (centerNdc.x * 0.5 + 0.5) * rect.width,
+      y: (-centerNdc.y * 0.5 + 0.5) * rect.height,
+    };
+    const startDx = e.clientX - rect.left - centerPx.x;
+    const startDy = e.clientY - rect.top - centerPx.y;
+    const startDist = Math.max(10, Math.hypot(startDx, startDy));   // 최소 10px (zero division 방지)
+    dragRef.current = { mode: 'uniform' as const, startScale, startPos, centerPx, startDist };
     onDragStart?.();
   };
 
@@ -2643,20 +2661,29 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
       const d = dragRef.current;
       if (!d) return;
       const rect = gl.domElement.getBoundingClientRect();
+      if (d.mode === 'uniform') {
+        // 중심 → 마우스 거리 비율로 균등 scale
+        const dx = e.clientX - rect.left - d.centerPx.x;
+        const dy = e.clientY - rect.top - d.centerPx.y;
+        const curDist = Math.hypot(dx, dy);
+        const ratio = curDist / d.startDist;
+        const newScale: [number,number,number] = [
+          Math.max(0.01, d.startScale[0] * ratio),
+          Math.max(0.01, d.startScale[1] * ratio),
+          Math.max(0.01, d.startScale[2] * ratio),
+        ];
+        onChange(d.startPos, newScale);
+        return;
+      }
+      // axis 모드 — 한 축 면 드래그
       const ndc = new THREE.Vector2();
       ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(ndc, camera);
       const curT = closestPointOnLineToRay(d.axisCenterWorld, d.axisWorld, raycaster.ray);
-      // 핸들 이동량 (world 단위) = curT - startT (sign 방향 보정 불필요, signed scalar)
       const delta = curT - d.startT;
-      // 새 scale[axis] = 시작 scale + delta * sign (면을 sign 방향으로 끌면 scale 증가)
       const newScaleAxis = Math.max(0.01, d.startScale[d.axis] + delta * d.sign);
-      // 새 position = anchor 고정 → 중심을 (delta * sign / 2) 만큼 sign 방향으로 이동
-      // anchor 는 반대편 face. 그 face world position 은 wp - axisWorld * (startScale * 0.5).
-      // 새 mesh 중심 world = anchor + axisWorld * sign * (newScale / 2)
-      // local position 변경량: world 변위 / 부모 scale. 부모 식별 어려워 단순화 — local axis 방향으로 (delta/2) 이동.
       const newScale: [number,number,number] = [d.startScale[0], d.startScale[1], d.startScale[2]];
       newScale[d.axis] = newScaleAxis;
       const newPos: [number,number,number] = [d.startPos[0], d.startPos[1], d.startPos[2]];
@@ -2689,6 +2716,11 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
           </mesh>
         );
       })}
+      {/* 중앙 uniform scale 핸들 — 노란색 큐브. 마우스 중심에서 멀리/가까이 끌면 3축 균등 scale. */}
+      <mesh position={[0, 0, 0]} onPointerDown={onUniformPointerDown}>
+        <boxGeometry args={[handleSize * 1.3, handleSize * 1.3, handleSize * 1.3]} />
+        <meshBasicMaterial color="#fbbf24" depthTest={false} transparent opacity={0.9} />
+      </mesh>
     </group>
   );
 }
