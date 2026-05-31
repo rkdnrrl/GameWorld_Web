@@ -161,6 +161,7 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
     iframe.src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`;
     iframe.title = 'YouTube';
     iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
+    iframe.tabIndex = -1;   // focus 못 받게 — focus 가면 키보드 이벤트가 iframe 으로 가서 ctrl+z / ctrl+d 등 안 먹음
     iframe.style.cssText = 'border:none;display:block;background:#000;pointer-events:none;width:100%;height:100%';
     iframeRef.current = iframe;
     // setContainerRef 가 div mount 시 옮길 텐데, 그게 useEffect 이전이면 이미 옮겨졌을 수도. 아니면 강제 트리거.
