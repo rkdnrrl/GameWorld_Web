@@ -306,6 +306,12 @@ export function UiInspector({ selected, onUpdate, onRectUpdate, onCommit, onTran
               </label>
             </div>
           </Section>
+          <Section label="Content 영역 (px)" hint="자식 RectTransform 기준 영역. 영역 크기보다 크면 스크롤. 0 = 영역과 같음">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+              <NumIn label="W" value={ui.scrollContentWidth  ?? 0} onChange={v => onUpdate({ scrollContentWidth: v })}  onCommit={onCommit} />
+              <NumIn label="H" value={ui.scrollContentHeight ?? 0} onChange={v => onUpdate({ scrollContentHeight: v })} onCommit={onCommit} />
+            </div>
+          </Section>
         </>
       )}
     </div>

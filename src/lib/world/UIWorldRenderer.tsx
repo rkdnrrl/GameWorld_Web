@@ -171,16 +171,28 @@ function UiNode({ obj, all, parentSize, onButtonClick, onValueChange, onLocalVal
           <span>{obj.ui.text || '체크박스'}</span>
         </label>
       )}
-      {obj.ui.type === 'scrollview' && (
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: obj.ui.bgColor || 'rgba(0,0,0,0.3)',
-          overflowX: obj.ui.scrollHorizontal ? 'auto' : 'hidden',
-          overflowY: obj.ui.scrollVertical !== false ? 'auto' : 'hidden',
-          borderRadius: 4,
-        }} />
-      )}
-      {children.map(c => (
+      {obj.ui.type === 'scrollview' && (() => {
+        const cw = obj.ui.scrollContentWidth  || rect.width;
+        const ch = obj.ui.scrollContentHeight || rect.height;
+        return (
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: obj.ui.bgColor || 'rgba(0,0,0,0.3)',
+            overflowX: obj.ui.scrollHorizontal ? 'auto' : 'hidden',
+            overflowY: obj.ui.scrollVertical !== false ? 'auto' : 'hidden',
+            borderRadius: 4,
+          }}>
+            <div style={{ position: 'relative', width: cw, height: ch }}>
+              {children.map(c => (
+                <UiNode key={c.id} obj={c} all={all} parentSize={{ w: cw, h: ch }}
+                  onButtonClick={onButtonClick} onValueChange={onValueChange} onLocalValueChange={onLocalValueChange}
+                  editMode={editMode} />
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+      {obj.ui.type !== 'scrollview' && children.map(c => (
         <UiNode key={c.id} obj={c} all={all} parentSize={{ w: rect.width, h: rect.height }}
           onButtonClick={onButtonClick} onValueChange={onValueChange} onLocalValueChange={onLocalValueChange}
           editMode={editMode} />

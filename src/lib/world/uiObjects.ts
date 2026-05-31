@@ -11,6 +11,10 @@
 
 export type UiElementType = 'canvas' | 'panel' | 'image' | 'text' | 'button' | 'slider' | 'input' | 'toggle' | 'scrollview';
 
+/** UI 멀티 동기화 — 호스트의 ui.set/show/hide 결과를 전원에게 broadcast.
+ *  메시지 페이로드: { label: string, patch?: Record<string, unknown>, hidden?: boolean } */
+export const UI_SYNC_EVENT = '__uisync__';
+
 export interface RectTransform {
   /** Anchor min (0~1) — 부모 영역 안에서 어디에 매여 있는지. (0,0)=좌하 (1,1)=우상 (유니티 규약) */
   anchorMin: { x: number; y: number };
@@ -60,6 +64,10 @@ export interface UiData {
   /** scrollview 방향 — 둘 다 true 면 가로·세로 둘 다 스크롤 가능 */
   scrollVertical?: boolean;
   scrollHorizontal?: boolean;
+  /** scrollview 의 내부 contentSize (px) — 영역보다 크면 스크롤 발생.
+   *  0 또는 미설정이면 영역 크기와 같음 (스크롤 X). */
+  scrollContentWidth?: number;
+  scrollContentHeight?: number;
   /** slider/input/toggle 값 변경 시 실행되는 스크립트 (value 변수로 사용 가능) */
   onChangeScript?: string;
 }
@@ -91,7 +99,7 @@ export function makeDefaultUiData(type: UiElementType, space: 'screen' | 'world'
   if (type === 'slider') return { type, rect: { ...baseRect, width: 240, height: 30 }, min: 0, max: 100, value: 50, step: 1, color: '#4f46e5', onChangeScript: '' };
   if (type === 'input')  return { type, rect: { ...baseRect, width: 240, height: 36 }, inputValue: '', placeholder: '입력...', fontSize: 14, color: '#ffffff', bgColor: 'rgba(0,0,0,0.5)', multiline: false, onChangeScript: '' };
   if (type === 'toggle') return { type, rect: { ...baseRect, width: 160, height: 28 }, checked: false, text: '체크박스', color: '#ffffff', fontSize: 13, onChangeScript: '' };
-  if (type === 'scrollview') return { type, rect: { ...baseRect, width: 300, height: 200 }, bgColor: 'rgba(0,0,0,0.3)', scrollVertical: true, scrollHorizontal: false };
+  if (type === 'scrollview') return { type, rect: { ...baseRect, width: 300, height: 200 }, bgColor: 'rgba(0,0,0,0.3)', scrollVertical: true, scrollHorizontal: false, scrollContentWidth: 0, scrollContentHeight: 600 };
   return { type, rect: baseRect };
 }
 

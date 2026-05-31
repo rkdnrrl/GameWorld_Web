@@ -206,18 +206,29 @@ function UiNode({ obj, all, parentSize, onButtonClick, onValueChange, onLocalVal
           <span>{obj.ui.text || '체크박스'}</span>
         </label>
       )}
-      {obj.ui.type === 'scrollview' && (
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: obj.ui.bgColor || 'rgba(0,0,0,0.3)',
-          overflowX: obj.ui.scrollHorizontal ? 'auto' : 'hidden',
-          overflowY: obj.ui.scrollVertical !== false ? 'auto' : 'hidden',
-          borderRadius: 4,
-        }}>
-          {/* scrollview 의 자식 — 일반 자식 처리. children map 은 아래에서 별도. */}
-        </div>
-      )}
-      {children.map(c => (
+      {obj.ui.type === 'scrollview' && (() => {
+        const cw = obj.ui.scrollContentWidth  || rect.width;
+        const ch = obj.ui.scrollContentHeight || rect.height;
+        return (
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: obj.ui.bgColor || 'rgba(0,0,0,0.3)',
+            overflowX: obj.ui.scrollHorizontal ? 'auto' : 'hidden',
+            overflowY: obj.ui.scrollVertical !== false ? 'auto' : 'hidden',
+            borderRadius: 4,
+          }}>
+            {/* inner content — contentSize 가 영역보다 크면 스크롤. 자식들은 이 안의 RectTransform 기준. */}
+            <div style={{ position: 'relative', width: cw, height: ch }}>
+              {children.map(c => (
+                <UiNode key={c.id} obj={c} all={all} parentSize={{ w: cw, h: ch }}
+                  onButtonClick={onButtonClick} onValueChange={onValueChange} onLocalValueChange={onLocalValueChange}
+                  editMode={editMode} />
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+      {obj.ui.type !== 'scrollview' && children.map(c => (
         <UiNode key={c.id} obj={c} all={all} parentSize={{ w: rect.width, h: rect.height }}
           onButtonClick={onButtonClick} onValueChange={onValueChange} onLocalValueChange={onLocalValueChange}
           editMode={editMode} />

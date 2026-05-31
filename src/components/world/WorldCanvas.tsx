@@ -22,6 +22,7 @@ import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
 import { PerfManager } from '@/lib/world/PerfManager';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
+import { UI_SYNC_EVENT, type UiData } from '@/lib/world/uiObjects';
 import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
@@ -1901,6 +1902,8 @@ interface UserMapObject {
   script?: string;
   // 스크립트 인스펙터 변수 오버라이드 (유니티 직렬화 필드처럼)
   scriptVars?: Record<string, number | string | boolean>;
+  // 표시 라벨 — UI 멀티 동기화 (label 키로 ui.set/show/hide 적용) 등에 사용
+  label?: string;
 }
 
 /* 머티리얼 프리셋 정의 (PBR 파라미터) */
@@ -2668,8 +2671,19 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // onSound: 호스트가 사운드를 전원에게 broadcast (비호스트는 스크립트가 안 돌아 호출 안 됨).
   // sendScriptEvent 는 stable(useCallback) 이라 스토어는 1회만 생성.
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // UI 멀티 동기화 — 호스트가 ui.set/show/hide 호출 시 적용된 patch + hidden 을 label 키로 저장 + broadcast.
+  // 비호스트는 __uisync__ 메시지 받아 같은 state 갱신. UIRenderer 가 customObjects + 이 override merge.
+  const [uiOverrides, setUiOverrides] = useState<Record<string, { patch?: Partial<UiData>; hidden?: boolean }>>({});
   const gameRuntime = useMemo(() => createGameRuntime({
     onSound: (url, o) => sendScriptEvent?.('__game__', GAME_SOUND_EVENT, { url, volume: o?.volume ?? 1, loop: !!o?.loop }),
+    onUiSet: (label, patch) => {
+      setUiOverrides(prev => ({ ...prev, [label]: { ...prev[label], patch: { ...prev[label]?.patch, ...(patch as Partial<UiData>) } } }));
+      sendScriptEvent?.('__ui__', UI_SYNC_EVENT, { label, patch });
+    },
+    onUiVisible: (label, visible) => {
+      setUiOverrides(prev => ({ ...prev, [label]: { ...prev[label], hidden: !visible } }));
+      sendScriptEvent?.('__ui__', UI_SYNC_EVENT, { label, hidden: !visible });
+    },
   }), []);
   // 비디오 URL 런타임 오버라이드 — 컨트롤 바에서 URL 변경 시(멀티 동기). objId→새 URL.
   const [videoUrlOverrides, setVideoUrlOverrides] = useState<Record<string, string>>({});
@@ -2812,6 +2826,23 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         if (!isHostRef.current) return;
         luaScripts.current.get(objectId)?.callClick(fromId);
         componentScripts.current.get(objectId)?.forEach(({ vm }) => vm.callClick(fromId));
+        return;
+      }
+      // UI 동기화 — 호스트가 ui.set/show/hide 한 결과를 비호스트가 자기 UI 에 반영.
+      if (event === UI_SYNC_EVENT) {
+        if (isHostRef.current) return;             // 호스트는 권위자
+        if (!fromId || (hostIdRef.current && fromId !== hostIdRef.current)) return;
+        const d = data as { label?: string; patch?: Partial<UiData>; hidden?: boolean };
+        if (!d?.label) return;
+        const lbl = d.label;
+        setUiOverrides(prev => {
+          const cur = prev[lbl] || {};
+          const next: { patch?: Partial<UiData>; hidden?: boolean } = {
+            patch: d.patch ? { ...cur.patch, ...d.patch } : cur.patch,
+            hidden: d.hidden !== undefined ? d.hidden : cur.hidden,
+          };
+          return { ...prev, [lbl]: next };
+        });
         return;
       }
       // 비디오 스크린 동기화 — 호스트가 보낸 재생시각을 비호스트가 자기 영상에 반영 (watch party)
@@ -3127,6 +3158,16 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // 새 플레이어 입장(또는 본인이 호스트가 됨) 시 다음 틱에 스냅샷 재전송 → 늦게 들어온 사람도 현재 HUD 받음.
   const playerCount = Object.keys(players).length;
   useEffect(() => { if (isHost) gameRuntime.markDirty(); }, [isHost, playerCount, gameRuntime]);
+
+  // 새 플레이어 입장 시 호스트는 자기 uiOverrides 전체를 dump broadcast → 늦은 입장자도 같은 UI 상태.
+  useEffect(() => {
+    if (!isHost) return;
+    if (Object.keys(uiOverrides).length === 0) return;
+    for (const [label, ov] of Object.entries(uiOverrides)) {
+      sendScriptEvent?.('__ui__', UI_SYNC_EVENT, { label, patch: ov.patch, hidden: ov.hidden });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHost, playerCount]);
 
   // 1인칭 클릭 핸들러 — 버스트는 본인 화면에서 즉시(로컬 피드백). onClick 스크립트는 호스트만
   // 권위적으로 실행하고, 비호스트면 호스트로 전달(__click__)해 호스트가 실행 → broadcast.
@@ -3822,20 +3863,32 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         </Suspense>
         {/* World Space UI — canvas.space === 'world' 인 UI 오브젝트를 3D 공간에 렌더 */}
         <UIWorldRenderer
-          objects={(customObjects ?? []).filter(o => o.kind === 'ui' && o.ui).map(o => ({
-            id: o.id, parentId: o.parentId, hidden: o.hidden, ui: o.ui!,
-            position: o.position, rotation: o.rotation, scale: o.scale,
-          }))}
+          objects={(customObjects ?? []).filter(o => o.kind === 'ui' && o.ui).map(o => {
+            const ov = o.label ? uiOverrides[o.label] : undefined;
+            return {
+              id: o.id, parentId: o.parentId,
+              hidden: ov?.hidden !== undefined ? ov.hidden : o.hidden,
+              ui: ov?.patch ? ({ ...(o.ui as UiData), ...ov.patch }) : o.ui!,
+              position: o.position, rotation: o.rotation, scale: o.scale,
+            };
+          })}
           editMode={false}
           onButtonClick={(_id, script) => execUiButtonScript(script, gameRuntime.api)}
-        onValueChange={(_id, script, value) => execUiButtonScript(script, gameRuntime.api, value)}
+          onValueChange={(_id, script, value) => execUiButtonScript(script, gameRuntime.api, value)}
         />
         <PostFX s={postFX} />
       </Canvas>
-      {/* UI Renderer — Screen Space HTML overlay (Phase 1). 월드/플레이 모드에선 editMode=false.
-          onButtonClick: Button 의 onClickScript 실행 (game state + hud 변경 가능. ui.set 멀티 동기화는 후속). */}
+      {/* UI Renderer — Screen Space HTML overlay (Phase 1).
+          customObjects + uiOverrides merge: 호스트가 ui.set/show/hide 한 결과를 비호스트도 같이 봄. */}
       <UIRenderer
-        objects={(customObjects ?? []).filter(o => o.kind === 'ui' && o.ui).map(o => ({ id: o.id, parentId: o.parentId, hidden: o.hidden, ui: o.ui! }))}
+        objects={(customObjects ?? []).filter(o => o.kind === 'ui' && o.ui).map(o => {
+          const ov = o.label ? uiOverrides[o.label] : undefined;
+          return {
+            id: o.id, parentId: o.parentId,
+            hidden: ov?.hidden !== undefined ? ov.hidden : o.hidden,
+            ui: ov?.patch ? ({ ...(o.ui as UiData), ...ov.patch }) : o.ui!,
+          };
+        })}
         editMode={false}
         onButtonClick={(_id, script) => execUiButtonScript(script, gameRuntime.api)}
         onValueChange={(_id, script, value) => execUiButtonScript(script, gameRuntime.api, value)}
