@@ -222,12 +222,18 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
     return () => window.removeEventListener('pointerdown', onGesture);
   }, [withSound]);
 
-  // drei <Html transform> 의 px→월드 환산이 작아서(scale 1 에서 640px ≈ 64유닛, 경험치).
-  // 가로·세로 각각 평면 크기에 맞춰 비균등 스케일 → iframe 이 평면을 꽉 채움(16:9 아니어도).
-  // 전체가 안 맞으면 PX_TO_UNIT 만 조절.
+  // drei <Html transform> 의 px→월드 환산 (scale 1 에서 640px ≈ 64유닛, 경험치).
+  // contain fit — 영상 16:9 비율 유지하며 평면 안에 맞춤. 남는 부분은 평면 mesh (썸네일) 가 보임 = 레터박스.
+  // 사용자 요구: 영상이 stretched 되지 말고 비율 유지. 평면이 16:9 면 가득 차고, 다른 비율이면 위아래 / 좌우 띠.
   const PX_TO_UNIT = 0.06;
-  const sx = Math.max(0.01, planeW) / (YT_IFRAME_W * PX_TO_UNIT);   // 가로 → planeW
-  const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);   // 세로 → planeH
+  const w = Math.max(0.01, planeW), h = Math.max(0.01, planeH);
+  const videoAspect = YT_IFRAME_W / YT_IFRAME_H;
+  const planeAspect = w / h;
+  let fitW: number, fitH: number;
+  if (planeAspect > videoAspect) { fitH = h; fitW = h * videoAspect; }
+  else                            { fitW = w; fitH = w / videoAspect; }
+  const sx = fitW / (YT_IFRAME_W * PX_TO_UNIT);
+  const sy = fitH / (YT_IFRAME_H * PX_TO_UNIT);
   return (
     <Html transform occlude="blending" pointerEvents="none" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center>
       <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000' }} />
