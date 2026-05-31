@@ -92,8 +92,19 @@ export function VideoScreenMaterial({ url, objId, selected, side = THREE.FrontSi
 export function YouTubeThumbMaterial({ videoId, selected, side = THREE.FrontSide }: {
   videoId: string; selected?: boolean; side?: THREE.Side;
 }) {
+  // maxresdefault.jpg (1280×720, 16:9) — 실제 iframe 표시 비율과 동일해 미리보기↔시뮬 프레임 일치.
+  // 없으면 자동으로 hqdefault.jpg(4:3, 위아래 검은띠) 폴백.
   const texture = useMemo(() => {
-    const t = new THREE.TextureLoader().load(`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`);
+    const loader = new THREE.TextureLoader();
+    const t = loader.load(
+      `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+      undefined,
+      undefined,
+      () => { loader.load(`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`, (fallback) => {
+        t.image = fallback.image;
+        t.needsUpdate = true;
+      }); },
+    );
     t.colorSpace = THREE.SRGBColorSpace;
     return t;
   }, [videoId]);
