@@ -3220,6 +3220,32 @@ export default function StudioCanvas() {
     if (Object.keys(simVideoUrlOverrides).length === 0) return base;
     return base.map(o => simVideoUrlOverrides[o.id] !== undefined ? { ...o, videoUrl: simVideoUrlOverrides[o.id] } : o);
   }, [objects, simVideoUrlOverrides]);
+
+  // 미디어 리모컨 컴포넌트의 url prop → target 화면에 자동 적용 (시뮬·편집뷰 미리보기 둘 다).
+  // 시뮬: simVideoUrlOverrides 에 set → simObjs 가 변환된 url 로 렌더.
+  // 편집뷰: 별도 처리 X (편집뷰는 영상 obj 의 원본 url 그대로 — sim 시작하면 prop url 적용됨).
+  useEffect(() => {
+    const next: Record<string, string> = {};
+    let changed = false;
+    for (const obj of objects) {
+      const inst = obj.components?.find(c => c.type === 'videoRemote');
+      if (!inst) continue;
+      const cmdUrl = String(inst.props?.url ?? '').trim();
+      if (!cmdUrl) continue;
+      const labelsRaw = String(inst.props?.target ?? '').trim();
+      const labels = labelsRaw ? labelsRaw.split(/[,\s]+/).filter(Boolean) : [];
+      const targets = labels.length === 0
+        ? objects.filter(x => x.videoUrl)
+        : objects.filter(x => labels.includes(x.label || '') && x.videoUrl);
+      for (const t of targets) {
+        if (simVideoUrlOverrides[t.id] !== cmdUrl) {
+          next[t.id] = cmdUrl;
+          changed = true;
+        }
+      }
+    }
+    if (changed) setSimVideoUrlOverrides(m => ({ ...m, ...next }));
+  }, [objects, simVideoUrlOverrides]);
   // 시뮬레이션 플레이어 — 본인 캐릭터로 직접 플레이 (월드와 동일 조작)
   const [simCharacter, setSimCharacter] = useState<Record<string, unknown> | null>(null);
   const [simCameraMode, setSimCameraMode] = useState<'first' | 'third'>('first');

@@ -132,6 +132,7 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     description: '이 오브젝트 위치에 3D 조작 패널 — 화면 오브젝트(영상/이미지/임베드)를 제어. URL 입력 시 YouTube · mp4/webm · GIF/PNG · 외부 사이트(호스팅 게임 등) · 임베드 코드 (<iframe ...>) 자동 인식. target 라벨에 콤마로 여러 화면 지정 (비우면 모든 화면 동시 제어). 시뮬·월드에서 동작.',
     props: [
       { key: 'target', label: '대상 화면 라벨 (콤마로 여러 개, 비우면 모든 화면)', type: 'string', default: '' },
+      { key: 'url',    label: 'URL / 임베드 코드 (입력 시 target 화면에 자동 적용)', type: 'string', default: '' },
       { key: 'width',  label: '가로 크기 (월드 단위)', type: 'number', default: 1.6, min: 0.2, max: 8, step: 0.1 },
       { key: 'height', label: '세로 크기 (월드 단위)', type: 'number', default: 0.8, min: 0.1, max: 4, step: 0.05 },
       { key: 'offsetY', label: 'Y 오프셋 (오브젝트 위)',   type: 'number', default: 1,   min: -5, max: 10, step: 0.1 },

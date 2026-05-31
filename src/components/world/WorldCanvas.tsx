@@ -3046,6 +3046,29 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // url 도 함께 — 호스트가 리모컨으로 변경한 url 을 늦게 들어온 사람도 받아 같은 영상 보게.
   const videoUrlOverridesRef = useRef(videoUrlOverrides);
   useEffect(() => { videoUrlOverridesRef.current = videoUrlOverrides; }, [videoUrlOverrides]);
+
+  // 미디어 리모컨 컴포넌트의 url prop → 그 리모컨의 target 화면들에 자동 적용 (호스트만 broadcast, 비호스트는
+  // 호스트의 VIDEO_SYNC url 받아 동기화). prop 변경 시 영상이 자동으로 바뀜 — 매번 prompt 안 띄워도 됨.
+  useEffect(() => {
+    if (!customObjects) return;
+    const list = customObjects;
+    for (const obj of list) {
+      const inst = obj.components?.find(c => c.type === 'videoRemote');
+      if (!inst) continue;
+      const cmdUrl = String(inst.props?.url ?? '').trim();
+      if (!cmdUrl) continue;
+      const labelsRaw = String(inst.props?.target ?? '').trim();
+      const labels = labelsRaw ? labelsRaw.split(/[,\s]+/).filter(Boolean) : [];
+      const targets = labels.length === 0
+        ? list.filter(x => x.videoUrl)
+        : list.filter(x => labels.includes((x as { label?: string }).label || '') && x.videoUrl);
+      for (const t of targets) {
+        // 이미 같은 url 면 skip (재 broadcast 폭주 방지)
+        if (videoUrlOverridesRef.current[t.id] === cmdUrl) continue;
+        runVideoControl({ url: cmdUrl }, t.id);
+      }
+    }
+  }, [customObjects, runVideoControl]);
   useEffect(() => {
     if (!isHost || !sendScriptEvent || !hostId || hostId !== playerId) return;
     const iv = setInterval(() => {
