@@ -1760,7 +1760,7 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
  *  collapsed 에 든 id = 접힘. 자식 선택 시 조상을 펼치려고 외부에서 제어. */
 const TreeCollapseCtx = createContext<{ collapsed: Set<string>; toggle: (id: string) => void }>({ collapsed: new Set(), toggle: () => {} });
 
-function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, editingLabelId, editingLabelValue, setEditingLabelId, setEditingLabelValue, setObjects, selectedCallback, pushHistory, dragActive, overId, overMode, onNodePointerDown, onFocusObject, onContextMenu }: {
+function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, editingLabelId, editingLabelValue, setEditingLabelId, setEditingLabelValue, setObjects, selectedCallback, pushHistory, dragActive, overId, overMode, onNodePointerDown, onFocusObject, onContextMenu, onReparent, onReorderBefore }: {
   obj: MapObject;
   allObjects: MapObject[];
   depth: number;
@@ -1779,6 +1779,10 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
   onNodePointerDown: (id: string, e: React.PointerEvent) => void;
   onFocusObject: (id: string) => void;
   onContextMenu: (objId: string, x: number, y: number) => void;
+  /** native HTML5 drop 핸들러 — pointer drag 가 native dragstart 에 가로채여 작동 안 하므로
+   *  reorder/reparent 를 native drop 으로도 받는다. */
+  onReparent: (childId: string, newParentId: string) => void;
+  onReorderBefore: (draggedId: string, targetId: string) => void;
 }) {
   const { collapsed, toggle } = useContext(TreeCollapseCtx);
   const open = !collapsed.has(obj.id);   // 기본 펼침, collapsed 에 있으면 접힘
@@ -1793,9 +1797,19 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
   return (
     <div>
       {/* 순서 변경 드롭존 — 이 노드 "위"에 놓으면 형제로 앞에 삽입 (target 이 루트면 루트로 빼냄).
-          드래그 중엔 옅은 선으로 위치 표시, 호버 시 굵은 초록선. data-reorder-before 로 히트테스트. */}
+          드래그 중엔 옅은 선으로 위치 표시, 호버 시 굵은 초록선. data-reorder-before 로 히트테스트.
+          native drop 도 받음 (pointer drag 가 dragstart 후 작동 안 하므로). */}
       <div
         data-reorder-before={obj.id}
+        onDragOver={e => {
+          if (e.dataTransfer.types.includes('application/x-alp-objid')) {
+            e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+          }
+        }}
+        onDrop={e => {
+          const id = e.dataTransfer.getData('application/x-alp-objid');
+          if (id && id !== obj.id) { e.preventDefault(); onReorderBefore(id, obj.id); }
+        }}
         style={{ height: 12, margin: '-6px 0', display: 'flex', alignItems: 'center', position: 'relative', zIndex: 2, pointerEvents: dragActive ? 'auto' : 'none' }}
       >
         <div style={{
@@ -1815,6 +1829,16 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
           e.dataTransfer.setData('application/x-alp-objlabel', labelOrName);
           e.dataTransfer.setData('text/plain', labelOrName);
           e.dataTransfer.effectAllowed = 'copyMove';
+        }}
+        onDragOver={e => {
+          // 이 노드 위에 다른 노드를 떨어뜨리면 → 자식으로 reparent
+          if (e.dataTransfer.types.includes('application/x-alp-objid')) {
+            e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+          }
+        }}
+        onDrop={e => {
+          const id = e.dataTransfer.getData('application/x-alp-objid');
+          if (id && id !== obj.id) { e.preventDefault(); e.stopPropagation(); onReparent(id, obj.id); }
         }}
         onPointerDown={e => onNodePointerDown(obj.id, e)}
         onContextMenu={e => { e.preventDefault(); e.stopPropagation(); onContextMenu(obj.id, e.clientX, e.clientY); }}
@@ -1876,7 +1900,8 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
           setObjects={setObjects} selectedCallback={selectedCallback}
           pushHistory={pushHistory}
           dragActive={dragActive} overId={overId} overMode={overMode} onNodePointerDown={onNodePointerDown}
-          onFocusObject={onFocusObject} onContextMenu={onContextMenu} />
+          onFocusObject={onFocusObject} onContextMenu={onContextMenu}
+          onReparent={onReparent} onReorderBefore={onReorderBefore} />
       ))}
     </div>
   );
@@ -5374,6 +5399,8 @@ export default function StudioCanvas() {
                 onNodePointerDown={onTreeNodePointerDown}
                 onFocusObject={focusObject}
                 onContextMenu={(objId, x, y) => setTreeCtxMenu({ x, y, objId })}
+                onReparent={reparentObject}
+                onReorderBefore={(draggedId, targetId) => reorderObject(draggedId, targetId, 'before')}
                 selectedCallback={id => {
                   if (shiftHeldRef.current) {
                     rangeSelectObject(id);
