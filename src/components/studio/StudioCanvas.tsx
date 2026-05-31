@@ -3809,8 +3809,9 @@ export default function StudioCanvas() {
   useEffect(() => { setAssetSel(new Set()); }, [selectedFolder]);
   // 에셋 그리드 빈 영역 우클릭 컨텍스트 메뉴 (폴더 만들기)
   const [assetCtxMenu, setAssetCtxMenu] = useState<{ x: number; y: number } | null>(null);
-  // 스크립트 에셋 신규 작성 모달 — selectedFolder 에 저장
+  // 스크립트 에셋 작성/편집 모달 — target=null 신규, target=Asset 편집
   const [scriptEditorOpen, setScriptEditorOpen] = useState(false);
+  const [scriptEditTarget, setScriptEditTarget] = useState<Asset | null>(null);
   // 씬 트리 우클릭 컨텍스트 메뉴 — objId=null 이면 빈 영역(추가), 있으면 노드(빼기/삭제)
   const [treeCtxMenu, setTreeCtxMenu] = useState<{ x: number; y: number; objId: string | null } | null>(null);
   // 씬 트리 — 커스텀 포인터 드래그(네이티브 X → 드래그 중에도 휠 스크롤 동작) + 가장자리 자동 스크롤
@@ -7587,7 +7588,13 @@ export default function StudioCanvas() {
                   ))}
                   {/* FBX 파일 카드 */}
                   {selectedFolderAssets.map(a => (
-                    <StudioAssetCard key={a.id} asset={a} onDelete={deleteAsset} onRename={renameAsset} onPreview={setPickerPreview} selected={assetSel.has(a.id)} />
+                    <StudioAssetCard key={a.id} asset={a} onDelete={deleteAsset} onRename={renameAsset}
+                      onPreview={(asset) => {
+                        // script 에셋은 일반 모델 프리뷰 대신 코드 편집기로 라우팅
+                        if (asset.kind === 'script') { setScriptEditTarget(asset); setScriptEditorOpen(true); }
+                        else setPickerPreview(asset);
+                      }}
+                      selected={assetSel.has(a.id)} />
                   ))}
                   {/* 폴더/파일 모두 없을 때 안내 */}
                   {selectedSubfolders.length === 0 && selectedFolderAssets.length === 0 && (
@@ -7619,12 +7626,13 @@ export default function StudioCanvas() {
         />
       )}
 
-      {/* 스크립트 에셋 신규 작성 모달 — 컨텍스트 메뉴 "스크립트 생성" 진입점 */}
+      {/* 스크립트 에셋 작성/편집 모달 — 컨텍스트 메뉴 "새 스크립트" 또는 카드 클릭 진입점 */}
       <ScriptAssetEditor
         open={scriptEditorOpen}
-        editing={null}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        editing={scriptEditTarget as any}
         folder={selectedFolder}
-        onClose={() => setScriptEditorOpen(false)}
+        onClose={() => { setScriptEditorOpen(false); setScriptEditTarget(null); }}
         onSaved={() => {
           // myAssets 목록 새로고침
           fetch(`${API}/api/assets/my`, { headers: { Authorization: `Bearer ${token()}` } })
@@ -7658,7 +7666,7 @@ export default function StudioCanvas() {
             </button>
             <button
               type="button"
-              onClick={() => { setScriptEditorOpen(true); setAssetCtxMenu(null); }}
+              onClick={() => { setScriptEditTarget(null); setScriptEditorOpen(true); setAssetCtxMenu(null); }}
               style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', background: 'none', border: 'none', color: '#fff', fontSize: 12, fontWeight: 600, padding: '9px 11px', borderRadius: 6, cursor: 'pointer' }}
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(129,140,248,0.22)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
