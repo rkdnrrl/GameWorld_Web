@@ -222,10 +222,10 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
     return () => window.removeEventListener('pointerdown', onGesture);
   }, [withSound]);
 
-  // drei <Html transform> 의 px→월드 환산 (scale 1 에서 640px ≈ 64유닛, 경험치).
-  // 가로·세로 각각 평면 크기에 맞춰 비균등 스케일 → iframe 이 평면 영역과 정확히 일치 (미리보기 썸네일과 같은 영역).
-  // 영상은 변형 가능 (사용자가 mesh 를 영상 비율 16:9 = scale [W, W*9/16, 1] 로 만들면 변형 없음).
-  const PX_TO_UNIT = 0.06;
+  // drei <Html transform> 의 px→월드 환산 — drei Html.js 271행 기본 distanceFactor=10 → factor 40 →
+  // **1 월드 단위 = 40px**. 따라서 iframe 1px = 1/40 unit. PX_TO_UNIT = 1/40 = 0.025 가 정확.
+  // sx = planeW / (640 * 0.025) → iframe 가로가 정확히 planeW. 미리보기 mesh 와 일치.
+  const PX_TO_UNIT = 1 / 40;
   const sx = Math.max(0.01, planeW) / (YT_IFRAME_W * PX_TO_UNIT);
   const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);
   return (
