@@ -2589,7 +2589,8 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
    axis line 의 최근접점 계산 → 새 face position → mesh scale + position 동시 갱신. */
 function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
   target: THREE.Object3D | null;
-  onChange: (p: [number,number,number], s: [number,number,number]) => void;
+  /** world TRS 콜백. BoxResizeWrap 이 worldTRSToLocal 로 변환 후 저장. */
+  onChange: (worldP: [number,number,number], worldR: [number,number,number], worldS: [number,number,number]) => void;
   onDragStart?: () => void;
   onDragEnd?: () => void;
 }) {
@@ -2631,12 +2632,13 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
         const dy = e.clientY - rect.top - d.centerPx.y;
         const curDist = Math.hypot(dx, dy);
         const ratio = curDist / d.startDist;
-        const newScale: [number,number,number] = [
-          Math.max(0.01, d.startScale[0] * ratio),
-          Math.max(0.01, d.startScale[1] * ratio),
-          Math.max(0.01, d.startScale[2] * ratio),
+        const newWorldScale: [number,number,number] = [
+          Math.max(0.01, d.startWorldScale[0] * ratio),
+          Math.max(0.01, d.startWorldScale[1] * ratio),
+          Math.max(0.01, d.startWorldScale[2] * ratio),
         ];
-        onChange(d.startPos, newScale);
+        // 균등 scale 은 중심 그대로 (anchor 보정 불필요).
+        onChange(d.startWorldPos, d.startWorldRot, newWorldScale);
         return;
       }
       const ndc = new THREE.Vector2();
@@ -2646,25 +2648,14 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
       raycaster.setFromCamera(ndc, camera);
       const curT = closestPointOnLineToRay(d.axisCenterWorld, d.axisWorld, raycaster.ray);
       const delta = curT - d.startT;
-      // scale: 잡은 face 가 sign 방향이라 delta * sign 만큼 늘어남.
-      const newScaleAxis = Math.max(0.01, d.startScale[d.axis] + delta * d.sign);
-      const newScale: [number,number,number] = [d.startScale[0], d.startScale[1], d.startScale[2]];
-      newScale[d.axis] = newScaleAxis;
-      // position: anchor(반대편 face) world 위치 = mesh 새 중심 + axisWorld * sign * (newWorldHalfSize).
-      // → 새 중심 world = anchor - axisWorld * sign * (newWorldHalfSize).
-      // newWorldHalfSize = newScaleAxis * 0.5 (단순화: 부모 scale 영향 무시 — 부모 없거나 scale 1 인 경우 정확).
-      const newWorldHalfSize = newScaleAxis * 0.5;
-      const newCenterWorld = d.anchorWorld.clone().add(d.axisWorld.clone().multiplyScalar(d.sign * newWorldHalfSize));
-      // world → local 변환 (부모 matrix inverse)
-      const newPos: [number,number,number] = [d.startPos[0], d.startPos[1], d.startPos[2]];
-      if (d.parent) {
-        const inv = new THREE.Matrix4().copy(d.parent.matrixWorld).invert();
-        const local = newCenterWorld.clone().applyMatrix4(inv);
-        newPos[0] = local.x; newPos[1] = local.y; newPos[2] = local.z;
-      } else {
-        newPos[0] = newCenterWorld.x; newPos[1] = newCenterWorld.y; newPos[2] = newCenterWorld.z;
-      }
-      onChange(newPos, newScale);
+      // 모든 계산을 world 좌표에서. newWorldScale[axis] = startWorldScale[axis] + delta * sign.
+      // newCenter = anchor + axisWorld * sign * (newScaleAxis / 2). 반대편 face 고정.
+      const newScaleAxis = Math.max(0.01, d.startWorldScale[d.axis] + delta * d.sign);
+      const newWorldScale: [number,number,number] = [d.startWorldScale[0], d.startWorldScale[1], d.startWorldScale[2]];
+      newWorldScale[d.axis] = newScaleAxis;
+      const newCenterWorld = d.anchorWorld.clone().add(d.axisWorld.clone().multiplyScalar(d.sign * newScaleAxis * 0.5));
+      const newWorldPos: [number,number,number] = [newCenterWorld.x, newCenterWorld.y, newCenterWorld.z];
+      onChange(newWorldPos, d.startWorldRot, newWorldScale);
     };
     const onUp = () => {
       if (dragRef.current) {
@@ -2707,16 +2698,17 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
     e.nativeEvent.preventDefault();
     (e.target as Element).setPointerCapture?.(e.pointerId);
     target.updateWorldMatrix(true, false);
-    // world-space anchor 기록 — drag 중 그 위치가 같은 자리에 유지되게 mesh 갱신.
+    // world TRS 시작값 기록 (모든 계산을 world 좌표에서 — BoxResizeWrap 이 worldTRSToLocal 로 변환).
     const ws0 = new THREE.Vector3(); target.getWorldScale(ws0);
     const wp0 = new THREE.Vector3(); target.getWorldPosition(wp0);
     const wq0 = new THREE.Quaternion(); target.getWorldQuaternion(wq0);
+    const wr0 = new THREE.Euler().setFromQuaternion(wq0);
     const axisLocal = new THREE.Vector3(axis === 0 ? 1 : 0, axis === 1 ? 1 : 0, axis === 2 ? 1 : 0);
     const axisWorld = axisLocal.clone().applyQuaternion(wq0).normalize();
-    // anchor world position = 반대편 face 의 world position (현재 face 의 반대 방향)
+    const startWorldScale: [number,number,number] = [ws0.x, ws0.y, ws0.z];
+    const startWorldRot: [number,number,number] = [wr0.x, wr0.y, wr0.z];
+    // anchor world = 반대편 face 의 world position
     const anchorWorld = wp0.clone().add(axisWorld.clone().multiplyScalar(-sign * ws0.getComponent(axis) * 0.5));
-    const startScale: [number,number,number] = [target.scale.x, target.scale.y, target.scale.z];
-    const startPos: [number,number,number] = [target.position.x, target.position.y, target.position.z];
     const rect = gl.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2();
     ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -2724,7 +2716,7 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
     const startRaycaster = new THREE.Raycaster();
     startRaycaster.setFromCamera(ndc, camera);
     const startT = closestPointOnLineToRay(wp0, axisWorld, startRaycaster.ray);
-    dragRef.current = { mode: 'axis' as const, axis, sign, startScale, startPos, axisWorld, axisCenterWorld: wp0.clone(), startT, anchorWorld, parent: target.parent };
+    dragRef.current = { mode: 'axis' as const, axis, sign, startWorldScale, startWorldRot, axisWorld, axisCenterWorld: wp0.clone(), startT, anchorWorld };
     boxResizeActive.current = true;
     onDragStart?.();
   };
@@ -2737,10 +2729,14 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
     e.nativeEvent.preventDefault();
     (e.target as Element).setPointerCapture?.(e.pointerId);
     target.updateWorldMatrix(true, false);
-    const startScale: [number,number,number] = [target.scale.x, target.scale.y, target.scale.z];
-    const startPos: [number,number,number] = [target.position.x, target.position.y, target.position.z];
-    // mesh 중심의 화면 좌표 (NDC → pixel)
-    const centerNdc = wp.clone().project(camera);
+    const ws0 = new THREE.Vector3(); target.getWorldScale(ws0);
+    const wp0 = new THREE.Vector3(); target.getWorldPosition(wp0);
+    const wq0 = new THREE.Quaternion(); target.getWorldQuaternion(wq0);
+    const wr0 = new THREE.Euler().setFromQuaternion(wq0);
+    const startWorldScale: [number,number,number] = [ws0.x, ws0.y, ws0.z];
+    const startWorldPos: [number,number,number] = [wp0.x, wp0.y, wp0.z];
+    const startWorldRot: [number,number,number] = [wr0.x, wr0.y, wr0.z];
+    const centerNdc = wp0.clone().project(camera);
     const rect = gl.domElement.getBoundingClientRect();
     const centerPx = {
       x: (centerNdc.x * 0.5 + 0.5) * rect.width,
@@ -2748,8 +2744,8 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
     };
     const startDx = e.clientX - rect.left - centerPx.x;
     const startDy = e.clientY - rect.top - centerPx.y;
-    const startDist = Math.max(10, Math.hypot(startDx, startDy));   // 최소 10px (zero division 방지)
-    dragRef.current = { mode: 'uniform' as const, startScale, startPos, centerPx, startDist };
+    const startDist = Math.max(10, Math.hypot(startDx, startDy));
+    dragRef.current = { mode: 'uniform' as const, startWorldScale, startWorldPos, startWorldRot, centerPx, startDist };
     boxResizeActive.current = true;
     onDragStart?.();
   };
@@ -2812,9 +2808,11 @@ function closestPointOnLineToRay(linePoint: THREE.Vector3, lineDir: THREE.Vector
 }
 
 /* BoxResizeGizmo 를 targetId 로 사용 — scene 트리 traverse 해서 target 찾고 BoxResizeGizmo 에 넘김. */
-function BoxResizeWrap({ targetId, onChange, onDragStart, onDragEnd }: {
+function BoxResizeWrap({ targetId, toLocal, onChange, onDragStart, onDragEnd }: {
   targetId: string | null;
-  onChange: (id: string, p: [number,number,number], s: [number,number,number]) => void;
+  /** world TRS → local TRS (부모 누적 빼기 등). SelectedTransform 의 worldTRSToLocal 과 동일. */
+  toLocal: (id: string, w: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }) => { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] };
+  onChange: (id: string, t: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }, mode: 'scale') => void;
   onDragStart?: () => void;
   onDragEnd?: () => void;
 }) {
@@ -2829,7 +2827,12 @@ function BoxResizeWrap({ targetId, onChange, onDragStart, onDragEnd }: {
   });
   return (
     <BoxResizeGizmo target={target}
-      onChange={(p, s) => { if (targetId) onChange(targetId, p, s); }}
+      onChange={(p, r, s) => {
+        if (!targetId) return;
+        // BoxResizeGizmo 는 world TRS 반환 — worldTRSToLocal 로 변환해 저장 (SelectedTransform 과 동일).
+        const local = toLocal(targetId, { p, r, s });
+        onChange(targetId, local, 'scale');
+      }}
       onDragStart={onDragStart} onDragEnd={onDragEnd} />
   );
 }
@@ -6131,7 +6134,8 @@ export default function StudioCanvas() {
               {mode === 'scale' ? (
                 <BoxResizeWrap
                   targetId={objects.find(o => o.id === selectedId)?.locked ? null : selectedId}
-                  onChange={(id, p, s) => { updateObjectTransform(id, { p, r: [0,0,0], s }, 'scale'); /* rotation 은 무시 */ }}
+                  toLocal={worldTRSToLocal}
+                  onChange={updateObjectTransform}
                   onDragStart={onTransformDragStart}
                   onDragEnd={() => pushHistory(objects)}
                 />
