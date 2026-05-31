@@ -2648,14 +2648,18 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
       raycaster.setFromCamera(ndc, camera);
       const curT = closestPointOnLineToRay(d.axisCenterWorld, d.axisWorld, raycaster.ray);
       const delta = curT - d.startT;
-      // 모든 계산을 world 좌표에서. newWorldScale[axis] = startWorldScale[axis] + delta * sign.
-      // newCenter = anchor + axisWorld * sign * (newScaleAxis / 2). 반대편 face 고정.
-      const newScaleAxis = Math.max(0.01, d.startWorldScale[d.axis] + delta * d.sign);
+      // delta 는 world 단위. scale 증분 = delta / baseHalfSize / 2 (mesh 의 1 unit scale 당 world half size 만큼 늘어남).
+      const baseDiameter = d.baseHalfSize[d.axis] * 2;
+      const scaleDelta = baseDiameter > 0 ? delta / baseDiameter : delta;
+      const newScaleAxis = Math.max(0.01, d.startWorldScale[d.axis] + scaleDelta * d.sign);
       const newWorldScale: [number,number,number] = [d.startWorldScale[0], d.startWorldScale[1], d.startWorldScale[2]];
       newWorldScale[d.axis] = newScaleAxis;
-      const newCenterWorld = d.anchorWorld.clone().add(d.axisWorld.clone().multiplyScalar(d.sign * newScaleAxis * 0.5));
-      const newWorldPos: [number,number,number] = [newCenterWorld.x, newCenterWorld.y, newCenterWorld.z];
-      onChange(newWorldPos, d.startWorldRot, newWorldScale);
+      // bbox 새 half size = baseHalfSize * newWorldScale.
+      const newHalfSizeAxis = d.baseHalfSize[d.axis] * newScaleAxis;
+      // 새 bbox center = anchor + axisWorld * sign * newHalfSize. mesh transform pos = bcCenter + pivotOffset.
+      const newBcWorld = d.anchorWorld.clone().add(d.axisWorld.clone().multiplyScalar(d.sign * newHalfSizeAxis));
+      const newMeshPos = newBcWorld.clone().add(d.pivotOffsetWorld);
+      onChange([newMeshPos.x, newMeshPos.y, newMeshPos.z], d.startWorldRot, newWorldScale);
     };
     const onUp = () => {
       if (dragRef.current) {
@@ -2692,14 +2696,13 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
   const handleSize = 0.15;
 
   const onPointerDown = (e: ThreeEvent<PointerEvent>, axis: 0|1|2, sign: 1|-1) => {
-    if (e.button !== 0) return;   // 좌클릭만
+    if (e.button !== 0) return;
     e.stopPropagation();
     e.nativeEvent.stopPropagation();
     e.nativeEvent.stopImmediatePropagation?.();
     e.nativeEvent.preventDefault();
     (e.target as Element).setPointerCapture?.(e.pointerId);
     target.updateWorldMatrix(true, false);
-    // world TRS 시작값 기록 (모든 계산을 world 좌표에서 — BoxResizeWrap 이 worldTRSToLocal 로 변환).
     const ws0 = new THREE.Vector3(); target.getWorldScale(ws0);
     const wp0 = new THREE.Vector3(); target.getWorldPosition(wp0);
     const wq0 = new THREE.Quaternion(); target.getWorldQuaternion(wq0);
@@ -2708,16 +2711,33 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
     const axisWorld = axisLocal.clone().applyQuaternion(wq0).normalize();
     const startWorldScale: [number,number,number] = [ws0.x, ws0.y, ws0.z];
     const startWorldRot: [number,number,number] = [wr0.x, wr0.y, wr0.z];
-    // anchor world = 반대편 face 의 world position
-    const anchorWorld = wp0.clone().add(axisWorld.clone().multiplyScalar(-sign * ws0.getComponent(axis) * 0.5));
+    // pivot 보정 — mesh 의 transform position(피벗)이 bbox center 와 다를 수 있음 (예: 발 기준 캐릭터).
+    // bbox center 기준으로 anchor / scale 계산해야 한쪽 face 만 정확히 이동.
+    const bbox = new THREE.Box3().setFromObject(target);
+    const bcStart = bbox.getCenter(new THREE.Vector3());
+    const sizeStart = bbox.getSize(new THREE.Vector3());
+    // base half size per world-scale-unit — drag 후 newWorldScale 로 곱해 새 half size 계산.
+    const baseHalfSize: [number,number,number] = [
+      ws0.x !== 0 ? (sizeStart.x * 0.5) / ws0.x : 0.5,
+      ws0.y !== 0 ? (sizeStart.y * 0.5) / ws0.y : 0.5,
+      ws0.z !== 0 ? (sizeStart.z * 0.5) / ws0.z : 0.5,
+    ];
+    // mesh transform 위치(피벗) ↔ bbox center 의 world 차이 — drag 후에도 같은 offset 유지.
+    const pivotOffsetWorld = wp0.clone().sub(bcStart);
+    // anchor world = bbox center 의 반대편 face
+    const anchorWorld = bcStart.clone().add(axisWorld.clone().multiplyScalar(-sign * baseHalfSize[axis] * ws0.getComponent(axis)));
     const rect = gl.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2();
     ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
     const startRaycaster = new THREE.Raycaster();
     startRaycaster.setFromCamera(ndc, camera);
-    const startT = closestPointOnLineToRay(wp0, axisWorld, startRaycaster.ray);
-    dragRef.current = { mode: 'axis' as const, axis, sign, startWorldScale, startWorldRot, axisWorld, axisCenterWorld: wp0.clone(), startT, anchorWorld };
+    const startT = closestPointOnLineToRay(bcStart, axisWorld, startRaycaster.ray);
+    dragRef.current = {
+      mode: 'axis' as const, axis, sign, startWorldScale, startWorldRot,
+      axisWorld, axisCenterWorld: bcStart.clone(), startT, anchorWorld,
+      baseHalfSize, pivotOffsetWorld,
+    };
     boxResizeActive.current = true;
     onDragStart?.();
   };
