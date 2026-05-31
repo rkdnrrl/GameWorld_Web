@@ -108,10 +108,12 @@ function fixModelMaterials(mesh: THREE.Mesh) {
 */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const tcRef: { current: any } = { current: null };
+// BoxResizeGizmo drag 상태 — 마퀴 selection / 다른 클릭 처리가 무시하도록 외부 flag.
+const boxResizeActive: { current: boolean } = { current: false };
 function isGizmoActive(): boolean {
   const tc = tcRef.current;
+  if (boxResizeActive.current) return true;
   if (!tc) return false;
-  // axis: hover 중인 축 이름 (없으면 null), dragging: 드래그 중
   return !!tc.axis || !!tc.dragging;
 }
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -2654,6 +2656,7 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
     const onUp = () => {
       if (dragRef.current) {
         dragRef.current = null;
+        boxResizeActive.current = false;
         onDragEnd?.();
       }
     };
@@ -2686,6 +2689,9 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
 
   const onPointerDown = (e: ThreeEvent<PointerEvent>, axis: 0|1|2, sign: 1|-1) => {
     e.stopPropagation();
+    e.nativeEvent.stopPropagation();
+    e.nativeEvent.stopImmediatePropagation?.();
+    e.nativeEvent.preventDefault();
     (e.target as Element).setPointerCapture?.(e.pointerId);
     target.updateWorldMatrix(true, false);
     const startScale: [number,number,number] = [target.scale.x, target.scale.y, target.scale.z];
@@ -2700,12 +2706,16 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
     startRaycaster.setFromCamera(ndc, camera);
     const startT = closestPointOnLineToRay(wp, axisWorld, startRaycaster.ray);
     dragRef.current = { mode: 'axis' as const, axis, sign, startScale, startPos, axisWorld, axisCenterWorld: wp.clone(), startT };
+    boxResizeActive.current = true;
     onDragStart?.();
   };
 
   // 중앙 uniform scale 핸들 — 마우스를 중심에서 멀리/가까이 끌면 3축 균등 scale.
   const onUniformPointerDown = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
+    e.nativeEvent.stopPropagation();
+    e.nativeEvent.stopImmediatePropagation?.();
+    e.nativeEvent.preventDefault();
     (e.target as Element).setPointerCapture?.(e.pointerId);
     target.updateWorldMatrix(true, false);
     const startScale: [number,number,number] = [target.scale.x, target.scale.y, target.scale.z];
@@ -2721,6 +2731,7 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
     const startDy = e.clientY - rect.top - centerPx.y;
     const startDist = Math.max(10, Math.hypot(startDx, startDy));   // 최소 10px (zero division 방지)
     dragRef.current = { mode: 'uniform' as const, startScale, startPos, centerPx, startDist };
+    boxResizeActive.current = true;
     onDragStart?.();
   };
 
