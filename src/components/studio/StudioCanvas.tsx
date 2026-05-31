@@ -6216,6 +6216,7 @@ export default function StudioCanvas() {
                         <VideoRemotePanel
                           registry={simVideoRegistry} targetId={firstId} videoUrl={targets[0].videoUrl || ''}
                           width={rW} height={rH} offsetY={rOy}
+                          firstPerson={!!simCharacter && simCamView === 'follow' && simCameraMode === 'first'}
                           onSeekBy={(d) => targetIds.forEach(tid => runSimVideoControl({ seekBy: d }, tid))}
                           onSeekTo={(t) => targetIds.forEach(tid => runSimVideoControl({ seekTo: t }, tid))}
                           onTogglePlay={(p) => targetIds.forEach(tid => runSimVideoControl({ playing: p }, tid))}

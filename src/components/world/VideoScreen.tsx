@@ -102,7 +102,8 @@ export function VideoScreenMaterial({ url, objId, selected, side = THREE.FrontSi
 
   useEffect(() => {
     if (!withSound) return;
-    const onGesture = () => { video.muted = false; video.play().catch(() => {}); };
+    // 음소거 해제만 — play() 호출 안 함. 사용자가 리모컨으로 일시정지 했으면 그 상태 유지.
+    const onGesture = () => { if (video.muted) video.muted = false; };
     window.addEventListener('pointerdown', onGesture);
     return () => window.removeEventListener('pointerdown', onGesture);
   }, [withSound, video]);
@@ -236,11 +237,11 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
     return () => { console.log('[YT] unregister handle', objId); registry.current.delete(objId); };
   }, [registry, objId]);
 
-  // 소리 — 사용자 제스처마다 음소거 해제 시도 (once X — player 준비 전 첫 클릭이 헛돌아도
-  // 준비된 뒤 다음 클릭에 켜지게). 이미 소리 켜져 있으면 무해.
+  // 소리 — 사용자 제스처마다 음소거 해제 시도 (player 준비 전 첫 클릭이 헛돌아도 다음 클릭에 켜지게).
+  // playVideo() 호출 X — 사용자가 리모컨으로 일시정지 했으면 그 상태 유지.
   useEffect(() => {
     if (!withSound) return;
-    const onGesture = () => { try { playerRef.current?.unMute?.(); playerRef.current?.playVideo?.(); } catch { /* noop */ } };
+    const onGesture = () => { try { if (playerRef.current?.isMuted?.()) playerRef.current?.unMute?.(); } catch { /* noop */ } };
     window.addEventListener('pointerdown', onGesture);
     return () => window.removeEventListener('pointerdown', onGesture);
   }, [withSound]);
@@ -491,7 +492,7 @@ function hitTest(px: number, py: number): keyof typeof HIT | null {
   return null;
 }
 
-export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, height = 0.8, offsetY = 1, interactive = true, onSeekBy, onSeekTo, onTogglePlay, onChangeUrl }: {
+export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, height = 0.8, offsetY = 1, interactive = true, firstPerson = false, onSeekBy, onSeekTo, onTogglePlay, onChangeUrl }: {
   registry: VideoRegistry;
   /** 비어 있으면 미리보기 모드 (조작 없이 시각화만). */
   targetId: string;
@@ -501,6 +502,9 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, he
   offsetY?: number;
   /** false 면 onPointerDown 안 받음 (스튜디오 편집뷰 미리보기). */
   interactive?: boolean;
+  /** true 면 마우스 hover 위치 무시하고 화면 중앙 크로스헤어로만 클릭 받음.
+   *  pointer lock 안 쓰는 모드(스튜디오 시뮬 1인칭) 대응. 월드는 pointer lock 으로 자동 감지. */
+  firstPerson?: boolean;
   onSeekBy: (delta: number) => void;
   onSeekTo: (t: number) => void;
   onTogglePlay: (play: boolean) => void;
@@ -578,17 +582,16 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, he
     }
   };
 
-  // 1인칭 크로스헤어 클릭 — pointer lock 상태에서 화면 중앙으로 raycaster 쏴 이 mesh hit 시 처리.
-  // R3F 의 onPointerDown 은 마우스 좌표 기반이라 lock 중엔 안 잡힘 → 직접 window listener.
+  // 1인칭 크로스헤어 클릭 — pointer lock 또는 firstPerson prop 일 때 화면 중앙 raycaster.
+  // R3F 의 onPointerDown 은 마우스 좌표 기반이라 lock 중엔 안 잡힘. 스튜디오 시뮬 1인칭은
+  // pointer lock 안 쓰지만 마우스가 안 보이므로 hover 위치로 잡혀도 안 됨 → firstPerson prop.
   // 주의: capture phase X / stopPropagation X — 다른 1인칭 처리(오브젝트 클릭 등) 와 공존.
-  //   리모컨 hit 일 때도 다른 처리에 클릭이 같이 전달되지만, 다른 곳도 raycast 로 자기 mesh hit
-  //   체크하므로 동시 호출돼도 무해(리모컨 mesh 는 다른 곳에서 hit 안 됨).
   const meshRef = useRef<THREE.Mesh>(null);
   const { camera } = useThree();
   useEffect(() => {
     if (!interactive) return;
     const onClick = (e: PointerEvent) => {
-      if (!document.pointerLockElement) return;   // lock 안 됐으면 R3F 일반 클릭이 처리
+      if (!document.pointerLockElement && !firstPerson) return;   // 일반 모드면 R3F 클릭이 처리
       if (e.button !== 0) return;
       if (!meshRef.current) return;
       const raycaster = new THREE.Raycaster();
@@ -599,13 +602,15 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, he
     window.addEventListener('pointerdown', onClick);
     return () => window.removeEventListener('pointerdown', onClick);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interactive, camera, targetId]);
+  }, [interactive, firstPerson, camera, targetId]);
 
   return (
     <mesh
       ref={meshRef}
       position={[0, offsetY, 0]}
       onPointerDown={interactive ? (e) => {
+        // 1인칭(pointer lock 또는 firstPerson) 모드에선 마우스 hover 클릭 무시 — 위 raycaster 가 처리
+        if (document.pointerLockElement || firstPerson) return;
         e.stopPropagation();
         if (!e.uv) return;
         handleUv(e.uv);
