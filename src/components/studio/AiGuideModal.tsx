@@ -228,6 +228,24 @@ export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalPr
     [userRequest]
   );
 
+  // 가져오기 전 미리 분석 (UX 미리보기) — hook 은 early return 위에 있어야 (React rule)
+  const preview = useMemo(() => {
+    if (!jsonText.trim()) return null;
+    try {
+      const cleaned = extractJson(jsonText);
+      const d = JSON.parse(cleaned);
+      const arr: MapObjectLike[] = Array.isArray(d) ? d : (d.objects || []);
+      if (!Array.isArray(arr) || arr.length === 0) return null;
+      const counts: Record<string, number> = {};
+      for (const o of arr) {
+        const k = o.kind || 'cube';
+        const sub = k === 'ui' && o.ui?.type ? `ui:${o.ui.type}` : k;
+        counts[sub] = (counts[sub] || 0) + 1;
+      }
+      return { total: arr.length, counts };
+    } catch { return null; }
+  }, [jsonText]);
+
   if (!open) return null;
 
   const handleCopyPrompt = async () => {
@@ -291,24 +309,6 @@ export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalPr
       setError('JSON 파싱 실패: ' + (e as Error).message);
     }
   };
-
-  // 가져오기 전 미리 분석 (UX 미리보기)
-  const preview = useMemo(() => {
-    if (!jsonText.trim()) return null;
-    try {
-      const cleaned = extractJson(jsonText);
-      const d = JSON.parse(cleaned);
-      const arr: MapObjectLike[] = Array.isArray(d) ? d : (d.objects || []);
-      if (!Array.isArray(arr) || arr.length === 0) return null;
-      const counts: Record<string, number> = {};
-      for (const o of arr) {
-        const k = o.kind || 'cube';
-        const sub = k === 'ui' && o.ui?.type ? `ui:${o.ui.type}` : k;
-        counts[sub] = (counts[sub] || 0) + 1;
-      }
-      return { total: arr.length, counts };
-    } catch { return null; }
-  }, [jsonText]);
 
   return (
     <div
