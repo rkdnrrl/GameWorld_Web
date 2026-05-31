@@ -35,6 +35,8 @@ export function PerfManager({ cullDistance, followShadows = true, lightShadowCul
     const v = tmp.current;
 
     // ── (2) Shadow camera follow — 매 프레임 (light 위치는 카메라 빠르게 따라가야 함) ──
+    // 카메라 위치를 그대로 따라가면 텍셀이 매 프레임 다른 픽셀에 샘플링되어 그림자 가장자리가 "기어다님"
+    // (shadow shimmering / crawling). → 월드 좌표를 텍셀 크기 단위로 round 해 텍셀 정렬 보장.
     if (followShadows) {
       state.scene.traverse((obj) => {
         const l = obj as THREE.DirectionalLight;
@@ -46,10 +48,26 @@ export function PerfManager({ cullDistance, followShadows = true, lightShadowCul
           if (l.target && !l.target.parent) state.scene.add(l.target);
         }
         const offset = l.userData.alpFollowOffset as THREE.Vector3;
-        // light position = cam + 원래 offset, target = cam → 방향 유지 + frustum 만 카메라 따라감
-        l.position.copy(cam).add(offset);
+
+        // ── Texel snap ──
+        // shadow.camera 는 OrthographicCamera. (right-left)/mapSize = 텍셀당 월드 단위.
+        // light/target 좌표를 그 단위로 round → 카메라가 미세 이동해도 그림자 텍셀이 같은 픽셀에 머무름.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sc: any = l.shadow?.camera;
+        const mapSize = l.shadow?.mapSize?.x || 1024;
+        let snapX = cam.x, snapZ = cam.z;
+        if (sc && typeof sc.right === 'number' && typeof sc.left === 'number') {
+          const worldPerTexel = (sc.right - sc.left) / mapSize;
+          if (worldPerTexel > 0) {
+            snapX = Math.round(cam.x / worldPerTexel) * worldPerTexel;
+            snapZ = Math.round(cam.z / worldPerTexel) * worldPerTexel;
+          }
+        }
+        // Y 는 texel snap 안 해도 무방 (수평 이동이 주). round 하면 더 안정.
+        const snapY = cam.y;
+        l.position.set(snapX + offset.x, snapY + offset.y, snapZ + offset.z);
         if (l.target) {
-          l.target.position.copy(cam);
+          l.target.position.set(snapX, snapY, snapZ);
           l.target.updateMatrixWorld();
         }
       });
