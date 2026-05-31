@@ -15,7 +15,7 @@ import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { createGameRuntime } from '@/lib/world/gameRuntime';
 import GameHud from '@/components/world/GameHud';
-import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, VideoScreenCtx, parseYouTubeId, parseUrlKind, ImageMaterial, GenericIframeOverlay, VideoRemotePanel, type VideoRegistry, type VideoHandle } from '@/components/world/VideoScreen';
+import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, VideoScreenCtx, parseYouTubeId, parseUrlKind, normalizeMediaUrl, ImageMaterial, GenericIframeOverlay, VideoRemotePanel, type VideoRegistry, type VideoHandle } from '@/components/world/VideoScreen';
 import AiGuideModal from './AiGuideModal';
 import StudioTopBar from './StudioTopBar';
 import StudioShortcutsModal from './StudioShortcutsModal';
@@ -352,13 +352,29 @@ function ComponentsSection({
                   </label>
                 );
               }
-              // string
+              // string — 씬 트리에서 오브젝트 드래그해 드롭하면 라벨/이름이 콤마로 추가됨 (target prop 편의).
               return (
                 <label key={p.key} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, opacity: 0.75, marginTop: 4 }}>
                   {p.label}
                   <input type="text" value={String(val)}
                     onChange={e => updateProp(idx, p.key, e.target.value)}
                     onBlur={() => pushHistory(allObjects)}
+                    onDragOver={e => {
+                      if (e.dataTransfer.types.includes('application/x-alp-objlabel')) {
+                        e.preventDefault(); e.dataTransfer.dropEffect = 'copy';
+                      }
+                    }}
+                    onDrop={e => {
+                      const dropped = e.dataTransfer.getData('application/x-alp-objlabel');
+                      if (!dropped) return;
+                      e.preventDefault();
+                      const cur = String(val).trim();
+                      const tokens = cur ? cur.split(/[,\s]+/).filter(Boolean) : [];
+                      if (!tokens.includes(dropped)) tokens.push(dropped);
+                      updateProp(idx, p.key, tokens.join(', '));
+                      pushHistory(allObjects);
+                    }}
+                    placeholder={p.label.includes('드래그') || p.key === 'target' ? '씬 트리에서 오브젝트 드래그 OK' : undefined}
                     style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
                 </label>
               );
@@ -1336,9 +1352,9 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
     obj.kind === 'plane'    ? <planeGeometry args={[1, 1]} /> :
                               <boxGeometry args={[1, 1, 1]} />;
   const vidSide = obj.kind === 'plane' ? THREE.DoubleSide : THREE.FrontSide;
+  const normUrl = obj.videoUrl ? normalizeMediaUrl(obj.videoUrl) : '';
   const urlKind = obj.videoUrl ? parseUrlKind(obj.videoUrl) : 'none';
-  const ytId = urlKind === 'youtube' ? parseYouTubeId(obj.videoUrl!) : null;
-  // noTransform=true: 위치/userData는 외부 SceneNode group이 담당
+  const ytId = urlKind === 'youtube' ? parseYouTubeId(normUrl) : null;
   return (
     <>
       <mesh ref={ref}
@@ -1351,15 +1367,15 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
         {urlKind === 'youtube' && ytId
           ? <YouTubeMeshMaterial videoId={ytId} selected={selected} side={vidSide} />
           : urlKind === 'videoFile'
-            ? <VideoScreenMaterial url={obj.videoUrl!} objId={obj.id} selected={selected} side={vidSide} />
+            ? <VideoScreenMaterial url={normUrl} objId={obj.id} selected={selected} side={vidSide} />
             : urlKind === 'image'
-              ? <ImageMaterial url={obj.videoUrl!} selected={selected} side={vidSide} />
+              ? <ImageMaterial url={normUrl} selected={selected} side={vidSide} />
               : urlKind === 'iframe'
                 ? <meshBasicMaterial color="#000" side={vidSide} />
                 : <PrimitiveMaterial obj={obj} selected={selected} />}
       </mesh>
       {ytId && <YouTubeMaybeOverlay videoId={ytId} objId={obj.id} planeW={obj.scale[0]} planeH={obj.scale[1]} />}
-      {urlKind === 'iframe' && <GenericIframeOverlay url={obj.videoUrl!} planeW={obj.scale[0]} planeH={obj.scale[1]} />}
+      {urlKind === 'iframe' && <GenericIframeOverlay url={normUrl} planeW={obj.scale[0]} planeH={obj.scale[1]} />}
     </>
   );
 }
@@ -1712,6 +1728,14 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
       </div>
       <div
         data-node-id={obj.id}
+        draggable={editingLabelId !== obj.id}
+        onDragStart={e => {
+          // 미디어 리모컨 target input 등에 드롭하면 라벨/이름 채워주기
+          const labelOrName = (obj as { label?: string; name?: string }).label || (obj as { name?: string }).name || obj.id;
+          e.dataTransfer.setData('application/x-alp-objlabel', labelOrName);
+          e.dataTransfer.setData('text/plain', labelOrName);
+          e.dataTransfer.effectAllowed = 'copyMove';
+        }}
         onPointerDown={e => onNodePointerDown(obj.id, e)}
         onContextMenu={e => { e.preventDefault(); e.stopPropagation(); onContextMenu(obj.id, e.clientX, e.clientY); }}
         onClick={() => { if (editingLabelId !== obj.id) selectedCallback(obj.id); }}

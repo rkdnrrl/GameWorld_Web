@@ -23,7 +23,7 @@ import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
-import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, parseUrlKind, ImageMaterial, GenericIframeOverlay, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, VideoRemotePanel, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
+import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, parseUrlKind, normalizeMediaUrl, ImageMaterial, GenericIframeOverlay, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, VideoRemotePanel, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
 import { createGameRuntime, GAME_SYNC_EVENT, GAME_SOUND_EVENT, type GameSnapshot } from '@/lib/world/gameRuntime';
 import GameHud from './GameHud';
 
@@ -2163,11 +2163,13 @@ const PrimitiveMesh = React.memo(function PrimitiveMeshImpl({ obj, shape }: { ob
   React.useEffect(() => () => disposeMaterial(material), [material]);
 
   // 비디오 스크린 — URL 종류에 따라 분기. YouTube/영상파일/이미지(GIF)/generic iframe.
+  // embed 코드(<iframe src=...>)도 normalizeMediaUrl 로 src 추출 후 분기.
   if (obj.videoUrl) {
     const vidSide = obj.kind === 'plane' ? THREE.DoubleSide : THREE.FrontSide;
+    const normUrl = normalizeMediaUrl(obj.videoUrl);
     const kind = parseUrlKind(obj.videoUrl);
     if (kind === 'youtube') {
-      const ytId = parseYouTubeId(obj.videoUrl)!;
+      const ytId = parseYouTubeId(normUrl)!;
       return (
         <>
           <mesh castShadow receiveShadow>
@@ -2182,7 +2184,7 @@ const PrimitiveMesh = React.memo(function PrimitiveMeshImpl({ obj, shape }: { ob
       return (
         <mesh castShadow receiveShadow>
           {shape}
-          <VideoScreenMaterial url={obj.videoUrl} objId={obj.id} side={vidSide} />
+          <VideoScreenMaterial url={normUrl} objId={obj.id} side={vidSide} />
         </mesh>
       );
     }
@@ -2190,19 +2192,18 @@ const PrimitiveMesh = React.memo(function PrimitiveMeshImpl({ obj, shape }: { ob
       return (
         <mesh castShadow receiveShadow>
           {shape}
-          <ImageMaterial url={obj.videoUrl} side={vidSide} />
+          <ImageMaterial url={normUrl} side={vidSide} />
         </mesh>
       );
     }
     if (kind === 'iframe') {
-      // 호스팅 게임 / 외부 사이트 등 generic embed.
       return (
         <>
           <mesh castShadow receiveShadow>
             {shape}
             <meshBasicMaterial color="#000" side={vidSide} />
           </mesh>
-          <GenericIframeOverlay url={obj.videoUrl} planeW={obj.scale[0]} planeH={obj.scale[1]} />
+          <GenericIframeOverlay url={normUrl} planeW={obj.scale[0]} planeH={obj.scale[1]} />
         </>
       );
     }

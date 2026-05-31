@@ -43,14 +43,25 @@ export function parseYouTubeId(url: string): string | null {
   return null;
 }
 
-/** URL 분류 — 어떤 종류의 콘텐츠인지 분기. */
+/** 입력이 <iframe src="..."> 같은 HTML embed 코드면 src 추출해 일반 URL 로. 아니면 그대로 반환. */
+export function normalizeMediaUrl(input: string): string {
+  if (!input) return '';
+  const s = input.trim();
+  // <iframe ... src="..."> 또는 src='...' 추출
+  const m = s.match(/<iframe[^>]*\ssrc\s*=\s*["']([^"']+)["']/i);
+  if (m) return m[1];
+  return s;
+}
+
+/** URL 분류 — 어떤 종류의 콘텐츠인지 분기. embed 코드는 normalizeMediaUrl 로 URL 추출 후 분류. */
 export type VideoUrlKind = 'youtube' | 'videoFile' | 'image' | 'iframe' | 'none';
-export function parseUrlKind(url: string): VideoUrlKind {
+export function parseUrlKind(rawUrl: string): VideoUrlKind {
+  const url = normalizeMediaUrl(rawUrl);
   if (!url) return 'none';
   if (parseYouTubeId(url)) return 'youtube';
   if (/\.(mp4|webm|mov|m4v|ogv)(\?|$)/i.test(url)) return 'videoFile';
   if (/\.(gif|png|jpe?g|webp|avif|bmp|svg)(\?|$)/i.test(url)) return 'image';
-  if (/^https?:\/\//i.test(url)) return 'iframe';   // 그 외 http(s) URL = generic iframe embed (호스팅 게임 등)
+  if (/^https?:\/\//i.test(url)) return 'iframe';
   return 'none';
 }
 
