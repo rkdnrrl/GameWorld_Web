@@ -2692,6 +2692,7 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
   const handleSize = 0.15;
 
   const onPointerDown = (e: ThreeEvent<PointerEvent>, axis: 0|1|2, sign: 1|-1) => {
+    if (e.button !== 0) return;   // 좌클릭만
     e.stopPropagation();
     e.nativeEvent.stopPropagation();
     e.nativeEvent.stopImmediatePropagation?.();
@@ -2723,6 +2724,7 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
 
   // 중앙 uniform scale 핸들 — 마우스를 중심에서 멀리/가까이 끌면 3축 균등 scale.
   const onUniformPointerDown = (e: ThreeEvent<PointerEvent>) => {
+    if (e.button !== 0) return;   // 좌클릭만
     e.stopPropagation();
     e.nativeEvent.stopPropagation();
     e.nativeEvent.stopImmediatePropagation?.();
@@ -2810,9 +2812,9 @@ function closestPointOnLineToRay(linePoint: THREE.Vector3, lineDir: THREE.Vector
 /* BoxResizeGizmo 를 targetId 로 사용 — scene 트리 traverse 해서 target 찾고 BoxResizeGizmo 에 넘김. */
 function BoxResizeWrap({ targetId, toLocal, onChange, onDragStart, onDragEnd }: {
   targetId: string | null;
-  /** world TRS → local TRS (부모 누적 빼기 등). SelectedTransform 의 worldTRSToLocal 과 동일. */
   toLocal: (id: string, w: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }) => { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] };
-  onChange: (id: string, t: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }, mode: 'scale') => void;
+  /** mode 별 single-축 갱신 (translate 는 position, scale 은 scale 만 — 비균등 부모 밑 폭발 방지 패턴). */
+  onChange: (id: string, t: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }, mode: 'translate' | 'scale') => void;
   onDragStart?: () => void;
   onDragEnd?: () => void;
 }) {
@@ -2829,9 +2831,11 @@ function BoxResizeWrap({ targetId, toLocal, onChange, onDragStart, onDragEnd }: 
     <BoxResizeGizmo target={target}
       onChange={(p, r, s) => {
         if (!targetId) return;
-        // BoxResizeGizmo 는 world TRS 반환 — worldTRSToLocal 로 변환해 저장 (SelectedTransform 과 동일).
         const local = toLocal(targetId, { p, r, s });
+        // scale + translate 둘 다 갱신 — updateObjectTransform 이 mode 별 single-축이라 두 번 호출.
+        // anchor 고정엔 scale 만 바꾸면 mesh 중심 그대로라 양쪽 모두 늘어남 → position 도 갱신해야 한쪽만.
         onChange(targetId, local, 'scale');
+        onChange(targetId, local, 'translate');
       }}
       onDragStart={onDragStart} onDragEnd={onDragEnd} />
   );
