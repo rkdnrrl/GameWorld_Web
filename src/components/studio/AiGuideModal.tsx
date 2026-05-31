@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 interface MapObjectLike {
   id?: string;
@@ -14,92 +14,167 @@ interface AiGuideModalProps {
   onImport: (objects: MapObjectLike[], mode: 'add' | 'replace') => void;
 }
 
-// AI 에 전달할 시스템 프롬프트 — 스키마 + API + 규칙
+// AI 에 전달할 시스템 프롬프트 — 스키마 + API + 규칙.
+// {{USER_REQUEST}} 토큰은 사용자가 입력한 요청으로 치환됨.
 const AI_PROMPT_TEMPLATE = `당신은 ALP 가상 월드 빌더 도우미입니다.
-사용자 요청에 따라 3D 씬 오브젝트를 JSON 으로 생성하세요.
+사용자 요청에 따라 3D 씬 오브젝트 + UI 를 JSON 으로 생성하세요.
 
-# 출력 형식
+# 출력 형식 (전체)
 \`\`\`json
 {
   "objects": [
+    // ── 3D 오브젝트 ──
     {
-      "kind": "cube",          // cube | sphere | cylinder | plane | pointlight | spotlight | dirlight
+      "kind": "cube",            // cube | sphere | cylinder | plane | asset | pointlight | spotlight | dirlight | spawn | empty | ui
+      "id":    "auto",           // 비우면 자동, 부모-자식 연결할 때만 명시
+      "parentId": "<otherId>",   // 부모 오브젝트 id (선택)
       "label": "이름(선택)",
-      "position": [0, 0.5, 0], // 미터, y=0 이 지면
-      "rotation": [0, 0, 0],   // 라디안
+      "position": [0, 0.5, 0],   // 미터, y=0 이 지면. 부모 있으면 로컬 좌표
+      "rotation": [0, 0, 0],     // 라디안
       "scale":    [1, 1, 1],
-      "color":    "#888888",   // hex
-      "physics":  "fixed",     // none | fixed | dynamic (기본 fixed)
+      "color":    "#888888",     // hex
+      "hidden":   false,         // 숨김 토글
+      "locked":   false,         // 편집 잠금
 
-      // 조명일 때:
+      // 머티리얼 (선택, primitives)
+      "material":      "default", // default | wood | metal | stone | glass | plastic | emissive
+      "materialColor": "#888888",
+      "textureAlbedo": "https://...",
+      "textureTilingX": 1,
+      "textureTilingY": 1,
+
+      // 영상/이미지/iframe URL — 표면에 띄움 (TV 화면)
+      "videoUrl": "https://www.youtube.com/watch?v=...",
+
+      // 조명 (lights)
       "lightColor":     "#ffffff",
       "lightIntensity": 1,
-      "lightDistance":  0,     // 0 = 무한
-      "lightAngle":     45,    // spot 만, degree
+      "lightDistance":  0,        // 0 = 무한
+      "lightAngle":     45,       // spot 만, degree
+      "castShadow":     false,
 
-      // 스크립트 (선택):
-      "script": "function onUpdate(dt) { self.setRotation(0, world.time, 0); }"
+      // 물리 (선택, primitives)
+      "physics": "fixed",         // none | fixed | dynamic
+
+      // Unity 식 컴포넌트 (선택)
+      "components": [
+        { "type": "worldPhysics", "props": { "gravity": -22, "jumpPower": 7 } },
+        { "type": "physics",      "props": { "mode": "dynamic" } },
+        { "type": "collider",     "props": { "sizeX": 1, "sizeY": 1, "sizeZ": 1, "trigger": false } },
+        { "type": "grab" },
+        { "type": "particle",     "props": { "preset": "fire", "count": 200, "size": 1 } },
+        { "type": "postProcess",  "props": { "bloom": true, "bloomIntensity": 0.6 } }
+      ],
+
+      // 스크립트 (선택)
+      "script": "function onUpdate(dt) { self.setRotation(0, world.time, 0); }",
+      "scriptVars": { "speed": 1.5 },
+
+      // UI 오브젝트 (kind === "ui" 일 때만)
+      "ui": {
+        "type": "canvas",         // canvas | panel | image | text | button | slider | input | toggle | scrollview
+        "space": "screen",        // canvas 만 — screen | world
+        "rect": {
+          "anchorMin": { "x": 0.5, "y": 0.5 },
+          "anchorMax": { "x": 0.5, "y": 0.5 },
+          "pivot":     { "x": 0.5, "y": 0.5 },
+          "posX": 0, "posY": 0,
+          "width": 200, "height": 60
+        },
+        "text": "버튼",
+        "fontSize": 16,
+        "color": "#ffffff",
+        "bgColor": "#4f46e5",
+        "onClickScript": "data.add('score', 1);"
+      }
     }
   ]
 }
 \`\`\`
 
 # 좌표 / 단위
-- 위 = +Y, y=0 이 지면
+- 위 = +Y, y=0 이 지면. 캐릭터 키 약 1.8m
 - dynamic (떨어지는) 오브젝트는 y >= 1 부터 시작
-- 캐릭터 키 약 1.8m
+- 색상은 hex (#rrggbb)
+- parentId 로 그룹화 — 부모 transform 이 자식에 propagate. 부모가 움직이면 자식도 따라감.
+- spawn = 플레이어 스폰 포인트 (보이지 않음). 여러 개 두면 랜덤 선택.
+- empty = 빈 컨테이너. components (예: worldPhysics) 부착용 또는 그룹 부모용.
 
-# 스크립트 API (자체 JS subset)
+# UI 시스템
+- Canvas 가 root (screen 또는 world). 그 자식으로 panel/image/text/button/slider/input/toggle/scrollview.
+- RectTransform: anchor 9-점 (0=좌하, 0.5=중앙, 1=우상). anchorMin==anchorMax = 점 고정, 다르면 stretch.
+- Button onClickScript / Slider/Input/Toggle onChangeScript 에서 game, ui, world, data, value 사용 가능.
+
+# 스크립트 API
 self.setPosition(x,y,z) / setRotation(rx,ry,rz) / applyImpulse(x,y,z)
 self.setVisible(b) / setColor(hex) / setIntensity(n) / destroy()
-world.time / getPlayers() / find(idOrLabel) / spawn(opts) / isHost() / runtimeCount()
+world.time / getPlayers() / find(idOrLabel) / spawn(opts) / isHost() / runtimeCount() / playSound(url)
+game.get(key, d) / set(key, v) / add(key, n)          // 메모리 게임 상태
+ui.text(id, text, opts) / bar(id, value, max, opts)  // 화면 HUD (간단)
+ui.set(label, patch) / show(label) / hide(label)     // UI 오브젝트 (label 로 찾음, 신규 시스템)
+data.get(key, d) / set(key, v) / all()               // 플레이어 개인 영구 저장 (서버 DB)
+data.shared.get(key, d) / set(key, v) / all()        // 맵 전역 영구 저장 (모두 공유)
 net.sendAll(event, data) / sendTo(playerId, event, data)
 Math.sin / cos / abs / floor / round / random / PI
 
-# 스크립트 이벤트 함수
-function onStart() {}      // 호스트가 결정된 후 1회
-function onUpdate(dt) {}   // 매 프레임
+# 이벤트 함수 (스크립트)
+function onStart() {}        // 호스트 결정 후 1회
+function onUpdate(dt) {}     // 매 프레임
+function onClick(playerId) {} // 1인칭 클릭
 function onNetEvent(event, data, fromId) {}
+function onTriggerEnter(otherId) {}
 
-# 중요 규칙
-1. 출력은 JSON 만 (코드 블록 감싸도 OK), 설명 텍스트 최소화
-2. 색상은 hex (#rrggbb)
-3. script 안 코드는 ES5 수준 단순 JS (화살표 함수 X, async X, class X)
-4. 호스트만 spawn 하려면: if (world.isHost() && world.runtimeCount() === 0) { ... }
+# 규칙
+1. 출력은 JSON 만 (코드 블록 감싸도 OK). 설명 텍스트 최소화
+2. ES5 수준 단순 JS — 화살표 함수 X, async X, class X, template literal X
+3. 호스트만 spawn 하려면: if (world.isHost() && world.runtimeCount() === 0) { ... }
+4. UI 의 onClickScript 도 위 스크립트 API 다 사용 가능. value 변수는 slider/input/toggle 의 새 값.
+5. 큰 맵이라도 한 번에 너무 많지 않게 (50개 미만 권장 — 이후 사용자가 또 요청)
 
-# 예시
-사용자: "낚시터 4개를 정사각형으로 배치, 가운데 빨간 큐브 회전"
-출력:
+# 예시 1 — 간단 회전 큐브
 \`\`\`json
 {
   "objects": [
-    { "kind":"plane", "position":[-10,0.1,-10], "rotation":[-1.5708,0,0], "scale":[8,8,1], "color":"#60a5fa", "label":"낚시터1" },
-    { "kind":"plane", "position":[ 10,0.1,-10], "rotation":[-1.5708,0,0], "scale":[8,8,1], "color":"#60a5fa", "label":"낚시터2" },
-    { "kind":"plane", "position":[-10,0.1, 10], "rotation":[-1.5708,0,0], "scale":[8,8,1], "color":"#60a5fa", "label":"낚시터3" },
-    { "kind":"plane", "position":[ 10,0.1, 10], "rotation":[-1.5708,0,0], "scale":[8,8,1], "color":"#60a5fa", "label":"낚시터4" },
-    { "kind":"cube",  "position":[0,1,0], "scale":[1,1,1], "color":"#ef4444",
+    { "kind":"plane", "position":[0,0,0], "rotation":[-1.5708,0,0], "scale":[20,20,1], "color":"#3a5", "label":"바닥" },
+    { "kind":"cube",  "position":[0,1,0], "color":"#e44",
       "script":"function onUpdate(dt){ self.setRotation(0, world.time, 0); }" }
   ]
 }
 \`\`\`
 
+# 예시 2 — 점수 시스템 (UI + data)
+\`\`\`json
+{
+  "objects": [
+    { "kind":"ui", "label":"hud", "ui":{ "type":"canvas", "space":"screen", "rect":{"anchorMin":{"x":0,"y":0},"anchorMax":{"x":1,"y":1},"pivot":{"x":0.5,"y":0.5},"posX":0,"posY":0,"width":0,"height":0} } },
+    { "kind":"ui", "label":"점수표시", "parentId":"hud", "ui":{ "type":"text", "rect":{"anchorMin":{"x":0.5,"y":1},"anchorMax":{"x":0.5,"y":1},"pivot":{"x":0.5,"y":1},"posX":0,"posY":-20,"width":300,"height":40}, "text":"Score: 0", "fontSize":28, "color":"#fff" } },
+    { "kind":"ui", "label":"증가버튼", "parentId":"hud", "ui":{ "type":"button", "rect":{"anchorMin":{"x":0.5,"y":0},"anchorMax":{"x":0.5,"y":0},"pivot":{"x":0.5,"y":0},"posX":0,"posY":20,"width":160,"height":48}, "text":"+1", "bgColor":"#4f46e5", "onClickScript":"var s = data.shared.get('score', 0) + 1; data.shared.set('score', s); ui.set('점수표시', { text: 'Score: ' + s });" } }
+  ]
+}
+\`\`\`
+
 # 사용자 요청
-여기에 만들고 싶은 씬을 한국어 또는 영어로 자유롭게 적어주세요. 예:
-- "어두운 던전. 횃불 4개, 입구에 보물상자"
-- "물리 큐브 10개를 위에서 떨어뜨려"
-- "원형 무대. 중앙 스폿라이트, 색이 변하는 큐브"
+{{USER_REQUEST}}
 `;
 
 export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalProps) {
   const [jsonText, setJsonText] = useState('');
+  const [userRequest, setUserRequest] = useState('');
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showFullPrompt, setShowFullPrompt] = useState(false);
+
+  // 사용자 요청을 토큰 자리에 끼워넣은 최종 프롬프트
+  const fullPrompt = useMemo(
+    () => AI_PROMPT_TEMPLATE.replace('{{USER_REQUEST}}', userRequest.trim() || '(여기에 만들고 싶은 씬을 한국어 또는 영어로 자유롭게 적어주세요)'),
+    [userRequest]
+  );
 
   if (!open) return null;
 
   const handleCopyPrompt = async () => {
     try {
-      await navigator.clipboard.writeText(AI_PROMPT_TEMPLATE);
+      await navigator.clipboard.writeText(fullPrompt);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -107,14 +182,27 @@ export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalPr
     }
   };
 
+  /** AI 응답에서 JSON 부분만 추출 — ```json ``` 블록, 단순 ``` 블록, 또는 첫 {...} 매칭. */
+  function extractJson(raw: string): string {
+    const t = raw.trim();
+    // 1. ```json ... ``` 또는 ``` ... ``` 블록
+    const fenced = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fenced) return fenced[1].trim();
+    // 2. 첫 { 부터 마지막 } 까지 (단순 휴리스틱 — 중첩 깊이 매칭은 brace counter)
+    const first = t.indexOf('{');
+    if (first < 0) return t;
+    let depth = 0;
+    for (let i = first; i < t.length; i++) {
+      if (t[i] === '{') depth++;
+      else if (t[i] === '}') { depth--; if (depth === 0) return t.slice(first, i + 1); }
+    }
+    return t.slice(first);
+  }
+
   const handleImport = (mode: 'add' | 'replace') => {
     setError(null);
     try {
-      // 마크다운 코드 블록 제거
-      const cleaned = jsonText
-        .replace(/^```(?:json)?\s*/im, '')
-        .replace(/```\s*$/m, '')
-        .trim();
+      const cleaned = extractJson(jsonText);
       if (!cleaned) {
         setError('붙여넣을 JSON 이 비어 있습니다.');
         return;
@@ -146,6 +234,24 @@ export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalPr
     }
   };
 
+  // 가져오기 전 미리 분석 (UX 미리보기)
+  const preview = useMemo(() => {
+    if (!jsonText.trim()) return null;
+    try {
+      const cleaned = extractJson(jsonText);
+      const d = JSON.parse(cleaned);
+      const arr: MapObjectLike[] = Array.isArray(d) ? d : (d.objects || []);
+      if (!Array.isArray(arr) || arr.length === 0) return null;
+      const counts: Record<string, number> = {};
+      for (const o of arr) {
+        const k = o.kind || 'cube';
+        const sub = k === 'ui' && o.ui?.type ? `ui:${o.ui.type}` : k;
+        counts[sub] = (counts[sub] || 0) + 1;
+      }
+      return { total: arr.length, counts };
+    } catch { return null; }
+  }, [jsonText]);
+
   return (
     <div
       onClick={onClose}
@@ -173,71 +279,79 @@ export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalPr
           {/* 안내 */}
           <div style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 10, padding: '10px 12px', fontSize: 12, lineHeight: 1.55, marginBottom: 16 }}>
             AI 비용은 본인 계정에서 발생합니다. ChatGPT, Claude, Gemini 등 원하는 AI 도구를 사용해서 JSON 을 받아 붙여넣으세요.
+            <br />최신 스펙: 3D 오브젝트 + UI 시스템 (Canvas/Text/Button/Slider 등) + 컴포넌트 (Physics/Particle 등) + 영구 데이터 저장 (data API).
           </div>
 
-          {/* Step 1 */}
+          {/* Step 1 — 요청 입력 */}
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ background: '#6366f1', color: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>1</span>
-              아래 프롬프트를 AI 에 복사해서 붙여넣기
+              만들고 싶은 씬 설명
             </div>
-            <button
-              onClick={handleCopyPrompt}
-              style={{
-                background: copied ? '#10b981' : '#4f46e5', color: '#fff', border: 'none',
-                borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700,
-                cursor: 'pointer', marginBottom: 8,
-              }}
-            >
-              {copied ? '✓ 복사됨' : '📋 프롬프트 복사'}
-            </button>
             <textarea
-              readOnly
-              value={AI_PROMPT_TEMPLATE}
+              value={userRequest}
+              onChange={e => setUserRequest(e.target.value)}
+              placeholder="예: 어두운 던전. 횃불 4개 + 입구에 보물상자 + 함정 트리거 / 점수 HUD 와 +1 버튼 UI"
               style={{
-                width: '100%', height: 180, background: 'rgba(0,0,0,0.4)',
-                border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8,
-                color: 'rgba(255,255,255,0.85)', fontFamily: 'ui-monospace, Menlo, monospace',
-                fontSize: 11, padding: 10, resize: 'vertical', outline: 'none',
+                width: '100%', height: 80, background: 'rgba(0,0,0,0.4)',
+                border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
+                color: '#fff', fontSize: 13, padding: 10, resize: 'vertical', outline: 'none',
               }}
             />
           </div>
 
-          {/* Step 2 */}
+          {/* Step 2 — 프롬프트 복사 */}
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ background: '#6366f1', color: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>2</span>
-              외부 AI 도구로 가서 사용
+              프롬프트 복사 후 AI 에 붙여넣기
             </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+              <button
+                onClick={handleCopyPrompt}
+                style={{
+                  background: copied ? '#10b981' : '#4f46e5', color: '#fff', border: 'none',
+                  borderRadius: 8, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                {copied ? '✓ 복사됨 (스펙 + 요청 합쳐서)' : '📋 프롬프트 복사 (스펙 + 요청)'}
+              </button>
+              <button
+                onClick={() => setShowFullPrompt(v => !v)}
+                style={{ background: 'rgba(255,255,255,0.06)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '8px 12px', fontSize: 11, cursor: 'pointer' }}>
+                {showFullPrompt ? '프롬프트 숨기기' : '프롬프트 미리보기'}
+              </button>
               <a href="https://chat.openai.com" target="_blank" rel="noopener noreferrer"
-                style={{ background: 'rgba(255,255,255,0.06)', color: '#fff', textDecoration: 'none', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 600 }}>
-                ChatGPT
-              </a>
+                style={{ background: 'rgba(255,255,255,0.06)', color: '#fff', textDecoration: 'none', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '8px 12px', fontSize: 11, fontWeight: 600 }}>ChatGPT ↗</a>
               <a href="https://claude.ai" target="_blank" rel="noopener noreferrer"
-                style={{ background: 'rgba(255,255,255,0.06)', color: '#fff', textDecoration: 'none', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 600 }}>
-                Claude
-              </a>
+                style={{ background: 'rgba(255,255,255,0.06)', color: '#fff', textDecoration: 'none', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '8px 12px', fontSize: 11, fontWeight: 600 }}>Claude ↗</a>
               <a href="https://gemini.google.com" target="_blank" rel="noopener noreferrer"
-                style={{ background: 'rgba(255,255,255,0.06)', color: '#fff', textDecoration: 'none', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 600 }}>
-                Gemini
-              </a>
+                style={{ background: 'rgba(255,255,255,0.06)', color: '#fff', textDecoration: 'none', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '8px 12px', fontSize: 11, fontWeight: 600 }}>Gemini ↗</a>
             </div>
-            <div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>
-              프롬프트 끝의 &quot;사용자 요청&quot; 부분에 만들고 싶은 씬을 자유롭게 적으세요.
-            </div>
+            {showFullPrompt && (
+              <textarea
+                readOnly
+                value={fullPrompt}
+                style={{
+                  width: '100%', height: 220, background: 'rgba(0,0,0,0.4)',
+                  border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8,
+                  color: 'rgba(255,255,255,0.85)', fontFamily: 'ui-monospace, Menlo, monospace',
+                  fontSize: 10.5, padding: 10, resize: 'vertical', outline: 'none',
+                }}
+              />
+            )}
           </div>
 
-          {/* Step 3 */}
+          {/* Step 3 — 응답 붙여넣기 */}
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ background: '#6366f1', color: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>3</span>
-              AI 응답 (JSON) 을 여기에 붙여넣고 씬에 적용
+              AI 응답 붙여넣기 + 적용
             </div>
             <textarea
               value={jsonText}
               onChange={e => { setJsonText(e.target.value); setError(null); }}
-              placeholder='{"objects":[{"kind":"cube","position":[0,1,0],...}]}'
+              placeholder='AI 가 준 응답 전체를 그대로 붙여넣어도 됩니다 (코드 블록·설명 포함). 자동으로 JSON 만 추출합니다.'
               style={{
                 width: '100%', height: 160, background: 'rgba(0,0,0,0.4)',
                 border: `1px solid ${error ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.12)'}`,
@@ -245,6 +359,12 @@ export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalPr
                 fontSize: 11, padding: 10, resize: 'vertical', outline: 'none',
               }}
             />
+            {/* 미리보기 — 분석 결과 (몇 개, 종류별) */}
+            {preview && (
+              <div style={{ marginTop: 6, fontSize: 11, color: '#a5b4fc', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', padding: '6px 10px', borderRadius: 6 }}>
+                ✓ {preview.total} 개 오브젝트 인식 — {Object.entries(preview.counts).map(([k, v]) => `${k}:${v}`).join(', ')}
+              </div>
+            )}
             {error && (
               <div style={{ marginTop: 6, fontSize: 11, color: '#fca5a5', background: 'rgba(239,68,68,0.12)', padding: '6px 10px', borderRadius: 6 }}>
                 ⚠ {error}
