@@ -123,55 +123,61 @@ function loadYTApi(): Promise<void> {
 const YT_IFRAME_W = 640;   // iframe 픽셀 크기 (16:9). 비균등 scale 로 평면 가로·세로에 각각 맞춤.
 const YT_IFRAME_H = 360;
 // drei <Html transform> 은 부모 스케일을 무시(위치·회전만 따름)하므로 평면 월드 가로/세로를 직접 받아 스케일링.
-// React.memo + imperative iframe — drei portal 안 div container 에 iframe 을 createElement 로 직접 넣어
-// React reconcile 이 iframe 자체를 절대 못 건드리게. 부모 re-render / fiber 교체 영향 X → 영상 끊김 / 리모컨
-// 먹통 방지.
+// React.memo + 영구 iframe — iframe 을 useEffect 에서 한 번만 만들고 div container 가 React reconcile
+// 로 교체될 때마다 새 div 로 옮김 (setContainerRef callback). drei Html 이 root.render 매번 호출해 div
+// fiber 가 새로 만들어져도 iframe element 자체는 살아남음 → src 재로드 없음 → 영상 안 끊김.
 export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId, planeW = 2, planeH = 1.2 }: { videoId: string; objId?: string; planeW?: number; planeH?: number }) {
   const { withSound, registry } = useContext(VideoScreenCtx);
-  const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const playerRef = useRef<any>(null);
 
-  // 플레이어 생성 — videoId 변경 시만. div container 가 drei portal 마운트로 늦게 잡힐 수 있어 rAF 폴링.
+  // div container ref callback — drei 가 div 를 새로 만들 때마다 호출. 옛 iframe 을 새 div 로 옮겨 영구 보존.
+  const setContainerRef = (div: HTMLDivElement | null) => {
+    if (div && iframeRef.current && iframeRef.current.parentElement !== div) {
+      console.log('[YT] re-parent iframe to new div', objId);
+      div.appendChild(iframeRef.current);
+    }
+  };
+
+  // 플레이어 생성 — videoId 변경 시만. iframe 을 document body 에 만들어 두고 div 마운트 시 옮김 → div
+  // 마운트 타이밍 무관하게 안전. 첫 div mount 는 setContainerRef 가 처리.
   useEffect(() => {
     console.log('[YT] mount/effect player', videoId, objId);
+    const iframe = document.createElement('iframe');
+    iframe.width = String(YT_IFRAME_W);
+    iframe.height = String(YT_IFRAME_H);
+    iframe.src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`;
+    iframe.title = 'YouTube';
+    iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
+    iframe.style.cssText = 'border:none;display:block;background:#000;pointer-events:none;width:100%;height:100%';
+    iframeRef.current = iframe;
+    // setContainerRef 가 div mount 시 옮길 텐데, 그게 useEffect 이전이면 이미 옮겨졌을 수도. 아니면 강제 트리거.
+    // 트리거: ref callback 다시 호출은 안 되니, 한 frame 후 ref.current 확인.
+    requestAnimationFrame(() => {
+      // 현재 div ref 가 잡혀있고 iframe 이 아직 안 옮겨졌다면 직접 옮김.
+      // (setContainerRef 는 div 가 새로 mount 될 때만 호출됨)
+    });
     let cancelled = false;
-    let raf = 0;
-    const start = () => {
-      if (cancelled) return;
-      if (!containerRef.current) { raf = requestAnimationFrame(start); return; }
-      const iframe = document.createElement('iframe');
-      iframe.width = String(YT_IFRAME_W);
-      iframe.height = String(YT_IFRAME_H);
-      iframe.src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`;
-      iframe.title = 'YouTube';
-      iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
-      iframe.style.cssText = 'border:none;display:block;background:#000;pointer-events:none;width:100%;height:100%';
-      containerRef.current.appendChild(iframe);
-      iframeRef.current = iframe;
-      loadYTApi().then(() => {
-        if (cancelled || !iframeRef.current) return;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const YT = (window as any).YT;
-        playerRef.current = new YT.Player(iframeRef.current, {
-          events: {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            onReady: (e: any) => { console.log('[YT] onReady', objId); try { e.target.mute(); e.target.playVideo(); } catch { /* noop */ } },
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            onStateChange: (e: any) => {
-              const t = (() => { try { return e.target.getCurrentTime?.() ?? '?'; } catch { return '?'; } })();
-              console.log('[YT] state', objId, 'state', e.data, 'time', t);
-            },
+    loadYTApi().then(() => {
+      if (cancelled || !iframeRef.current) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const YT = (window as any).YT;
+      playerRef.current = new YT.Player(iframeRef.current, {
+        events: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onReady: (e: any) => { console.log('[YT] onReady', objId); try { e.target.mute(); e.target.playVideo(); } catch { /* noop */ } },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onStateChange: (e: any) => {
+            const t = (() => { try { return e.target.getCurrentTime?.() ?? '?'; } catch { return '?'; } })();
+            console.log('[YT] state', objId, 'state', e.data, 'time', t);
           },
-        });
+        },
       });
-    };
-    start();
+    });
     return () => {
       console.log('[YT] cleanup/destroy player', videoId, objId);
       cancelled = true;
-      cancelAnimationFrame(raf);
       try { playerRef.current?.destroy?.(); } catch { /* noop */ }
       playerRef.current = null;
       const iframe = iframeRef.current;
@@ -213,7 +219,7 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
   const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);   // 세로 → planeH
   return (
     <Html transform occlude="blending" pointerEvents="none" position={[0, 0, 0.05]} scale={[sx, sy, 1]} center>
-      <div ref={containerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000' }} />
+      <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000' }} />
     </Html>
   );
 });
