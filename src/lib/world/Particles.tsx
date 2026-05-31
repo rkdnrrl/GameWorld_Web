@@ -147,10 +147,24 @@ export default function Particles({ s, objId, burstRef }: {
   const burstAge = useRef(-1);            // -1 = 비활성(숨김)
   const lastNonce = useRef(0);
   const autoTimer = useRef(BURST_DUR + 0.4);
+  // 거리 culling 임시 벡터 (재사용)
+  const cullPos = useRef(new THREE.Vector3());
+
+  // 카메라 거리 cap — 그 너머에선 update + render skip. area 큰 emitter 는 마진 늘림.
+  const cullDist = Math.max(80, area * 2.5);
+  const cullDist2 = cullDist * cullDist;
 
   useFrame((state, dt) => {
     const pts = pointsRef.current;
     if (!pts) return;
+    // ── distance cull — 멀면 update + 렌더 모두 skip ──
+    pts.getWorldPosition(cullPos.current);
+    if (cullPos.current.distanceToSquared(state.camera.position) > cullDist2) {
+      if (pts.visible) pts.visible = false;
+      return;
+    }
+    // 가까이 들어옴 — continuous 모드면 visible 명시 복원 (click 모드는 아래 burst 로직이 처리)
+    if (!pts.visible && !isClick) pts.visible = true;
     const attr = pts.geometry.getAttribute('position') as THREE.BufferAttribute | undefined;
     if (!attr) return;
     const arr = attr.array as Float32Array;

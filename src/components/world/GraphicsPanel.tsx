@@ -109,6 +109,14 @@ export default function GraphicsPanel({ settings, updateSettings, applyPreset, m
               style={{ width: '100%' }} />
           </Section>
 
+          {/* 거리 culling — 멀리 있는 오브젝트 안 그리기 (0 = 끔) */}
+          <Section label={`${t('cullDistance')} (${settings.cullDistance === 0 ? t('off') : settings.cullDistance + 'm'})`}>
+            <input type="range" min={0} max={800} step={50}
+              value={settings.cullDistance}
+              onChange={e => updateSettings({ cullDistance: Number(e.target.value) })}
+              style={{ width: '100%' }} />
+          </Section>
+
       {/* 리셋 */}
       <button onClick={() => applyPreset('ultra')}
         style={{

@@ -12,13 +12,16 @@ export interface GraphicsSettings {
   remoteShadows: boolean;
   shadowFilter: ShadowFilter;  // hard / pcf / pcfsoft
   shadowRadius: number;        // 0~10 (0=선명, 10=매우 부드러움)
+  /** 카메라로부터 이 거리(m) 이상이면 mesh/skinned mesh 를 visible=false 처리(distance culling).
+   *  0 = 비활성. farClip 보다 작아야 효과 있음 (farClip 으로도 안 그려지므로). */
+  cullDistance: number;
 }
 
 export const PRESETS: Record<Exclude<GraphicsSettings['preset'], 'custom'>, GraphicsSettings> = {
-  low:    { preset: 'low',    dpr: 1.0, shadowSize: 0,    antialias: false, farClip: 200, remoteShadows: false, shadowFilter: 'basic',   shadowRadius: 0 },
-  medium: { preset: 'medium', dpr: 1.0, shadowSize: 1024, antialias: true,  farClip: 400, remoteShadows: false, shadowFilter: 'pcf',     shadowRadius: 1 },
-  high:   { preset: 'high',   dpr: 1.5, shadowSize: 2048, antialias: true,  farClip: 600, remoteShadows: true,  shadowFilter: 'pcfsoft', shadowRadius: 1 },
-  ultra:  { preset: 'ultra',  dpr: 2.0, shadowSize: 4096, antialias: true,  farClip: 800, remoteShadows: true,  shadowFilter: 'pcfsoft', shadowRadius: 2 },
+  low:    { preset: 'low',    dpr: 1.0, shadowSize: 0,    antialias: false, farClip: 200, remoteShadows: false, shadowFilter: 'basic',   shadowRadius: 0, cullDistance: 120 },
+  medium: { preset: 'medium', dpr: 1.0, shadowSize: 1024, antialias: true,  farClip: 400, remoteShadows: false, shadowFilter: 'pcf',     shadowRadius: 1, cullDistance: 250 },
+  high:   { preset: 'high',   dpr: 1.5, shadowSize: 2048, antialias: true,  farClip: 600, remoteShadows: true,  shadowFilter: 'pcfsoft', shadowRadius: 1, cullDistance: 500 },
+  ultra:  { preset: 'ultra',  dpr: 2.0, shadowSize: 4096, antialias: true,  farClip: 800, remoteShadows: true,  shadowFilter: 'pcfsoft', shadowRadius: 2, cullDistance: 0   },
 };
 
 export const DEFAULT_SETTINGS: GraphicsSettings = PRESETS.ultra;

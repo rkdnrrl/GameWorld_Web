@@ -19,6 +19,7 @@ import * as THREE from 'three';
 import type { ChatBubble, RemotePlayer, PlayerPose } from '@/lib/world/useGameSocket';
 import type { GraphicsSettings } from '@/lib/world/graphicsSettings';
 import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
+import { PerfManager } from '@/lib/world/PerfManager';
 import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
@@ -167,6 +168,12 @@ function trimClip(source: THREE.AnimationClip, trim?: AnimTrim): THREE.Animation
   const utils = (THREE as any).AnimationUtils;
   return utils.subclip(source, source.name + '_trim', Math.floor(start * fps), Math.ceil(end * fps), fps);
 }
+
+// 캐릭터 mixer.update 를 skip 할 거리(제곱). 80m 너머면 본 애니메이션 멈춤 (visible 은 유지).
+// 정적 본 포즈로 보여 멀리서 차이 거의 없음. 많은 캐릭터 있을 때 CPU 절감 효과 큼.
+const SKIN_UPDATE_DIST = 80;
+const SKIN_UPDATE_DIST2 = SKIN_UPDATE_DIST * SKIN_UPDATE_DIST;
+const _cullVec = new THREE.Vector3();
 
 const KEYWORD_FALLBACK: Record<AnimState, string[]> = {
   idle:        ['idle', 'stand', 'tpose', 't-pose', '유휴', '대기'],
@@ -328,13 +335,25 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   }, [obj, animOneShot, animStateRef]);
 
   // 단일 액션 크로스페이드 (state 바뀔 때만 전환)
-  useFrame((_, dt) => {
-    mixer.current?.update(dt);
+  // distance throttle — root 가 멀거나(80m+) 화면 밖이면 mixer.update skip.
+  // 본 위치는 마지막 포즈에 멈춰있어 캐릭터가 정적으로 보이지만 멀어서 차이 거의 X.
+  // 가까이 들어오면 자동으로 update 재개 + state 전환 따라잡음.
+  useFrame((state, dt) => {
+    if (!mixer.current) return;
+    let skipMixer = false;
+    if (obj) {
+      const cam = state.camera.position;
+      const root = obj as THREE.Object3D;
+      // root.position 은 부모(group) 기준 로컬일 수 있어 world position 사용
+      _cullVec.setFromMatrixPosition(root.matrixWorld);
+      if (_cullVec.distanceToSquared(cam) > SKIN_UPDATE_DIST2) skipMixer = true;
+    }
+    if (!skipMixer) mixer.current.update(dt);
     // 머리 가리기 — mixer 가 매 프레임 본 transform 을 덮어쓰므로 update 후에 강제 적용
     if (headBone.current) {
       headBone.current.scale.setScalar(hideHead ? 0.0001 : 1);
     }
-    if (!mixer.current) return;
+    if (skipMixer) return;
 
     const desired = animStateRef?.current || 'idle';
 
@@ -3667,6 +3686,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         />
         {/* 그림자맵을 매 프레임이 아니라 ~30Hz 로만 갱신 → 큰 그림자맵 렌더 부하 절감 */}
         {shadowsEnabled && <ShadowUpdateThrottle hz={30} />}
+        {/* 거리 기반 culling — 카메라에서 cullDistance 너머 mesh 안 그림 */}
+        <PerfManager cullDistance={graphics.cullDistance} />
         <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
         <CanvasPointerEventsKeeper />
 

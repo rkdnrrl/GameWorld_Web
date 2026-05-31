@@ -1662,6 +1662,7 @@
     "antialias": "안티앨리어싱",
     "pixelRatio": "렌더 해상도",
     "farClip": "시야 거리",
+    "cullDistance": "거리 컬링 (멀면 안 그림)",
     "on": "켬",
     "off": "끔",
     "shadowOff": "끔",

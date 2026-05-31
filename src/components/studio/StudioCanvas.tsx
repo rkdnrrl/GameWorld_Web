@@ -13,6 +13,7 @@ import AssetPreviewModal from '@/components/assets/AssetPreviewModal';
 import type { Asset as RegistryAsset } from '@/lib/assets/types';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
+import { PerfManager } from '@/lib/world/PerfManager';
 import { createGameRuntime } from '@/lib/world/gameRuntime';
 import GameHud from '@/components/world/GameHud';
 import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, VideoScreenCtx, parseYouTubeId, parseUrlKind, normalizeMediaUrl, ImageMaterial, GenericIframeOverlay, VideoRemotePanel, type VideoRegistry, type VideoHandle } from '@/components/world/VideoScreen';
@@ -6415,6 +6416,9 @@ export default function StudioCanvas() {
           )}
           <CanvasCapture captureFnRef={captureFnRef} />
           <CanvasDomCapture canvasDomRef={canvasDomRef} />
+          {/* 거리 기반 culling — 시뮬레이션에서만 활성 (편집 모드는 멀리 있는 오브젝트도 보여야).
+              스튜디오는 별도 graphics 옵션 X — 큰 맵 미리보기용 보수적 값(400m). */}
+          {simulating && <PerfManager cullDistance={400} />}
           <CameraRefCapture cameraRef={cameraRef} />
           <PostFX s={postFX} />
         </Canvas>

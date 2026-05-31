@@ -1662,6 +1662,7 @@
     "antialias": "抗锯齿",
     "pixelRatio": "渲染分辨率",
     "farClip": "视野距离",
+    "cullDistance": "距离剔除 (远处不渲染)",
     "on": "开",
     "off": "关",
     "shadowOff": "关",
