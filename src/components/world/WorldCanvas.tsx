@@ -22,6 +22,7 @@ import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
 import { PerfManager } from '@/lib/world/PerfManager';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
+import { TerrainMesh } from '@/lib/world/TerrainMesh';
 import { UI_SYNC_EVENT, DATA_SYNC_EVENT, type UiData } from '@/lib/world/uiObjects';
 import { api as backendApi } from '@/lib/api';
 import { retargetClipsToModel } from '@/lib/character/mixamoRig';
@@ -1865,9 +1866,11 @@ export type MaterialPreset = 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 
 
 interface UserMapObject {
   id: string;
-  kind: 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight' | 'spawn' | 'empty' | 'ui';
+  kind: 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight' | 'spawn' | 'empty' | 'ui' | 'terrain';
   /** UI 오브젝트 (kind === 'ui' 일 때만) */
   ui?: import('@/lib/world/uiObjects').UiData;
+  /** Terrain heightmap (kind === 'terrain' 일 때만) */
+  terrain?: import('@/lib/world/terrain').TerrainData;
   assetUrl?: string;
   position: [number, number, number];
   rotation: [number, number, number];
@@ -2059,6 +2062,14 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
   const rPos = world?.position ?? obj.position;
   const rRot = world?.rotation ?? obj.rotation;
   const rScale = world?.scale ?? obj.scale;
+  // Terrain — heightmap 기반 지면. 물리는 Phase 4 (Rapier Heightfield). 일단 시각만.
+  if (obj.kind === 'terrain' && obj.terrain) {
+    return (
+      <group position={rPos} rotation={rRot} scale={rScale}>
+        <TerrainMesh terrain={obj.terrain} castShadow={false} receiveShadow />
+      </group>
+    );
+  }
   // 물리 모드 결정 — Physics 컴포넌트 우선, 없으면 레거시 obj.physics 필드.
   // 둘 다 없으면 'none' (물리/콜라이더 X)
   const physicsComp = obj.components?.find(c => c.type === 'physics');

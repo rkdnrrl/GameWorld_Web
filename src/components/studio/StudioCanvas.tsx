@@ -16,6 +16,8 @@ import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { PerfManager } from '@/lib/world/PerfManager';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
+import { TerrainMesh } from '@/lib/world/TerrainMesh';
+import { makeFlatTerrain, generateNoiseTerrain, type TerrainData } from '@/lib/world/terrain';
 import { makeDefaultUiData, parseAiUiRoot, AI_UI_PROMPT_GUIDE, type UiElementType, type UiData, type RectTransform, type AiUiRoot } from '@/lib/world/uiObjects';
 import { UiInspector } from './UiInspector';
 import { createGameRuntime } from '@/lib/world/gameRuntime';
@@ -133,7 +135,7 @@ type OrbitRef = any;
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
 /* ── 데이터 모델 ───────────────────────────── */
-type ObjectKind = 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight' | 'spawn' | 'empty' | 'ui';
+type ObjectKind = 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight' | 'spawn' | 'empty' | 'ui' | 'terrain';
 
 type MaterialPreset = 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 'plastic' | 'emissive';
 
@@ -177,6 +179,8 @@ interface MapObject {
   scriptVars?: Record<string, number | string | boolean>;
   // UI 오브젝트 (kind === 'ui' 일 때만) — Canvas / Image / Text / Button / Panel
   ui?: import('@/lib/world/uiObjects').UiData;
+  // Terrain 데이터 (kind === 'terrain' 일 때만) — heightmap 기반 지면
+  terrain?: import('@/lib/world/terrain').TerrainData;
 }
 
 interface Asset {
@@ -1996,6 +2000,15 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
 
   // UI 오브젝트 — 3D 씬에 렌더 X. 별도 UIRenderer 가 HTML overlay 로 처리.
   if (obj.kind === 'ui') return null;
+
+  // Terrain — heightmap 기반 지면 (시뮬 모드). 위치/회전/크기는 transforms 의 t.
+  if (obj.kind === 'terrain' && obj.terrain) {
+    return (
+      <group position={t.pos} rotation={t.rot} scale={t.scl ?? obj.scale}>
+        <TerrainMesh terrain={obj.terrain} castShadow={false} receiveShadow />
+      </group>
+    );
+  }
 
   // 스폰·빈 오브젝트 — 메시는 없지만 콜라이더(트리거 존 등)가 있으면 콜라이더 바디만 렌더(트리거 발동용), 없으면 렌더 X.
   if (obj.kind === 'spawn' || obj.kind === 'empty') {
@@ -4151,6 +4164,26 @@ export default function StudioCanvas() {
 
   // 빈 오브젝트 — 컴포넌트 홀더(컨테이너/피벗). 기본 컴포넌트 없이 깨끗하게 생성.
   // (맵 중력은 worldPhysics 컴포넌트가 없으면 기본값(gravityY) 사용 — 필요하면 직접 부착)
+  /** Terrain 추가 — 평탄 또는 noise 생성. 크기 50m, segments 64 기본. */
+  function addTerrain(kind: 'flat' | 'noise' = 'flat') {
+    const id = `terrain_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const t: TerrainData = kind === 'noise'
+      ? generateNoiseTerrain(50, 64, 4, 0.05, Math.floor(Math.random() * 1000))
+      : makeFlatTerrain(50, 64);
+    setObjects(prev => {
+      const next: MapObject[] = [...prev, {
+        id, kind: 'terrain', label: kind === 'noise' ? '언덕 지형' : '평탄 지형',
+        position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1],
+        color: '#5a8a4a',
+        terrain: t,
+      }];
+      pushHistory(next);
+      return next;
+    });
+    setSelectedId(id);
+    setStudioMode('scene');
+  }
+
   function addEmpty() {
     const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const label = makeLabel('empty');
@@ -5582,6 +5615,17 @@ export default function StudioCanvas() {
             </button>
           </div>
         )}
+        {/* 🗻 Terrain 추가 — heightmap 기반 지면. flat (평탄) 또는 noise (자연스러운 언덕) */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, marginTop: 4 }}>
+          <button onClick={() => addTerrain('flat')} title="평탄 지형 (50m × 50m)"
+            style={{ background: 'rgba(132,204,22,0.14)', border: '1px solid rgba(132,204,22,0.45)', borderRadius: 5, color: '#d9f99d', fontSize: 10, padding: '6px 4px', cursor: 'pointer', fontWeight: 700 }}>
+            🗻 평탄 지형
+          </button>
+          <button onClick={() => addTerrain('noise')} title="자연스러운 언덕 (Perlin 노이즈 기반)"
+            style={{ background: 'rgba(132,204,22,0.14)', border: '1px solid rgba(132,204,22,0.45)', borderRadius: 5, color: '#d9f99d', fontSize: 10, padding: '6px 4px', cursor: 'pointer', fontWeight: 700 }}>
+            🏔 언덕 지형
+          </button>
+        </div>
         {/* 🖼 UI 추가 — 유니티식 Canvas + Image/Text/Button/Panel (Phase 1: Screen Space 만) */}
         <button type="button" onClick={() => setUiAddPanelOpen(v => !v)}
           style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.8)', fontSize: 11, padding: '6px 9px', cursor: 'pointer', fontWeight: 600, marginTop: 4 }}>
@@ -5969,6 +6013,101 @@ export default function StudioCanvas() {
             <div style={{ fontSize: 11, opacity: 0.3, textAlign: 'center', paddingTop: 32 }}>
               {t('inspSelect')}
             </div>
+          ) : selected.kind === 'terrain' && selected.terrain ? (
+            <>
+              {!isMobile && (
+                <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, marginBottom: 8, letterSpacing: 0.5 }}>
+                  🗻 {selected.label || 'terrain'}
+                </div>
+              )}
+              {/* Terrain 인스펙터 — size, segments, baseColor, textureUrl + 재생성 (flat/noise) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 11 }}>
+                <div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>크기 (m, 정사각형)</div>
+                  <input type="number" min={5} max={500} step={5} value={selected.terrain.size}
+                    onChange={e => {
+                      const sz = Math.max(5, Math.min(500, Number(e.target.value) || 50));
+                      setObjects(prev => prev.map(o => o.id === selected.id && o.terrain
+                        ? { ...o, terrain: { ...o.terrain, size: sz } } : o));
+                    }}
+                    onBlur={() => pushHistory(objects)}
+                    style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
+                </div>
+                <div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>해상도 segments (32 ~ 256)</div>
+                  <input type="number" min={8} max={256} step={8} value={selected.terrain.segments}
+                    onChange={e => {
+                      const seg = Math.max(8, Math.min(256, Math.floor(Number(e.target.value) || 64)));
+                      setObjects(prev => prev.map(o => o.id === selected.id && o.terrain
+                        ? { ...o, terrain: { ...o.terrain, segments: seg, heights: new Array((seg + 1) * (seg + 1)).fill(0) } } : o));
+                    }}
+                    onBlur={() => pushHistory(objects)}
+                    style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
+                  <div style={{ fontSize: 10, opacity: 0.45, marginTop: 3 }}>※ 해상도 변경 시 heightmap 초기화됨</div>
+                </div>
+                <div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>베이스 색상</div>
+                  <input type="color" value={selected.terrain.baseColor || '#5a8a4a'}
+                    onChange={e => {
+                      const c = e.target.value;
+                      setObjects(prev => prev.map(o => o.id === selected.id && o.terrain
+                        ? { ...o, terrain: { ...o.terrain, baseColor: c } } : o));
+                    }}
+                    onBlur={() => pushHistory(objects)}
+                    style={{ width: 60, height: 28, background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, cursor: 'pointer', padding: 0 }} />
+                </div>
+                <div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>텍스처 URL (선택)</div>
+                  <input type="text" value={selected.terrain.textureUrl || ''}
+                    placeholder="https://... .jpg/.png"
+                    onChange={e => {
+                      const u = e.target.value;
+                      setObjects(prev => prev.map(o => o.id === selected.id && o.terrain
+                        ? { ...o, terrain: { ...o.terrain, textureUrl: u } } : o));
+                    }}
+                    onBlur={() => pushHistory(objects)}
+                    style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
+                </div>
+                <div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>텍스처 반복 (UV)</div>
+                  <input type="number" min={1} max={64} step={1} value={selected.terrain.textureRepeat ?? 8}
+                    onChange={e => {
+                      const r = Math.max(1, Math.min(64, Math.floor(Number(e.target.value) || 8)));
+                      setObjects(prev => prev.map(o => o.id === selected.id && o.terrain
+                        ? { ...o, terrain: { ...o.terrain, textureRepeat: r } } : o));
+                    }}
+                    onBlur={() => pushHistory(objects)}
+                    style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
+                </div>
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ opacity: 0.7, fontSize: 11, fontWeight: 700 }}>지형 재생성</div>
+                  <button type="button"
+                    onClick={() => {
+                      const cur = selected.terrain!;
+                      setObjects(prev => prev.map(o => o.id === selected.id && o.terrain
+                        ? { ...o, terrain: { ...o.terrain, heights: new Array((cur.segments + 1) * (cur.segments + 1)).fill(0) } } : o));
+                      pushHistory(objects);
+                    }}
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 6, padding: '6px 10px', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
+                    🟰 평탄화 (모두 0)
+                  </button>
+                  <button type="button"
+                    onClick={() => {
+                      const cur = selected.terrain!;
+                      const next = generateNoiseTerrain(cur.size, cur.segments, 4, 0.05, Math.floor(Math.random() * 1000));
+                      setObjects(prev => prev.map(o => o.id === selected.id && o.terrain
+                        ? { ...o, terrain: { ...o.terrain, heights: next.heights } } : o));
+                      pushHistory(objects);
+                    }}
+                    style={{ background: 'rgba(132,204,22,0.18)', border: '1px solid rgba(132,204,22,0.4)', color: '#d9f99d', borderRadius: 6, padding: '6px 10px', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
+                    🏔 자연 언덕 생성 (랜덤 노이즈)
+                  </button>
+                </div>
+                <div style={{ fontSize: 10, opacity: 0.4, marginTop: 6 }}>
+                  ※ 브러시 편집 (raise/lower/smooth) 은 Phase 2 에서 추가됩니다.
+                </div>
+              </div>
+            </>
           ) : selected.kind === 'ui' ? (
             <>
               {!isMobile && (
