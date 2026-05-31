@@ -16,7 +16,7 @@ import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { PerfManager } from '@/lib/world/PerfManager';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
-import { makeDefaultUiData, type UiElementType, type UiData, type RectTransform } from '@/lib/world/uiObjects';
+import { makeDefaultUiData, parseAiUiRoot, AI_UI_PROMPT_GUIDE, type UiElementType, type UiData, type RectTransform, type AiUiRoot } from '@/lib/world/uiObjects';
 import { UiInspector } from './UiInspector';
 import { createGameRuntime } from '@/lib/world/gameRuntime';
 import { execUiButtonScript } from '@/lib/world/uiButtonScript';
@@ -3261,6 +3261,35 @@ export default function StudioCanvas() {
   const t            = useTranslations('Studio');
   const leftSheet    = useSheetDrag(62);
   const rightSheet   = useSheetDrag(62);
+  // 우측 인스펙터 너비 (px). 사용자가 좌측 핸들 드래그로 조정 → localStorage 영구.
+  const [inspectorWidth, setInspectorWidth] = useState<number>(() => {
+    if (typeof window === 'undefined') return 300;
+    const v = Number(window.localStorage.getItem('alp-inspector-width'));
+    return Number.isFinite(v) && v >= 220 && v <= 800 ? v : 300;
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem('alp-inspector-width', String(inspectorWidth)); } catch { /* noop */ }
+  }, [inspectorWidth]);
+  // 인스펙터 좌측 핸들 드래그 — pointer capture 로 마우스 윈도우 밖 나가도 추적.
+  const inspectorResizeRef = useRef<{ startX: number; startW: number; pointerId: number } | null>(null);
+  const onInspectorResizeDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    inspectorResizeRef.current = { startX: e.clientX, startW: inspectorWidth, pointerId: e.pointerId };
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* noop */ }
+  };
+  const onInspectorResizeMove = (e: React.PointerEvent) => {
+    const d = inspectorResizeRef.current;
+    if (!d) return;
+    // 좌측 핸들이므로 마우스가 왼쪽으로 가면 (dx<0) 패널이 넓어짐
+    const dx = e.clientX - d.startX;
+    setInspectorWidth(Math.max(220, Math.min(800, d.startW - dx)));
+  };
+  const onInspectorResizeUp = (e: React.PointerEvent) => {
+    const d = inspectorResizeRef.current;
+    if (!d) return;
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(d.pointerId); } catch { /* noop */ }
+    inspectorResizeRef.current = null;
+  };
   const router       = useRouter();
   const searchParams = useSearchParams();
   const editingId    = searchParams.get('id') || null;
@@ -3497,6 +3526,9 @@ export default function StudioCanvas() {
   const [shapePanelOpen, setShapePanelOpen] = useState(false);
   const [lightAddPanelOpen, setLightAddPanelOpen] = useState(false);
   const [uiAddPanelOpen, setUiAddPanelOpen] = useState(false);
+  const [uiJsonModalOpen, setUiJsonModalOpen] = useState(false);
+  const [uiJsonText, setUiJsonText] = useState('');
+  const [uiJsonError, setUiJsonError] = useState<string | null>(null);
   const [matPanelOpen, setMatPanelOpen] = useState(false);
   const [studioMode, setStudioMode] = useState<'settings' | 'scene'>('settings');
   const [multiSelectedIds, setMultiSelectedIds] = useState<Set<string>>(new Set());
@@ -4137,10 +4169,15 @@ export default function StudioCanvas() {
     setStudioMode('scene');
   }
 
-  /** UI 오브젝트 추가 — type 별로 default ui 데이터 + 부모 (canvas 외에는 가장 가까운 canvas 자식으로) */
+  /** UI 오브젝트 추가 — type 별로 default ui 데이터 + 부모 (canvas 외에는 가장 가까운 canvas 자식으로).
+   *  라벨 중복 방지 — 같은 라벨 있으면 (2)/(3)/... 자동 부여. ui.set("이름") 으로 찾기 위함. */
   function addUi(type: UiElementType, canvasSpace: 'screen' | 'world' = 'screen') {
     const id = `ui_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    const label = type === 'canvas' && canvasSpace === 'world' ? 'Canvas (World)' : type;
+    const baseLabel = type === 'canvas' && canvasSpace === 'world' ? 'Canvas (World)' : type;
+    const existing = new Set(objects.filter(o => !!o.label).map(o => o.label as string));
+    let label = baseLabel;
+    let i = 2;
+    while (existing.has(label)) label = `${baseLabel} (${i++})`;
     // canvas 가 아닌 요소는 부모 canvas 찾기. 없으면 screen Canvas 생성.
     setObjects(prev => {
       const next: MapObject[] = [...prev];
@@ -4173,6 +4210,42 @@ export default function StudioCanvas() {
     });
     setSelectedId(id);
     setStudioMode('scene');
+  }
+
+  /** AI JSON → UI 오브젝트 트리 import. 라벨 중복 시 (2)/(3) 자동 부여. */
+  function importUiFromJson(jsonText: string): { ok: true; count: number } | { ok: false; error: string } {
+    let parsed: AiUiRoot;
+    try { parsed = JSON.parse(jsonText); }
+    catch (e) { return { ok: false, error: 'JSON 파싱 실패: ' + (e as Error).message }; }
+    let flat;
+    try { flat = parseAiUiRoot(parsed, `ui_${Date.now()}`); }
+    catch (e) { return { ok: false, error: 'UI 트리 변환 실패: ' + (e as Error).message }; }
+    if (flat.length === 0) return { ok: false, error: '추가할 UI 오브젝트가 없습니다.' };
+    setObjects(prev => {
+      // 라벨 중복 방지
+      const existing = new Set(prev.filter(o => !!o.label).map(o => o.label as string));
+      const next: MapObject[] = [...prev];
+      for (const f of flat) {
+        let label = f.label || 'ui';
+        if (existing.has(label)) {
+          const base = label;
+          let i = 2;
+          while (existing.has(label = `${base} (${i++})`)) { /* keep */ }
+        }
+        existing.add(label);
+        next.push({
+          id: f.id, kind: 'ui', label, parentId: f.parentId,
+          position: f.position, rotation: f.rotation, scale: f.scale,
+          color: f.color, ui: f.ui,
+        });
+      }
+      pushHistory(next);
+      return next;
+    });
+    // 첫 추가된 루트 선택
+    setSelectedId(flat[0].id);
+    setStudioMode('scene');
+    return { ok: true, count: flat.length };
   }
 
   // 트리에서 우클릭한 아이템의 자식으로 빈 오브젝트 추가.
@@ -5266,7 +5339,7 @@ export default function StudioCanvas() {
           </div>
         </>
       )}
-    <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative', paddingRight: isMobile ? 0 : (rightPanelOpen ? 300 : 0) }}>
+    <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative', paddingRight: isMobile ? 0 : (rightPanelOpen ? inspectorWidth : 0) }}>
 
       {/* ── 좌측 패널 ── 항상 마운트, display 로만 토글 (mount/unmount race 회피).
           모바일에선 absolute 로 오버레이 ── */}
@@ -5556,6 +5629,10 @@ export default function StudioCanvas() {
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
               📜 Scroll
             </button>
+            <button onClick={() => { setUiJsonText(''); setUiJsonError(null); setUiJsonModalOpen(true); }} title="ChatGPT 등 AI 에게 받은 JSON 으로 UI 일괄 생성"
+              style={{ background: 'rgba(168,85,247,0.18)', border: '1px solid rgba(168,85,247,0.5)', borderRadius: 5, color: '#e9d5ff', fontSize: 10, padding: '5px 3px', cursor: 'pointer', gridColumn: 'span 2', fontWeight: 700 }}>
+              🤖 AI JSON 가져오기
+            </button>
           </div>
         )}
         </div>{/* /추가 그룹 (씬 탭) */}
@@ -5819,7 +5896,7 @@ export default function StudioCanvas() {
         top: isMobile ? 'auto' : 0,
         bottom: 0,
         left: isMobile ? 0 : undefined,
-        width: isMobile ? '100%' : 300,
+        width: isMobile ? '100%' : inspectorWidth,
         height: isMobile ? `${rightSheet.heightVh}vh` : undefined,
         background: isMobile ? '#172033' : '#1e293b',
         borderLeft: isMobile ? 'none' : '1px solid rgba(255,255,255,0.08)',
@@ -5832,6 +5909,24 @@ export default function StudioCanvas() {
         boxShadow: isMobile ? '0 -12px 40px rgba(0,0,0,0.55)' : undefined,
         zIndex: isMobile ? 216 : 50,
       }}>
+        {/* 데스크톱 전용 — 좌측 가장자리 resize 핸들 (드래그로 너비 조정).
+            6px 폭 좁은 띠 + 호버 시 보라색 강조. pointer capture 로 윈도우 밖도 추적. */}
+        {!isMobile && (
+          <div
+            onPointerDown={onInspectorResizeDown}
+            onPointerMove={onInspectorResizeMove}
+            onPointerUp={onInspectorResizeUp}
+            onPointerCancel={onInspectorResizeUp}
+            title="드래그로 인스펙터 너비 조절"
+            style={{
+              position: 'absolute', left: -3, top: 0, bottom: 0, width: 6, zIndex: 6,
+              cursor: 'ew-resize', background: 'transparent',
+              transition: 'background 0.1s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(129,140,248,0.45)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
+          />
+        )}
         {/* 데스크톱 전용 패널 닫기 버튼 (좌측 상단 corner) */}
         {!isMobile && (
           <button type="button" onClick={() => { console.log('[CLOSE-RIGHT] click'); setRightPanelOpen(false); }}
@@ -6542,11 +6637,13 @@ export default function StudioCanvas() {
           <PostFX s={postFX} />
         </Canvas>
 
-        {/* UI Renderer — Screen Space HTML overlay (Phase 1). 편집 모드에선 editMode=true (인터랙션 비활성).
-            onButtonClick: simulating 일 때만 onClickScript 실행. game/ui API 주입. */}
+        {/* UI Renderer — Screen Space HTML overlay (Phase 1). 편집 모드에선 editMode=true.
+            편집 모드에서 UI 요소 클릭 → 인스펙터 선택 연동 + 시각 outline. */}
         <UIRenderer
           objects={(simulating ? simObjs : objects).filter(o => o.kind === 'ui' && o.ui).map(o => ({ id: o.id, parentId: o.parentId ?? null, hidden: o.hidden, ui: o.ui! }))}
           editMode={!simulating}
+          selectedId={!simulating ? selectedId : null}
+          onSelect={!simulating ? (id) => { setStudioMode('scene'); setMultiSelectedIds(new Set()); setSelectedId(id); } : undefined}
           onButtonClick={simulating ? (_id, script) => execUiButtonScript(script, simGameRuntime.api) : undefined}
           onValueChange={simulating ? (_id, script, value) => execUiButtonScript(script, simGameRuntime.api, value) : undefined}
           onLocalValueChange={(id, patch) => setObjects(prev => prev.map(o => o.id === id && o.ui ? { ...o, ui: { ...o.ui, ...patch } } : o))}
@@ -6745,7 +6842,7 @@ export default function StudioCanvas() {
           style={{
           position: 'absolute', bottom: 0, left: 0,
           // 인스펙터 열림: 300px, 닫힘: strip 40px — 어떤 상황에도 우측 가려지지 않음 (모바일은 풀폭)
-          right: isMobile ? 0 : (rightPanelOpen ? 300 : 40),
+          right: isMobile ? 0 : (rightPanelOpen ? inspectorWidth : 40),
           zIndex: 14,
           background: 'rgba(2,6,23,0.93)',
           borderTop: '1px solid rgba(129,140,248,0.25)',
@@ -7212,6 +7309,62 @@ export default function StudioCanvas() {
                   위 "관리/만들기" 로 새로 만들 수 있어요.
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── AI UI JSON 가져오기 모달 ── */}
+      {uiJsonModalOpen && (
+        <div
+          onClick={() => setUiJsonModalOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.78)', backdropFilter: 'blur(8px)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 14, width: 'min(720px, 100%)', maxHeight: '90vh', padding: 20, color: '#fff', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>🤖 AI JSON 으로 UI 만들기</div>
+              <button onClick={() => setUiJsonModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: 22, cursor: 'pointer', padding: '0 6px' }}>×</button>
+            </div>
+            <div style={{ fontSize: 11, opacity: 0.7, lineHeight: 1.5 }}>
+              ChatGPT / Claude 등 AI 에게 아래 <b style={{ color: '#c4b5fd' }}>스펙 + 만들고 싶은 UI 설명</b> 을 같이 주면 JSON 을 만들어 줍니다.
+              그 JSON 을 아래 칸에 붙여넣고 <b>가져오기</b>.
+            </div>
+            <details style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '8px 12px' }}>
+              <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#c4b5fd' }}>📋 AI 에게 줄 스펙 (클릭해서 펼침 + 복사)</summary>
+              <textarea readOnly value={AI_UI_PROMPT_GUIDE}
+                style={{ width: '100%', height: 240, marginTop: 8, background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#cbd5e1', fontFamily: 'monospace', fontSize: 11, padding: 10, resize: 'vertical', outline: 'none' }}
+                onClick={e => (e.target as HTMLTextAreaElement).select()} />
+              <button
+                onClick={() => { navigator.clipboard?.writeText(AI_UI_PROMPT_GUIDE).catch(() => {}); }}
+                style={{ marginTop: 6, background: 'rgba(168,85,247,0.18)', border: '1px solid rgba(168,85,247,0.4)', borderRadius: 6, color: '#e9d5ff', fontSize: 11, padding: '5px 12px', cursor: 'pointer', fontWeight: 700 }}>
+                📋 스펙 복사
+              </button>
+            </details>
+            <div style={{ fontSize: 11, opacity: 0.7 }}>JSON 붙여넣기:</div>
+            <textarea
+              value={uiJsonText}
+              onChange={e => { setUiJsonText(e.target.value); setUiJsonError(null); }}
+              placeholder='{"canvases":[{"type":"canvas","space":"screen","children":[...]}]}'
+              style={{ flex: 1, minHeight: 200, background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 8, color: '#fff', fontFamily: 'monospace', fontSize: 12, padding: 12, resize: 'vertical', outline: 'none' }} />
+            {uiJsonError && (
+              <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 6, color: '#fca5a5', fontSize: 11, padding: '8px 12px' }}>{uiJsonError}</div>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setUiJsonModalOpen(false)}
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 7, color: '#fff', fontSize: 12, padding: '8px 16px', cursor: 'pointer' }}>취소</button>
+              <button
+                onClick={() => {
+                  const res = importUiFromJson(uiJsonText);
+                  if (res.ok) { setUiJsonModalOpen(false); setUiJsonText(''); setUiJsonError(null); }
+                  else setUiJsonError(res.error);
+                }}
+                style={{ background: 'linear-gradient(135deg,#a855f7,#7c3aed)', border: 'none', borderRadius: 7, color: '#fff', fontSize: 12, padding: '8px 18px', cursor: 'pointer', fontWeight: 700 }}>
+                ✨ 가져오기
+              </button>
             </div>
           </div>
         </div>

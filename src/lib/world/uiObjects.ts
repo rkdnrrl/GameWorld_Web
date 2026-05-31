@@ -103,6 +103,224 @@ export function makeDefaultUiData(type: UiElementType, space: 'screen' | 'world'
   return { type, rect: baseRect };
 }
 
+/* ── AI JSON import/export ──
+ *
+ * AI 가 친숙한 단순 JSON 포맷. anchor 는 키워드("top","center","bottom-right",...) 또는 정확한 0~1 배열.
+ * 트리 중첩으로 부모-자식 관계 표현 — flat MapObject[] 로 변환되어 setObjects 에 넣음.
+ *
+ * 예: { type:"panel", label:"설정", anchor:"center", pos:[0,0], size:[400,300], children:[ ... ] }
+ */
+
+/** anchor 키워드 → {anchorMin, anchorMax, pivot} 매핑 (9-점 + 4-stretch). */
+const ANCHOR_KEYWORDS: Record<string, { min: { x: number; y: number }; max: { x: number; y: number }; pivot: { x: number; y: number } }> = {
+  'top-left':     { min: { x: 0, y: 1 }, max: { x: 0, y: 1 }, pivot: { x: 0, y: 1 } },
+  'top':          { min: { x: 0.5, y: 1 }, max: { x: 0.5, y: 1 }, pivot: { x: 0.5, y: 1 } },
+  'top-right':    { min: { x: 1, y: 1 }, max: { x: 1, y: 1 }, pivot: { x: 1, y: 1 } },
+  'left':         { min: { x: 0, y: 0.5 }, max: { x: 0, y: 0.5 }, pivot: { x: 0, y: 0.5 } },
+  'center':       { min: { x: 0.5, y: 0.5 }, max: { x: 0.5, y: 0.5 }, pivot: { x: 0.5, y: 0.5 } },
+  'right':        { min: { x: 1, y: 0.5 }, max: { x: 1, y: 0.5 }, pivot: { x: 1, y: 0.5 } },
+  'bottom-left':  { min: { x: 0, y: 0 }, max: { x: 0, y: 0 }, pivot: { x: 0, y: 0 } },
+  'bottom':       { min: { x: 0.5, y: 0 }, max: { x: 0.5, y: 0 }, pivot: { x: 0.5, y: 0 } },
+  'bottom-right': { min: { x: 1, y: 0 }, max: { x: 1, y: 0 }, pivot: { x: 1, y: 0 } },
+  'stretch':      { min: { x: 0, y: 0 }, max: { x: 1, y: 1 }, pivot: { x: 0.5, y: 0.5 } },
+  'stretch-x':    { min: { x: 0, y: 0.5 }, max: { x: 1, y: 0.5 }, pivot: { x: 0.5, y: 0.5 } },
+  'stretch-y':    { min: { x: 0.5, y: 0 }, max: { x: 0.5, y: 1 }, pivot: { x: 0.5, y: 0.5 } },
+};
+
+/** AI JSON 의 UI 노드 — 재귀 children */
+export interface AiUiNode {
+  type: UiElementType;
+  label?: string;
+  /** 'top'/'center'/'bottom-right' 등 키워드. 미설정 시 'center'. canvas 는 무시(자체 처리) */
+  anchor?: string;
+  pos?: [number, number];
+  size?: [number, number];
+  /** Canvas 일 때만 — 'screen' 또는 'world'. 기본 'screen' */
+  space?: 'screen' | 'world';
+  /** World canvas 일 때 3D 위치/회전/스케일 */
+  position?: [number, number, number];
+  rotation?: [number, number, number];
+  scale?: [number, number, number];
+  /** 요소별 props */
+  text?: string;
+  fontSize?: number;
+  color?: string;
+  bgColor?: string;
+  imageUrl?: string;
+  alpha?: number;
+  onClickScript?: string;
+  min?: number;
+  max?: number;
+  value?: number;
+  step?: number;
+  placeholder?: string;
+  inputValue?: string;
+  multiline?: boolean;
+  checked?: boolean;
+  scrollVertical?: boolean;
+  scrollHorizontal?: boolean;
+  scrollContentWidth?: number;
+  scrollContentHeight?: number;
+  onChangeScript?: string;
+  children?: AiUiNode[];
+}
+
+/** 최상위 — Canvas 1개 + children (단일 Canvas 가정). 여러 Canvas 면 배열로. */
+export type AiUiRoot = AiUiNode | { canvases: AiUiNode[] };
+
+/** AI JSON → flat MapObject-like 배열 변환 (kind='ui' 만). 호출부는 setObjects 로 append. */
+export interface FlatUiObject {
+  id: string;
+  kind: 'ui';
+  label?: string;
+  parentId?: string;
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale:    [number, number, number];
+  color:    string;
+  ui: UiData;
+}
+
+function rectFromAi(node: AiUiNode, defaultSize: { w: number; h: number }): RectTransform {
+  const a = ANCHOR_KEYWORDS[(node.anchor || 'center').toLowerCase()] || ANCHOR_KEYWORDS.center;
+  const pos = node.pos || [0, 0];
+  const sz = node.size || [defaultSize.w, defaultSize.h];
+  return {
+    anchorMin: a.min, anchorMax: a.max, pivot: a.pivot,
+    posX: pos[0], posY: pos[1],
+    width: sz[0], height: sz[1],
+  };
+}
+
+function uiDataFromAi(node: AiUiNode): UiData {
+  const def = makeDefaultUiData(node.type, node.type === 'canvas' ? (node.space || 'screen') : undefined);
+  const isCanvas = node.type === 'canvas';
+  const rect = isCanvas ? def.rect : rectFromAi(node, { w: def.rect.width, h: def.rect.height });
+  // size 가 명시되면 canvas 도 그 size 사용 (world canvas 의 px 영역)
+  if (isCanvas && node.size) { rect.width = node.size[0]; rect.height = node.size[1]; }
+  return {
+    ...def,
+    rect,
+    text: node.text ?? def.text,
+    fontSize: node.fontSize ?? def.fontSize,
+    color: node.color ?? def.color,
+    bgColor: node.bgColor ?? def.bgColor,
+    imageUrl: node.imageUrl ?? def.imageUrl,
+    alpha: node.alpha ?? def.alpha,
+    onClickScript: node.onClickScript ?? def.onClickScript,
+    min: node.min ?? def.min,
+    max: node.max ?? def.max,
+    value: node.value ?? def.value,
+    step: node.step ?? def.step,
+    placeholder: node.placeholder ?? def.placeholder,
+    inputValue: node.inputValue ?? def.inputValue,
+    multiline: node.multiline ?? def.multiline,
+    checked: node.checked ?? def.checked,
+    scrollVertical: node.scrollVertical ?? def.scrollVertical,
+    scrollHorizontal: node.scrollHorizontal ?? def.scrollHorizontal,
+    scrollContentWidth: node.scrollContentWidth ?? def.scrollContentWidth,
+    scrollContentHeight: node.scrollContentHeight ?? def.scrollContentHeight,
+    onChangeScript: node.onChangeScript ?? def.onChangeScript,
+  };
+}
+
+/** AI JSON 을 flat ui 오브젝트 배열로 변환. 라벨 중복은 호출부에서 처리(addUi 처럼). */
+export function parseAiUiRoot(root: AiUiRoot, idPrefix: string): FlatUiObject[] {
+  const out: FlatUiObject[] = [];
+  let seq = 0;
+  const mkId = () => `${idPrefix}_${seq++}`;
+  const walk = (node: AiUiNode, parentId?: string) => {
+    const id = mkId();
+    const ui = uiDataFromAi(node);
+    const isWorldCanvas = node.type === 'canvas' && ui.space === 'world';
+    out.push({
+      id, kind: 'ui', label: node.label || node.type, parentId,
+      position: node.position ?? (isWorldCanvas ? [0, 2, 0] : [0, 0, 0]),
+      rotation: node.rotation ?? [0, 0, 0],
+      scale:    node.scale    ?? (isWorldCanvas ? [0.005, 0.005, 0.005] : [1, 1, 1]),
+      color:    '#ffffff',
+      ui,
+    });
+    for (const c of node.children ?? []) walk(c, id);
+  };
+  if ('canvases' in root) for (const c of root.canvases) walk(c);
+  else walk(root);
+  return out;
+}
+
+/** AI 에게 줄 시스템 프롬프트/가이드 — JSON 포맷 설명 + 예시. */
+export const AI_UI_PROMPT_GUIDE = `ALP UI JSON 스펙 (v1)
+
+최상위: { canvases: [...] } 또는 단일 canvas 객체.
+각 canvas: { type:"canvas", space:"screen"|"world", children:[...] }
+  - "screen" = 화면 고정 HUD. children 의 RectTransform 은 화면 기준.
+  - "world" = 3D 공간. size:[1920,1080] 영역 + position/scale 로 3D 배치.
+
+자식 요소 type:
+  - "panel"   = 배경 영역. props: bgColor, alpha
+  - "text"    = 텍스트. props: text, fontSize, color
+  - "image"   = 이미지. props: imageUrl, alpha
+  - "button"  = 버튼. props: text, fontSize, color, bgColor, onClickScript
+  - "slider"  = 슬라이더. props: min, max, value, step, color, onChangeScript
+  - "input"   = 입력. props: inputValue, placeholder, fontSize, color, bgColor, multiline, onChangeScript
+  - "toggle"  = 체크박스. props: checked, text, fontSize, color, onChangeScript
+  - "scrollview" = 스크롤 영역. props: bgColor, scrollVertical, scrollHorizontal, scrollContentWidth, scrollContentHeight
+
+공통:
+  - label: 스크립트 ui.set("라벨", ...) 으로 찾을 키
+  - anchor: "top-left"|"top"|"top-right"|"left"|"center"|"right"|"bottom-left"|"bottom"|"bottom-right"|"stretch"|"stretch-x"|"stretch-y"
+  - pos: [x, y] (px, anchor 점으로부터의 offset)
+  - size: [w, h] (px)
+  - children: 중첩 자식
+
+스크립트 (onClickScript, onChangeScript):
+  - game.get/set/add(key, ...) — 전역 게임 상태
+  - ui.set("라벨", { text:"...", color:"#..." }) — UI props 패치
+  - ui.show/hide("라벨")
+  - world.playSound("url")
+  - value 변수 — slider/input/toggle 의 새 값
+
+예시:
+{
+  "canvases": [{
+    "type": "canvas",
+    "space": "screen",
+    "children": [
+      {
+        "type": "panel",
+        "label": "HUD",
+        "anchor": "top",
+        "pos": [0, -10],
+        "size": [400, 60],
+        "bgColor": "rgba(0,0,0,0.6)",
+        "children": [
+          {
+            "type": "text",
+            "label": "점수",
+            "anchor": "center",
+            "pos": [0, 0],
+            "size": [380, 40],
+            "text": "Score: 0",
+            "fontSize": 24,
+            "color": "#fff"
+          }
+        ]
+      },
+      {
+        "type": "button",
+        "label": "리셋버튼",
+        "anchor": "bottom-right",
+        "pos": [-20, 20],
+        "size": [120, 44],
+        "text": "리셋",
+        "bgColor": "#ef4444",
+        "onClickScript": "game.set('score', 0); ui.set('점수', { text: 'Score: 0' });"
+      }
+    ]
+  }]
+}
+`;
+
 /** 부모 영역(px) 안에서 RectTransform 해석 → CSS 좌표 (left,top,width,height).
  *  유니티 Y up 을 CSS Y down 으로 변환. */
 export function resolveRect(rect: RectTransform, parentSize: { w: number; h: number }):

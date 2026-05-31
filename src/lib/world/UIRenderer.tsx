@@ -28,9 +28,13 @@ interface Props {
   onLocalValueChange?: (id: string, patch: { value?: number; inputValue?: string; checked?: boolean }) => void;
   /** 편집 모드 — 인터랙티브 비활성 (Phase 2 에서 활용) */
   editMode?: boolean;
+  /** 편집 모드에서 선택된 UI 오브젝트 id — 시각 outline 표시 */
+  selectedId?: string | null;
+  /** 편집 모드에서 UI 요소 클릭 시 호출 — 인스펙터 선택 연동 */
+  onSelect?: (id: string) => void;
 }
 
-export function UIRenderer({ objects, onButtonClick, onValueChange, onLocalValueChange, editMode = false }: Props) {
+export function UIRenderer({ objects, onButtonClick, onValueChange, onLocalValueChange, editMode = false, selectedId = null, onSelect }: Props) {
   // Screen Space canvas root 만 (Phase 1)
   const roots = objects.filter(o => !o.hidden && o.ui.type === 'canvas' && (o.ui.space ?? 'screen') === 'screen');
   if (roots.length === 0) return null;
@@ -43,19 +47,21 @@ export function UIRenderer({ objects, onButtonClick, onValueChange, onLocalValue
       {roots.map(c => (
         <CanvasContainer key={c.id} canvas={c} all={objects}
           onButtonClick={onButtonClick} onValueChange={onValueChange} onLocalValueChange={onLocalValueChange}
-          editMode={editMode} />
+          editMode={editMode} selectedId={selectedId} onSelect={onSelect} />
       ))}
     </div>
   );
 }
 
-function CanvasContainer({ canvas, all, onButtonClick, onValueChange, onLocalValueChange, editMode }: {
+function CanvasContainer({ canvas, all, onButtonClick, onValueChange, onLocalValueChange, editMode, selectedId, onSelect }: {
   canvas: UiTreeObject;
   all: UiTreeObject[];
   onButtonClick?: Props['onButtonClick'];
   onValueChange?: Props['onValueChange'];
   onLocalValueChange?: Props['onLocalValueChange'];
   editMode: boolean;
+  selectedId: string | null;
+  onSelect?: (id: string) => void;
 }) {
   // 화면 크기 추적 — resize 시 anchor stretch 계산이 다시 됨
   const [size, setSize] = React.useState<{ w: number; h: number }>(() => ({
@@ -74,13 +80,13 @@ function CanvasContainer({ canvas, all, onButtonClick, onValueChange, onLocalVal
       {children.map(c => (
         <UiNode key={c.id} obj={c} all={all} parentSize={size}
           onButtonClick={onButtonClick} onValueChange={onValueChange} onLocalValueChange={onLocalValueChange}
-          editMode={editMode} />
+          editMode={editMode} selectedId={selectedId} onSelect={onSelect} />
       ))}
     </div>
   );
 }
 
-function UiNode({ obj, all, parentSize, onButtonClick, onValueChange, onLocalValueChange, editMode }: {
+function UiNode({ obj, all, parentSize, onButtonClick, onValueChange, onLocalValueChange, editMode, selectedId, onSelect }: {
   obj: UiTreeObject;
   all: UiTreeObject[];
   parentSize: { w: number; h: number };
@@ -88,21 +94,30 @@ function UiNode({ obj, all, parentSize, onButtonClick, onValueChange, onLocalVal
   onValueChange?: Props['onValueChange'];
   onLocalValueChange?: Props['onLocalValueChange'];
   editMode: boolean;
+  selectedId?: string | null;
+  onSelect?: (id: string) => void;
 }) {
   const rect = resolveRect(obj.ui.rect, parentSize);
   const children = all.filter(c => c.parentId === obj.id && !c.hidden);
-  // 인터랙션: 편집 모드면 모두 none. 플레이 모드면 button/slider/input/toggle/scrollview auto.
+  // 인터랙션: 편집 모드면 인스펙터 선택용 클릭만. 플레이 모드면 button/slider/input/toggle/scrollview auto.
   const interactiveTypes = ['button', 'slider', 'input', 'toggle', 'scrollview'];
   const interactivePe = !editMode && interactiveTypes.includes(obj.ui.type);
+  const editPe = editMode && !!onSelect;
+  const isSelected = !!selectedId && obj.id === selectedId;
 
   const style: React.CSSProperties = {
     position: 'absolute',
     left: rect.left, top: rect.top, width: rect.width, height: rect.height,
-    pointerEvents: interactivePe ? 'auto' : 'none',
+    pointerEvents: interactivePe || editPe ? 'auto' : 'none',
+    // 편집 모드 + 선택됨 → 시각 outline (파란 점선 + 노란 corner 마커)
+    outline: isSelected ? '2px dashed #818cf8' : undefined,
+    outlineOffset: isSelected ? 1 : undefined,
+    cursor: editPe ? 'pointer' : undefined,
   };
 
   return (
-    <div style={style}>
+    <div style={style}
+      onClick={editPe ? (e) => { e.stopPropagation(); onSelect?.(obj.id); } : undefined}>
       {obj.ui.type === 'panel' && (
         <div style={{
           position: 'absolute', inset: 0,
@@ -222,7 +237,7 @@ function UiNode({ obj, all, parentSize, onButtonClick, onValueChange, onLocalVal
               {children.map(c => (
                 <UiNode key={c.id} obj={c} all={all} parentSize={{ w: cw, h: ch }}
                   onButtonClick={onButtonClick} onValueChange={onValueChange} onLocalValueChange={onLocalValueChange}
-                  editMode={editMode} />
+                  editMode={editMode} selectedId={selectedId} onSelect={onSelect} />
               ))}
             </div>
           </div>
@@ -231,7 +246,7 @@ function UiNode({ obj, all, parentSize, onButtonClick, onValueChange, onLocalVal
       {obj.ui.type !== 'scrollview' && children.map(c => (
         <UiNode key={c.id} obj={c} all={all} parentSize={{ w: rect.width, h: rect.height }}
           onButtonClick={onButtonClick} onValueChange={onValueChange} onLocalValueChange={onLocalValueChange}
-          editMode={editMode} />
+          editMode={editMode} selectedId={selectedId} onSelect={onSelect} />
       ))}
     </div>
   );
