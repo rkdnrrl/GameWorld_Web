@@ -82,7 +82,7 @@ export default function ScriptAssetEditor({ open, editing, folder, onClose, onSa
   return (
     <div onClick={onClose} style={{
       position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.78)', backdropFilter: 'blur(8px)',
-      zIndex: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+      zIndex: 16777280, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
     }}>
       <div onClick={e => e.stopPropagation()} style={{
         background: '#0f172a', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 14,

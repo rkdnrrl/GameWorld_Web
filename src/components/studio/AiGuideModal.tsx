@@ -315,7 +315,7 @@ export default function AiGuideModal({ open, onClose, onImport }: AiGuideModalPr
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0, background: 'rgba(3,7,18,0.78)', backdropFilter: 'blur(8px)',
-        zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+        zIndex: 16777280, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
       }}
     >
       <div

@@ -7669,7 +7669,7 @@ export default function StudioCanvas() {
       {uiJsonModalOpen && (
         <div
           onClick={() => setUiJsonModalOpen(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.78)', backdropFilter: 'blur(8px)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.78)', backdropFilter: 'blur(8px)', zIndex: 16777280, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
         >
           <div
             onClick={e => e.stopPropagation()}
