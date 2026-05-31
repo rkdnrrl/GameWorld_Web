@@ -587,32 +587,24 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, he
   // pointer lock 안 쓰지만 마우스가 안 보이므로 hover 위치로 잡혀도 안 됨 → firstPerson prop.
   // 주의: capture phase X / stopPropagation X — 다른 1인칭 처리(오브젝트 클릭 등) 와 공존.
   const meshRef = useRef<THREE.Mesh>(null);
-  const { camera, gl } = useThree();
+  const { camera } = useThree();
   useEffect(() => {
     if (!interactive) return;
     const onClick = (e: PointerEvent) => {
       if (!document.pointerLockElement && !firstPerson) return;   // 일반 모드면 R3F 클릭이 처리
       if (e.button !== 0) return;
       if (!meshRef.current) return;
-      // 크로스헤어 NDC 좌표 — pointer lock 이면 항상 화면 중앙(0,0). firstPerson(스튜디오)은
-      // 크로스헤어가 viewport 중앙에 있지만 캔버스가 viewport 일부일 수 있어 NDC 보정 필요.
-      let ndcX = 0, ndcY = 0;
-      if (firstPerson && !document.pointerLockElement) {
-        const r = gl.domElement.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0) {
-          ndcX = ((window.innerWidth / 2 - r.left) / r.width) * 2 - 1;
-          ndcY = -((window.innerHeight / 2 - r.top) / r.height) * 2 + 1;
-        }
-      }
+      // NDC (0,0) = 카메라 view 중앙 = 캔버스 영역 중앙.
+      // 호출부(WorldCanvas / StudioCanvas)는 크로스헤어를 캔버스 영역 중앙에 그려야 함 (viewport 중앙 X).
       const raycaster = new THREE.Raycaster();
-      raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
+      raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
       const hits = raycaster.intersectObject(meshRef.current);
       if (hits.length > 0 && hits[0].uv) handleUv(hits[0].uv);
     };
     window.addEventListener('pointerdown', onClick);
     return () => window.removeEventListener('pointerdown', onClick);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interactive, firstPerson, camera, gl, targetId]);
+  }, [interactive, firstPerson, camera, targetId]);
 
   return (
     <mesh

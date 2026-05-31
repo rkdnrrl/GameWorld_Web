@@ -3172,6 +3172,16 @@ function CanvasCapture({ captureFnRef }: { captureFnRef: React.MutableRefObject<
   return null;
 }
 
+/** R3F 캔버스 DOM 자체를 외부 ref에 노출 — 크로스헤어 위치 계산용. */
+function CanvasDomCapture({ canvasDomRef }: { canvasDomRef: React.MutableRefObject<HTMLCanvasElement | null> }) {
+  const { gl } = useThree();
+  useEffect(() => {
+    canvasDomRef.current = gl.domElement;
+    return () => { canvasDomRef.current = null; };
+  }, [gl, canvasDomRef]);
+  return null;
+}
+
 function DraggingDetector({ setOrbitEnabled }: { setOrbitEnabled: (v: boolean) => void }) {
   const { scene } = useThree();
   useEffect(() => {
@@ -3561,6 +3571,21 @@ export default function StudioCanvas() {
   const captureFnRef = useRef<(() => string | null) | null>(null);
   const cameraRef    = useRef<THREE.Camera | null>(null);
   const viewportRef  = useRef<HTMLDivElement | null>(null);
+  const canvasDomRef = useRef<HTMLCanvasElement | null>(null);
+  // 1인칭 크로스헤어 위치 — 캔버스 영역 중앙(viewport 중앙 X). raycast NDC(0,0) 과 일치시키기 위함.
+  const [canvasCenter, setCanvasCenter] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  useEffect(() => {
+    const update = () => {
+      const cv = canvasDomRef.current;
+      if (!cv) return;
+      const r = cv.getBoundingClientRect();
+      setCanvasCenter({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+    };
+    update();
+    window.addEventListener('resize', update);
+    const iv = setInterval(update, 500);   // 레이아웃 변경 (사이드바 토글 등) 폴백
+    return () => { window.removeEventListener('resize', update); clearInterval(iv); };
+  }, []);
 
   const token = () => session.getToken() || '';
 
@@ -6346,6 +6371,7 @@ export default function StudioCanvas() {
             </>
           )}
           <CanvasCapture captureFnRef={captureFnRef} />
+          <CanvasDomCapture canvasDomRef={canvasDomRef} />
           <CameraRefCapture cameraRef={cameraRef} />
           <PostFX s={postFX} />
         </Canvas>
@@ -6353,22 +6379,31 @@ export default function StudioCanvas() {
         {/* 게임 HUD — 스크립트 ui.text/ui.bar 가 그림. 시뮬레이션 중에만 뷰포트 위에 오버레이. */}
         {simulating && <GameHud runtime={simGameRuntime} />}
 
-        {/* 1인칭 시뮬레이션 크로스헤어 — follow 모드 + 1인칭일 때만. idle=흰, aim=초록, grab=노랑 */}
-        {simulating && simCharacter && simCamView === 'follow' && simCameraMode === 'first' && (
-          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 16777274, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 14, height: 14, borderRadius: '50%',
-              border: `2px solid ${simCrosshair === 'grab' ? '#fbbf24' : simCrosshair === 'aim' ? '#4ade80' : 'rgba(255,255,255,0.85)'}`,
-              boxShadow: '0 0 4px rgba(0,0,0,0.6)',
-              transition: 'border-color .12s',
-            }} />
-            {simCrosshair !== 'idle' && (
-              <div style={{ fontSize: 11, color: '#fff', background: 'rgba(0,0,0,0.5)', padding: '3px 10px', borderRadius: 6, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                {simCrosshair === 'grab' ? 'E — 놓기 · 좌클릭 — 던지기 · 휠 — 거리' : 'E — 잡기'}
+        {/* 1인칭 시뮬레이션 크로스헤어 — follow 모드 + 1인칭일 때만. 월드와 동일 십자가 + 가운데 점.
+            위치: 캔버스 영역 중앙 (viewport 중앙 X — 좌측 사이드바 등으로 어긋남). raycast NDC(0,0) 과 일치. */}
+        {simulating && simCharacter && simCamView === 'follow' && simCameraMode === 'first' && (() => {
+          const ch = simCrosshair === 'grab' ? '#fbbf24' : simCrosshair === 'aim' ? '#34d399' : '#fff';
+          const useBlend = simCrosshair === 'idle';
+          const hint = simCrosshair === 'grab' ? 'E — 놓기 · 좌클릭 — 던지기 · 휠 — 거리'
+                     : simCrosshair === 'aim'  ? 'E — 잡기' : null;
+          return (
+            <>
+              <div style={{ position: 'fixed', top: canvasCenter.y, left: canvasCenter.x, transform: 'translate(-50%, -50%)', pointerEvents: 'none', zIndex: 16777274, mixBlendMode: useBlend ? 'difference' : 'normal' }}>
+                <div style={{ position: 'absolute', width: 14, height: 2, background: ch, left: -7, top: -1 }} />
+                <div style={{ position: 'absolute', width: 2, height: 14, background: ch, left: -1, top: -7 }} />
+                <div style={{ position: 'absolute', width: 3, height: 3, borderRadius: '50%', background: ch, left: -1.5, top: -1.5 }} />
               </div>
-            )}
-          </div>
-        )}
+              {hint && (
+                <div style={{
+                  position: 'fixed', top: canvasCenter.y + 28, left: canvasCenter.x, transform: 'translateX(-50%)',
+                  pointerEvents: 'none', zIndex: 16777274,
+                  fontSize: 11, color: 'rgba(255,255,255,0.78)', fontWeight: 600,
+                  textShadow: '0 1px 2px rgba(0,0,0,0.7)', whiteSpace: 'nowrap',
+                }}>{hint}</div>
+              )}
+            </>
+          );
+        })()}
 
         {/* 시뮬레이션 카메라 모드 토글 (우상단) — 캐릭터 빙의 / 자유시점 */}
         {simulating && simCharacter && (
