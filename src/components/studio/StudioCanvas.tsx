@@ -259,6 +259,7 @@ function ComponentsSection({
               objectId={selected.id}
               componentIdx={idx}
               allObjects={allObjects}
+              onSelectId={onSelectId}
               onRemove={() => removeComponent(idx)}
               onPropsChange={(props) => {
                 setObjects(prev => prev.map(o => {
@@ -454,7 +455,7 @@ function ComponentsSection({
 
 /* 유저 정의 컴포넌트 카드 — schema 가 있으면 타입별 input, 없으면 자유 key:value 편집 */
 function UserComponentCard({
-  instance, scriptComponent, onRemove, onPropsChange, onPropsCommit, objectId, componentIdx, allObjects, onEdit,
+  instance, scriptComponent, onRemove, onPropsChange, onPropsCommit, objectId, componentIdx, allObjects, onEdit, onSelectId,
 }: {
   instance: ComponentInstance;
   scriptComponent: ScriptComponent | undefined;
@@ -466,6 +467,8 @@ function UserComponentCard({
   allObjects: MapObject[];
   /** 내가 만든 컴포넌트면 코드 편집 — 있으면 헤더에 edit 버튼 노출 */
   onEdit?: () => void;
+  /** 오브젝트 참조 슬롯에 표시된 ref 라벨 클릭 시 그 오브젝트를 씬 트리에서 선택 */
+  onSelectId?: (id: string) => void;
 }) {
   const props = (instance.props ?? {}) as Record<string, number | string | boolean>;
   const [open, setOpen] = useState(true);
@@ -589,7 +592,9 @@ function UserComponentCard({
         );
       })}
 
-      {/* ── 오브젝트 참조 변수(let x = null) — 씬 오브젝트를 드래그해 지정하는 드롭 슬롯 ── */}
+      {/* ── 오브젝트 참조 변수(let x = null) — 씬 오브젝트를 드래그해 지정하는 드롭 슬롯.
+           SceneListNode 의 HTML5 dragstart 가 application/x-alp-objid 설정 (미디어 리모컨과 동일).
+           data-objvar 는 pointer-based custom drag (onTreePointerUp) 호환을 위해 유지. ── */}
       {objectVars.map(v => {
         const refId = props[v.key];
         const refObj = typeof refId === 'string' ? allObjects.find(o => o.id === refId) : undefined;
@@ -599,6 +604,14 @@ function UserComponentCard({
             <div
               data-objvar={`${objectId}|${componentIdx}|${v.key}`}
               title="씬 트리에서 오브젝트를 드래그해 여기에 놓으세요"
+              onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'link'; }}
+              onDrop={e => {
+                e.preventDefault();
+                const id = e.dataTransfer.getData('application/x-alp-objid');
+                if (!id) return;
+                onPropsChange({ ...props, [v.key]: id });
+                onPropsCommit();
+              }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 5, minHeight: 22,
                 border: `1px dashed ${refObj ? 'rgba(129,140,248,0.6)' : 'rgba(255,255,255,0.2)'}`,
@@ -606,9 +619,12 @@ function UserComponentCard({
               }}>
               {refObj ? (
                 <>
-                  <span style={{ flex: 1, color: '#c7d2fe', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <button type="button"
+                    onClick={() => onSelectId?.(refObj.id)}
+                    title="씬 트리에서 선택"
+                    style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', color: '#c7d2fe', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer', textAlign: 'left', padding: 0, fontSize: 10 }}>
                     {KIND_ICONS[refObj.kind] ?? '📦'} {refObj.label || refObj.kind}
-                  </span>
+                  </button>
                   <button type="button" title="해제"
                     onClick={() => { const next = { ...props }; delete next[v.key]; onPropsChange(next); onPropsCommit(); }}
                     style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.75)', fontSize: 11, cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>
