@@ -20,6 +20,8 @@ import type { ChatBubble, RemotePlayer, PlayerPose } from '@/lib/world/useGameSo
 import type { GraphicsSettings } from '@/lib/world/graphicsSettings';
 import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
 import { PerfManager } from '@/lib/world/PerfManager';
+import { UIRenderer } from '@/lib/world/UIRenderer';
+import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
@@ -1860,7 +1862,9 @@ export type MaterialPreset = 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 
 
 interface UserMapObject {
   id: string;
-  kind: 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight' | 'spawn' | 'empty';
+  kind: 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight' | 'spawn' | 'empty' | 'ui';
+  /** UI 오브젝트 (kind === 'ui' 일 때만) */
+  ui?: import('@/lib/world/uiObjects').UiData;
   assetUrl?: string;
   position: [number, number, number];
   rotation: [number, number, number];
@@ -3744,6 +3748,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                 const byId = new Map(list.map(o => [o.id, o]));
                 const meshes = list
                   .filter(o => !o.hidden && o.kind !== 'pointlight' && o.kind !== 'spotlight' && o.kind !== 'dirlight' && o.kind !== 'spawn'
+                    && o.kind !== 'ui'   // UI 오브젝트는 3D 씬 X, UIRenderer 가 HTML overlay 로 처리
                     && (o.kind !== 'empty' || o.components?.some(c => c.type === 'collider')))   // 콜라이더 있는 빈 오브젝트(트리거 존)는 렌더
                   .map(obj => (
                     <UserMapObjectMesh key={obj.id} obj={obj}
@@ -3814,8 +3819,18 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           </Physics>
           </VideoScreenCtx.Provider>
         </Suspense>
+        {/* World Space UI — canvas.space === 'world' 인 UI 오브젝트를 3D 공간에 렌더 */}
+        <UIWorldRenderer
+          objects={(customObjects ?? []).filter(o => o.kind === 'ui' && o.ui).map(o => ({
+            id: o.id, parentId: o.parentId, hidden: o.hidden, ui: o.ui!,
+            position: o.position, rotation: o.rotation, scale: o.scale,
+          }))}
+          editMode={false}
+        />
         <PostFX s={postFX} />
       </Canvas>
+      {/* UI Renderer — Screen Space HTML overlay (Phase 1). 월드/플레이 모드에선 editMode=false. */}
+      <UIRenderer objects={(customObjects ?? []).filter(o => o.kind === 'ui' && o.ui).map(o => ({ id: o.id, parentId: o.parentId, hidden: o.hidden, ui: o.ui! }))} editMode={false} />
       <MapLoadingOverlay />
     </>
   );

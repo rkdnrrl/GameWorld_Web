@@ -14,6 +14,10 @@ import type { Asset as RegistryAsset } from '@/lib/assets/types';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { PerfManager } from '@/lib/world/PerfManager';
+import { UIRenderer } from '@/lib/world/UIRenderer';
+import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
+import { makeDefaultUiData, type UiElementType, type UiData, type RectTransform } from '@/lib/world/uiObjects';
+import { UiInspector } from './UiInspector';
 import { createGameRuntime } from '@/lib/world/gameRuntime';
 import GameHud from '@/components/world/GameHud';
 import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, VideoScreenCtx, parseYouTubeId, parseUrlKind, normalizeMediaUrl, ImageMaterial, GenericIframeOverlay, VideoRemotePanel, type VideoRegistry, type VideoHandle } from '@/components/world/VideoScreen';
@@ -128,7 +132,7 @@ type OrbitRef = any;
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
 /* ── 데이터 모델 ───────────────────────────── */
-type ObjectKind = 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight' | 'spawn' | 'empty';
+type ObjectKind = 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight' | 'spawn' | 'empty' | 'ui';
 
 type MaterialPreset = 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 'plastic' | 'emissive';
 
@@ -170,6 +174,8 @@ interface MapObject {
   script?: string;
   // 스크립트 인스펙터 변수 오버라이드 (유니티 직렬화 필드처럼) — 코드의 top-level 변수 기본값을 덮어씀
   scriptVars?: Record<string, number | string | boolean>;
+  // UI 오브젝트 (kind === 'ui' 일 때만) — Canvas / Image / Text / Button / Panel
+  ui?: import('@/lib/world/uiObjects').UiData;
 }
 
 interface Asset {
@@ -1987,6 +1993,9 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
     oz: Number(colliderComp.props?.offsetZ ?? 0),
   } : null;
 
+  // UI 오브젝트 — 3D 씬에 렌더 X. 별도 UIRenderer 가 HTML overlay 로 처리.
+  if (obj.kind === 'ui') return null;
+
   // 스폰·빈 오브젝트 — 메시는 없지만 콜라이더(트리거 존 등)가 있으면 콜라이더 바디만 렌더(트리거 발동용), 없으면 렌더 X.
   if (obj.kind === 'spawn' || obj.kind === 'empty') {
     if (!colliderBox) return null;
@@ -3471,6 +3480,7 @@ export default function StudioCanvas() {
   const [lightPanelOpen, setLightPanelOpen] = useState(false);
   const [shapePanelOpen, setShapePanelOpen] = useState(false);
   const [lightAddPanelOpen, setLightAddPanelOpen] = useState(false);
+  const [uiAddPanelOpen, setUiAddPanelOpen] = useState(false);
   const [matPanelOpen, setMatPanelOpen] = useState(false);
   const [studioMode, setStudioMode] = useState<'settings' | 'scene'>('settings');
   const [multiSelectedIds, setMultiSelectedIds] = useState<Set<string>>(new Set());
@@ -4104,6 +4114,44 @@ export default function StudioCanvas() {
         scale:    [1, 1, 1],
         color:    '#60a5fa',
       }];
+      pushHistory(next);
+      return next;
+    });
+    setSelectedId(id);
+    setStudioMode('scene');
+  }
+
+  /** UI 오브젝트 추가 — type 별로 default ui 데이터 + 부모 (canvas 외에는 가장 가까운 canvas 자식으로) */
+  function addUi(type: UiElementType, canvasSpace: 'screen' | 'world' = 'screen') {
+    const id = `ui_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const label = type === 'canvas' && canvasSpace === 'world' ? 'Canvas (World)' : type;
+    // canvas 가 아닌 요소는 부모 canvas 찾기. 없으면 screen Canvas 생성.
+    setObjects(prev => {
+      const next: MapObject[] = [...prev];
+      let parentCanvasId: string | null = null;
+      if (type !== 'canvas') {
+        const existing = prev.find(o => o.kind === 'ui' && o.ui?.type === 'canvas');
+        if (existing) parentCanvasId = existing.id;
+        else {
+          const cid = `ui_canvas_${Date.now()}`;
+          next.push({
+            id: cid, kind: 'ui', label: 'Canvas',
+            position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], color: '#ffffff',
+            ui: makeDefaultUiData('canvas', 'screen'),
+          });
+          parentCanvasId = cid;
+        }
+      }
+      // World canvas 는 기본 위치 [0, 2, 0] (눈높이) + scale 0.005 (1920px ≈ 9.6m → 0.005 시 ~5m).
+      const isWorldCanvas = type === 'canvas' && canvasSpace === 'world';
+      next.push({
+        id, kind: 'ui', label, parentId: parentCanvasId ?? undefined,
+        position: isWorldCanvas ? [0, 2, 0] : [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: isWorldCanvas ? [0.005, 0.005, 0.005] : [1, 1, 1],
+        color: '#ffffff',
+        ui: type === 'canvas' ? makeDefaultUiData('canvas', canvasSpace) : makeDefaultUiData(type),
+      });
       pushHistory(next);
       return next;
     });
@@ -5445,6 +5493,39 @@ export default function StudioCanvas() {
             </button>
           </div>
         )}
+        {/* 🖼 UI 추가 — 유니티식 Canvas + Image/Text/Button/Panel (Phase 1: Screen Space 만) */}
+        <button type="button" onClick={() => setUiAddPanelOpen(v => !v)}
+          style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: 'rgba(255,255,255,0.8)', fontSize: 11, padding: '6px 9px', cursor: 'pointer', fontWeight: 600, marginTop: 4 }}>
+          🖼 UI 추가 {uiAddPanelOpen ? '▲' : '▼'}
+        </button>
+        {uiAddPanelOpen && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, marginTop: 4 }}>
+            <button onClick={() => addUi('canvas', 'screen')} title="Screen Canvas — 화면 고정 HUD"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
+              🖥 Screen Canvas
+            </button>
+            <button onClick={() => addUi('canvas', 'world')} title="World Canvas — 3D 공간에 떠 있는 UI (간판, 메뉴 등)"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
+              🌍 World Canvas
+            </button>
+            <button onClick={() => addUi('panel')} title="배경 패널"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
+              🟦 Panel
+            </button>
+            <button onClick={() => addUi('image')} title="이미지"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
+              🖼 Image
+            </button>
+            <button onClick={() => addUi('text')} title="텍스트"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
+              📝 Text
+            </button>
+            <button onClick={() => addUi('button')} title="버튼"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer', gridColumn: 'span 2' }}>
+              🔘 Button
+            </button>
+          </div>
+        )}
         </div>{/* /추가 그룹 (씬 탭) */}
 
         {/* 환경 (Sky / HDRI / Ambient) — 환경 탭에서만 */}
@@ -5761,6 +5842,27 @@ export default function StudioCanvas() {
             <div style={{ fontSize: 11, opacity: 0.3, textAlign: 'center', paddingTop: 32 }}>
               {t('inspSelect')}
             </div>
+          ) : selected.kind === 'ui' ? (
+            <>
+              {!isMobile && (
+                <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, marginBottom: 8, letterSpacing: 0.5 }}>
+                  🖼 {selected.label || selected.ui?.type || 'ui'}
+                </div>
+              )}
+              <UiInspector
+                selected={selected}
+                onUpdate={(patch: Partial<UiData>) => {
+                  setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, ui: { ...(o.ui as UiData), ...patch } } : o));
+                }}
+                onRectUpdate={(rectPatch: Partial<RectTransform>) => {
+                  setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, ui: { ...(o.ui as UiData), rect: { ...(o.ui as UiData).rect, ...rectPatch } } } : o));
+                }}
+                onTransformUpdate={(patch) => {
+                  setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, ...patch } : o));
+                }}
+                onCommit={() => pushHistory(objects)}
+              />
+            </>
           ) : (
             <>
               {!isMobile && (
@@ -6393,8 +6495,20 @@ export default function StudioCanvas() {
               스튜디오는 별도 graphics 옵션 X — 큰 맵 미리보기용 보수적 값(400m). */}
           {simulating && <PerfManager cullDistance={400} />}
           <CameraRefCapture cameraRef={cameraRef} />
+          {/* World Space UI — canvas.space === 'world' 인 UI 오브젝트를 3D 공간에 렌더 */}
+          <UIWorldRenderer
+            objects={(simulating ? simObjs : objects).filter(o => o.kind === 'ui' && o.ui).map(o => ({
+              id: o.id, parentId: o.parentId ?? null, hidden: o.hidden, ui: o.ui!,
+              position: (simulating ? (simTransforms[o.id]?.pos ?? o.position) : o.position) as [number, number, number],
+              rotation: o.rotation, scale: o.scale,
+            }))}
+            editMode={!simulating}
+          />
           <PostFX s={postFX} />
         </Canvas>
+
+        {/* UI Renderer — Screen Space HTML overlay (Phase 1). 편집 모드에선 editMode=true (인터랙션 비활성). */}
+        <UIRenderer objects={(simulating ? simObjs : objects).filter(o => o.kind === 'ui' && o.ui).map(o => ({ id: o.id, parentId: o.parentId ?? null, hidden: o.hidden, ui: o.ui! }))} editMode={!simulating} />
 
         {/* 게임 HUD — 스크립트 ui.text/ui.bar 가 그림. 시뮬레이션 중에만 뷰포트 위에 오버레이. */}
         {simulating && <GameHud runtime={simGameRuntime} />}
