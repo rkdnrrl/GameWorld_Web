@@ -3114,8 +3114,20 @@ function RightClickLook({ orbitRef }: { orbitRef: React.MutableRefObject<OrbitRe
     let dragging = false;
     let lastX = 0, lastY = 0;
 
+    // 캔버스 bbox 안 (시각적으로 3D 씬 위) 클릭만 카메라 회전 트리거.
+    // UI 패널 (사이드바·인스펙터) 안 우클릭은 skip — 사용자의 의도가 아님.
+    const isOverCanvas = (clientX: number, clientY: number) => {
+      const r = canvas.getBoundingClientRect();
+      return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+    };
+
     const onDown = (e: MouseEvent) => {
       if (e.button !== 2) return;
+      // 캔버스 영역 안에서만 — UI overlay (UIRenderer 등) 위라도 캔버스 좌표면 OK
+      if (!isOverCanvas(e.clientX, e.clientY)) return;
+      // 일반 form input 위면 skip — 인스펙터 입력 컨텍스트 메뉴 보존
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
       dragging = true;
       lastX = e.clientX;
       lastY = e.clientY;
@@ -3159,13 +3171,18 @@ function RightClickLook({ orbitRef }: { orbitRef: React.MutableRefObject<OrbitRe
       dragging = false;
     };
 
-    canvas.addEventListener('mousedown', onDown);
+    // window listener — UI overlay (UIRenderer 등) 위 우클릭도 잡힘 (위 isOverCanvas 로 영역 체크)
+    window.addEventListener('mousedown', onDown);
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+    // 캔버스 위에서 우클릭 contextmenu 막기 (브라우저 기본 메뉴 X — drag로 카메라 회전)
+    const onCtx = (e: MouseEvent) => { if (isOverCanvas(e.clientX, e.clientY)) e.preventDefault(); };
+    window.addEventListener('contextmenu', onCtx);
     return () => {
-      canvas.removeEventListener('mousedown', onDown);
+      window.removeEventListener('mousedown', onDown);
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('contextmenu', onCtx);
     };
   }, [camera, gl, orbitRef]);
 
