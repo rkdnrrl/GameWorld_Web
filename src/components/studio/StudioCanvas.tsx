@@ -2646,11 +2646,14 @@ function BoxResizeGizmo({ target, onChange, onDragStart, onDragEnd }: {
       raycaster.setFromCamera(ndc, camera);
       const curT = closestPointOnLineToRay(d.axisCenterWorld, d.axisWorld, raycaster.ray);
       const delta = curT - d.startT;
+      // scale: 잡은 face 가 sign 방향이라 delta * sign 만큼 늘어남. +X 핸들을 +X 로 끌면 scale 증가.
       const newScaleAxis = Math.max(0.01, d.startScale[d.axis] + delta * d.sign);
+      // position: 반대편 face(anchor)가 같은 자리 유지하려면 mesh 중심은 sign 무관 delta/2 만큼 axis 방향으로 이동.
+      // (-X 핸들 오른쪽으로 끌면 mesh 중심도 오른쪽으로 delta/2 이동 → +X face 그대로, -X face 만 오른쪽으로)
       const newScale: [number,number,number] = [d.startScale[0], d.startScale[1], d.startScale[2]];
       newScale[d.axis] = newScaleAxis;
       const newPos: [number,number,number] = [d.startPos[0], d.startPos[1], d.startPos[2]];
-      newPos[d.axis] = d.startPos[d.axis] + (delta * d.sign) / 2;
+      newPos[d.axis] = d.startPos[d.axis] + delta / 2;
       onChange(newPos, newScale);
     };
     const onUp = () => {
