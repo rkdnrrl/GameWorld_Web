@@ -745,11 +745,25 @@ export default function AssetsPage() {
                   if (!tok) { setError('로그인 필요'); return; }
                   // 파일명에서 .alp/.json 떼고 에셋 이름으로
                   const baseName = (parsed.name || file.name.replace(/\.(alp|alpmap\.json|json)$/i, '')).slice(0, 80);
-                  const { objects, env, terrain, description, icon } = parsed;
+                  const { objects, description, icon } = parsed;
+                  // env — 명시적 env 객체 or 최상위 환경 필드들 모아 fallback
+                  const env = parsed.env || {
+                    bgColor: parsed.bgColor,
+                    ambientIntensity: parsed.ambientIntensity,
+                    preset: parsed.preset,
+                    fogDensity: parsed.fogDensity,
+                    hdriPreset: parsed.hdriPreset,
+                    camera: parsed.camera,
+                  };
+                  // terrain — 명시적 최상위 terrain or objects 안 kind=terrain 의 데이터
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const terrainObj = (objects as any[]).find(o => o?.kind === 'terrain');
+                  const terrain = parsed.terrain || terrainObj?.terrain;
+                  console.log('[map upload]', baseName, 'objects:', objects.length, 'has terrain:', !!terrain);
                   await api.createMapAsset(tok, {
                     name: baseName,
                     data: { objects, env, terrain },
-                    icon: typeof icon === 'string' ? icon : '🗺',
+                    icon: typeof icon === 'string' ? icon : (parsed.icon || '🗺'),
                     description: typeof description === 'string' ? description : '',
                     folder: selectedFolder || undefined,
                   });
