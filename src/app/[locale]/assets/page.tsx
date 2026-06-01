@@ -247,8 +247,43 @@ export default function AssetsPage() {
 
   /** 단일 파일 업로드 — state 는 건드리지 않고 성공 시 새 asset 만 반환 */
   function uploadOne(file: File, folder: string | null, onProgress: (pct: number) => void): Promise<Asset> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      const isAlp = /\.(alp|alpmap\.json)$/i.test(file.name);
+      // .alp / .alpmap.json 은 map 에셋 — 파일 업로드 (R2) 가 아니라 createMapAsset 으로 메타데이터에 저장
+      if (isAlp) {
+        try {
+          if (file.size > 2 * 1024 * 1024) { reject(new Error('맵 파일은 2MB 이하여야 합니다.')); return; }
+          const text = await file.text();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const parsed: any = JSON.parse(text);
+          if (parsed.format && parsed.format !== 'alp-map') { reject(new Error(`alp-map 포맷이 아닙니다 (format=${parsed.format})`)); return; }
+          if (!Array.isArray(parsed.objects)) { reject(new Error('objects 배열이 없습니다.')); return; }
+          const tok = token(); if (!tok) { reject(new Error('로그인 필요')); return; }
+          const baseName = (parsed.name || file.name.replace(/\.(alp|alpmap\.json|json)$/i, '')).slice(0, 80);
+          const env = parsed.env || {
+            bgColor: parsed.bgColor, ambientIntensity: parsed.ambientIntensity,
+            preset: parsed.preset, fogDensity: parsed.fogDensity,
+            hdriPreset: parsed.hdriPreset, camera: parsed.camera,
+          };
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const terrainObj = parsed.objects.find((o: any) => o?.kind === 'terrain');
+          const terrain = parsed.terrain || terrainObj?.terrain;
+          console.log('[map upload via drop]', baseName, 'objects:', parsed.objects.length, 'terrain:', !!terrain);
+          onProgress(50);
+          const r = await api.createMapAsset(tok, {
+            name: baseName,
+            data: { objects: parsed.objects, env, terrain },
+            icon: typeof parsed.icon === 'string' ? parsed.icon : '🗺',
+            description: typeof parsed.description === 'string' ? parsed.description : '',
+            folder: folder || undefined,
+          });
+          onProgress(100);
+          resolve(r.asset as Asset);
+        } catch (e) { reject(e instanceof Error ? e : new Error(String(e))); }
+        return;
+      }
+
       const kind = kinds.find(k => k.extensions.includes(ext));
       if (!kind) { reject(new Error(t('unsupportedType', { ext }))); return; }
       if (file.size > kind.maxSizeMb * 1024 * 1024) {
