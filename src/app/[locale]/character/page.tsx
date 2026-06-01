@@ -476,6 +476,56 @@ const SUGGESTED_TAG = 'character';
 /** 사이드바 태그 칩 최대 개수 */
 const MAX_TAG_CHIPS = 8;
 
+/** 에셋 카드 썸네일 — modelUrl 이 FBX 면 lazy 3D 프리뷰 생성, 보이는 동안에만 큐 처리 */
+function PickerThumb({ asset, isOfficial }: { asset: Asset; isOfficial: boolean }) {
+  const [thumb, setThumb] = useState<string | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  const visibleRef = useRef(false);
+
+  useEffect(() => {
+    if (asset.thumbnailUrl) return;          // 서버 썸네일 우선
+    if (!/\.fbx(\?|$)/i.test(asset.modelUrl)) return;  // FBX 만 3D 썸 생성
+    const el = ref.current;
+    if (!el) return;
+    let cancelled = false;
+    visibleRef.current = false;
+
+    const run = () => {
+      if (cancelled || !visibleRef.current) return;
+      import('@/lib/assets/modelThumb').then(({ requestThumb }) => {
+        if (cancelled || !visibleRef.current) return;
+        requestThumb(asset.modelUrl, null, () => !cancelled && visibleRef.current)
+          .then(d => {
+            if (cancelled) return;
+            if (d) setThumb(d);
+            else if (visibleRef.current) setTimeout(run, 60);
+          })
+          .catch(() => {});
+      });
+    };
+
+    const io = new IntersectionObserver(([entry]) => {
+      visibleRef.current = entry.isIntersecting;
+      if (entry.isIntersecting && !thumb) run();
+    }, { threshold: 0.01 });
+    io.observe(el);
+
+    return () => { cancelled = true; io.disconnect(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asset.modelUrl, asset.thumbnailUrl]);
+
+  if (asset.thumbnailUrl) {
+    return <img src={asset.thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />;
+  }
+  return (
+    <div ref={ref} style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {thumb
+        ? <img src={thumb} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+        : <span style={{ fontSize: 32 }}>{isOfficial ? '⭐' : '📦'}</span>}
+    </div>
+  );
+}
+
 function AssetPickerModal({ onSelect, onClose, officialChars }: {
   onSelect: (asset: Asset) => void;
   onClose: () => void;
@@ -676,10 +726,7 @@ function AssetPickerModal({ onSelect, onClose, officialChars }: {
                 width: '100%', aspectRatio: '1', background: 'rgba(255,255,255,0.03)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
               }}>
-                {a.thumbnailUrl
-                  ? <img src={a.thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : <span style={{ fontSize: 32 }}>{isOfficial ? '⭐' : '📦'}</span>
-                }
+                <PickerThumb asset={a} isOfficial={isOfficial} />
                 <span style={{
                   position: 'absolute', top: 6, left: 6, fontSize: 9, fontWeight: 800,
                   background: isOfficial ? '#fbbf24' : '#f59e0b', color: '#fff',

@@ -135,42 +135,15 @@ export default function Header() {
             <Logo size={28} />
           </Link>
           <nav className="flex min-w-0 max-w-full flex-[1_1_0%] flex-wrap items-center justify-end gap-x-2 gap-y-1.5 text-xs sm:flex-none sm:gap-x-4 sm:text-sm">
-            <Link href="/games" className="shrink-0 whitespace-nowrap hover:text-blue-600">
-              {t("games")}
-            </Link>
-            <Link href="/announcements" className="shrink-0 whitespace-nowrap hover:text-blue-600">
-              {t("announcements")}
-            </Link>
             <Link href="/community" className="shrink-0 whitespace-nowrap hover:text-blue-600">
               {t("community")}
             </Link>
             <Link href="/donate" className="shrink-0 whitespace-nowrap hover:text-blue-600">
               {t("donate")}
             </Link>
-            {loggedIn && operatorAccess && (
-              <Link
-                href="/operator"
-                className="shrink-0 whitespace-nowrap font-medium text-amber-700 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200"
-              >
-                {t("operator")}
-              </Link>
-            )}
-            {loggedIn && (
-              <Link
-                href="/develop"
-                className="shrink-0 whitespace-nowrap font-medium text-emerald-700 hover:text-emerald-900 dark:text-emerald-400 dark:hover:text-emerald-200"
-              >
-                {t("develop")}
-              </Link>
-            )}
             {loggedIn && (
               <Link href="/account" className="shrink-0 whitespace-nowrap hover:text-blue-600">
                 {t("myInfo")}
-              </Link>
-            )}
-            {loggedIn && (
-              <Link href="/inventory" className="shrink-0 whitespace-nowrap hover:text-blue-600">
-                {t("inventory")}
               </Link>
             )}
             {loggedIn && <NotificationBell />}
