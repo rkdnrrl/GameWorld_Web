@@ -476,9 +476,10 @@ const SUGGESTED_TAG = 'character';
 /** 사이드바 태그 칩 최대 개수 */
 const MAX_TAG_CHIPS = 8;
 
-function AssetPickerModal({ onSelect, onClose }: {
+function AssetPickerModal({ onSelect, onClose, officialChars }: {
   onSelect: (asset: Asset) => void;
   onClose: () => void;
+  officialChars?: PublicCharacter[];
 }) {
   const t = useTranslations('Character');
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -489,6 +490,21 @@ function AssetPickerModal({ onSelect, onClose }: {
   const initialized = useRef(false);
 
   useEffect(() => {
+    // 공식 캐릭터를 synthetic Asset 형태로 변환 (modelUrl 이 있는 것만)
+    const officialAssets: Asset[] = (officialChars || [])
+      .map((c) => {
+        const url = String((c.appearance as { modelUrl?: string })?.modelUrl || '');
+        if (!url || !/\.fbx(\?|$)/i.test(url)) return null;
+        return {
+          id: `official:${c.id}`,
+          name: c.name,
+          modelUrl: url,
+          thumbnailUrl: null,
+          tags: ['official', 'character'],
+        } as Asset;
+      })
+      .filter((a): a is Asset => a !== null);
+
     fetch(`${API}/api/assets/my`, {
       headers: { Authorization: `Bearer ${session.getToken()}` },
     })
@@ -497,17 +513,22 @@ function AssetPickerModal({ onSelect, onClose }: {
         const list: Asset[] = d.assets || [];
         // FBX 만 (kind === 'model' or 확장자)
         const fbxOnly = list.filter(a => /\.fbx(\?|$)/i.test(a.modelUrl));
-        setAssets(fbxOnly);
+        // 공식 캐릭터는 항상 맨 앞에 (id 중복 방지를 위해 official: prefix 사용)
+        const merged = [...officialAssets, ...fbxOnly];
+        setAssets(merged);
         // 추천 태그가 1개 이상 매칭되면 자동 활성화
         if (!initialized.current) {
-          const hasSuggested = fbxOnly.some(a => (a.tags || []).includes(SUGGESTED_TAG));
+          const hasSuggested = merged.some(a => (a.tags || []).includes(SUGGESTED_TAG));
           if (hasSuggested) setSelectedTags([SUGGESTED_TAG]);
           initialized.current = true;
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        // 에셋 fetch 실패해도 공식 캐릭터는 보여주기
+        setAssets(officialAssets);
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [officialChars]);
 
   // ESC 닫기
   useEffect(() => {
@@ -639,14 +660,17 @@ function AssetPickerModal({ onSelect, onClose }: {
         )}
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, overflowY: 'auto' }}>
-          {filtered.map(a => (
+          {filtered.map(a => {
+            const isOfficial = a.id.startsWith('official:');
+            return (
             <button key={a.id} onClick={() => onSelect(a)} style={{
-              background: 'rgba(255,255,255,0.05)', border: '2px solid rgba(255,255,255,0.08)',
+              background: isOfficial ? 'rgba(251,191,36,0.08)' : 'rgba(255,255,255,0.05)',
+              border: isOfficial ? '2px solid rgba(251,191,36,0.45)' : '2px solid rgba(255,255,255,0.08)',
               borderRadius: 12, cursor: 'pointer', overflow: 'hidden', padding: 0,
               transition: 'border-color .15s',
             }}
-              onMouseEnter={e => (e.currentTarget.style.borderColor = '#6366f1')}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = isOfficial ? '#fbbf24' : '#6366f1')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = isOfficial ? 'rgba(251,191,36,0.45)' : 'rgba(255,255,255,0.08)')}
             >
               <div style={{
                 width: '100%', aspectRatio: '1', background: 'rgba(255,255,255,0.03)',
@@ -654,13 +678,13 @@ function AssetPickerModal({ onSelect, onClose }: {
               }}>
                 {a.thumbnailUrl
                   ? <img src={a.thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : <span style={{ fontSize: 32 }}>📦</span>
+                  : <span style={{ fontSize: 32 }}>{isOfficial ? '⭐' : '📦'}</span>
                 }
                 <span style={{
                   position: 'absolute', top: 6, left: 6, fontSize: 9, fontWeight: 800,
-                  background: '#f59e0b', color: '#fff',
+                  background: isOfficial ? '#fbbf24' : '#f59e0b', color: '#fff',
                   padding: '2px 5px', borderRadius: 3,
-                }}>{ext}</span>
+                }}>{isOfficial ? '공식' : ext}</span>
               </div>
               <div style={{ padding: '6px 8px', textAlign: 'left' }}>
                 <div style={{ color: '#fff', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
@@ -671,7 +695,8 @@ function AssetPickerModal({ onSelect, onClose }: {
                 )}
               </div>
             </button>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -1058,7 +1083,7 @@ export default function CharacterPage() {
   return (
     <>
       {showPicker && (
-        <AssetPickerModal onSelect={handleSelectAsset} onClose={() => setShowPicker(false)} />
+        <AssetPickerModal onSelect={handleSelectAsset} onClose={() => setShowPicker(false)} officialChars={officialChars} />
       )}
       {slotPickerFor !== null && (
         <AssetPickerModal
