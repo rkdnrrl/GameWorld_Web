@@ -1785,9 +1785,13 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
   // Collider 컴포넌트 — 선택 시 충돌 박스를 초록 와이어프레임으로 표시 (크기 확인/조절용)
   const colliderComp = obj.components?.find(c => c.type === 'collider');
 
+  // Terrain — 데이터 rotation 무시 (TerrainMesh 가 내부에서 -π/2 X 회전 적용).
+  // 옛 .alp (rotation [-π/2,0,0]) 와 새 .alp (rotation [0,0,0]) 모두 호환.
+  const effectiveRot: [number, number, number] = obj.kind === 'terrain' ? [0, 0, 0] : wrot;
+
   return (
     /* userData.id는 이 group에 → TransformControls이 이 group(월드 TRS)을 조작 */
-    <group position={wpos} rotation={wrot} scale={wscale} userData={{ id: obj.id }}>
+    <group position={wpos} rotation={effectiveRot} scale={wscale} userData={{ id: obj.id }}>
       <Mesh3D obj={obj} selected={isSelected} onClick={() => onObjectClick(obj.id)} assetConfig={assetConfig} noTransform />
       {isSelected && colliderComp && (
         <mesh userData={{ __collider: true }} raycast={() => null}
@@ -2062,12 +2066,12 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
   // UI 오브젝트 — 3D 씬에 렌더 X. 별도 UIRenderer 가 HTML overlay 로 처리.
   if (obj.kind === 'ui') return null;
 
-  // Terrain — heightmap 기반 지면 (시뮬 모드). 위치/회전/크기는 transforms 의 t.
+  // Terrain — heightmap 기반 지면. rotation 은 TerrainMesh 내부에서 처리 (데이터 rotation 무시).
   // 물리: trimesh auto-collider — TerrainMesh 의 실제 geometry 로 정확한 충돌. fixed body.
   if (obj.kind === 'terrain' && obj.terrain) {
     return (
       <RigidBody ref={bodyRef} type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
-        position={t.pos} rotation={t.rot} scale={t.scl ?? obj.scale}>
+        position={t.pos} rotation={[0, 0, 0]} scale={t.scl ?? obj.scale}>
         <TerrainMesh terrain={obj.terrain} castShadow={false} receiveShadow />
       </RigidBody>
     );

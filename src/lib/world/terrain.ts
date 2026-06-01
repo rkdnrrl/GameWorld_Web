@@ -29,26 +29,34 @@ export function makeFlatTerrain(size = 50, segments = 64, baseColor = '#5a8a4a')
   return { size, segments, heights: new Array(n).fill(0), baseColor, textureRepeat: 8 };
 }
 
-/** Perlin-ish 노이즈 (값 노이즈 + 옥타브) — 자연스러운 언덕. */
-export function generateNoiseTerrain(size = 50, segments = 64, amplitude = 4, scale = 0.05, seed = 1): TerrainData {
+/** 진짜 coherent value noise — 격자점 해시 랜덤 + Hermite smoothstep bilinear 보간, fBm 4 octaves.
+ *  옛 버전은 per-vertex 해시 랜덤이라 가시밭이 됐음. 이제 자연스러운 굴곡. */
+export function generateNoiseTerrain(size = 50, segments = 64, amplitude = 4, scale = 0.06, seed = 1): TerrainData {
   const n1 = segments + 1;
   const heights = new Array(n1 * n1).fill(0);
-  // 단순 hash 노이즈 — 결정적, 시드 기반. 1d sin/cos 합성으로 부드러움.
-  const noise = (x: number, y: number) => {
-    let v = 0;
-    let amp = amplitude;
-    let freq = scale;
-    for (let oct = 0; oct < 4; oct++) {
-      const a = Math.sin((x * freq * 12.9898 + y * freq * 78.233 + seed * 7.31) * 43758.5453);
-      const b = Math.sin((x * freq * 39.346 + y * freq * 11.135 + seed * 3.93) * 31415.9265);
-      v += (a - Math.floor(a) + b - Math.floor(b) - 1) * amp;
-      amp *= 0.5; freq *= 2.1;
-    }
-    return v;
+  const hash = (xi: number, yi: number, s: number) => {
+    const h = Math.sin(xi * 127.1 + yi * 311.7 + s * 74.7) * 43758.5453;
+    return (h - Math.floor(h)) * 2 - 1;
+  };
+  const smooth = (t: number) => t * t * (3 - 2 * t);
+  const value2d = (x: number, y: number, f: number, s: number) => {
+    const xs = x * f, ys = y * f;
+    const x0 = Math.floor(xs), y0 = Math.floor(ys);
+    const tx = smooth(xs - x0), ty = smooth(ys - y0);
+    const a = hash(x0,     y0,     s);
+    const b = hash(x0 + 1, y0,     s);
+    const c = hash(x0,     y0 + 1, s);
+    const d = hash(x0 + 1, y0 + 1, s);
+    return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
   };
   for (let y = 0; y < n1; y++) {
     for (let x = 0; x < n1; x++) {
-      heights[y * n1 + x] = noise(x, y);
+      let v = 0, amp = amplitude, freq = scale;
+      for (let oct = 0; oct < 4; oct++) {
+        v += value2d(x, y, freq, seed + oct) * amp;
+        amp *= 0.5; freq *= 2.0;
+      }
+      heights[y * n1 + x] = v;
     }
   }
   return { size, segments, heights, baseColor: '#5a8a4a', textureRepeat: 8 };

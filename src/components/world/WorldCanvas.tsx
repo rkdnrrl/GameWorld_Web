@@ -2070,11 +2070,12 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
   const rPos = world?.position ?? obj.position;
   const rRot = world?.rotation ?? obj.rotation;
   const rScale = world?.scale ?? obj.scale;
-  // Terrain — heightmap 기반 지면. 물리: trimesh auto-collider (TerrainMesh 의 실제 geometry).
+  // Terrain — heightmap 기반 지면. rotation 은 TerrainMesh 내부 처리 (데이터 rotation 무시 — 옛/새 .alp 모두 호환).
+  // 물리: trimesh auto-collider (TerrainMesh 의 실제 geometry).
   if (obj.kind === 'terrain' && obj.terrain) {
     return (
       <RigidBody type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
-        position={rPos} rotation={rRot} scale={rScale}>
+        position={rPos} rotation={[0, 0, 0]} scale={rScale}>
         <TerrainMesh terrain={obj.terrain} castShadow={false} receiveShadow />
       </RigidBody>
     );
