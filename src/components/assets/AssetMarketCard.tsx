@@ -46,7 +46,9 @@ export default function AssetMarketCard({
   const handler = getKind(kindId);
   const Thumb   = handler?.Thumbnail;
   const canPreview = !!handler?.Preview;
-  const username = asset.creator?.username || null;
+  // 공식 캐릭터 자동 등록 에셋(tag: official-character) 은 운영자 닉네임 대신 'ALP' 브랜드로 표시
+  const isOfficial = (asset.tags || []).includes('official-character');
+  const username = isOfficial ? 'ALP' : (asset.creator?.username || null);
 
   // 다운로드는 자신의 에셋(creatorId 일치)이거나 운영자일 때만 노출
   const [me, setMe] = useState<User | null>(null);
@@ -162,7 +164,11 @@ export default function AssetMarketCard({
           }}>
             {(username || '?').charAt(0).toUpperCase()}
           </span>
-          {username ? (
+          {isOfficial ? (
+            <span style={{ fontSize: 11, color: '#fcd34d', fontWeight: 700, whiteSpace: 'nowrap' }} title="공식 ALP 에셋">
+              ⭐ ALP
+            </span>
+          ) : username ? (
             <Link
               href={`/users/${encodeURIComponent(username)}`}
               onClick={e => e.stopPropagation()}
