@@ -719,6 +719,8 @@ export default function CharacterPage() {
   const [error, setError]         = useState('');
   const [myChars, setMyChars]     = useState<MyCharacter[]>([]);
   const [publicChars, setPublicChars] = useState<PublicCharacter[]>([]);
+  // 공식 캐릭터 (운영자가 등록) — 모든 유저에게 노출되는 후보
+  const [officialChars, setOfficialChars] = useState<PublicCharacter[]>([]);
   const [publicQuery, setPublicQuery] = useState('');
   const [selectingId, setSelectingId] = useState('');
   const [deletingId, setDeletingId] = useState('');
@@ -826,6 +828,22 @@ export default function CharacterPage() {
     setPublicChars(data.characters || []);
   };
 
+  // 공식 캐릭터 로드 — 인증 불필요
+  const loadOfficialCharacters = async () => {
+    try {
+      const res = await fetch(`${API}/api/characters/official`);
+      if (!res.ok) return;
+      const data = await res.json();
+      // 서버는 user 필드만 줘서 PublicCharacter 형식과 약간 다름 — 정규화
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const list = (data.characters || []).map((c: any) => ({
+        id: c.id, name: c.name, appearance: c.appearance,
+        creatorName: c.user?.username || null,
+      })) as PublicCharacter[];
+      setOfficialChars(list);
+    } catch { /* ignore */ }
+  };
+
   useEffect(() => {
     // 운영자가 등록한 슬롯 로드 (공개 엔드포인트, 인증 불필요)
     fetch(`${API}/api/character-animations`)
@@ -841,6 +859,7 @@ export default function CharacterPage() {
       });
     loadCharacters().catch(() => {});
     loadPublicCharacters().catch(() => {});
+    loadOfficialCharacters().catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -1245,6 +1264,51 @@ export default function CharacterPage() {
               background: 'rgba(59,130,246,0.08)', borderRadius: 12,
               border: '1px solid rgba(59,130,246,0.2)',
             }}>
+              {/* 공식 캐릭터 섹션 — 운영자 등록 */}
+              {officialChars.length > 0 && (
+                <>
+                  <div style={{ color: '#fcd34d', fontSize: 11, marginBottom: 8, fontWeight: 700 }}>
+                    ⭐ 공식 캐릭터
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto', marginBottom: 14 }}>
+                    {officialChars.map((ch) => (
+                      <div key={ch.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        background: 'rgba(251,191,36,0.10)', borderRadius: 8, padding: '7px 8px',
+                        border: '1px solid rgba(251,191,36,0.25)',
+                      }}>
+                        <button
+                          onClick={() => applyCharacterToEditor({
+                            id: ch.id, name: ch.name,
+                            appearance: ch.appearance || {}, isActive: false,
+                          })}
+                          style={{
+                            flex: 1, border: 'none', background: 'transparent', color: '#fff',
+                            fontSize: 12, textAlign: 'left', cursor: 'pointer',
+                          }}>
+                          <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            ⭐ {ch.name}
+                          </div>
+                          <div style={{ fontSize: 10, opacity: 0.7 }}>공식</div>
+                        </button>
+                        <button
+                          onClick={() => handleImportCharacter(ch.id)}
+                          disabled={importingId === ch.id}
+                          style={{
+                            border: '1px solid rgba(251,191,36,0.55)',
+                            background: 'rgba(251,191,36,0.18)',
+                            color: '#fde68a',
+                            borderRadius: 8, fontSize: 11, fontWeight: 700,
+                            padding: '7px 8px', cursor: 'pointer', minWidth: 56,
+                          }}>
+                          {importingId === ch.id ? t('saving') : t('importCharacter')}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
               <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, marginBottom: 8 }}>
                 {t('sharedCharacters')}
               </div>
