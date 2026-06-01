@@ -743,14 +743,11 @@ export default function CharacterPage() {
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
   const [myChars, setMyChars]     = useState<MyCharacter[]>([]);
-  const [publicChars, setPublicChars] = useState<PublicCharacter[]>([]);
-  // 공식 캐릭터 (운영자가 등록) — 모든 유저에게 노출되는 후보
+  // 공식 캐릭터 (운영자가 등록) — 모델 피커에서 후보로 노출
   const [officialChars, setOfficialChars] = useState<PublicCharacter[]>([]);
-  const [publicQuery, setPublicQuery] = useState('');
   const [selectingId, setSelectingId] = useState('');
   const [deletingId, setDeletingId] = useState('');
   const [sharingId, setSharingId] = useState('');
-  const [importingId, setImportingId] = useState('');
   const [creatingNew, setCreatingNew] = useState(false);
 
   const setColor = (key: string) => (val: string) =>
@@ -841,18 +838,6 @@ export default function CharacterPage() {
     if (active) applyCharacterToEditor(active);
   };
 
-  const loadPublicCharacters = async (q = '') => {
-    const token = session.getToken();
-    if (!token) return;
-    const qs = q.trim() ? `?q=${encodeURIComponent(q.trim())}` : '';
-    const res = await fetch(`${API}/api/characters/public${qs}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) return;
-    const data = await res.json();
-    setPublicChars(data.characters || []);
-  };
-
   // 공식 캐릭터 로드 — 인증 불필요
   const loadOfficialCharacters = async () => {
     try {
@@ -883,16 +868,8 @@ export default function CharacterPage() {
         setOperatorSlots(['idle', 'walk', 'run', 'jump', 'crouch', 'prone']);
       });
     loadCharacters().catch(() => {});
-    loadPublicCharacters().catch(() => {});
     loadOfficialCharacters().catch(() => {});
   }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      loadPublicCharacters(publicQuery).catch(() => {});
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [publicQuery]);
 
   const handleSelectAsset = (asset: Asset) => {
     setModelUrl(asset.modelUrl);
@@ -1050,33 +1027,10 @@ export default function CharacterPage() {
         return;
       }
       await loadCharacters();
-      await loadPublicCharacters(publicQuery);
     } catch {
       setError(t('networkError'));
     } finally {
       setSharingId('');
-    }
-  };
-
-  const handleImportCharacter = async (id: string) => {
-    setImportingId(id);
-    setError('');
-    try {
-      const token = session.getToken();
-      const res = await fetch(`${API}/api/characters/import/${encodeURIComponent(id)}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        setError(d.error?.message || t('saveFailed'));
-        return;
-      }
-      await loadCharacters();
-    } catch {
-      setError(t('networkError'));
-    } finally {
-      setImportingId('');
     }
   };
 
@@ -1283,121 +1237,6 @@ export default function CharacterPage() {
                 </div>
               </div>
             )}
-
-            <div style={{
-              marginBottom: 16, padding: '12px 14px',
-              background: 'rgba(59,130,246,0.08)', borderRadius: 12,
-              border: '1px solid rgba(59,130,246,0.2)',
-            }}>
-              {/* 공식 캐릭터 섹션 — 운영자 등록 */}
-              {officialChars.length > 0 && (
-                <>
-                  <div style={{ color: '#fcd34d', fontSize: 11, marginBottom: 8, fontWeight: 700 }}>
-                    ⭐ 공식 캐릭터
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto', marginBottom: 14 }}>
-                    {officialChars.map((ch) => (
-                      <div key={ch.id} style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        background: 'rgba(251,191,36,0.10)', borderRadius: 8, padding: '7px 8px',
-                        border: '1px solid rgba(251,191,36,0.25)',
-                      }}>
-                        <button
-                          onClick={() => applyCharacterToEditor({
-                            id: ch.id, name: ch.name,
-                            appearance: ch.appearance || {}, isActive: false,
-                          })}
-                          style={{
-                            flex: 1, border: 'none', background: 'transparent', color: '#fff',
-                            fontSize: 12, textAlign: 'left', cursor: 'pointer',
-                          }}>
-                          <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            ⭐ {ch.name}
-                          </div>
-                          <div style={{ fontSize: 10, opacity: 0.7 }}>공식</div>
-                        </button>
-                        <button
-                          onClick={() => handleImportCharacter(ch.id)}
-                          disabled={importingId === ch.id}
-                          style={{
-                            border: '1px solid rgba(251,191,36,0.55)',
-                            background: 'rgba(251,191,36,0.18)',
-                            color: '#fde68a',
-                            borderRadius: 8, fontSize: 11, fontWeight: 700,
-                            padding: '7px 8px', cursor: 'pointer', minWidth: 56,
-                          }}>
-                          {importingId === ch.id ? t('saving') : t('importCharacter')}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, marginBottom: 8 }}>
-                {t('sharedCharacters')}
-              </div>
-              <input
-                value={publicQuery}
-                onChange={(e) => setPublicQuery(e.target.value)}
-                placeholder={t('sharedSearchPlaceholder')}
-                style={{
-                  width: '100%', boxSizing: 'border-box',
-                  background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
-                  borderRadius: 8, color: '#fff', fontSize: 12, padding: '7px 10px',
-                  outline: 'none', marginBottom: 8,
-                }}
-              />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 140, overflowY: 'auto' }}>
-                {publicChars.length === 0 && (
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{t('sharedEmpty')}</div>
-                )}
-                {publicChars.map((ch) => (
-                  <div
-                    key={ch.id}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '7px 8px',
-                    }}
-                  >
-                    <button
-                      onClick={() => applyCharacterToEditor({
-                        id: ch.id,
-                        name: ch.name,
-                        appearance: ch.appearance || {},
-                        isActive: false,
-                      })}
-                      style={{
-                        flex: 1, border: 'none', background: 'transparent', color: '#fff',
-                        fontSize: 12, textAlign: 'left', cursor: 'pointer',
-                      }}
-                    >
-                      <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ch.name}</div>
-                      <div style={{ fontSize: 10, opacity: 0.7 }}>
-                        {(ch.creatorName || t('unknownCreator'))}
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => handleImportCharacter(ch.id)}
-                      disabled={importingId === ch.id}
-                      style={{
-                        border: '1px solid rgba(16,185,129,0.45)',
-                        background: 'rgba(16,185,129,0.12)',
-                        color: '#a7f3d0',
-                        borderRadius: 8,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        padding: '7px 8px',
-                        cursor: 'pointer',
-                        minWidth: 56,
-                      }}
-                    >
-                      {importingId === ch.id ? t('saving') : t('importCharacter')}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
 
             {/* 이름 */}
             <div style={{ marginBottom: 16 }}>
