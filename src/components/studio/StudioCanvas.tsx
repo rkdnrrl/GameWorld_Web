@@ -6999,17 +6999,45 @@ export default function StudioCanvas() {
         onMouseUp={handleMarqueeUp}
         onMouseLeave={handleMarqueeUp}
         onDragOver={e => {
-          // 에셋·프리팹·씬 노드 드래그 모두 허용
+          // 에셋·프리팹·씬 노드 드래그 + OS .alp 파일 드롭 허용
           if (
             e.dataTransfer.types.includes('text/plain') ||
             e.dataTransfer.types.includes('application/x-alp-prefab') ||
-            e.dataTransfer.types.includes('sceneobjid')  // dataTransfer.types 는 소문자
+            e.dataTransfer.types.includes('sceneobjid') ||  // dataTransfer.types 는 소문자
+            e.dataTransfer.types.includes('Files')
           ) {
             e.preventDefault();
           }
         }}
         onDrop={e => {
           e.preventDefault();
+          // 0) OS 파일 드롭 — .alp / .alpmap.json 만 허용. 객체 merge.
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const file = Array.from(e.dataTransfer.files).find(f =>
+              /\.(alp|alpmap\.json)$/i.test(f.name));
+            if (file) {
+              file.text().then(text => {
+                let data;
+                try { data = JSON.parse(text); }
+                catch { alert('.alp 파일 파싱 실패 — JSON 형식이 아닙니다.'); return; }
+                if (data?.format !== 'alp-map') {
+                  alert('.alp 파일이 아닙니다. (format !== "alp-map")');
+                  return;
+                }
+                if (!Array.isArray(data.objects) || data.objects.length === 0) {
+                  alert('맵 파일에 오브젝트가 없습니다.');
+                  return;
+                }
+                window.dispatchEvent(new CustomEvent(MAP_APPLY_EVENT, {
+                  detail: { data, name: data.name || file.name },
+                }));
+              }).catch(err => {
+                alert('.alp 파일 읽기 실패: ' + (err?.message || err));
+              });
+              return;
+            }
+            // .alp 가 아닌 일반 파일 드롭은 무시 (FBX 등은 에셋 페이지에서 업로드)
+          }
           // 씬 노드 드래그 — 트리에서 뷰포트로 끌어다 놓으면 그 위치의 오브젝트의 자식으로 reparent.
           // (오브젝트 위가 아니라 빈 공간에 떨어지면 루트로 빼냄.)
           const sceneObjId = e.dataTransfer.getData('sceneObjId');
