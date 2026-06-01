@@ -163,12 +163,28 @@ export default function WorldPage() {
   }, [character, platformEmoteSlots, CORE_ANIM_SLOTS]);
 
   useEffect(() => {
+    // 견고한 redirect 헬퍼 — next-intl router 가 안 먹는 경우 window.location 으로 강제.
+    function goCharacter() {
+      console.log('[world] no active character → redirect /character');
+      try { router.replace('/character'); } catch {}
+      // safety net: 200ms 후에도 URL 안 바뀌면 강제
+      setTimeout(() => {
+        if (typeof window !== 'undefined' && window.location.pathname.includes('/world')) {
+          window.location.replace(window.location.pathname.replace(/\/world.*$/, '/character'));
+        }
+      }, 200);
+    }
+    function goHome() {
+      try { router.replace('/'); } catch {}
+      setTimeout(() => {
+        if (typeof window !== 'undefined' && window.location.pathname.includes('/world')) {
+          window.location.replace('/');
+        }
+      }, 200);
+    }
     async function load() {
       const token = session.getToken();
-      if (!token) {
-        router.replace('/');
-        return;
-      }
+      if (!token) { goHome(); return; }
 
       try {
         const [meRes, charRes] = await Promise.all([
@@ -176,29 +192,23 @@ export default function WorldPage() {
           fetch(`${API}/api/characters/me`, { headers: { Authorization: `Bearer ${token}` } }),
         ]);
 
-        if (!meRes.ok) {
-          router.replace('/');
-          return;
-        }
+        if (!meRes.ok) { goHome(); return; }
         const { id, nickname } = await meRes.json();
         setUserId(id);
         setUsername(nickname || 'player');
 
-        if (!charRes.ok) {
-          router.replace('/character');
-          return;
-        }
-        const { character: activeChar } = await charRes.json();
-        if (!activeChar) {
-          router.replace('/character');
-          return;
-        }
+        if (!charRes.ok) { goCharacter(); return; }
+        const charData = await charRes.json().catch(() => null);
+        const activeChar = charData?.character;
+        // null, undefined, 또는 id 없는 객체 모두 "없음" 으로 처리
+        if (!activeChar || !activeChar.id) { goCharacter(); return; }
 
         setCharacter(activeChar);
         setMyChars([activeChar]);
         setReady(true);
-      } catch {
-        router.replace('/');
+      } catch (e) {
+        console.error('[world] load failed:', e);
+        goHome();
       }
     }
     load();
