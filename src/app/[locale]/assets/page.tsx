@@ -718,6 +718,68 @@ export default function AssetsPage() {
               📜 새 스크립트 만들기 <span style={{ opacity: 0.5, fontSize: 11, fontWeight: 500 }}>(코드 직접 입력)</span>
             </button>
 
+            {/* 📂 .alp 맵 파일 가져오기 — AI 가 만들어준 .alp/.json 파일을 맵 에셋으로 업로드 */}
+            <input
+              ref={(el) => { (window as unknown as { __alpMapInput?: HTMLInputElement }).__alpMapInput = el || undefined; }}
+              type="file"
+              accept=".alp,.json,application/json"
+              style={{ display: 'none' }}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                e.currentTarget.value = '';
+                if (!file) return;
+                if (file.size > 2 * 1024 * 1024) { setError('파일이 2MB 를 초과합니다.'); return; }
+                try {
+                  const text = await file.text();
+                  const parsed = JSON.parse(text);
+                  // 포맷 검증 — alp-map 또는 objects 배열 존재
+                  if (parsed.format && parsed.format !== 'alp-map') {
+                    setError(`이 파일은 alp-map 포맷이 아닙니다 (format=${parsed.format}).`);
+                    return;
+                  }
+                  if (!Array.isArray(parsed.objects)) {
+                    setError('맵 파일에 objects 배열이 없습니다.');
+                    return;
+                  }
+                  const tok = token();
+                  if (!tok) { setError('로그인 필요'); return; }
+                  // 파일명에서 .alp/.json 떼고 에셋 이름으로
+                  const baseName = (parsed.name || file.name.replace(/\.(alp|alpmap\.json|json)$/i, '')).slice(0, 80);
+                  const { objects, env, terrain, description, icon } = parsed;
+                  await api.createMapAsset(tok, {
+                    name: baseName,
+                    data: { objects, env, terrain },
+                    icon: typeof icon === 'string' ? icon : '🗺',
+                    description: typeof description === 'string' ? description : '',
+                    folder: selectedFolder || undefined,
+                  });
+                  // 새로고침
+                  const r = await fetch(`${API}/api/assets/my`, { headers: { Authorization: `Bearer ${tok}` } });
+                  const d = await r.json();
+                  setAssets(d.assets || []);
+                  setError('');
+                } catch (err) {
+                  setError('가져오기 실패: ' + (err as Error).message);
+                }
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const inp = (window as unknown as { __alpMapInput?: HTMLInputElement }).__alpMapInput;
+                inp?.click();
+              }}
+              style={{
+                width: '100%', marginBottom: 14, padding: '11px 16px',
+                background: 'linear-gradient(135deg, rgba(16,185,129,0.18), rgba(6,182,212,0.18))',
+                border: '1px dashed rgba(6,182,212,0.55)', borderRadius: 12,
+                color: '#a5f3fc', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}
+            >
+              🗺 맵 파일 가져오기 <span style={{ opacity: 0.5, fontSize: 11, fontWeight: 500 }}>(.alp / .json)</span>
+            </button>
+
             {scriptEditorOpen && (
               <ScriptAssetEditor
                 open={true}

@@ -396,6 +396,15 @@ export interface ScriptAssetInput {
   folder?: string;
 }
 
+export interface MapAssetInput {
+  name: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: { objects: any[]; env?: any; terrain?: any; [k: string]: any };
+  icon?: string;
+  description?: string;
+  folder?: string;
+}
+
 export const api = {
   /** 스크립트 asset 생성 (파일 X, 코드 텍스트만) */
   createScriptAsset(token: string, input: ScriptAssetInput) {
@@ -407,6 +416,20 @@ export const api = {
   /** 스크립트 asset 코드/메타 업데이트 (본인만) */
   updateScriptAsset(token: string, id: string, patch: Partial<ScriptAssetInput>) {
     return request<{ asset: unknown }>(`/api/assets/${encodeURIComponent(id)}/script`, {
+      method: "PATCH", headers: authHeaders(token),
+      body: JSON.stringify(patch),
+    });
+  },
+  /** 맵 스냅샷 asset 생성 (파일 X, JSON 데이터만) — data: { objects, env, ... } */
+  createMapAsset(token: string, input: MapAssetInput) {
+    return request<{ asset: unknown }>("/api/assets/map", {
+      method: "POST", headers: authHeaders(token),
+      body: JSON.stringify(input),
+    });
+  },
+  /** 맵 asset 데이터/메타 업데이트 (본인만) */
+  updateMapAsset(token: string, id: string, patch: Partial<MapAssetInput>) {
+    return request<{ asset: unknown }>(`/api/assets/${encodeURIComponent(id)}/map`, {
       method: "PATCH", headers: authHeaders(token),
       body: JSON.stringify(patch),
     });

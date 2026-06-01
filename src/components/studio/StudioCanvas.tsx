@@ -31,6 +31,7 @@ import StudioTopBar from './StudioTopBar';
 import StudioShortcutsModal from './StudioShortcutsModal';
 import ScriptComponentsModal from './ScriptComponentsModal';
 import ScriptAssetEditor from '@/components/assets/ScriptAssetEditor';
+import { MAP_APPLY_EVENT } from '@/lib/assets/kinds/map';
 import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, type ComponentInstance, type ComponentType } from '@/lib/world/components';
 import { Player, type PlayerControl } from '@/components/world/WorldCanvas';
 
@@ -3999,6 +4000,37 @@ export default function StudioCanvas() {
       .then(d => setMyAssets(d.assets || []))
       .catch(() => {});
   }, []);
+
+  /* 맵 에셋 "현재 맵에 추가" — kinds/map.tsx 의 Preview 가 dispatch 하는 이벤트 listen.
+     id 재생성 + parentId 매핑 + 현재 objects 끝에 append. 환경/HDRI/지형은 유지. */
+  useEffect(() => {
+    const handler = (e: Event) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const detail = (e as CustomEvent).detail as { data?: any; name?: string };
+      const data = detail?.data;
+      if (!data || !Array.isArray(data.objects) || data.objects.length === 0) return;
+      // id 재생성 — 충돌 방지. parentId 도 새 id 로 매핑. (기존 패턴 `obj_${ts}_…`)
+      const stamp = Date.now();
+      const mkId = (i: number) => `obj_${stamp}_${i.toString(36)}_${Math.random().toString(36).slice(2, 5)}`;
+      const idMap = new Map<string, string>();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const src = data.objects as any[];
+      src.forEach((o, i) => { if (typeof o.id === 'string') idMap.set(o.id, mkId(i)); });
+      const merged: MapObject[] = src.map((o, i) => {
+        const newId = idMap.get(o.id) || mkId(i);
+        const newParent = (o.parentId && idMap.get(o.parentId)) || null;
+        return { ...o, id: newId, parentId: newParent } as MapObject;
+      });
+      setObjects(prev => {
+        const next = [...prev, ...merged];
+        pushHistory(next);
+        return next;
+      });
+      console.log(`[map asset] merged ${merged.length} objects from "${detail?.name || 'untitled'}"`);
+    };
+    window.addEventListener(MAP_APPLY_EVENT, handler);
+    return () => window.removeEventListener(MAP_APPLY_EVENT, handler);
+  }, [pushHistory]);
 
   useEffect(() => {
     if (!token()) return;
