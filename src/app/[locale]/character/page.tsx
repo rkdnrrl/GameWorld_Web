@@ -27,7 +27,6 @@ interface MyCharacter {
   appearance: Record<string, unknown>;
   isActive: boolean;
   isPublic?: boolean;
-  isOfficial?: boolean;
   shareSlug?: string | null;
   updatedAt?: string;
 }
@@ -1197,25 +1196,23 @@ export default function CharacterPage() {
                           {selectingId === ch.id ? t('saving') : (ch.isActive ? t('activeCharacter') : t('selectCharacter'))}
                         </span>
                       </button>
-                      {!ch.isOfficial && (
-                        <button
-                          onClick={() => handleDeleteCharacter(ch.id)}
-                          disabled={deletingId === ch.id || selectingId === ch.id}
-                          style={{
-                            border: '1px solid rgba(239,68,68,0.45)',
-                            background: 'rgba(239,68,68,0.15)',
-                            color: '#fecaca',
-                            borderRadius: 8,
-                            fontSize: 11,
-                            fontWeight: 700,
-                            padding: '8px 8px',
-                            cursor: 'pointer',
-                            minWidth: 44,
-                          }}
-                        >
-                          {deletingId === ch.id ? t('saving') : t('deleteCharacter')}
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleDeleteCharacter(ch.id)}
+                        disabled={deletingId === ch.id || selectingId === ch.id}
+                        style={{
+                          border: '1px solid rgba(239,68,68,0.45)',
+                          background: 'rgba(239,68,68,0.15)',
+                          color: '#fecaca',
+                          borderRadius: 8,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: '8px 8px',
+                          cursor: 'pointer',
+                          minWidth: 44,
+                        }}
+                      >
+                        {deletingId === ch.id ? t('saving') : t('deleteCharacter')}
+                      </button>
                       <button
                         onClick={() => handleToggleShareCharacter(ch.id, !!ch.isPublic)}
                         disabled={sharingId === ch.id || deletingId === ch.id || selectingId === ch.id}
