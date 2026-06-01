@@ -1462,6 +1462,22 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
     );
   }
 
+  // Terrain — heightmap 기반 지면. 에디트 모드에서도 실제 지형으로 렌더 (시뮬 모드와 동일).
+  // 데이터에 obj.terrain 이 없으면 (마이그레이션 안 된 옛 데이터) 렌더 X — null 반환.
+  if (obj.kind === 'terrain') {
+    if (!obj.terrain) return null;
+    return (
+      <group
+        position={noTransform ? undefined : obj.position}
+        rotation={noTransform ? undefined : obj.rotation}
+        scale={noTransform ? undefined : obj.scale}
+        onPointerDown={handle}
+        userData={noTransform ? undefined : { id: obj.id }}>
+        <TerrainMesh terrain={obj.terrain} selected={selected} castShadow={false} receiveShadow />
+      </group>
+    );
+  }
+
   const geometry =
     obj.kind === 'sphere'   ? <sphereGeometry args={[0.5, 24, 16]} /> :
     obj.kind === 'cylinder' ? <cylinderGeometry args={[0.5, 0.5, 1, 16]} /> :
