@@ -2063,11 +2063,13 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
   if (obj.kind === 'ui') return null;
 
   // Terrain — heightmap 기반 지면 (시뮬 모드). 위치/회전/크기는 transforms 의 t.
+  // 물리: trimesh auto-collider — TerrainMesh 의 실제 geometry 로 정확한 충돌. fixed body.
   if (obj.kind === 'terrain' && obj.terrain) {
     return (
-      <group position={t.pos} rotation={t.rot} scale={t.scl ?? obj.scale}>
+      <RigidBody ref={bodyRef} type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
+        position={t.pos} rotation={t.rot} scale={t.scl ?? obj.scale}>
         <TerrainMesh terrain={obj.terrain} castShadow={false} receiveShadow />
-      </group>
+      </RigidBody>
     );
   }
 

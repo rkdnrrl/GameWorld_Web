@@ -2070,12 +2070,13 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
   const rPos = world?.position ?? obj.position;
   const rRot = world?.rotation ?? obj.rotation;
   const rScale = world?.scale ?? obj.scale;
-  // Terrain — heightmap 기반 지면. 물리는 Phase 4 (Rapier Heightfield). 일단 시각만.
+  // Terrain — heightmap 기반 지면. 물리: trimesh auto-collider (TerrainMesh 의 실제 geometry).
   if (obj.kind === 'terrain' && obj.terrain) {
     return (
-      <group position={rPos} rotation={rRot} scale={rScale}>
+      <RigidBody type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
+        position={rPos} rotation={rRot} scale={rScale}>
         <TerrainMesh terrain={obj.terrain} castShadow={false} receiveShadow />
-      </group>
+      </RigidBody>
     );
   }
   // 물리 모드 결정 — Physics 컴포넌트 우선, 없으면 레거시 obj.physics 필드.
