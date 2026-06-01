@@ -74,7 +74,11 @@ export default function AssetBrowsePage() {
   const kindSel = searchParams.get('kind') || '';
   const tagSel  = searchParams.get('tag') || '';
   const sort    = (searchParams.get('sort') || 'popular') as 'recent' | 'name' | 'popular';
-  const tab     = (searchParams.get('tab') || 'assets') as 'assets' | 'packs';
+  const tab     = (searchParams.get('tab') || 'assets') as 'assets' | 'packs' | 'characters';
+  // 캐릭터 마켓 — public + official
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [charList, setCharList] = useState<any[]>([]);
+  const [charLoading, setCharLoading] = useState(false);
   const [qInput, setQInput] = useState(q);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -134,6 +138,32 @@ export default function AssetBrowsePage() {
       setLoading(false);
     }
   }
+
+  // 캐릭터 탭 로드 — official + public 합쳐서
+  useEffect(() => {
+    if (tab !== 'characters') return;
+    setCharLoading(true);
+    const tk = session.getToken();
+    const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
+    Promise.all([
+      fetch(`${API}/api/characters/official`).then(r => r.ok ? r.json() : { characters: [] }).catch(() => ({ characters: [] })),
+      tk ? fetch(`${API}/api/characters/public`, { headers: { Authorization: `Bearer ${tk}` } }).then(r => r.ok ? r.json() : { characters: [] }).catch(() => ({ characters: [] })) : Promise.resolve({ characters: [] }),
+    ]).then(([off, pub]) => {
+      const officialIds = new Set((off.characters || []).map((c: { id: string }) => c.id));
+      const merged = [
+        ...(off.characters || []).map((c: { id: string; name: string; appearance: unknown; user?: { username?: string } }) => ({
+          ...c, creatorName: 'ALP', isOfficial: true,
+        })),
+        // public 에 있지만 official 에 없는 것만 추가 (중복 방지)
+        ...(pub.characters || []).filter((c: { id: string }) => !officialIds.has(c.id)),
+      ];
+      // 검색 필터
+      const filtered = q.trim()
+        ? merged.filter(c => c.name?.toLowerCase().includes(q.toLowerCase()))
+        : merged;
+      setCharList(filtered);
+    }).finally(() => setCharLoading(false));
+  }, [tab, q]);
 
   // 팩 탭 로드
   useEffect(() => {
@@ -334,6 +364,7 @@ export default function AssetBrowsePage() {
             <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: 4, gap: 4 }}>
               <SegBtn active={tab === 'assets'} onClick={() => setQuery({ tab: null })}>🎲 {t('tabAssets')}</SegBtn>
               <SegBtn active={tab === 'packs'} onClick={() => setQuery({ tab: 'packs' })}>📦 {t('tabPacks')}</SegBtn>
+              <SegBtn active={tab === 'characters'} onClick={() => setQuery({ tab: 'characters' })}>🏃 캐릭터</SegBtn>
             </div>
 
             {/* 카테고리 (에셋 탭 전용) */}
@@ -411,8 +442,41 @@ export default function AssetBrowsePage() {
               </div>
             )}
 
-            {/* 그리드 — 탭에 따라 분기 */}
-            {tab === 'assets' ? (
+            {/* 캐릭터 탭 — 본문 */}
+            {tab === 'characters' && (
+              <>
+                {charList.length === 0 && !charLoading ? (
+                  <div style={{ textAlign: 'center', opacity: 0.4, padding: '60px 0', fontSize: 14 }}>
+                    공개된 캐릭터가 없습니다.
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 14 }}>
+                    {charList.map(ch => (
+                      <Link key={ch.id} href={`/character?import=${ch.id}`}
+                        style={{
+                          background: ch.isOfficial ? 'rgba(251,191,36,0.08)' : 'rgba(255,255,255,0.04)',
+                          border: '1px solid ' + (ch.isOfficial ? 'rgba(251,191,36,0.35)' : 'rgba(255,255,255,0.08)'),
+                          borderRadius: 12, padding: 12, color: '#fff', textDecoration: 'none',
+                          display: 'flex', flexDirection: 'column', gap: 8, transition: 'border-color 0.15s',
+                        }}>
+                        <div style={{ aspectRatio: '1', background: 'linear-gradient(135deg,#1e293b,#0f172a)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40 }}>
+                          {ch.isOfficial ? '⭐' : '🏃'}
+                        </div>
+                        <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {ch.name}
+                        </div>
+                        <div style={{ fontSize: 11, color: ch.isOfficial ? '#fcd34d' : 'rgba(255,255,255,0.6)' }}>
+                          {ch.isOfficial ? '⭐ ALP' : (ch.user?.username || ch.creatorName || '익명')}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* 그리드 — 탭에 따라 분기 (캐릭터 탭은 위에서 처리됨) */}
+            {tab !== 'characters' && (tab === 'assets' ? (
               <>
                 {assets.length === 0 && !loading ? (
                   <div style={{ textAlign: 'center', opacity: 0.4, padding: '60px 0', fontSize: 14 }}>
@@ -488,7 +552,7 @@ export default function AssetBrowsePage() {
                   </div>
                 )}
               </>
-            )}
+            ))}
           </main>
         </div>
       </div>
