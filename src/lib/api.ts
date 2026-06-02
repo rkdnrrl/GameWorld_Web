@@ -1147,6 +1147,71 @@ export const api = {
     );
   },
 
+  // ─── 친구 시스템 (Phase 16) ───────────────────────────────────────────────
+  /** 친구 신청 보내기 */
+  sendFriendRequest(token: string, receiverId: string) {
+    return request<{ friendship: { id: string; status: string } }>(
+      "/api/friends/request",
+      { method: "POST", headers: authHeaders(token), body: JSON.stringify({ receiverId }) },
+    );
+  },
+  /** 받은 신청 수락 */
+  acceptFriendRequest(token: string, friendshipId: string) {
+    return request<{ friendship: { id: string; status: string } }>(
+      `/api/friends/${friendshipId}/accept`,
+      { method: "POST", headers: authHeaders(token) },
+    );
+  },
+  /** 받은 신청 거절 */
+  rejectFriendRequest(token: string, friendshipId: string) {
+    return request<{ ok: true }>(
+      `/api/friends/${friendshipId}/reject`,
+      { method: "POST", headers: authHeaders(token) },
+    );
+  },
+  /** 보낸 신청 취소 */
+  cancelFriendRequest(token: string, friendshipId: string) {
+    return request<{ ok: true }>(
+      `/api/friends/request/${friendshipId}`,
+      { method: "DELETE", headers: authHeaders(token) },
+    );
+  },
+  /** 친구 끊기 */
+  removeFriend(token: string, userId: string) {
+    return request<{ ok: true }>(
+      `/api/friends/${userId}`,
+      { method: "DELETE", headers: authHeaders(token) },
+    );
+  },
+  /** 친구 목록 */
+  listFriends(token: string) {
+    return request<{ friends: Array<{ friendshipId: string; since: string; friend: { id: string; username: string; profileImageUrl: string | null; bio: string | null } }> }>(
+      "/api/friends",
+      { headers: authHeaders(token) },
+    );
+  },
+  /** 받은 신청 */
+  listFriendRequestsReceived(token: string) {
+    return request<{ requests: Array<{ friendshipId: string; createdAt: string; from: { id: string; username: string; profileImageUrl: string | null; bio: string | null } }> }>(
+      "/api/friends/pending",
+      { headers: authHeaders(token) },
+    );
+  },
+  /** 보낸 신청 */
+  listFriendRequestsSent(token: string) {
+    return request<{ requests: Array<{ friendshipId: string; createdAt: string; to: { id: string; username: string; profileImageUrl: string | null; bio: string | null } }> }>(
+      "/api/friends/sent",
+      { headers: authHeaders(token) },
+    );
+  },
+  /** 관계 상태 확인 */
+  checkFriendship(token: string, userId: string) {
+    return request<{ state: "self" | "none" | "pending_sent" | "pending_received" | "accepted" | "blocked"; friendshipId?: string }>(
+      `/api/friends/check/${userId}`,
+      { headers: authHeaders(token) },
+    );
+  },
+
   /** 알림 목록 */
   listNotifications(token: string, params: { page?: number } = {}) {
     const sp = new URLSearchParams();

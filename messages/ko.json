@@ -2026,5 +2026,27 @@
     "navCharacter": "캐릭터",
     "navStudio": "스튜디오",
     "navWorlds": "월드"
+  },
+  "Friends": {
+    "title": "친구",
+    "subtitle": "친구 신청을 주고받고 친구 목록을 관리합니다.",
+    "tabFriends": "친구",
+    "tabReceived": "받은 신청",
+    "tabSent": "보낸 신청",
+    "emptyFriends": "아직 친구가 없어요. 다른 유저 프로필에서 친구 신청을 보내보세요.",
+    "emptyReceived": "받은 친구 신청이 없습니다.",
+    "emptySent": "보낸 친구 신청이 없습니다.",
+    "btnAddFriend": "친구 추가",
+    "btnPending": "신청 보냄",
+    "btnAccept": "수락",
+    "btnReject": "거절",
+    "btnCancel": "취소",
+    "btnRemove": "친구 끊기",
+    "btnFriend": "친구",
+    "confirmRemove": "정말 친구를 끊으시겠어요?",
+    "friendSince": "{date}부터 친구",
+    "loginRequired": "로그인이 필요합니다.",
+    "loading": "불러오는 중…",
+    "blocked": "차단됨"
   }
 }

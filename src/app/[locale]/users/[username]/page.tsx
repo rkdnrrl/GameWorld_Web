@@ -24,16 +24,22 @@ interface MarketAsset extends Asset {
 }
 
 interface UserProfile {
+  id: string;
   username: string;
   joinedAt: string;
+  bio: string | null;
+  profileImageUrl: string | null;
   publicCount: number;
   likesTotal: number;
   importsTotal: number;
   followerCount: number;
   followingCount: number;
+  friendCount: number;
   isFollowing: boolean;
   isMe: boolean;
 }
+
+type FriendState = 'self' | 'none' | 'pending_sent' | 'pending_received' | 'accepted' | 'blocked';
 
 const PAGE_SIZE = 40;
 
@@ -80,6 +86,48 @@ export default function UserPage({ params }: { params: Promise<{ username: strin
       .catch(e => setProfileError(e instanceof ApiError ? e.message : 'load failed'));
     api.listAssetKinds().then(d => setKinds(d.kinds)).catch(() => {});
   }, [username]);
+
+  // 친구 관계 상태 (Phase 16)
+  const [friendState, setFriendState] = useState<FriendState>('none');
+  const [friendshipId, setFriendshipId] = useState<string | undefined>();
+  const [friendBusy, setFriendBusy] = useState(false);
+  const tFriends = useTranslations('Friends');
+
+  useEffect(() => {
+    if (!profile || profile.isMe) return;
+    const tk = session.getToken();
+    if (!tk) return;
+    api.checkFriendship(tk, profile.id)
+      .then(d => { setFriendState(d.state); setFriendshipId(d.friendshipId); })
+      .catch(() => {});
+  }, [profile?.id, profile?.isMe]);
+
+  async function onFriendAction() {
+    if (!profile || profile.isMe || friendBusy) return;
+    const tk = session.getToken();
+    if (!tk) { router.push('/login'); return; }
+    setFriendBusy(true);
+    try {
+      if (friendState === 'none') {
+        await api.sendFriendRequest(tk, profile.id);
+        setFriendState('pending_sent');
+      } else if (friendState === 'pending_sent' && friendshipId) {
+        await api.cancelFriendRequest(tk, friendshipId);
+        setFriendState('none'); setFriendshipId(undefined);
+      } else if (friendState === 'pending_received' && friendshipId) {
+        await api.acceptFriendRequest(tk, friendshipId);
+        setFriendState('accepted');
+      } else if (friendState === 'accepted') {
+        if (!confirm(tFriends('confirmRemove'))) return;
+        await api.removeFriend(tk, profile.id);
+        setFriendState('none'); setFriendshipId(undefined);
+      }
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'friend action failed');
+    } finally {
+      setFriendBusy(false);
+    }
+  }
 
   const [followBusy, setFollowBusy] = useState(false);
   async function toggleFollow() {
@@ -228,18 +276,43 @@ export default function UserPage({ params }: { params: Promise<{ username: strin
             </div>
 
             {profile && !profile.isMe && (
-              <button
-                onClick={toggleFollow}
-                disabled={followBusy}
-                style={{
-                  fontSize: 13, fontWeight: 700, cursor: followBusy ? 'default' : 'pointer',
-                  padding: '8px 20px', border: 'none', borderRadius: 8,
-                  background: profile.isFollowing ? 'rgba(255,255,255,0.08)' : '#6366f1',
-                  color: profile.isFollowing ? 'rgba(255,255,255,0.8)' : '#fff',
-                  opacity: followBusy ? 0.6 : 1,
-                }}>
-                {followBusy ? '…' : profile.isFollowing ? '✓ ' + t('following') : '+ ' + t('follow')}
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={toggleFollow}
+                  disabled={followBusy}
+                  style={{
+                    fontSize: 13, fontWeight: 700, cursor: followBusy ? 'default' : 'pointer',
+                    padding: '8px 20px', border: 'none', borderRadius: 8,
+                    background: profile.isFollowing ? 'rgba(255,255,255,0.08)' : '#6366f1',
+                    color: profile.isFollowing ? 'rgba(255,255,255,0.8)' : '#fff',
+                    opacity: followBusy ? 0.6 : 1,
+                  }}>
+                  {followBusy ? '…' : profile.isFollowing ? '✓ ' + t('following') : '+ ' + t('follow')}
+                </button>
+                <button
+                  onClick={onFriendAction}
+                  disabled={friendBusy || friendState === 'blocked'}
+                  style={{
+                    fontSize: 13, fontWeight: 700, cursor: friendBusy ? 'default' : 'pointer',
+                    padding: '8px 20px', border: 'none', borderRadius: 8,
+                    background:
+                      friendState === 'accepted' ? 'rgba(34,197,94,0.18)' :
+                      friendState === 'pending_received' ? '#22c55e' :
+                      friendState === 'pending_sent' ? 'rgba(255,255,255,0.08)' :
+                      friendState === 'blocked' ? 'rgba(255,255,255,0.05)' : '#22c55e',
+                    color:
+                      friendState === 'accepted' ? '#86efac' :
+                      friendState === 'pending_sent' || friendState === 'blocked' ? 'rgba(255,255,255,0.6)' : '#fff',
+                    opacity: friendBusy ? 0.6 : 1,
+                  }}>
+                  {friendBusy ? '…'
+                    : friendState === 'accepted' ? '✓ ' + tFriends('btnFriend')
+                    : friendState === 'pending_sent' ? tFriends('btnPending')
+                    : friendState === 'pending_received' ? tFriends('btnAccept')
+                    : friendState === 'blocked' ? tFriends('blocked')
+                    : '+ ' + tFriends('btnAddFriend')}
+                </button>
+              </div>
             )}
 
             <Link href="/assets/browse" style={{

@@ -2026,5 +2026,27 @@
     "navCharacter": "Character",
     "navStudio": "Studio",
     "navWorlds": "Worlds"
+  },
+  "Friends": {
+    "title": "Friends",
+    "subtitle": "Send and receive friend requests, manage your friend list.",
+    "tabFriends": "Friends",
+    "tabReceived": "Received",
+    "tabSent": "Sent",
+    "emptyFriends": "No friends yet. Visit other profiles to send a request.",
+    "emptyReceived": "No incoming friend requests.",
+    "emptySent": "No outgoing friend requests.",
+    "btnAddFriend": "Add Friend",
+    "btnPending": "Request Sent",
+    "btnAccept": "Accept",
+    "btnReject": "Reject",
+    "btnCancel": "Cancel",
+    "btnRemove": "Unfriend",
+    "btnFriend": "Friend",
+    "confirmRemove": "Are you sure you want to unfriend?",
+    "friendSince": "Friends since {date}",
+    "loginRequired": "Login required.",
+    "loading": "Loading…",
+    "blocked": "Blocked"
   }
 }

@@ -2026,5 +2026,27 @@
     "navCharacter": "角色",
     "navStudio": "工作室",
     "navWorlds": "世界"
+  },
+  "Friends": {
+    "title": "好友",
+    "subtitle": "发送和接收好友请求,管理好友列表。",
+    "tabFriends": "好友",
+    "tabReceived": "收到的请求",
+    "tabSent": "发送的请求",
+    "emptyFriends": "还没有好友。访问其他用户的个人资料发送请求。",
+    "emptyReceived": "没有收到的好友请求。",
+    "emptySent": "没有发送的好友请求。",
+    "btnAddFriend": "添加好友",
+    "btnPending": "请求已发送",
+    "btnAccept": "接受",
+    "btnReject": "拒绝",
+    "btnCancel": "取消",
+    "btnRemove": "解除好友",
+    "btnFriend": "好友",
+    "confirmRemove": "确定要解除好友关系吗?",
+    "friendSince": "自 {date} 起为好友",
+    "loginRequired": "需要登录。",
+    "loading": "加载中…",
+    "blocked": "已屏蔽"
   }
 }

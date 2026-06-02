@@ -2026,5 +2026,27 @@
     "navCharacter": "キャラクター",
     "navStudio": "スタジオ",
     "navWorlds": "ワールド"
+  },
+  "Friends": {
+    "title": "フレンド",
+    "subtitle": "フレンド申請の送受信とフレンドリストの管理。",
+    "tabFriends": "フレンド",
+    "tabReceived": "受信した申請",
+    "tabSent": "送信した申請",
+    "emptyFriends": "まだフレンドがいません。他のユーザーのプロフィールから申請しましょう。",
+    "emptyReceived": "受信したフレンド申請はありません。",
+    "emptySent": "送信したフレンド申請はありません。",
+    "btnAddFriend": "フレンド追加",
+    "btnPending": "申請中",
+    "btnAccept": "承認",
+    "btnReject": "拒否",
+    "btnCancel": "取消",
+    "btnRemove": "フレンド解除",
+    "btnFriend": "フレンド",
+    "confirmRemove": "本当にフレンドを解除しますか？",
+    "friendSince": "{date} からフレンド",
+    "loginRequired": "ログインが必要です。",
+    "loading": "読み込み中…",
+    "blocked": "ブロック中"
   }
 }
