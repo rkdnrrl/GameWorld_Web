@@ -75,6 +75,8 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
   const micStreamRef   = useRef<MediaStream | null>(null);
   // 원격 peer 들 (userId → 정보)
   const remotesRef     = useRef<Map<string, RemotePeerInfo>>(new Map());
+  /** session 시작 전에 받은 voice_track 메시지를 버퍼링 — session ready 되면 pull */
+  const pendingTracksRef = useRef<Map<string, { sessionId: string; trackName: string }>>(new Map());
   // mid 별 audio track (ontrack 받은 거)
   const tracksByMidRef = useRef<Map<string, MediaStreamTrack>>(new Map());
   // 공용 AudioContext
@@ -307,6 +309,7 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
       remotesRef.current.forEach((_, id) => cleanupRemote(id));
       remotesRef.current.clear();
       tracksByMidRef.current.clear();
+      pendingTracksRef.current.clear();
       broadcastMyTrack(false);
       setStatus('idle');
       return;
@@ -369,8 +372,13 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
         return prev;
       });
       if (m.mic && m.sessionId && m.trackName) {
-        if (enabled) pullRemoteTrack(m.fromId, m.sessionId, m.trackName);
+        // 캐싱 — session 시작 전에 받았으면 나중에 처리
+        pendingTracksRef.current.set(m.fromId, { sessionId: m.sessionId, trackName: m.trackName });
+        if (enabled && sessionIdRef.current) {
+          pullRemoteTrack(m.fromId, m.sessionId, m.trackName);
+        }
       } else {
+        pendingTracksRef.current.delete(m.fromId);
         cleanupRemote(m.fromId);
       }
     };
@@ -386,10 +394,21 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
     }
   }, [peerIds, cleanupRemote]);
 
-  /** 새 peer 가 입장하면 — 내 trackId 다시 broadcast (그들이 pull 할 수 있게) */
+  /** 새 peer 가 입장하면 — talk 중일 때만 내 trackId 다시 broadcast */
   useEffect(() => {
     if (enabled && status === 'ready') broadcastMyTrack(true);
   }, [peerIds, enabled, status, broadcastMyTrack]);
+
+  /** session 준비됐을 때 캐시된 voice_track 들을 일괄 pull */
+  useEffect(() => {
+    if (!enabled || (status !== 'ready' && status !== 'listening')) return;
+    if (!sessionIdRef.current) return;
+    pendingTracksRef.current.forEach((info, peerId) => {
+      if (!remotesRef.current.has(peerId)) {
+        pullRemoteTrack(peerId, info.sessionId, info.trackName);
+      }
+    });
+  }, [enabled, status, pullRemoteTrack, peerIds]);
 
   /** 3D 위치 업데이트 RAF */
   useEffect(() => {
