@@ -139,7 +139,7 @@ type OrbitRef = any;
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
 /* ── 데이터 모델 ───────────────────────────── */
-type ObjectKind = 'cube' | 'sphere' | 'cylinder' | 'plane' | 'asset' | 'pointlight' | 'spotlight' | 'dirlight' | 'spawn' | 'empty' | 'ui' | 'terrain' | 'sound' | 'portal' | 'water' | 'particle';
+import type { ObjectKind } from '@/lib/world/objectKinds';
 
 type MaterialPreset = 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 'plastic' | 'emissive';
 
