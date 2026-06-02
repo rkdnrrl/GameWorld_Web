@@ -1,43 +1,47 @@
 "use client";
 
 /**
- * PostHog 클라이언트 초기화 — 클라이언트 컴포넌트 useEffect 로 직접 init.
+ * PostHog 클라이언트 초기화 + Next.js App Router SPA 라우팅 추적.
  *
- * Sentry 와 같은 패턴: env var 미설정 시 no-op, 동적 import 로 첫 페인트 비차단.
- *
- * 자동 추적:
- *   - 페이지뷰 (autocapture)
- *   - 클릭·input (autocapture)
- *   - 세션 리플레이는 비활성 (프라이버시·용량)
- *
- * 수동 이벤트는 useEffect 안 또는 별도 헬퍼에서:
- *   import posthog from "posthog-js";
- *   posthog.capture("character_created", { characterName });
+ * App Router 의 router.push 는 일반 페이지 로드가 아니라 history.pushState 만
+ * 발생시켜서 PostHog autocapture 가 종종 놓침. usePathname 으로 직접 감지해
+ * 수동으로 $pageview 발생.
  */
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
+import type { PostHog } from "posthog-js";
 
 export default function PostHogInit() {
+  const pathname = usePathname();
+  const phRef = useRef<PostHog | null>(null);
+
+  // 1) SDK 1회 init
   useEffect(() => {
     const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
     if (!key) return;
 
-    // 절대 URL 로 — PostHog 가 leading slash 처리하면서 locale 경로(/ko)가 끼는 문제 회피.
-    const apiHost = typeof window !== "undefined"
-      ? `${window.location.origin}/ingest`
-      : "/ingest";
+    // 절대 URL — PostHog 가 leading slash 처리하면서 locale 경로(/ko)가 끼는 문제 회피.
+    const apiHost = `${window.location.origin}/ingest`;
 
     import("posthog-js").then(({ default: posthog }) => {
       posthog.init(key, {
-        // 리버스 프록시 — 광고차단기 우회. next.config.ts 의 /ingest 리라이트와 짝.
         api_host: apiHost,
         ui_host: "https://us.posthog.com",
-        person_profiles: "identified_only",  // 로그인 유저만 프로필 생성 (비용 절감)
-        capture_pageview: true,
+        person_profiles: "identified_only",
+        capture_pageview: false,            // 수동 처리 (App Router 호환)
         capture_pageleave: true,
-        disable_session_recording: true,     // 세션 리플레이 끔
+        disable_session_recording: true,
       });
+      phRef.current = posthog;
+      posthog.capture("$pageview");         // 첫 진입 페이지뷰
     });
   }, []);
+
+  // 2) 라우트 변경 시마다 페이지뷰 캡처
+  useEffect(() => {
+    if (!phRef.current || !pathname) return;
+    phRef.current.capture("$pageview");
+  }, [pathname]);
 
   return null;
 }
