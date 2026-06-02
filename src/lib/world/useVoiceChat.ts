@@ -113,7 +113,9 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
     // mic 있으면 sendonly, 없으면 recvonly (listen-only)
     let transceiver: RTCRtpTransceiver | null = null;
     if (micStream) {
-      const micTrack = micStream.getAudioTracks()[0];
+      // RNNoise 노이즈 제거 시도 (실패해도 raw track 사용)
+      const cleanedTrack = await applyNoiseSuppression(micStream).catch(() => null);
+      const micTrack = cleanedTrack || micStream.getAudioTracks()[0];
       if (!micTrack) throw new Error('no mic track');
       transceiver = pc.addTransceiver(micTrack, { direction: 'sendonly' });
 
@@ -352,13 +354,19 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
       setStatus('requesting');
       navigator.mediaDevices.getUserMedia({
         audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 48000,     // 48kHz HD 음성
-          sampleSize: 16,
-          channelCount: 1,        // mono (PannerNode HRTF 호환)
-        },
+          echoCancellation: { ideal: true },
+          noiseSuppression: { ideal: true },
+          autoGainControl: { ideal: true },
+          sampleRate: { ideal: 48000 },
+          sampleSize: { ideal: 16 },
+          channelCount: { ideal: 1 },
+          // Chrome 전용 — 지원 안 하는 브라우저는 무시
+          googEchoCancellation: true,
+          googAutoGainControl: true,
+          googNoiseSuppression: true,
+          googHighpassFilter: true,
+          googTypingNoiseDetection: true,
+        } as MediaTrackConstraints,
         video: false,
       }).then(startWithStream).catch(err => {
         if (cancelled) return;
@@ -548,4 +556,43 @@ function enhanceOpusSdp(sdp: string): string {
     lines[fmtpIdx] = fmtpPrefix + merged;
   }
   return lines.join('\r\n');
+}
+
+/**
+ * RNNoise(WASM) 로 마이크 스트림 잡음 제거. 디스코드 수준 음성 인식 기반 노이즈 게이트.
+ *
+ * mic → MediaStreamAudioSource → RnnoiseWorkletNode → MediaStreamDestination → cleaned track
+ *
+ * 실패하면 throw — 호출쪽에서 catch 해서 raw track fallback.
+ */
+let rnnoiseWasmCachePromise: Promise<ArrayBuffer> | null = null;
+
+async function applyNoiseSuppression(micStream: MediaStream): Promise<MediaStreamTrack> {
+  const { RnnoiseWorkletNode, loadRnnoise } = await import('@sapphi-red/web-noise-suppressor');
+
+  // 48kHz 고정 (RNNoise 가정)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const Ctx = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext;
+  const ctx = new Ctx({ sampleRate: 48000 });
+
+  if (!rnnoiseWasmCachePromise) {
+    rnnoiseWasmCachePromise = loadRnnoise({
+      url: '/voice/rnnoise.wasm',
+      simdUrl: '/voice/rnnoise_simd.wasm',
+    });
+  }
+  const wasmBinary = await rnnoiseWasmCachePromise;
+
+  await ctx.audioWorklet.addModule('/voice/rnnoise-worklet.js');
+
+  const source = ctx.createMediaStreamSource(micStream);
+  const denoise = new RnnoiseWorkletNode(ctx, { maxChannels: 1, wasmBinary });
+  const dest = ctx.createMediaStreamDestination();
+
+  source.connect(denoise);
+  denoise.connect(dest);
+
+  const cleaned = dest.stream.getAudioTracks()[0];
+  if (!cleaned) throw new Error('no cleaned track');
+  return cleaned;
 }
