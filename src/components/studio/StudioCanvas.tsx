@@ -1478,6 +1478,78 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
     );
   }
 
+  // Portal — 토러스 ring + 안쪽 반투명 disc. 데스크탑 에디터와 동일 디자인.
+  if (obj.kind === 'portal') {
+    const col = obj.color || '#3b82f6';
+    return (
+      <group
+        position={noTransform ? undefined : obj.position}
+        rotation={noTransform ? undefined : obj.rotation}
+        scale={noTransform ? undefined : obj.scale}
+        onPointerDown={handle}
+        userData={noTransform ? undefined : { id: obj.id }}>
+        <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <torusGeometry args={[0.9, 0.12, 12, 32]} />
+          <meshStandardMaterial color={col} emissive={col} emissiveIntensity={selected ? 0.9 : 0.5} />
+        </mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+          <circleGeometry args={[0.85, 32]} />
+          <meshBasicMaterial color={col} transparent opacity={0.35} side={THREE.DoubleSide} />
+        </mesh>
+      </group>
+    );
+  }
+
+  // Water — 반투명 파란 plane (위에 누움). 웨이브 애니메이션은 생략 (정적 plane).
+  if (obj.kind === 'water') {
+    return (
+      <group
+        position={noTransform ? undefined : obj.position}
+        rotation={noTransform ? undefined : obj.rotation}
+        scale={noTransform ? undefined : obj.scale}
+        onPointerDown={handle}
+        userData={noTransform ? undefined : { id: obj.id }}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <planeGeometry args={[1, 1, 16, 16]} />
+          <meshStandardMaterial color={obj.color || '#1e88e5'} transparent opacity={0.75}
+            roughness={0.15} metalness={0.1} side={THREE.DoubleSide}
+            emissive={selected ? '#1e88e5' : '#000000'} emissiveIntensity={selected ? 0.3 : 0} />
+        </mesh>
+      </group>
+    );
+  }
+
+  // Particle — 작은 sphere 12개 클러스터 (fire/smoke/spark 색조). 정적.
+  if (obj.kind === 'particle') {
+    const ptype = (obj as MapObject & { particleType?: string }).particleType || 'fire';
+    const palette: Record<string, string[]> = {
+      fire:  ['#ff8800', '#ff4400', '#fbbf24'],
+      smoke: ['#666666', '#888888', '#444444'],
+      spark: ['#ffffff', '#fbbf24', '#ffcc00'],
+    };
+    const cols = palette[ptype] || palette.fire;
+    const seeds = [0.12, 0.47, 0.83, 0.21, 0.65, 0.39, 0.92, 0.05, 0.71, 0.34, 0.58, 0.88];
+    return (
+      <group
+        position={noTransform ? undefined : obj.position}
+        rotation={noTransform ? undefined : obj.rotation}
+        scale={noTransform ? undefined : obj.scale}
+        onPointerDown={handle}
+        userData={noTransform ? undefined : { id: obj.id }}>
+        {seeds.map((s, i) => (
+          <mesh key={i} position={[
+            (s - 0.5) * 0.6,
+            ((s * 7) % 1) * 0.8,
+            ((s * 13) % 1 - 0.5) * 0.6,
+          ]}>
+            <sphereGeometry args={[0.08, 8, 6]} />
+            <meshBasicMaterial color={cols[i % cols.length]} transparent opacity={0.75} />
+          </mesh>
+        ))}
+      </group>
+    );
+  }
+
   const geometry =
     obj.kind === 'sphere'   ? <sphereGeometry args={[0.5, 24, 16]} /> :
     obj.kind === 'cylinder' ? <cylinderGeometry args={[0.5, 0.5, 1, 16]} /> :
