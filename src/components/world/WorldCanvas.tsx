@@ -1027,6 +1027,10 @@ const _mob = {
   camV:       0.45,
   camDist:    7,
   sprint:     false,
+  /** 동작 토글 신호 (모바일) — 버튼 누를 때마다 nonce++ 증가. Player 가 변화 감지해 토글. */
+  crouchNonce: 0,
+  proneNonce:  0,
+  cameraNonce: 0,
 };
 
 export type CameraMode = 'first' | 'third';
@@ -1163,6 +1167,10 @@ export function Player({
   // 토글 키: C(앉기), Z(엎드리기)
   const crouchRef = useRef(false);
   const proneRef  = useRef(false);
+  /** 모바일 nonce 마지막 값 — 변화 감지하면 키 입력과 동일하게 토글 */
+  const mobCrouchPrev = useRef(_mob.crouchNonce);
+  const mobPronePrev  = useRef(_mob.proneNonce);
+  const mobCameraPrev = useRef(_mob.cameraNonce);
   // 점프 상태 최소 유지 시간 (애니메이션 재생 보장)
   const jumpHoldUntil = useRef(0);
   // 3인칭 카메라 충돌(스프링암) — 벽에 막히면 당겨졌다가, 트이면 부드럽게 복귀하는 실효 비율(0~1)
@@ -1405,6 +1413,22 @@ export function Player({
       }
 
       // 상태 기반 속도
+      // 모바일 버튼 nonce 변화 감지 → 키보드와 동일 토글
+      if (_mob.crouchNonce !== mobCrouchPrev.current) {
+        mobCrouchPrev.current = _mob.crouchNonce;
+        crouchRef.current = !crouchRef.current;
+        if (crouchRef.current) proneRef.current = false;
+      }
+      if (_mob.proneNonce !== mobPronePrev.current) {
+        mobPronePrev.current = _mob.proneNonce;
+        proneRef.current = !proneRef.current;
+        if (proneRef.current) crouchRef.current = false;
+      }
+      if (_mob.cameraNonce !== mobCameraPrev.current) {
+        mobCameraPrev.current = _mob.cameraNonce;
+        onToggleCameraMode();
+      }
+
       const isCrouch = crouchRef.current;
       const isProne  = proneRef.current;
       const SPEED    = (isProne ? 1.0 : isCrouch ? 2.5 : sprint ? 9 : 5) * speedMulRef.current;
@@ -2587,6 +2611,9 @@ function WorldPortal({ portal }: { portal: PortalState }) {
 function MobileControls({ inputLocked }: { inputLocked: boolean }) {
   const [joystickKnob, setJoystickKnob] = useState({ x: 0, y: 0, active: false });
   const [mobileSprinting, setMobileSprinting] = useState(false);
+  // 모바일 자세 토글 상태 (시각 표시용)
+  const [crouchOn, setCrouchOn] = useState(false);
+  const [proneOn, setProneOn] = useState(false);
 
   return (
     <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', userSelect: 'none', zIndex: 16777273 }}>
@@ -2729,6 +2756,56 @@ function MobileControls({ inputLocked }: { inputLocked: boolean }) {
           boxShadow: '0 4px 16px rgba(79,70,229,0.4)',
         }}
       >↑</button>
+
+      {/* 자세·카메라 액션 버튼 (점프 위쪽 세로 배치) */}
+      {/* 앉기 (KeyC) */}
+      <button type="button"
+        onPointerDown={e => {
+          e.stopPropagation();
+          if (inputLocked) return;
+          _mob.crouchNonce++;
+          setCrouchOn(v => { const next = !v; if (next) setProneOn(false); return next; });
+        }}
+        style={{
+          position: 'absolute', right: 120, bottom: 24, width: 56, height: 56, borderRadius: '50%',
+          border: `2px solid ${crouchOn ? 'rgba(34,197,94,0.9)' : 'rgba(255,255,255,0.25)'}`,
+          background: crouchOn ? 'rgba(34,197,94,0.4)' : 'rgba(10,15,30,0.55)',
+          color: '#fff', fontSize: 22, fontWeight: 700, pointerEvents: 'auto', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
+        }}
+        aria-label="crouch"
+      >🧎</button>
+      {/* 엎드리기 (KeyZ) */}
+      <button type="button"
+        onPointerDown={e => {
+          e.stopPropagation();
+          if (inputLocked) return;
+          _mob.proneNonce++;
+          setProneOn(v => { const next = !v; if (next) setCrouchOn(false); return next; });
+        }}
+        style={{
+          position: 'absolute', right: 120, bottom: 88, width: 56, height: 56, borderRadius: '50%',
+          border: `2px solid ${proneOn ? 'rgba(34,197,94,0.9)' : 'rgba(255,255,255,0.25)'}`,
+          background: proneOn ? 'rgba(34,197,94,0.4)' : 'rgba(10,15,30,0.55)',
+          color: '#fff', fontSize: 22, fontWeight: 700, pointerEvents: 'auto', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
+        }}
+        aria-label="prone"
+      >🛌</button>
+      {/* 카메라 시점 (KeyV) */}
+      <button type="button"
+        onPointerDown={e => { e.stopPropagation(); if (!inputLocked) _mob.cameraNonce++; }}
+        style={{
+          position: 'absolute', right: 120, bottom: 152, width: 56, height: 56, borderRadius: '50%',
+          border: '2px solid rgba(255,255,255,0.25)', background: 'rgba(10,15,30,0.55)',
+          color: '#fff', fontSize: 20, fontWeight: 700, pointerEvents: 'auto', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
+        }}
+        aria-label="camera"
+      >📷</button>
 
     </div>
   );
