@@ -1,279 +1,446 @@
 /**
- * WebRTC P2P 음성 채팅 (Phase 22)
+ * Cloudflare Calls (Realtime SFU) 기반 음성 채팅 + 3D 위치 사운드 (Phase 24)
  *
  * 구조:
- *   - 같은 월드에 있는 다른 유저와 1:1 peer connection 을 N개 유지 (mesh)
- *   - 시그널링: 기존 멀티플레이 WebSocket 의 voice_signal 메시지 활용
- *   - STUN: Google 공용 (NAT 통과 무료). TURN 은 추후
- *   - 적정 인원: 4~8명. 16명+ 부터는 SFU 필요
+ *   - 각 클라이언트가 Cloudflare Calls 와 **단일 RTCPeerConnection** 유지
+ *   - 마이크 켜면 push track → trackId 받음 → 멀티플레이 socket 으로 broadcast
+ *   - 다른 사람 trackId 수신 → pull track 으로 받기 → PannerNode 통해 3D 재생
+ *   - SFU 라서 peer 수 무관 (50명+ OK), 업로드는 1회 (서버가 분배)
+ *
+ * 시그널링:
+ *   - SDP: 백엔드 /api/voice/* 라우트 proxy (App Secret 보호)
+ *   - trackId broadcast: 기존 멀티플레이 WebSocket 의 voice_track 메시지
+ *
+ * 3D 사운드:
+ *   - Web Audio API PannerNode (HRTF). refDistance 2m, maxDistance 40m
+ *   - 매 프레임 listener (나) + panner (상대) 위치 갱신
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
+import type { PlayerPose } from './useGameSocket';
+import { session } from '@/lib/api';
 
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
-];
+const PANNER_REF_DISTANCE = 2;
+const PANNER_MAX_DISTANCE = 40;
+const PANNER_ROLLOFF      = 1.4;
 
-interface VoiceSignal {
-  type: 'voice_signal';
-  sub: 'offer' | 'answer' | 'ice';
+const VOICE_API_BASE = (typeof window !== 'undefined' && (window as { __ALP_API__?: string }).__ALP_API__) || 'https://airliveplay.com';
+
+interface VoiceTrackMessage {
+  type: 'voice_track';
   fromId: string;
-  data: unknown;
-}
-interface VoiceState {
-  type: 'voice_state';
-  id: string;
+  sessionId: string;
+  trackName: string;
   mic: boolean;
-  speaking: boolean;
 }
 
 interface Options {
-  /** 멀티플레이 socket — voice_signal 송신 + voice_signal·voice_state 수신 등록 */
   socket: WebSocket | null;
-  /** 내 플레이어 id */
   myId: string;
-  /** 현재 방의 다른 플레이어 id 들 (입퇴장 변화 감지) */
   peerIds: string[];
-  /** 마이크 ON 여부 (true 면 peer 연결 시작) */
   enabled: boolean;
+  posesRef?: React.RefObject<Map<string, PlayerPose>>;
+  localPoseRef?: React.RefObject<{ x: number; y: number; z: number; rotY: number } | null>;
 }
 
 export interface VoiceChatState {
-  /** 권한·연결·에러 상태 */
-  status: 'idle' | 'requesting' | 'ready' | 'denied' | 'error';
-  /** 에러 메시지 */
+  status: 'idle' | 'requesting' | 'connecting' | 'ready' | 'denied' | 'error';
   error?: string;
-  /** 현재 말하는 중인 peer id 들 (오디오 레벨 감지) */
   speakingIds: Set<string>;
-  /** 각 peer 의 마이크 켜짐 여부 (다른 사람) */
   micOnIds: Set<string>;
 }
 
-export function useVoiceChat({ socket, myId, peerIds, enabled }: Options): VoiceChatState {
+interface RemotePeerInfo {
+  sessionId: string;
+  trackName: string;
+  pannerMid?: string;
+  panner?: PannerNode;
+  analyser?: AnalyserNode;
+  rafId?: number;
+}
+
+export function useVoiceChat({ socket, myId, peerIds, enabled, posesRef, localPoseRef }: Options): VoiceChatState {
   const [status, setStatus] = useState<VoiceChatState['status']>('idle');
   const [error, setError] = useState<string>();
   const [speakingIds, setSpeakingIds] = useState<Set<string>>(new Set());
   const [micOnIds, setMicOnIds] = useState<Set<string>>(new Set());
 
-  const micStreamRef  = useRef<MediaStream | null>(null);
-  const peersRef      = useRef<Map<string, RTCPeerConnection>>(new Map());
-  const audioElemsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
-  const analysersRef  = useRef<Map<string, { ctx: AudioContext; analyser: AnalyserNode; raf: number }>>(new Map());
+  // Cloudflare Calls 1개 RTCPeerConnection
+  const pcRef          = useRef<RTCPeerConnection | null>(null);
+  const sessionIdRef   = useRef<string | null>(null);
+  const myTrackNameRef = useRef<string | null>(null);
+  const micStreamRef   = useRef<MediaStream | null>(null);
+  // 원격 peer 들 (userId → 정보)
+  const remotesRef     = useRef<Map<string, RemotePeerInfo>>(new Map());
+  // mid 별 audio track (ontrack 받은 거)
+  const tracksByMidRef = useRef<Map<string, MediaStreamTrack>>(new Map());
+  // 공용 AudioContext
+  const audioCtxRef    = useRef<AudioContext | null>(null);
+  // 더미 audio element (Safari workaround — addStream 안정성)
+  const sinkElemRef    = useRef<HTMLAudioElement | null>(null);
 
-  /** signaling 송신 */
-  const sendSignal = useCallback((toId: string, sub: 'offer' | 'answer' | 'ice', data: unknown) => {
-    if (!socket || socket.readyState !== 1) return;
-    socket.send(JSON.stringify({ type: 'voice_signal', toId, sub, data }));
-  }, [socket]);
-
-  /** 새 peer 연결 생성 (offerSide=true 면 내가 offer 보냄) */
-  const createPeer = useCallback((peerId: string, offerSide: boolean) => {
-    if (peersRef.current.has(peerId)) return;
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-    peersRef.current.set(peerId, pc);
-
-    // 내 mic track 추가
-    const stream = micStreamRef.current;
-    if (stream) stream.getAudioTracks().forEach(t => pc.addTrack(t, stream));
-
-    // 원격 audio 재생
-    pc.ontrack = (e) => {
-      let el = audioElemsRef.current.get(peerId);
-      if (!el) {
-        el = document.createElement('audio');
-        el.autoplay = true;
-        // playsInline 은 iOS 자동재생 허용
-        (el as HTMLAudioElement & { playsInline: boolean }).playsInline = true;
-        document.body.appendChild(el);
-        audioElemsRef.current.set(peerId, el);
-      }
-      el.srcObject = e.streams[0];
-      // 오디오 레벨 분석 → speakingIds 갱신
-      try {
-        // AudioContext 는 user gesture 후에만 동작 — 안 되면 무시
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const Ctor: typeof AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
-        if (Ctor) {
-          const ctx = new Ctor();
-          const src = ctx.createMediaStreamSource(e.streams[0]);
-          const analyser = ctx.createAnalyser();
-          analyser.fftSize = 256;
-          src.connect(analyser);
-          const buf = new Uint8Array(analyser.frequencyBinCount);
-          const tick = () => {
-            analyser.getByteFrequencyData(buf);
-            let sum = 0;
-            for (let i = 0; i < buf.length; i++) sum += buf[i];
-            const avg = sum / buf.length;
-            setSpeakingIds(prev => {
-              const has = prev.has(peerId);
-              if (avg > 20 && !has) { const next = new Set(prev); next.add(peerId); return next; }
-              if (avg <= 12 && has)  { const next = new Set(prev); next.delete(peerId); return next; }
-              return prev;
-            });
-            const raf = requestAnimationFrame(tick);
-            const cur = analysersRef.current.get(peerId);
-            if (cur) cur.raf = raf;
-          };
-          const raf = requestAnimationFrame(tick);
-          analysersRef.current.set(peerId, { ctx, analyser, raf });
-        }
-      } catch (err) {
-        console.warn('[voice] analyser failed:', err);
-      }
-    };
-
-    // ICE 후보 → peer 로 전송
-    pc.onicecandidate = (e) => {
-      if (e.candidate) sendSignal(peerId, 'ice', e.candidate);
-    };
-
-    // peer 가 disconnected/failed 되면 정리
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-        cleanupPeer(peerId);
-      }
-    };
-
-    // offer 생성
-    if (offerSide) {
-      pc.createOffer().then(offer => pc.setLocalDescription(offer).then(() => {
-        sendSignal(peerId, 'offer', offer);
-      })).catch(err => console.warn('[voice] offer failed:', err));
+  /** 백엔드 voice API 호출 helper */
+  const apiCall = useCallback(async <T = unknown>(path: string, method: 'POST' | 'PUT', body: unknown): Promise<T> => {
+    const tk = session.getToken();
+    const r = await fetch(`${VOICE_API_BASE}/api/voice${path}`, {
+      method,
+      headers: {
+        ...(tk ? { Authorization: `Bearer ${tk}` } : {}),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err?.error || `voice API ${r.status}`);
     }
-  }, [sendSignal]);
-
-  const cleanupPeer = useCallback((peerId: string) => {
-    const pc = peersRef.current.get(peerId);
-    if (pc) {
-      try { pc.close(); } catch {}
-      peersRef.current.delete(peerId);
-    }
-    const el = audioElemsRef.current.get(peerId);
-    if (el) {
-      try { el.srcObject = null; el.remove(); } catch {}
-      audioElemsRef.current.delete(peerId);
-    }
-    const an = analysersRef.current.get(peerId);
-    if (an) {
-      cancelAnimationFrame(an.raf);
-      try { an.ctx.close(); } catch {}
-      analysersRef.current.delete(peerId);
-    }
-    setSpeakingIds(prev => { if (!prev.has(peerId)) return prev; const next = new Set(prev); next.delete(peerId); return next; });
-    setMicOnIds(prev => { if (!prev.has(peerId)) return prev; const next = new Set(prev); next.delete(peerId); return next; });
+    return r.json();
   }, []);
 
-  /** 마이크 권한 + stream 획득 */
+  /** Cloudflare Calls 세션 시작 + 내 mic push */
+  const startSession = useCallback(async (micStream: MediaStream) => {
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.cloudflare.com:3478' }],
+      bundlePolicy: 'max-bundle',
+    });
+    pcRef.current = pc;
+
+    // 내 mic track 을 transceiver 로 추가 (push 방향)
+    const micTrack = micStream.getAudioTracks()[0];
+    if (!micTrack) throw new Error('no mic track');
+    const transceiver = pc.addTransceiver(micTrack, { direction: 'sendonly' });
+
+    // 원격 audio track 도착 시 PannerNode 로 연결
+    pc.ontrack = (e) => {
+      const track = e.track;
+      const mid = e.transceiver?.mid;
+      if (mid) tracksByMidRef.current.set(mid, track);
+      // 어떤 peer 의 트랙인지는 mid 매칭. 일단 저장만 — pull track 응답 받았을 때 mid 매핑.
+      // applyPanner 가 mid → panner 연결.
+      tryApplyPannerByMid(mid);
+    };
+
+    // SDP offer
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    // ICE gathering 완료 대기 (또는 1초 timeout)
+    await waitIceGathering(pc, 1500);
+
+    // 백엔드 proxy → Cloudflare /sessions/new
+    const r = await apiCall<{ sessionDescription: { type: RTCSdpType; sdp: string }; sessionId: string }>(
+      '/session/new', 'POST',
+      { sessionDescription: { type: pc.localDescription!.type, sdp: pc.localDescription!.sdp } },
+    );
+    sessionIdRef.current = r.sessionId;
+    await pc.setRemoteDescription(new RTCSessionDescription(r.sessionDescription));
+
+    // push track 등록 — mid 로 추적
+    const pushed = await apiCall<{ tracks: Array<{ mid?: string; trackName: string }> }>(
+      '/track/new', 'POST',
+      {
+        sessionId: r.sessionId,
+        tracks: [{
+          location: 'local',
+          mid: transceiver.mid,
+          trackName: `mic-${myId}`,
+        }],
+      },
+    );
+    myTrackNameRef.current = pushed.tracks?.[0]?.trackName || `mic-${myId}`;
+    return r.sessionId;
+  }, [apiCall, myId]);
+
+  /** mid → panner 매핑 시도 (remotes 정보 도착 후) */
+  const tryApplyPannerByMid = useCallback((mid: string | null | undefined) => {
+    if (!mid) return;
+    const track = tracksByMidRef.current.get(mid);
+    if (!track) return;
+    // 어떤 remote 의 mid 인지 검사
+    for (const [peerId, info] of remotesRef.current) {
+      if (info.pannerMid === mid && !info.panner) {
+        attachPanner(peerId, track, info);
+      }
+    }
+  }, []);
+
+  /** PannerNode 생성 + analyser 부착 */
+  const attachPanner = useCallback((peerId: string, track: MediaStreamTrack, info: RemotePeerInfo) => {
+    try {
+      if (!audioCtxRef.current) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const Ctor: typeof AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
+        audioCtxRef.current = new Ctor();
+      }
+      const ctx = audioCtxRef.current!;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+      // Safari workaround: track 을 audio element 의 srcObject 로 한 번 거쳐야 sourceNode 활성화됨
+      if (!sinkElemRef.current) {
+        const el = document.createElement('audio');
+        el.autoplay = true; el.muted = true;
+        (el as HTMLAudioElement & { playsInline: boolean }).playsInline = true;
+        document.body.appendChild(el);
+        sinkElemRef.current = el;
+      }
+      const stream = new MediaStream([track]);
+      // 다른 stream 가지고 있을 수 있으니 src 갱신 X — 그냥 새 stream 사용
+      const src = ctx.createMediaStreamSource(stream);
+      const panner = ctx.createPanner();
+      panner.panningModel  = 'HRTF';
+      panner.distanceModel = 'inverse';
+      panner.refDistance   = PANNER_REF_DISTANCE;
+      panner.maxDistance   = PANNER_MAX_DISTANCE;
+      panner.rolloffFactor = PANNER_ROLLOFF;
+
+      const pose = posesRef?.current?.get(peerId);
+      if (pose) setPannerPosition(panner, pose.x, pose.y, pose.z);
+
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      src.connect(analyser);
+      src.connect(panner).connect(ctx.destination);
+
+      info.panner = panner;
+      info.analyser = analyser;
+
+      const buf = new Uint8Array(analyser.frequencyBinCount);
+      const tick = () => {
+        analyser.getByteFrequencyData(buf);
+        let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i];
+        const avg = sum / buf.length;
+        setSpeakingIds(prev => {
+          const has = prev.has(peerId);
+          if (avg > 20 && !has) { const n = new Set(prev); n.add(peerId); return n; }
+          if (avg <= 12 && has)  { const n = new Set(prev); n.delete(peerId); return n; }
+          return prev;
+        });
+        info.rafId = requestAnimationFrame(tick);
+      };
+      info.rafId = requestAnimationFrame(tick);
+    } catch (err) {
+      console.warn('[voice] attachPanner failed:', err);
+    }
+  }, [posesRef]);
+
+  /** 원격 peer 의 trackId 받아서 pull track 시작 */
+  const pullRemoteTrack = useCallback(async (peerId: string, peerSessionId: string, peerTrackName: string) => {
+    const pc = pcRef.current;
+    const mySession = sessionIdRef.current;
+    if (!pc || !mySession || peerId === myId) return;
+    if (remotesRef.current.has(peerId)) return;  // 이미 pull 중
+
+    const info: RemotePeerInfo = { sessionId: peerSessionId, trackName: peerTrackName };
+    remotesRef.current.set(peerId, info);
+
+    try {
+      const r = await apiCall<{
+        tracks: Array<{ mid?: string; trackName: string }>;
+        sessionDescription?: { type: RTCSdpType; sdp: string };
+        requiresImmediateRenegotiation?: boolean;
+      }>('/track/new', 'POST', {
+        sessionId: mySession,
+        tracks: [{ location: 'remote', sessionId: peerSessionId, trackName: peerTrackName }],
+      });
+
+      const mid = r.tracks?.[0]?.mid;
+      if (mid) info.pannerMid = mid;
+
+      // Cloudflare 가 새 offer 보내면 renegotiate
+      if (r.requiresImmediateRenegotiation && r.sessionDescription) {
+        await pc.setRemoteDescription(new RTCSessionDescription(r.sessionDescription));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        await apiCall('/session/renegotiate', 'PUT', {
+          sessionId: mySession,
+          sessionDescription: { type: answer.type, sdp: answer.sdp },
+        });
+      }
+
+      // 이미 ontrack 으로 mid 가 도착했을 수 있음 — 매핑 시도
+      tryApplyPannerByMid(mid);
+    } catch (err) {
+      console.warn('[voice] pullRemoteTrack failed:', err);
+      remotesRef.current.delete(peerId);
+    }
+  }, [apiCall, myId, tryApplyPannerByMid]);
+
+  /** 원격 peer 정리 */
+  const cleanupRemote = useCallback((peerId: string) => {
+    const info = remotesRef.current.get(peerId);
+    if (!info) return;
+    if (info.rafId) cancelAnimationFrame(info.rafId);
+    if (info.panner) try { info.panner.disconnect(); } catch {}
+    remotesRef.current.delete(peerId);
+    setSpeakingIds(prev => { if (!prev.has(peerId)) return prev; const n = new Set(prev); n.delete(peerId); return n; });
+    setMicOnIds(prev => { if (!prev.has(peerId)) return prev; const n = new Set(prev); n.delete(peerId); return n; });
+  }, []);
+
+  /** broadcast 내 trackId */
+  const broadcastMyTrack = useCallback((mic: boolean) => {
+    if (!socket || socket.readyState !== 1) return;
+    socket.send(JSON.stringify({
+      type: 'voice_track',
+      sessionId: sessionIdRef.current || '',
+      trackName: myTrackNameRef.current || '',
+      mic,
+    }));
+  }, [socket]);
+
+  /** 마이크 enabled 변화 처리 */
   useEffect(() => {
     if (!enabled) {
-      // off — 모든 정리
+      // off
       micStreamRef.current?.getTracks().forEach(t => t.stop());
       micStreamRef.current = null;
-      peersRef.current.forEach((_, id) => cleanupPeer(id));
+      try { pcRef.current?.close(); } catch {}
+      pcRef.current = null;
+      sessionIdRef.current = null;
+      myTrackNameRef.current = null;
+      remotesRef.current.forEach((_, id) => cleanupRemote(id));
+      remotesRef.current.clear();
+      tracksByMidRef.current.clear();
+      broadcastMyTrack(false);
       setStatus('idle');
-      // 상태 broadcast
-      if (socket && socket.readyState === 1) socket.send(JSON.stringify({ type: 'voice_state', mic: false, speaking: false }));
       return;
     }
     let cancelled = false;
     setStatus('requesting');
-    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false })
-      .then(stream => {
-        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
-        micStreamRef.current = stream;
-        setStatus('ready');
-        // 마이크 ON broadcast
-        if (socket && socket.readyState === 1) socket.send(JSON.stringify({ type: 'voice_state', mic: true, speaking: false }));
-        // 이미 있는 peer 들에게 offer 보내기 (id 비교로 한쪽만 offer)
-        for (const pid of peerIds) {
-          if (pid === myId) continue;
-          // id 사전순으로 작은 쪽이 offer
-          if (myId < pid) createPeer(pid, true);
-        }
-      })
-      .catch(err => {
+    navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      video: false,
+    }).then(async (stream) => {
+      if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+      micStreamRef.current = stream;
+      setStatus('connecting');
+      try {
+        await startSession(stream);
         if (cancelled) return;
-        if (err?.name === 'NotAllowedError') setStatus('denied');
-        else { setStatus('error'); setError(err?.message || 'mic failed'); }
-      });
+        setStatus('ready');
+        broadcastMyTrack(true);
+      } catch (e) {
+        console.error('[voice] session start failed:', e);
+        setStatus('error');
+        setError(e instanceof Error ? e.message : 'session failed');
+      }
+    }).catch(err => {
+      if (cancelled) return;
+      if (err?.name === 'NotAllowedError') setStatus('denied');
+      else { setStatus('error'); setError(err?.message || 'mic failed'); }
+    });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled]);
 
-  /** peerIds 변화 → 신규 peer 에 offer / 떠난 peer 정리 */
-  useEffect(() => {
-    if (!enabled || !micStreamRef.current) return;
-    const want = new Set(peerIds.filter(id => id !== myId));
-    // 떠난 peer 정리
-    for (const id of peersRef.current.keys()) {
-      if (!want.has(id)) cleanupPeer(id);
-    }
-    // 신규 peer 에 offer (id 작은 쪽이 offer)
-    for (const id of want) {
-      if (!peersRef.current.has(id) && myId < id) createPeer(id, true);
-    }
-  }, [peerIds, enabled, myId, createPeer, cleanupPeer]);
-
-  /** 시그널링 수신 (socket message) — 외부 useGameSocket 이 같은 ws 를 쓰니 직접 listener 추가 */
+  /** 시그널링 수신 — voice_track 메시지 */
   useEffect(() => {
     if (!socket) return;
     const onMessage = (e: MessageEvent) => {
-      let msg: VoiceSignal | VoiceState | { type: string };
+      let msg: VoiceTrackMessage | { type: string };
       try { msg = JSON.parse(e.data); } catch { return; }
-
-      if (msg.type === 'voice_signal') {
-        const m = msg as VoiceSignal;
-        const fromId = m.fromId;
-        if (!fromId || fromId === myId) return;
-        let pc = peersRef.current.get(fromId);
-        if (!pc) {
-          // 상대가 offer 먼저 보낸 케이스 (id 큰 쪽이 받음) — peer 생성
-          if (m.sub === 'offer') {
-            createPeer(fromId, false);
-            pc = peersRef.current.get(fromId)!;
-          } else return;
-        }
-        if (m.sub === 'offer') {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          pc.setRemoteDescription(new RTCSessionDescription(m.data as any))
-            .then(() => pc!.createAnswer())
-            .then(answer => pc!.setLocalDescription(answer).then(() => {
-              sendSignal(fromId, 'answer', answer);
-            }))
-            .catch(err => console.warn('[voice] handle offer:', err));
-        } else if (m.sub === 'answer') {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          pc.setRemoteDescription(new RTCSessionDescription(m.data as any))
-            .catch(err => console.warn('[voice] handle answer:', err));
-        } else if (m.sub === 'ice') {
-          if (m.data) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            pc.addIceCandidate(new RTCIceCandidate(m.data as any))
-              .catch(err => console.warn('[voice] handle ice:', err));
-          }
-        }
-      } else if (msg.type === 'voice_state') {
-        const m = msg as VoiceState;
-        if (!m.id || m.id === myId) return;
-        setMicOnIds(prev => {
-          const has = prev.has(m.id);
-          if (m.mic && !has) { const n = new Set(prev); n.add(m.id); return n; }
-          if (!m.mic && has) { const n = new Set(prev); n.delete(m.id); return n; }
-          return prev;
-        });
+      if (msg.type !== 'voice_track') return;
+      const m = msg as VoiceTrackMessage;
+      if (!m.fromId || m.fromId === myId) return;
+      setMicOnIds(prev => {
+        const has = prev.has(m.fromId);
+        if (m.mic && !has) { const n = new Set(prev); n.add(m.fromId); return n; }
+        if (!m.mic && has) { const n = new Set(prev); n.delete(m.fromId); return n; }
+        return prev;
+      });
+      if (m.mic && m.sessionId && m.trackName) {
+        if (enabled) pullRemoteTrack(m.fromId, m.sessionId, m.trackName);
+      } else {
+        cleanupRemote(m.fromId);
       }
     };
     socket.addEventListener('message', onMessage);
     return () => { socket.removeEventListener('message', onMessage); };
-  }, [socket, myId, createPeer, sendSignal]);
+  }, [socket, myId, enabled, pullRemoteTrack, cleanupRemote]);
+
+  /** 떠난 peer 정리 */
+  useEffect(() => {
+    const want = new Set(peerIds);
+    for (const id of remotesRef.current.keys()) {
+      if (!want.has(id)) cleanupRemote(id);
+    }
+  }, [peerIds, cleanupRemote]);
+
+  /** 새 peer 가 입장하면 — 내 trackId 다시 broadcast (그들이 pull 할 수 있게) */
+  useEffect(() => {
+    if (enabled && status === 'ready') broadcastMyTrack(true);
+  }, [peerIds, enabled, status, broadcastMyTrack]);
+
+  /** 3D 위치 업데이트 RAF */
+  useEffect(() => {
+    if (!enabled) return;
+    let raf = 0;
+    const tick = () => {
+      const ctx = audioCtxRef.current;
+      if (ctx) {
+        const me = localPoseRef?.current;
+        if (me) {
+          const l = ctx.listener;
+          const cosY = Math.cos(me.rotY);
+          const sinY = Math.sin(me.rotY);
+          if (l.positionX) {
+            l.positionX.value = me.x; l.positionY.value = me.y; l.positionZ.value = me.z;
+            l.forwardX.value = -sinY; l.forwardY.value = 0; l.forwardZ.value = -cosY;
+            l.upX.value = 0; l.upY.value = 1; l.upZ.value = 0;
+          } else {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (l as any).setPosition?.(me.x, me.y, me.z);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (l as any).setOrientation?.(-sinY, 0, -cosY, 0, 1, 0);
+          }
+        }
+        const poses = posesRef?.current;
+        if (poses) {
+          remotesRef.current.forEach((info, peerId) => {
+            if (!info.panner) return;
+            const pose = poses.get(peerId);
+            if (pose) setPannerPosition(info.panner, pose.x, pose.y, pose.z);
+          });
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [enabled, posesRef, localPoseRef]);
 
   /** unmount 시 전부 정리 */
   useEffect(() => () => {
     micStreamRef.current?.getTracks().forEach(t => t.stop());
-    peersRef.current.forEach((pc) => { try { pc.close(); } catch {} });
-    audioElemsRef.current.forEach((el) => { try { el.srcObject = null; el.remove(); } catch {} });
-    analysersRef.current.forEach((a) => { cancelAnimationFrame(a.raf); try { a.ctx.close(); } catch {} });
+    try { pcRef.current?.close(); } catch {}
+    remotesRef.current.forEach((info) => {
+      if (info.rafId) cancelAnimationFrame(info.rafId);
+      if (info.panner) try { info.panner.disconnect(); } catch {}
+    });
+    sinkElemRef.current?.remove();
+    try { audioCtxRef.current?.close(); } catch {}
   }, []);
 
   return { status, error, speakingIds, micOnIds };
+}
+
+function setPannerPosition(panner: PannerNode, x: number, y: number, z: number) {
+  if (panner.positionX) {
+    panner.positionX.value = x;
+    panner.positionY.value = y;
+    panner.positionZ.value = z;
+  } else {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (panner as any).setPosition?.(x, y, z);
+  }
+}
+
+function waitIceGathering(pc: RTCPeerConnection, timeoutMs: number): Promise<void> {
+  return new Promise<void>((resolve) => {
+    if (pc.iceGatheringState === 'complete') return resolve();
+    const t = setTimeout(() => resolve(), timeoutMs);
+    const check = () => {
+      if (pc.iceGatheringState === 'complete') {
+        clearTimeout(t); pc.removeEventListener('icegatheringstatechange', check); resolve();
+      }
+    };
+    pc.addEventListener('icegatheringstatechange', check);
+  });
 }

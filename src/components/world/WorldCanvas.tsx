@@ -4160,6 +4160,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     myId: playerId,
     peerIds: peerIdList,
     enabled: voiceEnabled,
+    posesRef,
+    localPoseRef,
   });
   useEffect(() => {
     const detect = () => {
