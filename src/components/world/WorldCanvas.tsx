@@ -4152,17 +4152,32 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const [isMobile, setIsMobile] = useState(false);
   /** VRChat 식 — 다른 유저 클릭 시 정보 패널 표시 */
   const [selectedRemote, setSelectedRemote] = useState<RemotePlayer | null>(null);
-  /** 음성 채팅 (Phase 22) */
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  /** 음성 채팅 (Phase 22) — listen-only 자동, mic 은 사용자 토글 */
+  const [voiceEnabled, setVoiceEnabled] = useState(false);  // 첫 user gesture 시 true
+  const [voiceMicOn, setVoiceMicOn] = useState(false);
   const peerIdList = useMemo(() => Object.keys(players), [players]);
   const voice = useVoiceChat({
     socket: socketRef?.current ?? null,
     myId: playerId,
     peerIds: peerIdList,
     enabled: voiceEnabled,
+    micOn: voiceMicOn,
     posesRef,
     localPoseRef,
   });
+  // 첫 user gesture (click/key) 후 자동 listen-only 시작
+  useEffect(() => {
+    if (voiceEnabled) return;
+    const start = () => { setVoiceEnabled(true); };
+    window.addEventListener('click', start, { once: true });
+    window.addEventListener('keydown', start, { once: true });
+    window.addEventListener('touchstart', start, { once: true });
+    return () => {
+      window.removeEventListener('click', start);
+      window.removeEventListener('keydown', start);
+      window.removeEventListener('touchstart', start);
+    };
+  }, [voiceEnabled]);
   useEffect(() => {
     const detect = () => {
       const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -4181,32 +4196,37 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         <RemotePlayerInfoPanel player={selectedRemote} onClose={() => setSelectedRemote(null)} />
       )}
 
-      {/* 음성 채팅 마이크 토글 (Phase 22) — 우상단 (기존 메뉴 아래) */}
+      {/* 음성 마이크 토글 (Phase 22) — 우상단. listen-only 는 자동, 이 버튼은 송신 ON/OFF */}
       <button
         type="button"
-        onClick={() => setVoiceEnabled(v => !v)}
-        title={voiceEnabled ? '음성 끄기' : '음성 켜기'}
+        onClick={() => setVoiceMicOn(v => !v)}
+        title={voiceMicOn ? '마이크 끄기 (계속 듣기)' : '마이크 켜기'}
         style={{
           position: 'fixed', top: 76, right: 16,
           width: 44, height: 44, borderRadius: '50%',
-          border: `2px solid ${voiceEnabled ? (voice.status === 'ready' ? '#22c55e' : '#fbbf24') : 'rgba(255,255,255,0.25)'}`,
-          background: voiceEnabled
+          border: `2px solid ${voiceMicOn
+            ? (voice.status === 'ready' ? '#22c55e' : '#fbbf24')
+            : voice.status === 'listening' ? 'rgba(59,130,246,0.6)' : 'rgba(255,255,255,0.25)'}`,
+          background: voiceMicOn
             ? (voice.status === 'ready' ? 'rgba(34,197,94,0.45)' : 'rgba(251,191,36,0.45)')
-            : 'rgba(10,15,30,0.55)',
+            : voice.status === 'listening' ? 'rgba(59,130,246,0.25)' : 'rgba(10,15,30,0.55)',
           color: '#fff', fontSize: 20, cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 16777273, boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
           pointerEvents: 'auto',
         }}
       >
-        {voice.status === 'denied' ? '🚫' : voice.status === 'requesting' ? '…' : voiceEnabled ? '🎤' : '🎙️'}
+        {voice.status === 'requesting' ? '…'
+         : voiceMicOn ? '🎤'
+         : voice.status === 'listening' ? '🔊'
+         : '🎙️'}
       </button>
-      {voice.status === 'denied' && (
+      {voice.error && voiceMicOn && (
         <div style={{
           position: 'fixed', top: 126, right: 16, padding: '6px 10px',
-          background: 'rgba(220,38,38,0.85)', color: '#fff', fontSize: 11,
-          borderRadius: 6, zIndex: 16777273, pointerEvents: 'none',
-        }}>마이크 권한 거부됨</div>
+          background: 'rgba(251,191,36,0.85)', color: '#000', fontSize: 11,
+          borderRadius: 6, zIndex: 16777273, pointerEvents: 'none', maxWidth: 200,
+        }}>{voice.error}</div>
       )}
 
       {/* 말하는 사람 인디케이터 (좌상단 리스트) */}

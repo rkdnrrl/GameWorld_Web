@@ -37,13 +37,16 @@ interface Options {
   socket: WebSocket | null;
   myId: string;
   peerIds: string[];
+  /** 음성 시스템 전체 ON/OFF. true 면 자동 listen 시작 */
   enabled: boolean;
+  /** 마이크 (송신) 켜기. enabled=true 이고 micOn=true 면 talk 모드 */
+  micOn?: boolean;
   posesRef?: React.RefObject<Map<string, PlayerPose>>;
   localPoseRef?: React.RefObject<{ x: number; y: number; z: number; rotY: number } | null>;
 }
 
 export interface VoiceChatState {
-  status: 'idle' | 'requesting' | 'connecting' | 'ready' | 'denied' | 'error';
+  status: 'idle' | 'requesting' | 'connecting' | 'ready' | 'listening' | 'denied' | 'error';
   error?: string;
   speakingIds: Set<string>;
   micOnIds: Set<string>;
@@ -58,7 +61,7 @@ interface RemotePeerInfo {
   rafId?: number;
 }
 
-export function useVoiceChat({ socket, myId, peerIds, enabled, posesRef, localPoseRef }: Options): VoiceChatState {
+export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, posesRef, localPoseRef }: Options): VoiceChatState {
   const [status, setStatus] = useState<VoiceChatState['status']>('idle');
   const [error, setError] = useState<string>();
   const [speakingIds, setSpeakingIds] = useState<Set<string>>(new Set());
@@ -308,7 +311,6 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, posesRef, localPo
       return;
     }
     let cancelled = false;
-    setStatus('requesting');
 
     const startWithStream = async (stream: MediaStream | null) => {
       if (cancelled) { stream?.getTracks().forEach(t => t.stop()); return; }
@@ -317,7 +319,7 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, posesRef, localPo
       try {
         await startSession(stream);
         if (cancelled) return;
-        setStatus('ready');
+        setStatus(stream ? 'ready' : 'listening');
         broadcastMyTrack(!!stream);
       } catch (e) {
         console.error('[voice] session start failed:', e);
@@ -326,22 +328,29 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, posesRef, localPo
       }
     };
 
-    navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      video: false,
-    }).then(startWithStream).catch(err => {
-      if (cancelled) return;
-      if (err?.name === 'NotAllowedError') {
-        // 마이크 권한 거부 → listen-only 모드로 fallback
-        setError('마이크 권한이 거부되어 듣기 전용으로 작동합니다.');
-        startWithStream(null);
-      } else {
-        setStatus('error'); setError(err?.message || 'mic failed');
-      }
-    });
+    if (micOn) {
+      // talk 모드 — 마이크 권한 요청
+      setStatus('requesting');
+      navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: false,
+      }).then(startWithStream).catch(err => {
+        if (cancelled) return;
+        if (err?.name === 'NotAllowedError') {
+          // 권한 거부 → listen-only 로 fallback
+          setError('마이크 권한이 거부되어 듣기 전용으로 작동합니다.');
+          startWithStream(null);
+        } else {
+          setStatus('error'); setError(err?.message || 'mic failed');
+        }
+      });
+    } else {
+      // listen-only 모드 — 권한 요청 없이 바로 시작
+      startWithStream(null);
+    }
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled]);
+  }, [enabled, micOn]);
 
   /** 시그널링 수신 — voice_track 메시지 */
   useEffect(() => {
