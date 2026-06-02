@@ -4123,11 +4123,11 @@ export default function StudioCanvas() {
   }, []);
 
   /* 맵 에셋 "현재 맵에 추가" — kinds/map.tsx 의 Preview 가 dispatch 하는 이벤트 listen.
-     id 재생성 + parentId 매핑 + 현재 objects 끝에 append. 환경/HDRI/지형은 유지. */
+     id 재생성 + parentId 매핑 + 현재 objects 끝에 append. 환경/HDRI 도 함께 적용. */
   useEffect(() => {
     const handler = (e: Event) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const detail = (e as CustomEvent).detail as { data?: any; name?: string };
+      const detail = (e as CustomEvent).detail as { data?: any; env?: any; name?: string };
       const data = detail?.data;
       if (!data || !Array.isArray(data.objects) || data.objects.length === 0) return;
       // id 재생성 — 충돌 방지. parentId 도 새 id 로 매핑. (기존 패턴 `obj_${ts}_…`)
@@ -4147,7 +4147,20 @@ export default function StudioCanvas() {
         pushHistory(next);
         return next;
       });
-      console.log(`[map asset] merged ${merged.length} objects from "${detail?.name || 'untitled'}"`);
+      // 환경값 적용 — .alp 의 bgColor/ambient/preset/hdri 가 있으면 스튜디오 씬에 반영.
+      // (씬이 어둠으로 시작해서 안 보이는 문제 해결.)
+      const env = data.env || detail?.env || {};
+      const envAmb = env.ambientIntensity ?? data.ambientIntensity;
+      const envHdri = env.hdriPreset ?? data.hdriPreset;
+      const envBg = env.bgColor ?? data.bgColor;
+      if (typeof envAmb === 'number') setLightAmbient(envAmb < 0.3 ? 0.5 : envAmb);
+      if (typeof envHdri === 'string' && envHdri !== 'none') {
+        setHdriPreset(envHdri as typeof hdriPreset);
+      } else if (envBg) {
+        // bgColor 만 있으면 procedural Sky 켜기 — 푸른 하늘
+        setSkyEnabled(true);
+      }
+      console.log(`[map asset] merged ${merged.length} objects + env`, { envAmb, envHdri, envBg });
     };
     window.addEventListener(MAP_APPLY_EVENT, handler);
     return () => window.removeEventListener(MAP_APPLY_EVENT, handler);
