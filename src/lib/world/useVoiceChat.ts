@@ -116,6 +116,19 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
       const micTrack = micStream.getAudioTracks()[0];
       if (!micTrack) throw new Error('no mic track');
       transceiver = pc.addTransceiver(micTrack, { direction: 'sendonly' });
+
+      // 비트레이트 끌어올리기 (기본 32kbps → 96kbps HD)
+      try {
+        const sender = transceiver.sender;
+        const params = sender.getParameters();
+        if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+        params.encodings[0].maxBitrate = 96000;
+        params.encodings[0].priority = 'high';
+        params.encodings[0].networkPriority = 'high';
+        await sender.setParameters(params);
+      } catch (err) {
+        console.warn('[voice] setParameters failed:', err);
+      }
     } else {
       // recvonly transceiver — Cloudflare 가 pull track 추가 시 mid 매칭에 사용
       pc.addTransceiver('audio', { direction: 'recvonly' });
@@ -131,6 +144,8 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
 
     // SDP offer
     const offer = await pc.createOffer();
+    // Opus fmtp 보강: HD 비트레이트 + FEC (loss 복원) + DTX off (끊김 줄임)
+    if (offer.sdp) offer.sdp = enhanceOpusSdp(offer.sdp);
     await pc.setLocalDescription(offer);
     await waitIceGathering(pc, 1500);
 
@@ -336,7 +351,14 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
       // talk 모드 — 마이크 권한 요청
       setStatus('requesting');
       navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 48000,     // 48kHz HD 음성
+          sampleSize: 16,
+          channelCount: 1,        // mono (PannerNode HRTF 호환)
+        },
         video: false,
       }).then(startWithStream).catch(err => {
         if (cancelled) return;
@@ -485,4 +507,45 @@ function waitIceGathering(pc: RTCPeerConnection, timeoutMs: number): Promise<voi
     };
     pc.addEventListener('icegatheringstatechange', check);
   });
+}
+
+/**
+ * SDP 의 Opus 코덱 라인에 HD 비트레이트·FEC·DTX off 옵션 주입.
+ * - maxaveragebitrate: 평균 비트레이트 (Opus 권장: 32~128kbps)
+ * - stereo: 모노 유지 (PannerNode HRTF 호환)
+ * - useinbandfec: 패킷 손실 복원
+ * - usedtx: 침묵 압축 비활성 (음질 우선)
+ */
+function enhanceOpusSdp(sdp: string): string {
+  // m=audio ... opus 의 PT(payload type) 찾기
+  const lines = sdp.split('\r\n');
+  // a=rtpmap:111 opus/48000/2 형태에서 opus PT 추출
+  const opusLineIdx = lines.findIndex(l => /^a=rtpmap:\d+\s+opus\/48000/.test(l));
+  if (opusLineIdx === -1) return sdp;
+  const opusPtMatch = lines[opusLineIdx].match(/^a=rtpmap:(\d+)\s+/);
+  if (!opusPtMatch) return sdp;
+  const pt = opusPtMatch[1];
+
+  const fmtpPrefix = `a=fmtp:${pt} `;
+  const fmtpIdx = lines.findIndex(l => l.startsWith(fmtpPrefix));
+  const newOptions = 'stereo=0;sprop-stereo=0;maxaveragebitrate=96000;useinbandfec=1;usedtx=0';
+  if (fmtpIdx === -1) {
+    // fmtp 라인 없으면 rtpmap 다음에 추가
+    lines.splice(opusLineIdx + 1, 0, fmtpPrefix + newOptions);
+  } else {
+    // 기존 fmtp 에 추가 (중복 키 덮어쓰기)
+    const existing = lines[fmtpIdx].slice(fmtpPrefix.length);
+    const kv = new Map<string, string>();
+    existing.split(';').forEach(p => {
+      const [k, v] = p.split('=');
+      if (k && v !== undefined) kv.set(k.trim(), v.trim());
+    });
+    newOptions.split(';').forEach(p => {
+      const [k, v] = p.split('=');
+      if (k && v !== undefined) kv.set(k.trim(), v.trim());
+    });
+    const merged = [...kv].map(([k, v]) => `${k}=${v}`).join(';');
+    lines[fmtpIdx] = fmtpPrefix + merged;
+  }
+  return lines.join('\r\n');
 }
