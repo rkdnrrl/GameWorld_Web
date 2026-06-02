@@ -181,6 +181,40 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   obj.position.y -= box1.min.y;
 }
 
+/** FBX 의 원래 up-axis 자동 감지 — 회전 4 후보 중 Y(높이) 가 가장 큰 회전 반환.
+ *  신규 업로드 (appearance.fbxRotX 미설정) 일 때 초기값으로 사용. */
+function detectBestRotX(obj: THREE.Object3D): number {
+  const candidates = [0, -Math.PI / 2, Math.PI / 2, Math.PI];
+  let best = 0, bestY = -Infinity;
+  const origRot = obj.rotation.clone();
+  for (const r of candidates) {
+    obj.rotation.set(r, 0, 0);
+    obj.updateMatrixWorld(true);
+    const box = getRenderableBounds(obj);
+    const size = box.getSize(new THREE.Vector3());
+    if (size.y > bestY) { bestY = size.y; best = r; }
+  }
+  obj.rotation.copy(origRot);
+  obj.updateMatrixWorld(true);
+  return best;
+}
+
+/** 애니메이션 클립에서 root/hip bone 의 position 트랙 제거 — preview 시 모델이 이동해버리는 root motion 방지.
+ *  rotation 트랙은 유지 → 실루엣/모션 유지. 게임 런타임은 별도라 영향 X. */
+function stripRootMotion(clip: THREE.AnimationClip): THREE.AnimationClip {
+  const filtered = clip.tracks.filter(track => {
+    // "BoneName.position" 또는 "BoneName.position[0]" 형태
+    const m = track.name.match(/^([^.]+)\.position(\[\d\])?$/);
+    if (!m) return true; // position 트랙 아님 → 유지
+    const bone = m[1].toLowerCase();
+    // root motion 의 root 후보 — hips / root / armature / mixamorig hips
+    return !/^(mixamorig:?)?(hips|root|rootnode|armature|character)$/.test(bone);
+  });
+  // 트랙 변화 없으면 원본 그대로 (clone 비용 절약)
+  if (filtered.length === clip.tracks.length) return clip;
+  return new THREE.AnimationClip(clip.name, clip.duration, filtered);
+}
+
 /* ── 커스텀 모델 프리뷰 (명령형 로드) ───── */
 type ObjectPose = {
   obj: THREE.Object3D;
@@ -248,11 +282,20 @@ function CustomPreview({
         return;
       }
       onNoSkeleton?.();
-      autoNormalize(loaded, rotX, 1.8);
+      // 신규 모델 (appearance.fbxRotX 가 정확히 -π/2 default 이고 fbx 가 이미 Y-up 직립)
+      // 인 경우 자동 감지로 보정. 사용자가 명시적으로 다른 값 설정했으면 그대로.
+      let effectiveRotX = rotX;
+      if (Math.abs(rotX - (-Math.PI / 2)) < 0.001) {
+        const detected = detectBestRotX(loaded);
+        // 자동 감지 결과가 0 (이미 직립) 이면 회전 없음
+        effectiveRotX = detected;
+      }
+      autoNormalize(loaded, effectiveRotX, 1.8);
       const platformClips = await loadPlatformAnimationStateClips(loaded);
       if (cancelled) return;
       const compatibleAnims = retargetClipsToModel(anims, loaded);
-      const combinedAnims = [...platformClips.values(), ...compatibleAnims];
+      // root motion 제거 — preview 시 모델이 화면 밖으로 이동하는 버그 방지
+      const combinedAnims = [...platformClips.values(), ...compatibleAnims].map(stripRootMotion);
       animClips.current = combinedAnims;
       restPose.current = captureObjectPose(loaded);
       if (combinedAnims.length) {
@@ -359,7 +402,7 @@ function CustomPreview({
           if (!anims.length) continue;
           const retargeted = retargetClipsToModel([anims[0]], obj);
           if (!retargeted.length) continue;
-          const clip = retargeted[0].clone();
+          const clip = stripRootMotion(retargeted[0].clone());
           clip.name = `EXT_${slot}`;
           extClips.push(clip);
         } catch (e) {
