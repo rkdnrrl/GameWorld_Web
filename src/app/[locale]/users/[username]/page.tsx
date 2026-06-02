@@ -248,21 +248,41 @@ export default function UserPage({ params }: { params: Promise<{ username: strin
       )}
 
       <div style={{ minHeight: '100vh', background: '#0f172a', color: '#fff', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif" }}>
+        {/* 배너 (Phase 17) */}
+        {profile?.bannerUrl && (
+          <div style={{
+            height: 200,
+            background: `url(${profile.bannerUrl}) center/cover`,
+          }} />
+        )}
+        {!profile?.bannerUrl && profile?.themeColor && (
+          <div style={{
+            height: 120,
+            background: `linear-gradient(135deg, ${profile.themeColor} 0%, ${profile.themeColor}aa 100%)`,
+          }} />
+        )}
+
         {/* 헤더 */}
         <div style={{ padding: '24px 32px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-            {/* 아바타 자리 (이니셜) */}
+            {/* 아바타 (이미지 > 이모지 > 이니셜) */}
             <div style={{
               width: 64, height: 64, borderRadius: '50%',
-              background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+              background: profile?.profileImageUrl
+                ? `url(${profile.profileImageUrl}) center/cover`
+                : profile?.themeColor
+                  ? `linear-gradient(135deg, ${profile.themeColor}, ${profile.themeColor}aa)`
+                  : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 28, fontWeight: 800, color: '#fff', flexShrink: 0,
+              overflow: 'hidden',
             }}>
-              {username.slice(0, 1).toUpperCase()}
+              {!profile?.profileImageUrl && (profile?.iconEmoji || username.slice(0, 1).toUpperCase())}
             </div>
 
             <div style={{ flex: 1, minWidth: 200 }}>
               <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>{username}</h1>
+              {profile?.bio && <p style={{ margin: '4px 0 0', fontSize: 13, opacity: 0.8 }}>{profile.bio}</p>}
               <div style={{ fontSize: 12, opacity: 0.5, marginTop: 4 }}>
                 {profile && t('userJoinedOn', { date: new Date(profile.joinedAt).toLocaleDateString() })}
               </div>
@@ -288,6 +308,20 @@ export default function UserPage({ params }: { params: Promise<{ username: strin
                     opacity: followBusy ? 0.6 : 1,
                   }}>
                   {followBusy ? '…' : profile.isFollowing ? '✓ ' + t('following') : '+ ' + t('follow')}
+                </button>
+                <button
+                  onClick={async () => {
+                    const tk = session.getToken();
+                    if (!tk) { router.push('/login'); return; }
+                    const d = await api.openConversation(tk, profile.id);
+                    router.push(`/messages/${d.conversation.id}`);
+                  }}
+                  style={{
+                    fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                    padding: '8px 20px', border: 'none', borderRadius: 8,
+                    background: 'rgba(59,130,246,0.18)', color: '#93c5fd',
+                  }}>
+                  💬 {tFriends('btnMessage')}
                 </button>
                 <button
                   onClick={onFriendAction}

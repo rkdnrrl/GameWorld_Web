@@ -170,6 +170,28 @@ export default function AccountPage() {
             </div>
           </div>
 
+          <div className="mt-6 rounded-xl border border-indigo-200 bg-indigo-50 p-6">
+            <h2 className="text-lg font-semibold text-indigo-800">{t("customizeSection")}</h2>
+            <p className="mt-2 text-sm text-indigo-700">{t("customizeDesc")}</p>
+            <Link
+              href="/account/customize"
+              className="mt-4 inline-block rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+            >
+              {t("customizeButton")}
+            </Link>
+          </div>
+
+          <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-6">
+            <h2 className="text-lg font-semibold text-emerald-800">{t("friendsSection")}</h2>
+            <p className="mt-2 text-sm text-emerald-700">{t("friendsDesc")}</p>
+            <Link
+              href="/friends"
+              className="mt-4 inline-block rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+            >
+              {t("friendsButton")}
+            </Link>
+          </div>
+
           <div className="mt-8 rounded-xl border border-red-200 bg-red-50 p-6">
             <h2 className="text-lg font-semibold text-red-800">{t("withdrawSection")}</h2>
             <p className="mt-2 text-sm text-red-700">{t("withdrawDesc")}</p>

@@ -494,6 +494,31 @@ export const api = {
       body: JSON.stringify(input),
     });
   },
+
+  // ─── 프로필 꾸미기 (Phase 17) ───
+  /** 내 프로필 (bio/이미지/배너/아이콘/테마색 포함) 조회 */
+  getMyCustomProfile(token: string) {
+    return request<{ profile: { nickname: string; bio: string | null; profileImageUrl: string | null; websiteUrl: string | null; bannerUrl: string | null; iconEmoji: string | null; themeColor: string | null } | null }>(
+      "/api/auth/profile",
+      { headers: authHeaders(token) },
+    );
+  },
+  /** bio·웹사이트·배너·아이콘·테마색 일괄 업데이트 */
+  updateMyCustomProfile(token: string, input: Partial<{ bio: string; websiteUrl: string; iconEmoji: string; themeColor: string; bannerUrl: string }>) {
+    return request<{ profile: { nickname: string; bio: string | null; profileImageUrl: string | null; websiteUrl: string | null; bannerUrl: string | null; iconEmoji: string | null; themeColor: string | null } }>(
+      "/api/auth/profile",
+      { method: "PATCH", headers: authHeaders(token), body: JSON.stringify(input) },
+    );
+  },
+  /** 프로필 이미지 업로드 (multipart) */
+  uploadProfileImage(token: string, file: File) {
+    const fd = new FormData();
+    fd.append('profileImage', file);
+    return request<{ profileImageUrl: string }>(
+      "/api/auth/profile/image",
+      { method: "POST", headers: authHeaders(token), body: fd },
+    );
+  },
   /**
    * 회원 탈퇴. 백엔드 예: `DELETE /api/auth/me`
    * 비밀번호 확인이 필요하면 백엔드·이 호출 시그니처를 함께 맞추면 됩니다.
@@ -1208,6 +1233,74 @@ export const api = {
   checkFriendship(token: string, userId: string) {
     return request<{ state: "self" | "none" | "pending_sent" | "pending_received" | "accepted" | "blocked"; friendshipId?: string }>(
       `/api/friends/check/${userId}`,
+      { headers: authHeaders(token) },
+    );
+  },
+
+  // ─── 활동 피드 (Phase 18) ───
+  /** 내 피드 (친구 + 팔로잉 활동) */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getActivityFeed(token: string, page = 1) {
+    return request<{ events: Array<{ id: string; type: string; targetId: string | null; payload: any; createdAt: string; actor: { id: string; username: string; profileImageUrl: string | null; iconEmoji: string | null } | null }>; page: number; hasMore: boolean }>(
+      `/api/activity/feed?page=${page}`,
+      { headers: authHeaders(token) },
+    );
+  },
+  /** 특정 유저의 공개 활동 */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getUserActivity(userId: string, page = 1) {
+    return request<{ events: Array<{ id: string; type: string; targetId: string | null; payload: any; createdAt: string }>; page: number; hasMore: boolean }>(
+      `/api/activity/user/${userId}?page=${page}`,
+    );
+  },
+
+  // ─── DM (Phase 19) ───
+  /** 대화방 목록 */
+  listConversations(token: string) {
+    return request<{ conversations: Array<{ id: string; other: { id: string; username: string; profileImageUrl: string | null; iconEmoji: string | null; themeColor: string | null } | null; lastMessageAt: string | null; lastMessageText: string | null; lastSenderId: string | null; unread: number }> }>(
+      "/api/dm/conversations",
+      { headers: authHeaders(token) },
+    );
+  },
+  /** 대화방 생성/조회 (상대 userId) */
+  openConversation(token: string, withUserId: string) {
+    return request<{ conversation: { id: string } }>(
+      "/api/dm/conversations",
+      { method: "POST", headers: authHeaders(token), body: JSON.stringify({ withUserId }) },
+    );
+  },
+  /** 대화방 정보 */
+  getConversation(token: string, id: string) {
+    return request<{ conversation: { id: string; other: { id: string; username: string; profileImageUrl: string | null; iconEmoji: string | null; themeColor: string | null; bio: string | null } | null } }>(
+      `/api/dm/conversations/${id}`,
+      { headers: authHeaders(token) },
+    );
+  },
+  /** 메시지 목록 */
+  listMessages(token: string, conversationId: string, page = 1) {
+    return request<{ messages: Array<{ id: string; senderId: string; body: string; createdAt: string; readAt: string | null }>; page: number; hasMore: boolean }>(
+      `/api/dm/conversations/${conversationId}/messages?page=${page}`,
+      { headers: authHeaders(token) },
+    );
+  },
+  /** 메시지 전송 */
+  sendMessage(token: string, conversationId: string, body: string) {
+    return request<{ message: { id: string; senderId: string; body: string; createdAt: string; readAt: string | null } }>(
+      `/api/dm/conversations/${conversationId}/messages`,
+      { method: "POST", headers: authHeaders(token), body: JSON.stringify({ body }) },
+    );
+  },
+  /** 읽음 처리 */
+  markConversationRead(token: string, conversationId: string) {
+    return request<{ ok: true; updated: number }>(
+      `/api/dm/conversations/${conversationId}/read`,
+      { method: "POST", headers: authHeaders(token) },
+    );
+  },
+  /** 총 안읽음 카운트 */
+  dmUnreadCount(token: string) {
+    return request<{ unread: number }>(
+      "/api/dm/unread-count",
       { headers: authHeaders(token) },
     );
   },

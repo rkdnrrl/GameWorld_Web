@@ -197,7 +197,13 @@
     "dungeonMaxFloor": "Dungeon Best Floor",
     "dungeonMaxKills": "Dungeon Most Kills",
     "floorUnit": "F",
-    "killUnit": "kills"
+    "killUnit": "kills",
+    "customizeSection": "Customize Profile",
+    "customizeDesc": "Personalize your profile with banner, icon, theme color, and bio.",
+    "customizeButton": "Go to Customize",
+    "friendsSection": "Friends",
+    "friendsDesc": "Send and manage friend requests.",
+    "friendsButton": "Open Friends Page"
   },
   "Inventory": {
     "title": "Inventory",
@@ -2047,6 +2053,55 @@
     "friendSince": "Friends since {date}",
     "loginRequired": "Login required.",
     "loading": "Loading…",
-    "blocked": "Blocked"
+    "blocked": "Blocked",
+    "btnMessage": "Message"
+  },
+  "AccountCustomize": {
+    "title": "Customize Profile",
+    "subtitle": "Set how your profile appears to other users.",
+    "profileImage": "Profile Image",
+    "chooseFile": "Choose File",
+    "uploading": "Uploading…",
+    "imageHint": "Applied (max 5MB)",
+    "imageUploaded": "Profile image uploaded.",
+    "bio": "Bio",
+    "bioPlaceholder": "Write a short introduction.",
+    "website": "Website",
+    "iconEmoji": "Icon Emoji",
+    "iconCustomHint": "Custom (emoji)",
+    "themeColor": "Theme Color",
+    "bannerUrl": "Banner Image URL",
+    "bannerHint": "Wide image URL (16:9 recommended)",
+    "save": "Save",
+    "saving": "Saving…",
+    "savedOk": "Saved.",
+    "back": "Back",
+    "loginRequired": "Login required.",
+    "loading": "Loading…"
+  },
+  "Feed": {
+    "title": "Activity Feed",
+    "subtitle": "Recent activity from your friends and people you follow.",
+    "empty": "No activity yet. Add friends or follow users to see updates.",
+    "emptyBrowseUsers": "Browse users",
+    "loadMore": "Load more",
+    "loading": "Loading…",
+    "loginRequired": "Login required.",
+    "eventFriendAccepted": " became a new friend.",
+    "eventUserFollowed": " was followed.",
+    "eventAssetPublished": " published \"{name}\".",
+    "eventWorldCreated": " created a new world \"{name}\".",
+    "eventPostCreated": " posted \"{title}\"."
+  },
+  "Messages": {
+    "title": "Messages",
+    "subtitle": "1:1 chats with friends",
+    "loading": "Loading…",
+    "empty": "No conversations yet.",
+    "emptyGoFriends": "Go to Friends page",
+    "noMessages": "No messages.",
+    "inputPlaceholder": "Type a message…",
+    "send": "Send",
+    "loginRequired": "Login required."
   }
 }

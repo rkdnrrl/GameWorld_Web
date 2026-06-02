@@ -197,7 +197,13 @@
     "dungeonMaxFloor": "ダンジョン最高階",
     "dungeonMaxKills": "ダンジョン最多撃破",
     "floorUnit": "階",
-    "killUnit": "撃破"
+    "killUnit": "撃破",
+    "customizeSection": "プロフィールカスタマイズ",
+    "customizeDesc": "バナー・アイコン・テーマカラー・自己紹介でプロフィールを飾りましょう。",
+    "customizeButton": "カスタマイズへ",
+    "friendsSection": "フレンド",
+    "friendsDesc": "フレンド申請の送受信と管理。",
+    "friendsButton": "フレンドページを開く"
   },
   "Inventory": {
     "title": "インベントリ",
@@ -2047,6 +2053,55 @@
     "friendSince": "{date} からフレンド",
     "loginRequired": "ログインが必要です。",
     "loading": "読み込み中…",
-    "blocked": "ブロック中"
+    "blocked": "ブロック中",
+    "btnMessage": "メッセージ"
+  },
+  "AccountCustomize": {
+    "title": "プロフィールカスタマイズ",
+    "subtitle": "他のユーザーに見える自分のプロフィールを設定します。",
+    "profileImage": "プロフィール画像",
+    "chooseFile": "ファイルを選択",
+    "uploading": "アップロード中…",
+    "imageHint": "適用済み（5MB以下）",
+    "imageUploaded": "プロフィール画像をアップロードしました。",
+    "bio": "自己紹介",
+    "bioPlaceholder": "簡単な自己紹介を書いてください。",
+    "website": "ウェブサイト",
+    "iconEmoji": "アイコン絵文字",
+    "iconCustomHint": "カスタム（絵文字）",
+    "themeColor": "テーマカラー",
+    "bannerUrl": "バナー画像URL",
+    "bannerHint": "ワイド画像URL（16:9推奨）",
+    "save": "保存",
+    "saving": "保存中…",
+    "savedOk": "保存しました。",
+    "back": "戻る",
+    "loginRequired": "ログインが必要です。",
+    "loading": "読み込み中…"
+  },
+  "Feed": {
+    "title": "アクティビティフィード",
+    "subtitle": "フレンドとフォロー中ユーザーの最近のアクティビティ。",
+    "empty": "まだアクティビティがありません。フレンドを追加するかユーザーをフォローしてみましょう。",
+    "emptyBrowseUsers": "ユーザーを探す",
+    "loadMore": "もっと見る",
+    "loading": "読み込み中…",
+    "loginRequired": "ログインが必要です。",
+    "eventFriendAccepted": " さんと新しくフレンドになりました。",
+    "eventUserFollowed": " さんをフォローしました。",
+    "eventAssetPublished": " さんが「{name}」を公開しました。",
+    "eventWorldCreated": " さんが新しい世界「{name}」を作成しました。",
+    "eventPostCreated": " さんが「{title}」を投稿しました。"
+  },
+  "Messages": {
+    "title": "メッセージ",
+    "subtitle": "フレンドとの1:1チャット",
+    "loading": "読み込み中…",
+    "empty": "まだ会話がありません。",
+    "emptyGoFriends": "フレンドページへ",
+    "noMessages": "メッセージがありません。",
+    "inputPlaceholder": "メッセージを入力…",
+    "send": "送信",
+    "loginRequired": "ログインが必要です。"
   }
 }

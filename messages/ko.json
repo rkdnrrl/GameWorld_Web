@@ -197,7 +197,13 @@
     "dungeonMaxFloor": "던전 최고 층수",
     "dungeonMaxKills": "던전 최다 처치",
     "floorUnit": "층",
-    "killUnit": "킬"
+    "killUnit": "킬",
+    "customizeSection": "프로필 꾸미기",
+    "customizeDesc": "배너·아이콘·테마색·자기소개로 내 프로필을 꾸며보세요.",
+    "customizeButton": "프로필 꾸미러 가기",
+    "friendsSection": "친구",
+    "friendsDesc": "친구 신청·수락·관리.",
+    "friendsButton": "친구 페이지 열기"
   },
   "Inventory": {
     "title": "보관함",
@@ -2047,6 +2053,55 @@
     "friendSince": "{date}부터 친구",
     "loginRequired": "로그인이 필요합니다.",
     "loading": "불러오는 중…",
-    "blocked": "차단됨"
+    "blocked": "차단됨",
+    "btnMessage": "메시지"
+  },
+  "AccountCustomize": {
+    "title": "프로필 꾸미기",
+    "subtitle": "다른 유저들이 보는 내 프로필 모습을 설정합니다.",
+    "profileImage": "프로필 이미지",
+    "chooseFile": "파일 선택",
+    "uploading": "업로드 중…",
+    "imageHint": "적용됨 (5MB 이하)",
+    "imageUploaded": "프로필 이미지가 업로드되었습니다.",
+    "bio": "자기소개",
+    "bioPlaceholder": "간단한 소개를 적어주세요.",
+    "website": "웹사이트",
+    "iconEmoji": "아이콘 이모지",
+    "iconCustomHint": "직접 입력 (이모지)",
+    "themeColor": "테마 색상",
+    "bannerUrl": "배너 이미지 URL",
+    "bannerHint": "와이드 비율 이미지 URL (16:9 권장)",
+    "save": "저장",
+    "saving": "저장 중…",
+    "savedOk": "저장되었습니다.",
+    "back": "뒤로",
+    "loginRequired": "로그인이 필요합니다.",
+    "loading": "불러오는 중…"
+  },
+  "Feed": {
+    "title": "활동 피드",
+    "subtitle": "친구와 팔로잉 유저들의 최근 활동을 확인합니다.",
+    "empty": "아직 활동이 없어요. 친구를 추가하거나 유저를 팔로우 해보세요.",
+    "emptyBrowseUsers": "유저 둘러보기",
+    "loadMore": "더 보기",
+    "loading": "불러오는 중…",
+    "loginRequired": "로그인이 필요합니다.",
+    "eventFriendAccepted": "님이 새 친구가 되었습니다.",
+    "eventUserFollowed": "님을 팔로우 했습니다.",
+    "eventAssetPublished": "님이 \"{name}\" 을 공개했습니다.",
+    "eventWorldCreated": "님이 새 세계 \"{name}\" 을 만들었습니다.",
+    "eventPostCreated": "님이 \"{title}\" 글을 올렸습니다."
+  },
+  "Messages": {
+    "title": "메시지",
+    "subtitle": "친구와의 1:1 대화",
+    "loading": "불러오는 중…",
+    "empty": "아직 대화가 없습니다.",
+    "emptyGoFriends": "친구 페이지로 가기",
+    "noMessages": "메시지가 없습니다.",
+    "inputPlaceholder": "메시지 입력…",
+    "send": "보내기",
+    "loginRequired": "로그인이 필요합니다."
   }
 }

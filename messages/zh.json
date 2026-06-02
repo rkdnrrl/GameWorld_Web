@@ -197,7 +197,13 @@
     "dungeonMaxFloor": "地牢最高层",
     "dungeonMaxKills": "地牢最多击杀",
     "floorUnit": "层",
-    "killUnit": "击杀"
+    "killUnit": "击杀",
+    "customizeSection": "装饰个人资料",
+    "customizeDesc": "用横幅、图标、主题色和简介装饰您的个人资料。",
+    "customizeButton": "前往装饰",
+    "friendsSection": "好友",
+    "friendsDesc": "发送和管理好友请求。",
+    "friendsButton": "打开好友页面"
   },
   "Inventory": {
     "title": "背包",
@@ -2047,6 +2053,55 @@
     "friendSince": "自 {date} 起为好友",
     "loginRequired": "需要登录。",
     "loading": "加载中…",
-    "blocked": "已屏蔽"
+    "blocked": "已屏蔽",
+    "btnMessage": "消息"
+  },
+  "AccountCustomize": {
+    "title": "装饰个人资料",
+    "subtitle": "设置其他用户看到的个人资料外观。",
+    "profileImage": "头像",
+    "chooseFile": "选择文件",
+    "uploading": "上传中…",
+    "imageHint": "已应用 (≤5MB)",
+    "imageUploaded": "头像已上传。",
+    "bio": "简介",
+    "bioPlaceholder": "写一段简短的介绍。",
+    "website": "网站",
+    "iconEmoji": "图标表情",
+    "iconCustomHint": "自定义 (表情)",
+    "themeColor": "主题色",
+    "bannerUrl": "横幅图片URL",
+    "bannerHint": "宽屏图片URL (推荐 16:9)",
+    "save": "保存",
+    "saving": "保存中…",
+    "savedOk": "已保存。",
+    "back": "返回",
+    "loginRequired": "需要登录。",
+    "loading": "加载中…"
+  },
+  "Feed": {
+    "title": "动态",
+    "subtitle": "好友和关注用户的最近动态。",
+    "empty": "还没有动态。添加好友或关注用户来查看更新。",
+    "emptyBrowseUsers": "浏览用户",
+    "loadMore": "加载更多",
+    "loading": "加载中…",
+    "loginRequired": "需要登录。",
+    "eventFriendAccepted": " 成为新好友。",
+    "eventUserFollowed": " 被关注了。",
+    "eventAssetPublished": " 发布了 \"{name}\"。",
+    "eventWorldCreated": " 创建了新世界 \"{name}\"。",
+    "eventPostCreated": " 发布了 \"{title}\"。"
+  },
+  "Messages": {
+    "title": "消息",
+    "subtitle": "与好友的一对一聊天",
+    "loading": "加载中…",
+    "empty": "还没有对话。",
+    "emptyGoFriends": "前往好友页面",
+    "noMessages": "没有消息。",
+    "inputPlaceholder": "输入消息…",
+    "send": "发送",
+    "loginRequired": "需要登录。"
   }
 }
