@@ -1402,6 +1402,38 @@ function TexturePickerModal({ assets, onSelect, onClose, title, mode = 'image' }
   );
 }
 
+/* ── Water mesh — sin/cos 웨이브 애니메이션. 데스크탑 viewer.js 의 isWater 루프와 동일 공식. */
+function WaterMesh({ color, selected }: { color: string; selected: boolean }) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const baseRef = useRef<Float32Array | null>(null);
+
+  useFrame(({ clock }) => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    const geom = mesh.geometry as THREE.PlaneGeometry;
+    const pos = geom.attributes.position as THREE.BufferAttribute;
+    if (!baseRef.current) baseRef.current = (pos.array as Float32Array).slice() as Float32Array;
+    const base = baseRef.current;
+    const arr = pos.array as Float32Array;
+    const t = clock.elapsedTime;
+    for (let i = 0; i < arr.length; i += 3) {
+      const x = base[i], y = base[i + 1];
+      arr[i + 2] = base[i + 2] + Math.sin(x * 5 + t * 2) * 0.04 + Math.cos(y * 5 + t * 1.5) * 0.04;
+    }
+    pos.needsUpdate = true;
+    geom.computeVertexNormals();
+  });
+
+  return (
+    <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <planeGeometry args={[1, 1, 16, 16]} />
+      <meshStandardMaterial color={color} transparent opacity={0.75}
+        roughness={0.15} metalness={0.1} side={THREE.DoubleSide}
+        emissive={selected ? '#1e88e5' : '#000000'} emissiveIntensity={selected ? 0.3 : 0} />
+    </mesh>
+  );
+}
+
 /* ── 단일 오브젝트 렌더링 ────────────────── */
 function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
   obj: MapObject;
@@ -1500,7 +1532,7 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
     );
   }
 
-  // Water — 반투명 파란 plane (위에 누움). 웨이브 애니메이션은 생략 (정적 plane).
+  // Water — 반투명 파란 plane + sin/cos 웨이브 애니메이션 (데스크탑 에디터와 동일 공식).
   if (obj.kind === 'water') {
     return (
       <group
@@ -1509,12 +1541,7 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
         scale={noTransform ? undefined : obj.scale}
         onPointerDown={handle}
         userData={noTransform ? undefined : { id: obj.id }}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <planeGeometry args={[1, 1, 16, 16]} />
-          <meshStandardMaterial color={obj.color || '#1e88e5'} transparent opacity={0.75}
-            roughness={0.15} metalness={0.1} side={THREE.DoubleSide}
-            emissive={selected ? '#1e88e5' : '#000000'} emissiveIntensity={selected ? 0.3 : 0} />
-        </mesh>
+        <WaterMesh color={obj.color || '#1e88e5'} selected={selected} />
       </group>
     );
   }
