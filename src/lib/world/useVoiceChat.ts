@@ -19,9 +19,10 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import type { PlayerPose } from './useGameSocket';
 import { session } from '@/lib/api';
 
-const PANNER_REF_DISTANCE = 2;
-const PANNER_MAX_DISTANCE = 40;
-const PANNER_ROLLOFF      = 1.4;
+// 디버그용으로 감쇠 약화. 들리는 거 확인 후 다시 좁힐 예정.
+const PANNER_REF_DISTANCE = 50;      // 50m 이내 풀 볼륨 (테스트)
+const PANNER_MAX_DISTANCE = 500;     // 500m 이상 무음
+const PANNER_ROLLOFF      = 0.3;     // 감쇠 매우 약하게
 
 const VOICE_API_BASE = (typeof window !== 'undefined' && (window as { __ALP_API__?: string }).__ALP_API__) || 'https://airliveplay.com';
 
@@ -113,6 +114,7 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, posesRef, localPo
     pc.ontrack = (e) => {
       const track = e.track;
       const mid = e.transceiver?.mid;
+      console.log('[voice] 🎵 ontrack received — kind:', track.kind, 'mid:', mid, 'readyState:', track.readyState);
       if (mid) tracksByMidRef.current.set(mid, track);
       // 어떤 peer 의 트랙인지는 mid 매칭. 일단 저장만 — pull track 응답 받았을 때 mid 매핑.
       // applyPanner 가 mid → panner 연결.
@@ -164,6 +166,7 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, posesRef, localPo
 
   /** PannerNode 생성 + analyser 부착 */
   const attachPanner = useCallback((peerId: string, track: MediaStreamTrack, info: RemotePeerInfo) => {
+    console.log('[voice] 🔊 attachPanner peer:', peerId.slice(0,8), 'track:', track.id);
     try {
       if (!audioCtxRef.current) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -171,19 +174,20 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, posesRef, localPo
         audioCtxRef.current = new Ctor();
       }
       const ctx = audioCtxRef.current!;
-      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      console.log('[voice] AudioContext state:', ctx.state, 'sampleRate:', ctx.sampleRate);
+      if (ctx.state === 'suspended') ctx.resume().then(() => console.log('[voice] ctx resumed →', ctx.state)).catch(e => console.warn('[voice] resume failed:', e));
 
-      // Safari workaround: track 을 audio element 의 srcObject 로 한 번 거쳐야 sourceNode 활성화됨
-      if (!sinkElemRef.current) {
-        const el = document.createElement('audio');
-        el.autoplay = true; el.muted = true;
-        (el as HTMLAudioElement & { playsInline: boolean }).playsInline = true;
-        document.body.appendChild(el);
-        sinkElemRef.current = el;
-      }
-      const stream = new MediaStream([track]);
-      // 다른 stream 가지고 있을 수 있으니 src 갱신 X — 그냥 새 stream 사용
-      const src = ctx.createMediaStreamSource(stream);
+      // Safari/Chrome workaround: track 을 audio element 의 srcObject 로 한 번 거쳐야 sourceNode 활성화됨
+      // 각 track 마다 별도 audio element 필요
+      const el = document.createElement('audio');
+      el.autoplay = true;
+      el.muted = true;
+      (el as HTMLAudioElement & { playsInline: boolean }).playsInline = true;
+      el.srcObject = new MediaStream([track]);
+      document.body.appendChild(el);
+
+      if (!sinkElemRef.current) sinkElemRef.current = el;
+      const src = ctx.createMediaStreamSource(el.srcObject as MediaStream);
       const panner = ctx.createPanner();
       panner.panningModel  = 'HRTF';
       panner.distanceModel = 'inverse';
