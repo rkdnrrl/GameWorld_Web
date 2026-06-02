@@ -21,10 +21,15 @@ export default function PostHogInit() {
     const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
     if (!key) return;
 
+    // 절대 URL 로 — PostHog 가 leading slash 처리하면서 locale 경로(/ko)가 끼는 문제 회피.
+    const apiHost = typeof window !== "undefined"
+      ? `${window.location.origin}/ingest`
+      : "/ingest";
+
     import("posthog-js").then(({ default: posthog }) => {
       posthog.init(key, {
         // 리버스 프록시 — 광고차단기 우회. next.config.ts 의 /ingest 리라이트와 짝.
-        api_host: "/ingest",
+        api_host: apiHost,
         ui_host: "https://us.posthog.com",
         person_profiles: "identified_only",  // 로그인 유저만 프로필 생성 (비용 절감)
         capture_pageview: true,
