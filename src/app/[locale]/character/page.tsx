@@ -271,6 +271,9 @@ function CustomPreview({
   const mixer = useRef<THREE.AnimationMixer | null>(null);
   const animClips = useRef<THREE.AnimationClip[]>([]);
   const restPose = useRef<ObjectPose[]>([]);
+  // 발 위치 자동 보정 — idle root 들림으로 발이 뜨는 거 5프레임 후 보정
+  const feetCalibFrames = useRef(0);
+  const feetCalibDone   = useRef(false);
 
   useEffect(() => {
     if (!url) return;
@@ -307,6 +310,9 @@ function CustomPreview({
         mixer.current = new THREE.AnimationMixer(loaded);
       }
       onAnimationsLoaded?.(combinedAnims.map(a => ({ name: a.name, duration: a.duration })));
+      // 새 모델 로드 — 발 보정 리셋
+      feetCalibFrames.current = 0;
+      feetCalibDone.current = false;
       setObj(loaded);
     };
 
@@ -425,6 +431,18 @@ function CustomPreview({
   // 자동 회전 제거 — OrbitControls 로 사용자가 직접 회전 (충돌 방지)
   useFrame((_, dt) => {
     mixer.current?.update(dt);
+    // 발 보정 — 5프레임 후 bbox.min.y 측정 → obj.position.y 로 보정 (T-pose vs idle root drift 해결)
+    if (!feetCalibDone.current && obj && mixer.current) {
+      feetCalibFrames.current++;
+      if (feetCalibFrames.current >= 5) {
+        const box = getRenderableBounds(obj);
+        const drift = box.min.y;
+        if (Math.abs(drift) > 0.005) {
+          obj.position.y -= drift;
+        }
+        feetCalibDone.current = true;
+      }
+    }
   });
 
   if (!obj) return null;

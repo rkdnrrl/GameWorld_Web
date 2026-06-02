@@ -241,6 +241,10 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   const currentState    = useRef<string | null>(null);
   // 머리 본 — hideHead 시 0 으로 스케일링해서 머리/머리카락 가림
   const headBone        = useRef<THREE.Object3D | null>(null);
+  // 발 위치 자동 보정 — autoNormalize 가 T-pose 기준이라 idle 애니메이션 root 들림 시 발이 떠 보임.
+  // 첫 mixer 업데이트 후 N프레임 지나면 실제 bbox.min.y 측정해서 obj.position.y 보정.
+  const feetCalibFrames = useRef(0);
+  const feetCalibDone   = useRef(false);
 
   useEffect(() => {
     if (!url) return;
@@ -327,6 +331,9 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       });
 
       setObj(cloned);
+      // 새 모델 로드 — 발 보정 리셋
+      feetCalibFrames.current = 0;
+      feetCalibDone.current = false;
     })();
     return () => {
       cancelled = true;
@@ -384,6 +391,19 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
     // 머리 가리기 — mixer 가 매 프레임 본 transform 을 덮어쓰므로 update 후에 강제 적용
     if (headBone.current) {
       headBone.current.scale.setScalar(hideHead ? 0.0001 : 1);
+    }
+    // 발 위치 자동 보정 — 5프레임 후 (애니메이션 안정화 됨) bbox.min.y 측정 → obj.position.y 로 보정.
+    // T-pose 기준 정렬한 발이 idle root 들림 때문에 떠 보이는 버그 해결.
+    if (!feetCalibDone.current && obj && !skipMixer) {
+      feetCalibFrames.current++;
+      if (feetCalibFrames.current >= 5) {
+        const box = getRenderableBounds(obj as THREE.Object3D);
+        const drift = box.min.y;
+        if (Math.abs(drift) > 0.005) {
+          (obj as THREE.Object3D).position.y -= drift;
+        }
+        feetCalibDone.current = true;
+      }
     }
     if (skipMixer) return;
 
