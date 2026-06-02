@@ -4181,13 +4181,13 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         <RemotePlayerInfoPanel player={selectedRemote} onClose={() => setSelectedRemote(null)} />
       )}
 
-      {/* 음성 채팅 마이크 토글 (Phase 22) — 우상단 */}
+      {/* 음성 채팅 마이크 토글 (Phase 22) — 우상단 (기존 메뉴 아래) */}
       <button
         type="button"
         onClick={() => setVoiceEnabled(v => !v)}
         title={voiceEnabled ? '음성 끄기' : '음성 켜기'}
         style={{
-          position: 'fixed', top: 16, right: 16,
+          position: 'fixed', top: 76, right: 16,
           width: 44, height: 44, borderRadius: '50%',
           border: `2px solid ${voiceEnabled ? (voice.status === 'ready' ? '#22c55e' : '#fbbf24') : 'rgba(255,255,255,0.25)'}`,
           background: voiceEnabled
@@ -4203,7 +4203,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       </button>
       {voice.status === 'denied' && (
         <div style={{
-          position: 'fixed', top: 66, right: 16, padding: '6px 10px',
+          position: 'fixed', top: 126, right: 16, padding: '6px 10px',
           background: 'rgba(220,38,38,0.85)', color: '#fff', fontSize: 11,
           borderRadius: 6, zIndex: 16777273, pointerEvents: 'none',
         }}>마이크 권한 거부됨</div>
