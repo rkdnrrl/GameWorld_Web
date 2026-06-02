@@ -12,6 +12,8 @@ interface World {
   description?: string | null;
   thumbnailUrl?: string | null;
   isPublic?: boolean;
+  creatorId?: string;
+  creator?: { username?: string | null } | null;
 }
 
 export default function OperatorHomeHubPage() {
@@ -26,6 +28,7 @@ export default function OperatorHomeHubPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [tab, setTab] = useState<'mine' | 'public'>('mine');
+  const [search, setSearch] = useState('');
 
   const fetchAll = useCallback(async () => {
     const tk = session.getToken();
@@ -88,7 +91,15 @@ export default function OperatorHomeHubPage() {
     return <div className="mx-auto w-full max-w-4xl px-4 py-16 text-sm text-zinc-500">불러오는 중...</div>;
   }
 
-  const list = tab === 'mine' ? myWorlds : publicWorlds;
+  const baseList = tab === 'mine' ? myWorlds : publicWorlds;
+  const q = search.trim().toLowerCase();
+  const list = q
+    ? baseList.filter(w =>
+        w.name.toLowerCase().includes(q) ||
+        (w.creator?.username || '').toLowerCase().includes(q) ||
+        w.id.toLowerCase().includes(q)
+      )
+    : baseList;
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-10">
@@ -185,6 +196,13 @@ export default function OperatorHomeHubPage() {
         >
           공개 월드 ({publicWorlds.length})
         </button>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="이름·작가·ID 검색..."
+          className="ml-auto w-64 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+        />
       </div>
 
       {/* 월드 리스트 */}
@@ -229,6 +247,12 @@ export default function OperatorHomeHubPage() {
                       <span className="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-bold text-green-700 dark:bg-green-900/50 dark:text-green-400">
                         설정됨
                       </span>
+                    )}
+                  </div>
+                  <div className="mb-1 truncate text-[11px] text-zinc-600 dark:text-zinc-300">
+                    제작자: <span className="font-semibold">{w.creator?.username || '익명'}</span>
+                    {w.creatorId && (
+                      <span className="ml-1 font-mono text-[10px] text-zinc-400">({w.creatorId.slice(0, 8)})</span>
                     )}
                   </div>
                   <div className="mb-2 truncate font-mono text-[10px] text-zinc-500 dark:text-zinc-400">
