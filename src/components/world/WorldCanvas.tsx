@@ -270,10 +270,10 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   const currentState    = useRef<string | null>(null);
   // 머리 본 — hideHead 시 0 으로 스케일링해서 머리/머리카락 가림
   const headBone        = useRef<THREE.Object3D | null>(null);
-  // 발 위치 자동 보정 — autoNormalize 가 T-pose 기준이라 idle 애니메이션 root 들림 시 발이 떠 보임.
-  // 첫 mixer 업데이트 후 N프레임 지나면 실제 bbox.min.y 측정해서 obj.position.y 보정.
+  // 발 위치 자동 보정 — foot bone 실측 기반 (bind-pose bbox 는 본 변형 모르므로 안 됨).
   const feetCalibFrames = useRef(0);
   const feetCalibDone   = useRef(false);
+  const footBones       = useRef<THREE.Object3D[]>([]);
 
   useEffect(() => {
     if (!url) return;
@@ -360,9 +360,14 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       });
 
       setObj(cloned);
-      // 새 모델 로드 — 발 보정 리셋
+      // 새 모델 로드 — 발 보정 리셋 + foot bone 찾기 (Mixamo 표준 본 이름)
       feetCalibFrames.current = 0;
       feetCalibDone.current = false;
+      const feet: THREE.Object3D[] = [];
+      cloned.traverse((o) => {
+        if (/(?:^|:)((?:Left|Right)(?:Foot|ToeBase))$/i.test(o.name)) feet.push(o);
+      });
+      footBones.current = feet;
     })();
     return () => {
       cancelled = true;
@@ -421,15 +426,26 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
     if (headBone.current) {
       headBone.current.scale.setScalar(hideHead ? 0.0001 : 1);
     }
-    // 발 위치 자동 보정 — 첫 5프레임 후 1회만 미세 정렬.
-    //  연속 clamp 는 skinned mesh bind-pose bbox 의 한계로 false positive 발생 → 제거함.
-    //  부족하면 캐릭터 페이지 Y 오프셋 슬라이더로 수동 조정.
-    if (!feetCalibDone.current && obj && !skipMixer) {
-      feetCalibFrames.current++;
-      if (feetCalibFrames.current >= 5) {
-        const box = getRenderableBounds(obj as THREE.Object3D);
-        if (Math.abs(box.min.y) > 0.005) (obj as THREE.Object3D).position.y -= box.min.y;
-        feetCalibDone.current = true;
+    // 발 위치 자동 보정 — foot bone world Y 와 parent (캐릭터 메쉬 wrapper) world Y 비교.
+    //  bind-pose bbox 는 본 변형 무시 → 부정확. foot bone 은 실시간 본 transform 반영.
+    //  매 프레임 양쪽 발 중 lower 의 worldY 가 parent worldY 와 같아지도록 root.position.y 조정.
+    //  idle (발 살짝 들림) / prone (발이 hip 위치까지 들림) 모두 자동.
+    if (footBones.current.length && obj && !skipMixer) {
+      const root = obj as THREE.Object3D;
+      const parent = root.parent;
+      if (parent) {
+        const _wp = new THREE.Vector3();
+        let lowestY = Infinity;
+        for (const b of footBones.current) {
+          b.getWorldPosition(_wp);
+          if (_wp.y < lowestY) lowestY = _wp.y;
+        }
+        parent.getWorldPosition(_wp);
+        const drift = lowestY - _wp.y;
+        // 큰 차이만 보정 (작은 떨림 무시 — 자연스러운 발 떼기 보존)
+        if (Math.abs(drift) > 0.02) {
+          root.position.y -= drift;
+        }
       }
     }
     if (skipMixer) return;

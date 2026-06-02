@@ -278,9 +278,10 @@ function CustomPreview({
   const mixer = useRef<THREE.AnimationMixer | null>(null);
   const animClips = useRef<THREE.AnimationClip[]>([]);
   const restPose = useRef<ObjectPose[]>([]);
-  // 발 위치 자동 보정 — idle root 들림으로 발이 뜨는 거 5프레임 후 보정
+  // 발 위치 자동 보정 — foot bone world Y 기반 (bind-pose bbox 는 본 변형 무시함)
   const feetCalibFrames = useRef(0);
   const feetCalibDone   = useRef(false);
+  const footBones       = useRef<THREE.Object3D[]>([]);
 
   useEffect(() => {
     if (!url) return;
@@ -317,9 +318,14 @@ function CustomPreview({
         mixer.current = new THREE.AnimationMixer(loaded);
       }
       onAnimationsLoaded?.(combinedAnims.map(a => ({ name: a.name, duration: a.duration })));
-      // 새 모델 로드 — 발 보정 리셋
+      // 새 모델 로드 — 발 보정 리셋 + foot bone 캐싱 (Mixamo 표준 본 이름)
       feetCalibFrames.current = 0;
       feetCalibDone.current = false;
+      const feet: THREE.Object3D[] = [];
+      loaded.traverse((o) => {
+        if (/(?:^|:)((?:Left|Right)(?:Foot|ToeBase))$/i.test(o.name)) feet.push(o);
+      });
+      footBones.current = feet;
       setObj(loaded);
     };
 
@@ -438,13 +444,19 @@ function CustomPreview({
   // 자동 회전 제거 — OrbitControls 로 사용자가 직접 회전 (충돌 방지)
   useFrame((_, dt) => {
     mixer.current?.update(dt);
-    // 발 보정 — 첫 5프레임 후 1회만. 연속 clamp 는 false positive 로 캐릭터 띄움 → 제거.
-    if (!feetCalibDone.current && obj && mixer.current) {
-      feetCalibFrames.current++;
-      if (feetCalibFrames.current >= 5) {
-        const box = getRenderableBounds(obj);
-        if (Math.abs(box.min.y) > 0.005) obj.position.y -= box.min.y;
-        feetCalibDone.current = true;
+    // 발 보정 — foot bone world Y 추적. parent worldY 와 lowest foot worldY 가 같아지도록 obj.position.y 조정.
+    if (footBones.current.length && obj && mixer.current) {
+      const parent = obj.parent;
+      if (parent) {
+        const _wp = new THREE.Vector3();
+        let lowestY = Infinity;
+        for (const b of footBones.current) {
+          b.getWorldPosition(_wp);
+          if (_wp.y < lowestY) lowestY = _wp.y;
+        }
+        parent.getWorldPosition(_wp);
+        const drift = lowestY - _wp.y;
+        if (Math.abs(drift) > 0.02) obj.position.y -= drift;
       }
     }
   });
