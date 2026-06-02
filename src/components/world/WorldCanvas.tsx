@@ -426,23 +426,24 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
     if (headBone.current) {
       headBone.current.scale.setScalar(hideHead ? 0.0001 : 1);
     }
-    // 발 위치 자동 보정 — foot bone world Y 가 parent (지면) worldY 와 같아지도록 smooth 추적.
-    //  매 프레임 drift 의 30% 씩 적용 → 큰 자세 변화 (prone 등) 도 5-7프레임에 걸쳐 부드럽게 따라감.
-    //  순간 cap 안 두므로 어떤 자세든 결국 발이 지면에 맞춰짐.
+    // 발 위치 자동 보정 — smooth (30%) 추적 + parent scale 보정 (drift world units → local units).
     if (footBones.current.length && obj && !skipMixer) {
       const root = obj as THREE.Object3D;
       const parent = root.parent;
       if (parent) {
         const _wp = new THREE.Vector3();
+        const _ws = new THREE.Vector3();
         let lowestY = Infinity;
         for (const b of footBones.current) {
           b.getWorldPosition(_wp);
           if (_wp.y < lowestY) lowestY = _wp.y;
         }
         parent.getWorldPosition(_wp);
+        parent.getWorldScale(_ws);
         const drift = lowestY - _wp.y;
+        const parentScaleY = _ws.y || 1;
         if (Math.abs(drift) > 0.02) {
-          root.position.y -= drift * 0.3; // 30% smooth — 큰 변화 부드럽게 흡수
+          root.position.y -= (drift * 0.3) / parentScaleY;
         }
       }
     }

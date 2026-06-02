@@ -444,19 +444,22 @@ function CustomPreview({
   // 자동 회전 제거 — OrbitControls 로 사용자가 직접 회전 (충돌 방지)
   useFrame((_, dt) => {
     mixer.current?.update(dt);
-    // 발 보정 — smooth 추적 (매 프레임 drift 30%). 큰 자세 변화 (prone 등) 도 부드럽게 따라감.
+    // 발 보정 — smooth 추적. parent scale 보정 필수 (drift 는 world units, obj.position 은 local units).
     if (footBones.current.length && obj && mixer.current) {
       const parent = obj.parent;
       if (parent) {
         const _wp = new THREE.Vector3();
+        const _ws = new THREE.Vector3();
         let lowestY = Infinity;
         for (const b of footBones.current) {
           b.getWorldPosition(_wp);
           if (_wp.y < lowestY) lowestY = _wp.y;
         }
         parent.getWorldPosition(_wp);
+        parent.getWorldScale(_ws);
         const drift = lowestY - _wp.y;
-        if (Math.abs(drift) > 0.02) obj.position.y -= drift * 0.3;
+        const parentScaleY = _ws.y || 1;
+        if (Math.abs(drift) > 0.02) obj.position.y -= (drift * 0.3) / parentScaleY;
       }
     }
   });
