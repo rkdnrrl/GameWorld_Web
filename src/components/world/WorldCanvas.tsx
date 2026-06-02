@@ -85,6 +85,35 @@ function getRenderableBounds(obj: THREE.Object3D) {
   return worldBox;
 }
 
+/** Water mesh — sin/cos 웨이브 애니메이션. 스튜디오 WaterMesh 와 동일 공식. */
+function WorldWaterMesh({ color }: { color: string }) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const baseRef = useRef<Float32Array | null>(null);
+  useFrame(({ clock }) => {
+    const m = meshRef.current;
+    if (!m) return;
+    const geom = m.geometry as THREE.PlaneGeometry;
+    const pos = geom.attributes.position as THREE.BufferAttribute;
+    if (!baseRef.current) baseRef.current = (pos.array as Float32Array).slice() as Float32Array;
+    const base = baseRef.current;
+    const arr = pos.array as Float32Array;
+    const t = clock.elapsedTime;
+    for (let i = 0; i < arr.length; i += 3) {
+      const x = base[i], y = base[i + 1];
+      arr[i + 2] = base[i + 2] + Math.sin(x * 5 + t * 2) * 0.04 + Math.cos(y * 5 + t * 1.5) * 0.04;
+    }
+    pos.needsUpdate = true;
+    geom.computeVertexNormals();
+  });
+  return (
+    <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <planeGeometry args={[1, 1, 16, 16]} />
+      <meshStandardMaterial color={color} transparent opacity={0.75}
+        roughness={0.15} metalness={0.1} side={THREE.DoubleSide} />
+    </mesh>
+  );
+}
+
 function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   // 재호출 시 누적 방지 — 매번 fresh 한 상태에서 시작
   obj.position.set(0, 0, 0);
@@ -2213,6 +2242,58 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
         position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }} {...colliderEvents}>
         <CuboidCollider args={colliderArgs} position={colliderOffset} sensor={trig} />
       </RigidBody>
+    );
+  }
+
+  // Water — 반투명 파란 plane + sin/cos 웨이브 (스튜디오와 동일 디자인).
+  if (obj.kind === 'water') {
+    return (
+      <group position={rPos} rotation={rRot} scale={rScale}>
+        <WorldWaterMesh color={obj.color || '#1e88e5'} />
+      </group>
+    );
+  }
+
+  // Portal — 토러스 ring + 안쪽 반투명 disc.
+  if (obj.kind === 'portal') {
+    const col = obj.color || '#3b82f6';
+    return (
+      <group position={rPos} rotation={rRot} scale={rScale}>
+        <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <torusGeometry args={[0.9, 0.12, 12, 32]} />
+          <meshStandardMaterial color={col} emissive={col} emissiveIntensity={0.5} />
+        </mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+          <circleGeometry args={[0.85, 32]} />
+          <meshBasicMaterial color={col} transparent opacity={0.35} side={THREE.DoubleSide} />
+        </mesh>
+      </group>
+    );
+  }
+
+  // Particle — 작은 sphere 클러스터 (fire/smoke/spark 색조). 정적.
+  if (obj.kind === 'particle') {
+    const ptype = (obj as UserMapObject & { particleType?: string }).particleType || 'fire';
+    const palette: Record<string, string[]> = {
+      fire:  ['#ff8800', '#ff4400', '#fbbf24'],
+      smoke: ['#666666', '#888888', '#444444'],
+      spark: ['#ffffff', '#fbbf24', '#ffcc00'],
+    };
+    const cols = palette[ptype] || palette.fire;
+    const seeds = [0.12, 0.47, 0.83, 0.21, 0.65, 0.39, 0.92, 0.05, 0.71, 0.34, 0.58, 0.88];
+    return (
+      <group position={rPos} rotation={rRot} scale={rScale}>
+        {seeds.map((s, i) => (
+          <mesh key={i} position={[
+            (s - 0.5) * 0.6,
+            ((s * 7) % 1) * 0.8,
+            ((s * 13) % 1 - 0.5) * 0.6,
+          ]}>
+            <sphereGeometry args={[0.08, 8, 6]} />
+            <meshBasicMaterial color={cols[i % cols.length]} transparent opacity={0.75} />
+          </mesh>
+        ))}
+      </group>
     );
   }
 
