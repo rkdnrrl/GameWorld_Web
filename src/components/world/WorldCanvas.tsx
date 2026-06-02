@@ -88,17 +88,39 @@ function getRenderableBounds(obj: THREE.Object3D) {
 function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   // 재호출 시 누적 방지 — 매번 fresh 한 상태에서 시작
   obj.position.set(0, 0, 0);
-  obj.rotation.set(rotX, 0, 0);
+  obj.rotation.set(0, 0, 0);
   obj.scale.set(1, 1, 1);
   obj.updateMatrixWorld(true);
 
-  const box  = getRenderableBounds(obj);
-  const size = box.getSize(new THREE.Vector3());
-  const h    = size.y > 0 ? size.y : Math.max(size.x, size.y, size.z);
+  // 자동 감지 — stored rotX 가 default (-π/2) 면 4 후보 중 가장 키 큰 회전 사용.
+  // FBX 가 이미 Y-up 직립이라 -π/2 가 잘못된 경우 자동 보정 (캐릭터 페이지 미수정 옛 데이터 fallback).
+  let effectiveRotX = rotX;
+  if (Math.abs(rotX - (-Math.PI / 2)) < 0.001) {
+    const cands = [0, -Math.PI / 2, Math.PI / 2, Math.PI];
+    let bestY = -Infinity;
+    for (const r of cands) {
+      obj.rotation.set(r, 0, 0);
+      obj.updateMatrixWorld(true);
+      const b = getRenderableBounds(obj);
+      const s = b.getSize(new THREE.Vector3());
+      if (s.y > bestY) { bestY = s.y; effectiveRotX = r; }
+    }
+  }
+
+  // 회전 적용 + 크기 측정 (회전 안 한 상태에서) — 누워있을 때 size.y 로 over-scale 되는 옛 버그 방지
+  obj.rotation.set(0, 0, 0);
+  obj.updateMatrixWorld(true);
+  const box0 = getRenderableBounds(obj);
+  const size0 = box0.getSize(new THREE.Vector3());
+  const h = Math.max(size0.x, size0.y, size0.z);
   if (h > 0) {
     obj.scale.setScalar(targetHeight / h);
     obj.updateMatrixWorld(true);
   }
+
+  // 회전 적용
+  obj.rotation.set(effectiveRotX, 0, 0);
+  obj.updateMatrixWorld(true);
 
   const box2 = getRenderableBounds(obj);
   obj.position.y -= box2.min.y;            // 발 -> y=0

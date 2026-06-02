@@ -1200,6 +1200,7 @@ export default function CharacterPage() {
                     onAnimationsLoaded={setAvailableAnims}
                     onPlayingClip={setPlayingClip}
                     extraSlotUrls={animSlotUrls}
+                    onAutoRotXDetected={(r) => setModelRotX(r)}
                   />
                 : <BlockPreview appearance={appearance} />
               }
