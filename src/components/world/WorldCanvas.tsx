@@ -360,14 +360,16 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       });
 
       setObj(cloned);
-      // 새 모델 로드 — 발 보정 리셋 + foot bone 찾기 (Mixamo 표준 본 이름)
+      // 새 모델 로드 — 발 보정 리셋 + foot bone 찾기
+      // 본 이름 끝이 LeftFoot/RightFoot/LeftToeBase/RightToeBase 면 매칭 (Mixamo 변형 모두 포함)
       feetCalibFrames.current = 0;
       feetCalibDone.current = false;
       const feet: THREE.Object3D[] = [];
       cloned.traverse((o) => {
-        if (/(?:^|:)((?:Left|Right)(?:Foot|ToeBase))$/i.test(o.name)) feet.push(o);
+        if (/(?:left|right)(?:foot|toebase)$/i.test(o.name)) feet.push(o);
       });
       footBones.current = feet;
+      if (!feet.length) console.warn('[world char] foot bones not found in', cloned);
     })();
     return () => {
       cancelled = true;

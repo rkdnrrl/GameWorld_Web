@@ -323,9 +323,12 @@ function CustomPreview({
       feetCalibDone.current = false;
       const feet: THREE.Object3D[] = [];
       loaded.traverse((o) => {
-        if (/(?:^|:)((?:Left|Right)(?:Foot|ToeBase))$/i.test(o.name)) feet.push(o);
+        // 끝이 LeftFoot/RightFoot/LeftToeBase/RightToeBase 이면 매칭 — Mixamo 모든 변형 포함
+        // (mixamorigLeftFoot, mixamorig:LeftFoot, Armature|LeftFoot, LeftFoot 등)
+        if (/(?:left|right)(?:foot|toebase)$/i.test(o.name)) feet.push(o);
       });
       footBones.current = feet;
+      if (!feet.length) console.warn('[char preview] foot bones not found — Y offset 슬라이더 수동 조정 필요');
       setObj(loaded);
     };
 
