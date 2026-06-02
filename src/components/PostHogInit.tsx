@@ -19,12 +19,13 @@ import { useEffect } from "react";
 export default function PostHogInit() {
   useEffect(() => {
     const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
-    const host = process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com";
     if (!key) return;
 
     import("posthog-js").then(({ default: posthog }) => {
       posthog.init(key, {
-        api_host: host,
+        // 리버스 프록시 — 광고차단기 우회. next.config.ts 의 /ingest 리라이트와 짝.
+        api_host: "/ingest",
+        ui_host: "https://us.posthog.com",
         person_profiles: "identified_only",  // 로그인 유저만 프로필 생성 (비용 절감)
         capture_pageview: true,
         capture_pageleave: true,

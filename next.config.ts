@@ -10,11 +10,24 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:4000";
 
 const nextConfig: NextConfig = {
+  // PostHog 리버스 프록시 경로 — 광고차단기로 인한 이벤트 손실(10~25%) 방지.
+  // /ingest/* 요청을 우리 도메인에서 PostHog 로 그대로 전달.
+  skipTrailingSlashRedirect: true,
   async rewrites() {
     return [
       {
         source: "/api/:path*",
         destination: `${BACKEND_URL}/api/:path*`,
+      },
+      // PostHog 정적 자산 (recorder 스크립트 등)
+      {
+        source: "/ingest/static/:path*",
+        destination: "https://us-assets.i.posthog.com/static/:path*",
+      },
+      // PostHog 이벤트 수집 + decide endpoint
+      {
+        source: "/ingest/:path*",
+        destination: "https://us.i.posthog.com/:path*",
       },
     ];
   },
