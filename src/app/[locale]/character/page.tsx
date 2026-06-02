@@ -199,20 +199,27 @@ function detectBestRotX(obj: THREE.Object3D): number {
   return best;
 }
 
-/** 애니메이션 클립에서 root/hip bone 의 position 트랙 제거 — preview 시 모델이 이동해버리는 root motion 방지.
- *  rotation 트랙은 유지 → 실루엣/모션 유지. 게임 런타임은 별도라 영향 X. */
+/** 애니메이션 클립에서 root/hip bone 의 position 트랙 X/Z 만 zero — preview 시 모델이 수평 이동해버리는 root motion 방지.
+ *  Y (수직) 는 유지 → prone/jump 등에서 hip 이 위아래로 움직이는 동작 살아남음.
+ *  rotation 트랙은 손대지 않음. 게임 런타임은 별도라 영향 X. */
 function stripRootMotion(clip: THREE.AnimationClip): THREE.AnimationClip {
-  const filtered = clip.tracks.filter(track => {
-    // "BoneName.position" 또는 "BoneName.position[0]" 형태
-    const m = track.name.match(/^([^.]+)\.position(\[\d\])?$/);
-    if (!m) return true; // position 트랙 아님 → 유지
+  const newTracks = clip.tracks.map(track => {
+    const m = track.name.match(/^([^.]+)\.position$/);
+    if (!m) return track; // position 트랙 아님 → 그대로
     const bone = m[1].toLowerCase();
-    // root motion 의 root 후보 — hips / root / armature / mixamorig hips
-    return !/^(mixamorig:?)?(hips|root|rootnode|armature|character)$/.test(bone);
+    if (!/^(mixamorig:?)?(hips|root|rootnode|armature|character)$/.test(bone)) return track;
+    // root/hip 의 position 트랙 — X/Z 만 0 으로 (Y 는 유지)
+    const newValues = (track.values as Float32Array).slice() as Float32Array;
+    for (let i = 0; i < newValues.length; i += 3) {
+      newValues[i] = 0;       // X
+      // newValues[i + 1] 유지 (Y)
+      newValues[i + 2] = 0;   // Z
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const TrackCtor = (track as any).constructor;
+    return new TrackCtor(track.name, track.times, newValues);
   });
-  // 트랙 변화 없으면 원본 그대로 (clone 비용 절약)
-  if (filtered.length === clip.tracks.length) return clip;
-  return new THREE.AnimationClip(clip.name, clip.duration, filtered);
+  return new THREE.AnimationClip(clip.name, clip.duration, newTracks);
 }
 
 /* ── 커스텀 모델 프리뷰 (명령형 로드) ───── */
