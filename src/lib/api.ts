@@ -1141,13 +1141,23 @@ export const api = {
   /** 작가 공개 프로필 + 통계 (토큰 있으면 isFollowing/isMe 포함) */
   getUserProfile(username: string, token?: string) {
     return request<{ profile: {
+      id: string;
       username: string;
       joinedAt: string;
+      bio: string | null;
+      profileImageUrl: string | null;
+      websiteUrl?: string | null;
+      bannerUrl?: string | null;
+      iconEmoji?: string | null;
+      themeColor?: string | null;
       publicCount: number;
       likesTotal: number;
       importsTotal: number;
       followerCount: number;
       followingCount: number;
+      friendCount: number;
+      supporterTier?: string | null;
+      supporterSince?: string | null;
       isFollowing: boolean;
       isMe: boolean;
     } }>(
@@ -1302,6 +1312,21 @@ export const api = {
     return request<{ unread: number }>(
       "/api/dm/unread-count",
       { headers: authHeaders(token) },
+    );
+  },
+
+  // ─── 후원자 (Phase 20) ───
+  /** 공개 후원자 명단 */
+  listSupporters() {
+    return request<{ supporters: Array<{ id: string; username: string; profileImageUrl: string | null; iconEmoji: string | null; themeColor: string | null; supporterTier: string; supporterSince: string | null; supporterNote: string | null; bio: string | null }> }>(
+      "/api/supporters",
+    );
+  },
+  /** 운영자: tier 부여/변경 */
+  operatorSetSupporter(token: string, userId: string, tier: string, note?: string) {
+    return request<{ profile: { id: string; username: string; supporterTier: string; supporterSince: string | null; supporterNote: string | null } }>(
+      `/api/operator/supporters/${userId}`,
+      { method: "PATCH", headers: authHeaders(token), body: JSON.stringify({ tier, note }) },
     );
   },
 

@@ -2103,5 +2103,39 @@
     "inputPlaceholder": "Type a message…",
     "send": "Send",
     "loginRequired": "Login required."
+  },
+  "Supporters": {
+    "heroTitle": "Support AirLivePlay",
+    "heroDesc": "AirLivePlay runs on community support, ad-free. Your help with server·R2 costs lets us build more games·assets·features.",
+    "mugcupTitle": "Mug-Cup Support ☕",
+    "mugcupDesc": "One-time or monthly. Get a tier badge after verification.",
+    "tossTitle": "Toss — Buy ALP Coins",
+    "tossDesc": "Instant in-game coin credit.",
+    "tossLink": "Buy coins",
+    "tiersTitle": "Tier Benefits",
+    "tiersNote": "※ After supporting via Mug-Cup, DM the operator your receipt — tier applied within 24h.",
+    "creditsTitle": "Our Supporters (thank you 🙏)",
+    "creditsEmpty": "No supporters yet. Be the first!",
+    "loading": "Loading…",
+    "tier_bronze": "Bronze",
+    "tier_silver": "Silver",
+    "tier_gold": "Gold",
+    "tier_legend": "Legend",
+    "benefits_bronze": "Profile 🥉 badge|Badge next to name in chat/DM|Listed on supporters page",
+    "benefits_silver": "Profile 🥈 badge (everywhere)|Extra asset slots|Access supporters-only board",
+    "benefits_gold": "Profile 🏆 badge (highlighted)|10K monthly coin bonus|Early access to new features|Priority operator response",
+    "benefits_legend": "👑 Rainbow badge (most visible)|All Gold perks + more coins|Direct 1:1 channel|Roadmap voice priority"
+  },
+  "PlayerPanel": {
+    "publicAssets": "Public",
+    "followers": "Followers",
+    "following": "Following",
+    "friends": "Friends",
+    "loading": "Loading…",
+    "viewProfile": "Profile",
+    "message": "Message",
+    "follow": "Follow",
+    "following_active": "Following",
+    "thatsYou": "That's you"
   }
 }

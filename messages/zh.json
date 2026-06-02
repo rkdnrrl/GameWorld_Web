@@ -2103,5 +2103,39 @@
     "inputPlaceholder": "输入消息…",
     "send": "发送",
     "loginRequired": "需要登录。"
+  },
+  "Supporters": {
+    "heroTitle": "支持 AirLivePlay",
+    "heroDesc": "AirLivePlay 无广告，靠社区支持运营。您的支持帮助分担服务器·R2 成本，让我们创建更多游戏·资源·功能。",
+    "mugcupTitle": "Mug-Cup 支持 ☕",
+    "mugcupDesc": "一次性或月度。验证后获得等级徽章。",
+    "tossTitle": "Toss — 购买 ALP 金币",
+    "tossDesc": "即时游戏内金币到账。",
+    "tossLink": "购买金币",
+    "tiersTitle": "等级特权",
+    "tiersNote": "※ 通过 Mug-Cup 支持后，私信运营收据 — 24小时内应用等级。",
+    "creditsTitle": "我们的支持者 (感谢 🙏)",
+    "creditsEmpty": "还没有支持者。成为第一个吧!",
+    "loading": "加载中…",
+    "tier_bronze": "青铜",
+    "tier_silver": "白银",
+    "tier_gold": "黄金",
+    "tier_legend": "传奇",
+    "benefits_bronze": "个人资料 🥉 徽章|聊天·私信旁徽章显示|支持者名单登记",
+    "benefits_silver": "个人资料 🥈 徽章 (全部页面)|额外资源槽位|支持者专属版块访问",
+    "benefits_gold": "个人资料 🏆 徽章 (强调)|每月1万金币奖励|新功能抢先体验|运营优先响应",
+    "benefits_legend": "👑 彩虹徽章 (最显眼)|所有黄金权益 + 更多金币|运营 1:1 直通频道|路线图意见优先"
+  },
+  "PlayerPanel": {
+    "publicAssets": "公开",
+    "followers": "粉丝",
+    "following": "关注",
+    "friends": "好友",
+    "loading": "加载中…",
+    "viewProfile": "个人资料",
+    "message": "消息",
+    "follow": "关注",
+    "following_active": "已关注",
+    "thatsYou": "这是你自己"
   }
 }

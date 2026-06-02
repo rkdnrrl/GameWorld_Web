@@ -6,9 +6,10 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { api, session, ApiError } from '@/lib/api';
+import { SupporterIcon } from '@/components/SupporterBadge';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-interface Event { id: string; type: string; targetId: string | null; payload: any; createdAt: string; actor: { id: string; username: string; profileImageUrl: string | null; iconEmoji: string | null } | null; }
+interface Event { id: string; type: string; targetId: string | null; payload: any; createdAt: string; actor: { id: string; username: string; profileImageUrl: string | null; iconEmoji: string | null; supporterTier?: string | null } | null; }
 
 export default function FeedPage() {
   const t = useTranslations('Feed');
@@ -104,7 +105,7 @@ function EventRow({ event, t }: { event: Event; t: (k: string, v?: Record<string
       ) : <div className="w-10 h-10 rounded-full bg-slate-700" />}
       <div className="flex-1 min-w-0">
         <p className="text-sm">
-          {actor && <Link href={`/users/${encodeURIComponent(actor.username)}`} className="font-medium hover:text-emerald-300">{actor.username}</Link>}{' '}
+          {actor && <Link href={`/users/${encodeURIComponent(actor.username)}`} className="font-medium hover:text-emerald-300">{actor.username}<SupporterIcon tier={actor.supporterTier} /></Link>}{' '}
           {body}
         </p>
         <p className="text-xs text-slate-500 mt-0.5">{time}</p>

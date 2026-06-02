@@ -6,10 +6,11 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { api, session, ApiError } from '@/lib/api';
+import { SupporterIcon } from '@/components/SupporterBadge';
 
 interface Conv {
   id: string;
-  other: { id: string; username: string; profileImageUrl: string | null; iconEmoji: string | null; themeColor: string | null } | null;
+  other: { id: string; username: string; profileImageUrl: string | null; iconEmoji: string | null; themeColor: string | null; supporterTier?: string | null } | null;
   lastMessageAt: string | null;
   lastMessageText: string | null;
   lastSenderId: string | null;
@@ -65,7 +66,7 @@ export default function MessagesPage() {
                   </div>}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="font-medium truncate">{c.other?.username || '(deleted)'}</p>
+                  <p className="font-medium truncate">{c.other?.username || '(deleted)'}<SupporterIcon tier={c.other?.supporterTier} /></p>
                   {c.lastMessageAt && <p className="text-xs text-slate-500 shrink-0">{new Date(c.lastMessageAt).toLocaleDateString()}</p>}
                 </div>
                 <p className="text-sm text-slate-400 truncate">{c.lastMessageText || t('noMessages')}</p>

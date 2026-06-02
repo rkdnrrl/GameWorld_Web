@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { api, session, ApiError } from '@/lib/api';
+import { SupporterBadge } from '@/components/SupporterBadge';
 
 import type { Asset, AssetKind } from '@/lib/assets/types';
 import { getKind } from '@/lib/assets/registry';
@@ -35,6 +36,8 @@ interface UserProfile {
   followerCount: number;
   followingCount: number;
   friendCount: number;
+  supporterTier?: string | null;
+  supporterSince?: string | null;
   isFollowing: boolean;
   isMe: boolean;
 }
@@ -281,7 +284,12 @@ export default function UserPage({ params }: { params: Promise<{ username: strin
             </div>
 
             <div style={{ flex: 1, minWidth: 200 }}>
-              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>{username}</h1>
+              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+                {username}
+                {profile?.supporterTier && profile.supporterTier !== 'none' && (
+                  <SupporterBadge tier={profile.supporterTier} size="md" withLabel />
+                )}
+              </h1>
               {profile?.bio && <p style={{ margin: '4px 0 0', fontSize: 13, opacity: 0.8 }}>{profile.bio}</p>}
               <div style={{ fontSize: 12, opacity: 0.5, marginTop: 4 }}>
                 {profile && t('userJoinedOn', { date: new Date(profile.joinedAt).toLocaleDateString() })}

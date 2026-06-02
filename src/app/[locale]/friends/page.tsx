@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { api, session, ApiError } from '@/lib/api';
+import { SupporterIcon } from '@/components/SupporterBadge';
 
 type Tab = 'friends' | 'received' | 'sent';
 
@@ -15,6 +16,7 @@ interface UserMini {
   username: string;
   profileImageUrl: string | null;
   bio: string | null;
+  supporterTier?: string | null;
 }
 
 interface Friend { friendshipId: string; since: string; friend: UserMini }
@@ -173,7 +175,7 @@ function UserRow({ user, subtitle, children }: { user: UserMini; subtitle: strin
           : <div className="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center text-xl">👤</div>}
       </Link>
       <div className="flex-1 min-w-0">
-        <Link href={`/users/${encodeURIComponent(user.username)}`} className="font-medium hover:text-emerald-300">{user.username}</Link>
+        <Link href={`/users/${encodeURIComponent(user.username)}`} className="font-medium hover:text-emerald-300">{user.username}<SupporterIcon tier={user.supporterTier} /></Link>
         {user.bio && <p className="text-xs text-slate-400 truncate">{user.bio}</p>}
         <p className="text-xs text-slate-500">{subtitle}</p>
       </div>

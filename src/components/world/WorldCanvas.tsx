@@ -32,6 +32,7 @@ import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimati
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, parseUrlKind, normalizeMediaUrl, ImageMaterial, GenericIframeOverlay, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, VideoRemotePanel, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
+import { RemotePlayerInfoPanel } from './RemotePlayerInfoPanel';
 import { createGameRuntime, GAME_SYNC_EVENT, GAME_SOUND_EVENT, type GameSnapshot } from '@/lib/world/gameRuntime';
 import { execUiButtonScript } from '@/lib/world/uiButtonScript';
 import GameHud from './GameHud';
@@ -1762,11 +1763,12 @@ export function Player({
 }
 
 /* ── 원격 플레이어 ──────────────────────── */
-function RemotePlayerMesh({ player, posesRef, bubble, castShadow }: {
+function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick }: {
   player: RemotePlayer;
   posesRef: React.RefObject<Map<string, PlayerPose>>;
   bubble?: ChatBubble;
   castShadow?: boolean;
+  onPlayerClick?: (player: RemotePlayer) => void;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bodyRef = useRef<any>(null);
@@ -1835,7 +1837,21 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow }: {
       userData={{ playerId: player.id }}
     >
       <CapsuleCollider args={[PLAYER_CAPSULE_HALF_HEIGHT, PLAYER_CAPSULE_RADIUS]} />
-      <group ref={meshRef} position={[0, PLAYER_MESH_Y, 0]}>
+      <group
+        ref={meshRef}
+        position={[0, PLAYER_MESH_Y, 0]}
+        onClick={onPlayerClick ? (e) => {
+          e.stopPropagation();
+          onPlayerClick(player);
+        } : undefined}
+        onPointerOver={onPlayerClick ? (e) => {
+          e.stopPropagation();
+          document.body.style.cursor = 'pointer';
+        } : undefined}
+        onPointerOut={onPlayerClick ? () => {
+          document.body.style.cursor = 'default';
+        } : undefined}
+      >
         <CharacterMesh appearance={appearance} animStateRef={animStateRef} castShadow={castShadow ?? false} />
       </group>
       <Text
@@ -4131,6 +4147,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
 
   // 모바일 감지 (Canvas 외부)
   const [isMobile, setIsMobile] = useState(false);
+  /** VRChat 식 — 다른 유저 클릭 시 정보 패널 표시 */
+  const [selectedRemote, setSelectedRemote] = useState<RemotePlayer | null>(null);
   useEffect(() => {
     const detect = () => {
       const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -4145,6 +4163,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     <>
       {/* ── 모바일 컨트롤: Canvas 완전 바깥의 position:fixed DOM ── */}
       {isMobile && <MobileControls inputLocked={chatInputActive} />}
+      {selectedRemote && (
+        <RemotePlayerInfoPanel player={selectedRemote} onClose={() => setSelectedRemote(null)} />
+      )}
 
       {/* 게임 HUD — 스크립트 ui.text/ui.bar 가 그림. 전체화면 위 오버레이(클릭 통과). */}
       <div style={{ position: 'fixed', inset: 0, zIndex: 16777272, pointerEvents: 'none' }}>
@@ -4435,7 +4456,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             )}
             <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={handleObjectClick} playerCtlRef={playerCtlRef} spawnRef={spawnRef} />
             {Object.values(players).map((p) => (
-              <RemotePlayerMesh key={p.id} player={p} posesRef={posesRef} bubble={chatBubbles[p.id]} castShadow={graphics.remoteShadows} />
+              <RemotePlayerMesh
+                key={p.id}
+                player={p}
+                posesRef={posesRef}
+                bubble={chatBubbles[p.id]}
+                castShadow={graphics.remoteShadows}
+                onPlayerClick={setSelectedRemote}
+              />
             ))}
             {portal && <WorldPortal portal={portal} />}
           </Physics>

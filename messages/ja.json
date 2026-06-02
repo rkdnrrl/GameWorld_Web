@@ -2103,5 +2103,39 @@
     "inputPlaceholder": "メッセージを入力…",
     "send": "送信",
     "loginRequired": "ログインが必要です。"
+  },
+  "Supporters": {
+    "heroTitle": "AirLivePlay を応援してください",
+    "heroDesc": "AirLivePlay は広告なしでコミュニティ支援によって運営されています。サーバー·R2 費用を一緒に負担していただくと、より多くのゲーム·アセット·機能を作れます。",
+    "mugcupTitle": "マグカップ支援 ☕",
+    "mugcupDesc": "単発·月額両方OK。認証後に等級バッジを付与します。",
+    "tossTitle": "Toss で ALP コインチャージ",
+    "tossDesc": "決済後すぐにゲーム内コインが付与されます。",
+    "tossLink": "コインを買う",
+    "tiersTitle": "等級別特典",
+    "tiersNote": "※ マグカップ支援後、運営者DMに領収書を送ってください。24時間以内に等級が適用されます。",
+    "creditsTitle": "支援してくださった方々 (ありがとうございます 🙏)",
+    "creditsEmpty": "まだサポーターがいません。最初の一人になってください！",
+    "loading": "読み込み中…",
+    "tier_bronze": "ブロンズ",
+    "tier_silver": "シルバー",
+    "tier_gold": "ゴールド",
+    "tier_legend": "レジェンド",
+    "benefits_bronze": "プロフィール 🥉 バッジ|チャット·DM横にバッジ表示|サポーター名簿登録",
+    "benefits_silver": "プロフィール 🥈 バッジ (全ページ)|アセットスロット追加|サポーター専用掲示板アクセス",
+    "benefits_gold": "プロフィール 🏆 バッジ (強調)|毎月1万コインボーナス|新機能の早期アクセス|運営優先対応",
+    "benefits_legend": "👑 虹色バッジ (最も目立つ)|全てのゴールド特典 + 追加コイン|運営直通 1:1 チャンネル|ロードマップ意見優先"
+  },
+  "PlayerPanel": {
+    "publicAssets": "公開",
+    "followers": "フォロワー",
+    "following": "フォロー",
+    "friends": "フレンド",
+    "loading": "読み込み中…",
+    "viewProfile": "プロフィール",
+    "message": "メッセージ",
+    "follow": "フォロー",
+    "following_active": "フォロー中",
+    "thatsYou": "あなた自身です"
   }
 }
