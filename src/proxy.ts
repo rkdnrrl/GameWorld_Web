@@ -8,5 +8,6 @@ export function proxy(request: Parameters<typeof handler>[0]) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next|_vercel|backend-connection-check|.*\\..*).*)'],
+  // ingest 추가: PostHog 리버스 프록시 (광고차단기 우회) — next.config.ts 의 /ingest 리라이트와 짝.
+  matcher: ['/((?!api|ingest|_next|_vercel|backend-connection-check|.*\\..*).*)'],
 };
