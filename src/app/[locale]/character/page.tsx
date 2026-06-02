@@ -444,7 +444,8 @@ function CustomPreview({
   // 자동 회전 제거 — OrbitControls 로 사용자가 직접 회전 (충돌 방지)
   useFrame((_, dt) => {
     mixer.current?.update(dt);
-    // 발 보정 — foot bone world Y 추적. parent worldY 와 lowest foot worldY 가 같아지도록 obj.position.y 조정.
+    // 발 보정 — drift 양수 (떠있음) 0.02~0.5m 만 끌어내림, 음수 (underground) -0.05~-1m 만 끌어올림.
+    // transition 중 일시적 큰 drift 는 skip → prone 같이 큰 자세 변화 시 튀는 거 방지.
     if (footBones.current.length && obj && mixer.current) {
       const parent = obj.parent;
       if (parent) {
@@ -456,7 +457,8 @@ function CustomPreview({
         }
         parent.getWorldPosition(_wp);
         const drift = lowestY - _wp.y;
-        if (Math.abs(drift) > 0.02) obj.position.y -= drift;
+        if (drift > 0.02 && drift < 0.5)         obj.position.y -= drift;
+        else if (drift < -0.05 && drift > -1.0)  obj.position.y -= drift;
       }
     }
   });
