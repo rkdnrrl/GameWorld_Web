@@ -246,7 +246,7 @@ function restoreObjectPose(poses: ObjectPose[]) {
 
 function CustomPreview({
   url, userScale, rotX, offsetY = 0, previewAnim, previewTrim, previewIsOneShot, onAnimationsLoaded, onPlayingClip, onNoSkeleton,
-  extraSlotUrls,
+  extraSlotUrls, onAutoRotXDetected,
 }: {
   url: string;
   userScale: number;
@@ -263,6 +263,8 @@ function CustomPreview({
   onNoSkeleton?: () => void;
   /** 슬롯별 외부 FBX URL (유저가 각 슬롯에 직접 지정) */
   extraSlotUrls?: Record<string, string>;
+  /** FBX 가 이미 Y-up 직립이라 -π/2 가 잘못된 경우, 자동 감지된 회전 값을 부모에 알림 (저장 시 DB 에 반영용) */
+  onAutoRotXDetected?: (rotX: number) => void;
 }) {
   const [obj, setObj] = useState<THREE.Object3D | null>(null);
   const g     = useRef<THREE.Group>(null);
@@ -287,7 +289,10 @@ function CustomPreview({
       let effectiveRotX = rotX;
       if (Math.abs(rotX - (-Math.PI / 2)) < 0.001) {
         const detected = detectBestRotX(loaded);
-        // 자동 감지 결과가 0 (이미 직립) 이면 회전 없음
+        if (Math.abs(detected - rotX) > 0.001) {
+          // 감지 결과가 stored 값과 다르면 부모에 알림 — DB 에 저장되어 월드/시뮬에서도 정상.
+          onAutoRotXDetected?.(detected);
+        }
         effectiveRotX = detected;
       }
       autoNormalize(loaded, effectiveRotX, 1.8);
