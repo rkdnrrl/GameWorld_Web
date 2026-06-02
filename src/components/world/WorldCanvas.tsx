@@ -2324,7 +2324,8 @@ function UserAsset({ url, matObj }: { url: string; matObj: UserMapObject }) {
         const box = new THREE.Box3().setFromObject(model);
         const size = box.getSize(new THREE.Vector3());
         const h = Math.max(size.x, size.y, size.z);
-        if (h > 0) model.scale.multiplyScalar(1 / h);
+        // 데스크탑 에디터 finalizeFbx 와 동일 — 최대 치수 2m 기준 정규화 (옛 1m 면 크기 절반).
+        if (h > 0) model.scale.multiplyScalar(2 / h);
         // 원본 머티리얼 저장
         originalMats.current.clear();
         model.traverse(c => {

@@ -1670,7 +1670,9 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }:
         const box = new THREE.Box3().setFromObject(model);
         const size = box.getSize(new THREE.Vector3());
         const h = Math.max(size.x, size.y, size.z);
-        if (h > 0) model.scale.multiplyScalar(1 / h);
+        // 데스크탑 에디터 finalizeFbx 와 동일 — 최대 치수 2m 기준 정규화.
+        // (이전 1m 기준이면 데스크탑/웹 크기 2배 차이 남.)
+        if (h > 0) model.scale.multiplyScalar(2 / h);
         const origMap = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
         model.traverse(c => {
           const m = c as THREE.Mesh;
