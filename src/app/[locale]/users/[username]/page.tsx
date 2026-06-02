@@ -30,6 +30,10 @@ interface UserProfile {
   joinedAt: string;
   bio: string | null;
   profileImageUrl: string | null;
+  websiteUrl?: string | null;
+  bannerUrl?: string | null;
+  iconEmoji?: string | null;
+  themeColor?: string | null;
   publicCount: number;
   likesTotal: number;
   importsTotal: number;
