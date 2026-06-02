@@ -421,26 +421,16 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
     if (headBone.current) {
       headBone.current.scale.setScalar(hideHead ? 0.0001 : 1);
     }
-    // 발 위치 자동 보정 — 2단계:
-    //  1. 첫 5프레임 후 미세 보정 (T-pose vs idle root drift): 작은 차이 (>5mm) 라도 한 번 정렬
-    //  2. 그 후 연속 clamp — bbox.min.y 가 -10cm 이상 underground 면 위로 끌어올림.
-    //     prone 같은 애니메이션 hip Y 가 너무 낮은 절대값으로 가서 캐릭터가 땅 밑으로 들어가는 거 방지.
-    //     (5cm 이내 작은 음수는 자연스러운 발 디딤이라 그대로 둠.)
-    if (obj && !skipMixer) {
-      const root = obj as THREE.Object3D;
-      if (!feetCalibDone.current) {
-        feetCalibFrames.current++;
-        if (feetCalibFrames.current >= 5) {
-          const box = getRenderableBounds(root);
-          if (Math.abs(box.min.y) > 0.005) root.position.y -= box.min.y;
-          feetCalibDone.current = true;
-        }
-      } else if (feetCalibFrames.current % 3 === 0) {
-        // 매 3프레임마다 underground 체크 (성능 — bbox 계산 비용)
-        const box = getRenderableBounds(root);
-        if (box.min.y < -0.1) root.position.y -= box.min.y;
-      }
+    // 발 위치 자동 보정 — 첫 5프레임 후 1회만 미세 정렬.
+    //  연속 clamp 는 skinned mesh bind-pose bbox 의 한계로 false positive 발생 → 제거함.
+    //  부족하면 캐릭터 페이지 Y 오프셋 슬라이더로 수동 조정.
+    if (!feetCalibDone.current && obj && !skipMixer) {
       feetCalibFrames.current++;
+      if (feetCalibFrames.current >= 5) {
+        const box = getRenderableBounds(obj as THREE.Object3D);
+        if (Math.abs(box.min.y) > 0.005) (obj as THREE.Object3D).position.y -= box.min.y;
+        feetCalibDone.current = true;
+      }
     }
     if (skipMixer) return;
 

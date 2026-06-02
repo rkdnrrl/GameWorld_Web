@@ -438,23 +438,14 @@ function CustomPreview({
   // 자동 회전 제거 — OrbitControls 로 사용자가 직접 회전 (충돌 방지)
   useFrame((_, dt) => {
     mixer.current?.update(dt);
-    // 발 보정 — 2단계:
-    //  1. 첫 5프레임 후 미세 보정 (T-pose vs idle root drift)
-    //  2. 연속 clamp — prone 등 hip Y 가 너무 낮은 absolute 값으로 가서 underground 되는 거 방지
-    if (obj && mixer.current) {
-      if (!feetCalibDone.current) {
-        feetCalibFrames.current++;
-        if (feetCalibFrames.current >= 5) {
-          const box = getRenderableBounds(obj);
-          if (Math.abs(box.min.y) > 0.005) obj.position.y -= box.min.y;
-          feetCalibDone.current = true;
-        }
-      } else if (feetCalibFrames.current % 3 === 0) {
-        // 매 3프레임마다 underground 체크
-        const box = getRenderableBounds(obj);
-        if (box.min.y < -0.1) obj.position.y -= box.min.y;
-      }
+    // 발 보정 — 첫 5프레임 후 1회만. 연속 clamp 는 false positive 로 캐릭터 띄움 → 제거.
+    if (!feetCalibDone.current && obj && mixer.current) {
       feetCalibFrames.current++;
+      if (feetCalibFrames.current >= 5) {
+        const box = getRenderableBounds(obj);
+        if (Math.abs(box.min.y) > 0.005) obj.position.y -= box.min.y;
+        feetCalibDone.current = true;
+      }
     }
   });
 
