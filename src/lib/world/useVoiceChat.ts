@@ -19,9 +19,10 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import type { PlayerPose } from './useGameSocket';
 import { session } from '@/lib/api';
 
-const PANNER_REF_DISTANCE = 6;       // 6m 이내 풀 볼륨
-const PANNER_MAX_DISTANCE = 60;      // 60m 이상 무음
-const PANNER_ROLLOFF      = 0.9;     // 감쇠 곡선
+// 실제 대화 거리감 — 가까운 대화는 1~3m, 5m 면 좀 멀고, 10m+ 면 거의 안 들림
+const PANNER_REF_DISTANCE = 2;       // 2m 이내 풀 볼륨 (대화 거리)
+const PANNER_MAX_DISTANCE = 20;      // 20m 이상 무음
+const PANNER_ROLLOFF      = 1.5;     // 빠른 감쇠 (현실적)
 
 const VOICE_API_BASE = (typeof window !== 'undefined' && (window as { __ALP_API__?: string }).__ALP_API__) || 'https://airliveplay.com';
 
