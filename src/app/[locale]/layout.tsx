@@ -5,6 +5,7 @@ import Script from "next/script";
 import "../globals.css";
 import BackendConnectionBanner from "@/components/BackendConnectionBanner";
 import Header from "@/components/Header";
+import PostHogInit from "@/components/PostHogInit";
 import SentryClientInit from "@/components/SentryClientInit";
 import SessionExpiredBanner from "@/components/SessionExpiredBanner";
 import SessionRefresher from "@/components/SessionRefresher";
@@ -43,6 +44,7 @@ export default async function LocaleLayout({
         {/* Kakao AdFit SDK — 전체 페이지에서 kakao_ad_area 자동 탐지 */}
         <Script src="//t1.daumcdn.net/kas/static/ba.min.js" strategy="afterInteractive" />
         <SentryClientInit />
+        <PostHogInit />
         <NextIntlClientProvider messages={messages}>
           <SessionExpiredBanner />
           <SessionRefresher />
