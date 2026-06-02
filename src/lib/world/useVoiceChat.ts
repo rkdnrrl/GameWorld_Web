@@ -19,10 +19,9 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import type { PlayerPose } from './useGameSocket';
 import { session } from '@/lib/api';
 
-// 디버그용으로 감쇠 약화. 들리는 거 확인 후 다시 좁힐 예정.
-const PANNER_REF_DISTANCE = 50;      // 50m 이내 풀 볼륨 (테스트)
-const PANNER_MAX_DISTANCE = 500;     // 500m 이상 무음
-const PANNER_ROLLOFF      = 0.3;     // 감쇠 매우 약하게
+const PANNER_REF_DISTANCE = 6;       // 6m 이내 풀 볼륨
+const PANNER_MAX_DISTANCE = 60;      // 60m 이상 무음
+const PANNER_ROLLOFF      = 0.9;     // 감쇠 곡선
 
 const VOICE_API_BASE = (typeof window !== 'undefined' && (window as { __ALP_API__?: string }).__ALP_API__) || 'https://airliveplay.com';
 
@@ -97,34 +96,36 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, posesRef, localPo
     return r.json();
   }, []);
 
-  /** Cloudflare Calls 세션 시작 + 내 mic push */
-  const startSession = useCallback(async (micStream: MediaStream) => {
+  /** Cloudflare Calls 세션 시작. micStream 없으면 listen-only (recvonly transceiver 만). */
+  const startSession = useCallback(async (micStream: MediaStream | null) => {
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.cloudflare.com:3478' }],
       bundlePolicy: 'max-bundle',
     });
     pcRef.current = pc;
 
-    // 내 mic track 을 transceiver 로 추가 (push 방향)
-    const micTrack = micStream.getAudioTracks()[0];
-    if (!micTrack) throw new Error('no mic track');
-    const transceiver = pc.addTransceiver(micTrack, { direction: 'sendonly' });
+    // mic 있으면 sendonly, 없으면 recvonly (listen-only)
+    let transceiver: RTCRtpTransceiver | null = null;
+    if (micStream) {
+      const micTrack = micStream.getAudioTracks()[0];
+      if (!micTrack) throw new Error('no mic track');
+      transceiver = pc.addTransceiver(micTrack, { direction: 'sendonly' });
+    } else {
+      // recvonly transceiver — Cloudflare 가 pull track 추가 시 mid 매칭에 사용
+      pc.addTransceiver('audio', { direction: 'recvonly' });
+    }
 
     // 원격 audio track 도착 시 PannerNode 로 연결
     pc.ontrack = (e) => {
       const track = e.track;
       const mid = e.transceiver?.mid;
-      console.log('[voice] 🎵 ontrack received — kind:', track.kind, 'mid:', mid, 'readyState:', track.readyState);
       if (mid) tracksByMidRef.current.set(mid, track);
-      // 어떤 peer 의 트랙인지는 mid 매칭. 일단 저장만 — pull track 응답 받았을 때 mid 매핑.
-      // applyPanner 가 mid → panner 연결.
       tryApplyPannerByMid(mid);
     };
 
     // SDP offer
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-    // ICE gathering 완료 대기 (또는 1초 timeout)
     await waitIceGathering(pc, 1500);
 
     // 백엔드 proxy → Cloudflare /sessions/new
@@ -135,19 +136,21 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, posesRef, localPo
     sessionIdRef.current = r.sessionId;
     await pc.setRemoteDescription(new RTCSessionDescription(r.sessionDescription));
 
-    // push track 등록 — mid 로 추적
-    const pushed = await apiCall<{ tracks: Array<{ mid?: string; trackName: string }> }>(
-      '/track/new', 'POST',
-      {
-        sessionId: r.sessionId,
-        tracks: [{
-          location: 'local',
-          mid: transceiver.mid,
-          trackName: `mic-${myId}`,
-        }],
-      },
-    );
-    myTrackNameRef.current = pushed.tracks?.[0]?.trackName || `mic-${myId}`;
+    // push track 등록 — mic 있을 때만
+    if (transceiver) {
+      const pushed = await apiCall<{ tracks: Array<{ mid?: string; trackName: string }> }>(
+        '/track/new', 'POST',
+        {
+          sessionId: r.sessionId,
+          tracks: [{
+            location: 'local',
+            mid: transceiver.mid,
+            trackName: `mic-${myId}`,
+          }],
+        },
+      );
+      myTrackNameRef.current = pushed.tracks?.[0]?.trackName || `mic-${myId}`;
+    }
     return r.sessionId;
   }, [apiCall, myId]);
 
@@ -166,7 +169,6 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, posesRef, localPo
 
   /** PannerNode 생성 + analyser 부착 */
   const attachPanner = useCallback((peerId: string, track: MediaStreamTrack, info: RemotePeerInfo) => {
-    console.log('[voice] 🔊 attachPanner peer:', peerId.slice(0,8), 'track:', track.id);
     try {
       if (!audioCtxRef.current) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -174,8 +176,7 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, posesRef, localPo
         audioCtxRef.current = new Ctor();
       }
       const ctx = audioCtxRef.current!;
-      console.log('[voice] AudioContext state:', ctx.state, 'sampleRate:', ctx.sampleRate);
-      if (ctx.state === 'suspended') ctx.resume().then(() => console.log('[voice] ctx resumed →', ctx.state)).catch(e => console.warn('[voice] resume failed:', e));
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
       // Safari/Chrome workaround: track 을 audio element 의 srcObject 로 한 번 거쳐야 sourceNode 활성화됨
       // 각 track 마다 별도 audio element 필요
@@ -308,27 +309,35 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, posesRef, localPo
     }
     let cancelled = false;
     setStatus('requesting');
-    navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      video: false,
-    }).then(async (stream) => {
-      if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+
+    const startWithStream = async (stream: MediaStream | null) => {
+      if (cancelled) { stream?.getTracks().forEach(t => t.stop()); return; }
       micStreamRef.current = stream;
       setStatus('connecting');
       try {
         await startSession(stream);
         if (cancelled) return;
         setStatus('ready');
-        broadcastMyTrack(true);
+        broadcastMyTrack(!!stream);
       } catch (e) {
         console.error('[voice] session start failed:', e);
         setStatus('error');
         setError(e instanceof Error ? e.message : 'session failed');
       }
-    }).catch(err => {
+    };
+
+    navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      video: false,
+    }).then(startWithStream).catch(err => {
       if (cancelled) return;
-      if (err?.name === 'NotAllowedError') setStatus('denied');
-      else { setStatus('error'); setError(err?.message || 'mic failed'); }
+      if (err?.name === 'NotAllowedError') {
+        // 마이크 권한 거부 → listen-only 모드로 fallback
+        setError('마이크 권한이 거부되어 듣기 전용으로 작동합니다.');
+        startWithStream(null);
+      } else {
+        setStatus('error'); setError(err?.message || 'mic failed');
+      }
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
