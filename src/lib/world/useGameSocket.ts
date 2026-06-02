@@ -342,5 +342,5 @@ export function useGameSocket({ worldId, sessionId = 'main', playerId, username,
   useEffect(() => { onObjDestroyRef.current      = onObjDestroy;      }, [onObjDestroy]);
   useEffect(() => { onSceneSnapshotRef.current   = onSceneSnapshot;   }, [onSceneSnapshot]);
 
-  return { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, sendObjClaim, sendObjRelease, sendObjSpawn, sendObjDestroy, sendSceneRegister, hostId };
+  return { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, sendObjClaim, sendObjRelease, sendObjSpawn, sendObjDestroy, sendSceneRegister, hostId, socketRef: ws };
 }

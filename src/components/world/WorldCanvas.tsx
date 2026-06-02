@@ -33,6 +33,7 @@ import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, parseUrlKind, normalizeMediaUrl, ImageMaterial, GenericIframeOverlay, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, VideoRemotePanel, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
 import { RemotePlayerInfoPanel } from './RemotePlayerInfoPanel';
+import { useVoiceChat } from '@/lib/world/useVoiceChat';
 import { createGameRuntime, GAME_SYNC_EVENT, GAME_SOUND_EVENT, type GameSnapshot } from '@/lib/world/gameRuntime';
 import { execUiButtonScript } from '@/lib/world/uiButtonScript';
 import GameHud from './GameHud';
@@ -2568,6 +2569,8 @@ interface WorldCanvasProps {
   onCameraModeChange?: (m: CameraMode) => void;
   // 1인칭 시야각(FOV, degrees). 월드 설정에서 조절.
   firstPersonFov?: number;
+  /** 멀티플레이 WebSocket ref — 음성 채팅 시그널링에 사용 (Phase 22) */
+  socketRef?: React.RefObject<WebSocket | null>;
 }
 
 /** 런타임 포탈 상태 — 플레이어 앞에 떠 있는 워프 게이트 */
@@ -2827,7 +2830,7 @@ function MobileControls({ inputLocked }: { inputLocked: boolean }) {
   );
 }
 
-export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId, sendObjClaim, sendObjRelease, objectOwnerRef, sendObjSpawn, sendObjDestroy, objSpawnRef, objDestroyRef, sendSceneRegister, portalApiRef, onPortalEnter, cameraMode: cameraModeProp, onCameraModeChange, firstPersonFov = 75, worldId }: WorldCanvasProps) {
+export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId, sendObjClaim, sendObjRelease, objectOwnerRef, sendObjSpawn, sendObjDestroy, objSpawnRef, objDestroyRef, sendSceneRegister, portalApiRef, onPortalEnter, cameraMode: cameraModeProp, onCameraModeChange, firstPersonFov = 75, worldId, socketRef }: WorldCanvasProps) {
   // data.save 콜백 closure 안에서 stale 값 안 잡히게 ref 로 미러
   const worldIdRef = useRef<string | undefined>(worldId);
   useEffect(() => { worldIdRef.current = worldId; }, [worldId]);
@@ -4149,6 +4152,15 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const [isMobile, setIsMobile] = useState(false);
   /** VRChat 식 — 다른 유저 클릭 시 정보 패널 표시 */
   const [selectedRemote, setSelectedRemote] = useState<RemotePlayer | null>(null);
+  /** 음성 채팅 (Phase 22) */
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const peerIdList = useMemo(() => Object.keys(players), [players]);
+  const voice = useVoiceChat({
+    socket: socketRef?.current ?? null,
+    myId: playerId,
+    peerIds: peerIdList,
+    enabled: voiceEnabled,
+  });
   useEffect(() => {
     const detect = () => {
       const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -4165,6 +4177,46 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       {isMobile && <MobileControls inputLocked={chatInputActive} />}
       {selectedRemote && (
         <RemotePlayerInfoPanel player={selectedRemote} onClose={() => setSelectedRemote(null)} />
+      )}
+
+      {/* 음성 채팅 마이크 토글 (Phase 22) — 우상단 */}
+      <button
+        type="button"
+        onClick={() => setVoiceEnabled(v => !v)}
+        title={voiceEnabled ? '음성 끄기' : '음성 켜기'}
+        style={{
+          position: 'fixed', top: 16, right: 16,
+          width: 44, height: 44, borderRadius: '50%',
+          border: `2px solid ${voiceEnabled ? (voice.status === 'ready' ? '#22c55e' : '#fbbf24') : 'rgba(255,255,255,0.25)'}`,
+          background: voiceEnabled
+            ? (voice.status === 'ready' ? 'rgba(34,197,94,0.45)' : 'rgba(251,191,36,0.45)')
+            : 'rgba(10,15,30,0.55)',
+          color: '#fff', fontSize: 20, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 16777273, boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
+          pointerEvents: 'auto',
+        }}
+      >
+        {voice.status === 'denied' ? '🚫' : voice.status === 'requesting' ? '…' : voiceEnabled ? '🎤' : '🎙️'}
+      </button>
+      {voice.status === 'denied' && (
+        <div style={{
+          position: 'fixed', top: 66, right: 16, padding: '6px 10px',
+          background: 'rgba(220,38,38,0.85)', color: '#fff', fontSize: 11,
+          borderRadius: 6, zIndex: 16777273, pointerEvents: 'none',
+        }}>마이크 권한 거부됨</div>
+      )}
+
+      {/* 말하는 사람 인디케이터 (좌상단 리스트) */}
+      {voiceEnabled && voice.speakingIds.size > 0 && (
+        <div style={{
+          position: 'fixed', top: 16, left: 16, padding: '6px 10px',
+          background: 'rgba(10,15,30,0.55)', border: '1px solid rgba(34,197,94,0.5)',
+          color: '#86efac', fontSize: 12, borderRadius: 8,
+          zIndex: 16777273, pointerEvents: 'none', maxWidth: 200,
+        }}>
+          🔊 {[...voice.speakingIds].map(id => players[id]?.username || id.slice(0, 6)).join(', ')}
+        </div>
       )}
 
       {/* 게임 HUD — 스크립트 ui.text/ui.bar 가 그림. 전체화면 위 오버레이(클릭 통과). */}

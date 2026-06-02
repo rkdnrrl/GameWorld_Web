@@ -314,7 +314,7 @@ export default function WorldPage() {
   // 월드 바뀌면 스냅샷 초기화 (홈허브 → 다른 월드 이동 포함)
   useEffect(() => { setSceneFromHost(null); }, [effectiveWorldId]);
 
-  const { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, sendObjClaim, sendObjRelease, sendObjSpawn, sendObjDestroy, sendSceneRegister, hostId } = useGameSocket({
+  const { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, sendObjClaim, sendObjRelease, sendObjSpawn, sendObjDestroy, sendSceneRegister, hostId, socketRef } = useGameSocket({
     worldId: worldSocketKey,
     sessionId: effectiveSessionId || 'pending',
     playerId: userId,
@@ -612,6 +612,7 @@ export default function WorldPage() {
         character={character ?? {}}
         playerId={userId}
         players={players}
+        socketRef={socketRef}
         posesRef={posesRef}
         chatBubbles={chatBubbles}
         onMove={sendMove}
