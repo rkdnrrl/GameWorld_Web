@@ -426,9 +426,9 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
     if (headBone.current) {
       headBone.current.scale.setScalar(hideHead ? 0.0001 : 1);
     }
-    // 발 위치 자동 보정 — foot bone world Y 가 parent (지면) worldY 보다 너무 위면 끌어내리고,
-    //  너무 아래면 끌어올림. 단 prone 같은 horizontal pose 의 transition 중 일시적 큰 drift 는
-    //  부자연스러운 점프 유발하므로 |drift| < 0.5 로 제한 (큰 변화는 한 프레임에 부드럽게 못 따라감).
+    // 발 위치 자동 보정 — foot bone world Y 가 parent (지면) worldY 와 같아지도록 smooth 추적.
+    //  매 프레임 drift 의 30% 씩 적용 → 큰 자세 변화 (prone 등) 도 5-7프레임에 걸쳐 부드럽게 따라감.
+    //  순간 cap 안 두므로 어떤 자세든 결국 발이 지면에 맞춰짐.
     if (footBones.current.length && obj && !skipMixer) {
       const root = obj as THREE.Object3D;
       const parent = root.parent;
@@ -441,15 +441,9 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
         }
         parent.getWorldPosition(_wp);
         const drift = lowestY - _wp.y;
-        const absDrift = Math.abs(drift);
-        // 정상 범위 (2cm~50cm) 만 보정. 50cm 넘으면 transition glitch — skip.
-        // underground (drift 음수) 는 큰 값도 lift 함 (-1m 까지) — 안전망.
-        if (drift > 0.02 && drift < 0.5) {
-          root.position.y -= drift;
-        } else if (drift < -0.05 && drift > -1.0) {
-          root.position.y -= drift; // lift up
+        if (Math.abs(drift) > 0.02) {
+          root.position.y -= drift * 0.3; // 30% smooth — 큰 변화 부드럽게 흡수
         }
-        void absDrift;
       }
     }
     if (skipMixer) return;
