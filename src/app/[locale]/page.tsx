@@ -1,7 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import GameCard, { type Game } from "@/components/GameCard";
-import FeaturedGamesCarousel from "@/components/FeaturedGamesCarousel";
 
 /** 게임 목록에서 숨김 */
 const HIDDEN_GAME_IDS = new Set<string>(["rock-clicker", "alchemy"]);
@@ -32,81 +31,105 @@ export default async function Home() {
   const t = await getTranslations("Home");
   const games = await getGames();
 
-  // 캐러셀: isFeatured 우선, 없으면 official 상위 5개
-  const featured = games.filter((g) => g.isFeatured).slice(0, 5);
-  const featuredOrFallback =
-    featured.length > 0 ? featured : games.filter((g) => g.kind === "official").slice(0, 5);
-
-  // 인기 게임: playCount 상위 6개
-  const hot = [...games]
+  // 미니게임은 부수 콘텐츠 — 인기순 상위 3개만 작게
+  const miniGames = [...games]
     .sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0))
-    .slice(0, 6);
+    .slice(0, 3);
 
   return (
     <div className="min-h-screen bg-[#0b1020] text-white">
-      <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-6 sm:py-10">
 
-        {/* ── Hero ─────────────────────────────────────────── */}
-        <section className="mb-12 text-center sm:mb-16">
-          <h1 className="mb-4 whitespace-pre-line text-3xl font-extrabold leading-tight tracking-tight sm:text-5xl sm:leading-[1.15]">
+      {/* ── Hero ─────────────────────────────────────────── */}
+      <section className="relative overflow-hidden border-b border-white/5">
+        {/* 배경 그라데이션 */}
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-purple-900/30 to-pink-900/20" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(99,102,241,0.15),transparent_50%)]" />
+
+        <div className="relative mx-auto max-w-[1280px] px-4 py-16 text-center sm:px-6 sm:py-24">
+          <h1 className="mb-5 whitespace-pre-line text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-6xl">
             {t("heroTitle")}
           </h1>
-          <p className="mx-auto mb-8 max-w-2xl text-sm text-white/70 sm:text-base">
+          <p className="mx-auto mb-10 max-w-2xl text-sm leading-relaxed text-white/70 sm:text-lg">
             {t("heroSub")}
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             <Link
-              href="/character"
-              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 text-sm font-bold shadow-lg shadow-indigo-900/40 transition hover:bg-indigo-500 hover:shadow-indigo-900/60 active:scale-95 sm:text-base"
-            >
-              🚀 {t("startNow")}
-            </Link>
-            <Link
-              href="/games"
-              className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-6 py-3 text-sm font-bold transition hover:bg-white/10 active:scale-95 sm:text-base"
-            >
-              {t("browsGames")}
-            </Link>
-            <Link
               href="/world"
-              className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-6 py-3 text-sm font-bold transition hover:bg-white/10 active:scale-95 sm:text-base"
+              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-7 py-3.5 text-sm font-bold shadow-lg shadow-indigo-900/50 transition hover:bg-indigo-500 hover:shadow-indigo-900/70 active:scale-95 sm:text-base"
             >
-              🎮 {t("enterHomeHub")}
+              {t("enterAnyWorld")}
+            </Link>
+            <Link
+              href="/studio"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-7 py-3.5 text-sm font-bold backdrop-blur-sm transition hover:bg-white/10 active:scale-95 sm:text-base"
+            >
+              {t("buildYourWorld")}
             </Link>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* ── Features (3 카드) ─────────────────────────────── */}
-        <section className="mb-12 grid grid-cols-1 gap-4 sm:mb-16 sm:grid-cols-3">
+      <div className="mx-auto max-w-[1280px] px-4 py-12 sm:px-6 sm:py-16">
+
+        {/* ── Features (3 카드) — 월드·만들기·음성 ─────────── */}
+        <section className="mb-16 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {[
-            { icon: "🎒", title: t("feat1Title"), desc: t("feat1Desc"), tint: "from-amber-500/20 to-orange-600/20 border-amber-500/30" },
-            { icon: "🛠️", title: t("feat2Title"), desc: t("feat2Desc"), tint: "from-pink-500/20 to-rose-600/20 border-pink-500/30" },
-            { icon: "🤝", title: t("feat3Title"), desc: t("feat3Desc"), tint: "from-blue-500/20 to-cyan-600/20 border-blue-500/30" },
+            { title: t("feat1Title"), desc: t("feat1Desc"), tint: "from-blue-500/20 to-cyan-600/20 border-blue-500/30" },
+            { title: t("feat2Title"), desc: t("feat2Desc"), tint: "from-violet-500/20 to-purple-600/20 border-violet-500/30" },
+            { title: t("feat3Title"), desc: t("feat3Desc"), tint: "from-pink-500/20 to-rose-600/20 border-pink-500/30" },
           ].map((f) => (
             <div
               key={f.title}
-              className={`rounded-2xl border bg-gradient-to-br ${f.tint} p-5 backdrop-blur-sm`}
+              className={`rounded-2xl border bg-gradient-to-br ${f.tint} p-6 backdrop-blur-sm`}
             >
-              <div className="mb-3 text-3xl">{f.icon}</div>
-              <h3 className="mb-2 text-base font-bold sm:text-lg">{f.title}</h3>
+              <h3 className="mb-3 text-lg font-bold sm:text-xl">{f.title}</h3>
               <p className="text-sm leading-relaxed text-white/70">{f.desc}</p>
             </div>
           ))}
         </section>
 
-        {/* ── Featured Games 캐러셀 ─────────────────────────── */}
-        {featuredOrFallback.length > 0 && (
-          <section className="mb-12 sm:mb-16">
-            <h2 className="mb-4 text-xl font-bold sm:text-2xl">{t("featuredGames")}</h2>
-            <FeaturedGamesCarousel games={featuredOrFallback} />
-          </section>
-        )}
+        {/* ── 월드 만들기 큰 CTA 카드 ──────────────────────── */}
+        <section className="mb-12 overflow-hidden rounded-2xl border border-violet-500/30 bg-gradient-to-br from-violet-600/30 via-purple-700/20 to-indigo-700/20 p-8 sm:p-12">
+          <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-violet-300">STUDIO</p>
+              <p className="whitespace-pre-line text-xl font-extrabold leading-tight sm:text-3xl">
+                {t("devCardDesc")}
+              </p>
+            </div>
+            <Link
+              href="/studio"
+              className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-violet-600 px-7 py-3.5 text-sm font-bold shadow-lg shadow-violet-900/50 transition hover:bg-violet-500 active:scale-95 sm:text-base"
+            >
+              {t("devCardCta")}
+            </Link>
+          </div>
+        </section>
 
-        {/* ── Hot Games (top 6) ─────────────────────────────── */}
-        {hot.length > 0 && (
-          <section className="mb-12 sm:mb-16">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold sm:text-2xl">{t("hotGames")}</h2>
+        {/* ── 아바타 카드 ──────────────────────────────────── */}
+        <section className="mb-16 rounded-2xl border border-white/10 bg-gradient-to-r from-amber-500/15 to-orange-600/15 p-6 sm:p-8">
+          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="mb-2 text-xl font-bold sm:text-2xl">{t("avatarTitle")}</h3>
+              <p className="text-sm text-white/70 sm:text-base">{t("avatarDesc")}</p>
+            </div>
+            <Link
+              href="/character"
+              className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-amber-400/40 bg-amber-500/20 px-6 py-3 text-sm font-bold text-amber-100 transition hover:bg-amber-500/30 active:scale-95"
+            >
+              {t("startNow")} →
+            </Link>
+          </div>
+        </section>
+
+        {/* ── 미니게임 (부수 콘텐츠, 작게) ──────────────────── */}
+        {miniGames.length > 0 && (
+          <section className="mb-8">
+            <div className="mb-4 flex items-end justify-between">
+              <div>
+                <h2 className="text-lg font-bold sm:text-xl">{t("miniGamesTitle")}</h2>
+                <p className="mt-1 text-xs text-white/50 sm:text-sm">{t("miniGamesDesc")}</p>
+              </div>
               <Link
                 href="/games"
                 className="text-sm text-indigo-300 transition hover:text-indigo-200"
@@ -114,28 +137,13 @@ export default async function Home() {
                 {t("viewAllGames")}
               </Link>
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-6">
-              {hot.map((g) => (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {miniGames.map((g) => (
                 <GameCard key={g.id} game={g} />
               ))}
             </div>
           </section>
         )}
-
-        {/* ── Developer CTA ────────────────────────────────── */}
-        <section className="mb-8 rounded-2xl border border-violet-500/30 bg-gradient-to-br from-violet-600/20 to-purple-700/20 p-6 sm:p-8">
-          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="whitespace-pre-line text-base font-bold leading-snug sm:text-xl">
-              {t("devCardDesc")}
-            </p>
-            <Link
-              href="/develop"
-              className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-violet-600 px-5 py-3 text-sm font-bold shadow-lg shadow-violet-900/40 transition hover:bg-violet-500 active:scale-95"
-            >
-              {t("devCardCta")}
-            </Link>
-          </div>
-        </section>
 
       </div>
     </div>
