@@ -4,6 +4,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Html, Sky, Text, Environment, useProgress, PerformanceMonitor } from '@react-three/drei';
 import { Physics, RigidBody, CapsuleCollider, CuboidCollider, useRapier } from '@react-three/rapier';
 import { devLog } from '@/lib/devLog';
+import { findLipSyncTarget, readAnalyserLevel, smoothLevel, applyLipSync, ANALYSER_BUFFER_SIZE, type LipSyncTarget } from '@/lib/world/lipSync';
 
 /** Rapier 강체 — 우리가 호출하는 메서드만 추린 미니 인터페이스 (버전 무관) */
 interface RapierBodyApi {
@@ -250,7 +251,7 @@ const KEYWORD_FALLBACK: Record<AnimState, string[]> = {
   prone_move:  ['prone_move', 'pronemove', 'crawl', 'crawling', '기어'],
 };
 
-function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animNames, animTrims, blockedAnimStates, animOneShot, animSlotUrls, castShadow = true, hideHead = false }: {
+function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animNames, animTrims, blockedAnimStates, animOneShot, animSlotUrls, castShadow = true, hideHead = false, getAnalyser }: {
   url: string;
   userScale: number;
   rotX: number;
@@ -266,6 +267,8 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   animSlotUrls?: Record<string, string>;
   castShadow?: boolean;
   hideHead?: boolean;
+  /** 음성 amplitude analyser — 매 frame 호출 (값 없으면 lip-sync 비활성). 본인 또는 원격 유저용. */
+  getAnalyser?: () => AnalyserNode | undefined;
 }) {
   const [obj, setObj]   = useState<THREE.Object3D | null>(null);
   const mixer           = useRef<THREE.AnimationMixer | null>(null);
@@ -278,6 +281,13 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   const feetCalibFrames = useRef(0);
   const feetCalibDone   = useRef(false);
   const footBones       = useRef<THREE.Object3D[]>([]);
+  // lip-sync (음성 amplitude → 입 morph 또는 jaw bone)
+  const lipTargetRef    = useRef<LipSyncTarget | null>(null);
+  const lipBufRef       = useRef<Uint8Array>(new Uint8Array(ANALYSER_BUFFER_SIZE));
+  const lipLevelRef     = useRef(0);
+  const micIconRef      = useRef<HTMLDivElement>(null);
+  // morph/bone 없는 캐릭터엔 머리 위 🎤 fallback 표시 (true = morph 있음, false = fallback 필요)
+  const [hasLipMorph, setHasLipMorph] = useState<boolean>(true);
 
   useEffect(() => {
     if (!url) return;
@@ -364,6 +374,10 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       });
 
       setObj(cloned);
+      // lip-sync 타겟 검색 (morph 또는 jaw bone). 없으면 머리 위 🎤 fallback 활성.
+      const lipTarget = findLipSyncTarget(cloned);
+      lipTargetRef.current = lipTarget;
+      setHasLipMorph(lipTarget.kind !== 'none');
       // 새 모델 로드 — 발 보정 리셋 + foot bone 찾기
       // 본 이름 끝이 LeftFoot/RightFoot/LeftToeBase/RightToeBase 면 매칭 (Mixamo 변형 모두 포함)
       feetCalibFrames.current = 0;
@@ -453,6 +467,22 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
         }
       }
     }
+    // ── lip-sync (음성 amplitude → 입) ──
+    // skipMixer 와 무관하게 매 frame 가볍게 처리 (cull 된 캐릭터도 가까이서 보면 입 움직임).
+    // analyser 없거나 (마이크 OFF / 원격 미연결) 타겟 없으면 0 으로 수렴.
+    const an = getAnalyser?.();
+    const target = lipTargetRef.current;
+    if (target) {
+      const raw = an ? readAnalyserLevel(an, lipBufRef.current) : 0;
+      const smoothed = smoothLevel(lipLevelRef.current, raw);
+      lipLevelRef.current = smoothed;
+      applyLipSync(target, smoothed);
+      // fallback 🎤 — DOM opacity 만 ref 로 직접 조작 (re-render 회피)
+      if (target.kind === 'none' && micIconRef.current) {
+        micIconRef.current.style.opacity = String(smoothed);
+      }
+    }
+
     if (skipMixer) return;
 
     const desired = animStateRef?.current || 'idle';
@@ -501,18 +531,26 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   return (
     <group scale={userScale} position={[0, offsetY, 0]}>
       <primitive object={obj} />
+      {!hasLipMorph && (
+        // morph/jaw 없는 캐릭터 — 머리 위 🎤 아이콘으로 말하기 표시 (opacity 는 ref 로 useFrame 마다 조작)
+        <Html position={[0, 1.85, 0]} center distanceFactor={6} zIndexRange={[10, 0]} pointerEvents="none">
+          <div ref={micIconRef} style={{ opacity: 0, fontSize: 28, lineHeight: 1, userSelect: 'none', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))' }}>🎤</div>
+        </Html>
+      )}
     </group>
   );
 }
 
 /* ── 캐릭터 메쉬 (커스텀 or 블록형) ───── */
-function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneShotOverride, hideHead = false }: {
+function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneShotOverride, hideHead = false, getAnalyser }: {
   appearance: Record<string, unknown>;
   animStateRef?: React.RefObject<AnimState>;
   castShadow?: boolean;
   emoteOneShotOverride?: string[];
   /** 1인칭일 때 머리 숨김 — 애니메이션으로 머리가 시야에 들어오는 것 방지 */
   hideHead?: boolean;
+  /** 음성 amplitude analyser — lip-sync. 본인 또는 원격 유저용. */
+  getAnalyser?: () => AnalyserNode | undefined;
 }) {
   const modelUrl   = appearance.modelUrl as string | undefined;
   const userScale  = Number(appearance.modelScale) || 1.0;
@@ -582,6 +620,7 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneSh
         animOneShot={animOneShot}
         animSlotUrls={animSlotUrls}
         hideHead={hideHead}
+        getAnalyser={getAnalyser}
       />
     );
   }
@@ -1124,6 +1163,7 @@ export function Player({
   onObjectClick,
   playerCtlRef,
   spawnRef,
+  getAnalyser,
 }: {
   character: Record<string, unknown>;
   bubble?: ChatBubble;
@@ -1175,6 +1215,8 @@ export function Player({
   playerCtlRef?: React.MutableRefObject<PlayerControl | null>;
   /** 현재 리스폰 지점 — world.setSpawn 으로 갱신. 낙사/respawn 시 여기로. */
   spawnRef?: React.MutableRefObject<[number, number, number]>;
+  /** 음성 amplitude analyser — 본인 캐릭터 lip-sync. useVoiceChat().getMyAnalyser 전달. */
+  getAnalyser?: () => AnalyserNode | undefined;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body      = useRef<any>(null);
@@ -1778,7 +1820,7 @@ export function Player({
       {/* 1인칭에서도 본인 메쉬 표시 — 아래 보면 다리/몸 보임.
           머리는 hideHead 로 본 스케일 0 / 블록 머리 미렌더 처리 */}
       <group ref={mesh} position={[0, PLAYER_MESH_Y, 0]}>
-        <CharacterMesh appearance={appearance} animStateRef={animStateRef} emoteOneShotOverride={emoteOneShotOverride} hideHead={hideHeadOverride ?? (cameraMode === 'first')} />
+        <CharacterMesh appearance={appearance} animStateRef={animStateRef} emoteOneShotOverride={emoteOneShotOverride} hideHead={hideHeadOverride ?? (cameraMode === 'first')} getAnalyser={getAnalyser} />
       </group>
       {bubble && (
         <Html position={[0, 1.95, 0]} center>
@@ -1810,12 +1852,14 @@ export function Player({
 }
 
 /* ── 원격 플레이어 ──────────────────────── */
-function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick }: {
+function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick, getAnalyser }: {
   player: RemotePlayer;
   posesRef: React.RefObject<Map<string, PlayerPose>>;
   bubble?: ChatBubble;
   castShadow?: boolean;
   onPlayerClick?: (player: RemotePlayer) => void;
+  /** 이 원격 유저의 voice analyser — lip-sync. () => voice.getRemoteAnalyser(player.id) 전달. */
+  getAnalyser?: () => AnalyserNode | undefined;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bodyRef = useRef<any>(null);
@@ -1900,7 +1944,7 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick 
           document.body.style.cursor = 'default';
         } : undefined}
       >
-        <CharacterMesh appearance={appearance} animStateRef={animStateRef} castShadow={castShadow ?? false} />
+        <CharacterMesh appearance={appearance} animStateRef={animStateRef} castShadow={castShadow ?? false} getAnalyser={getAnalyser} />
       </group>
       <Text
         position={[0, 1.8, 0]}
@@ -4651,7 +4695,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={handleObjectClick} playerCtlRef={playerCtlRef} spawnRef={spawnRef} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={handleObjectClick} playerCtlRef={playerCtlRef} spawnRef={spawnRef} getAnalyser={voice.getMyAnalyser} />
             {Object.values(players).map((p) => (
               <RemotePlayerMesh
                 key={p.id}
@@ -4660,6 +4704,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                 bubble={chatBubbles[p.id]}
                 castShadow={graphics.remoteShadows}
                 onPlayerClick={setSelectedRemote}
+                getAnalyser={() => voice.getRemoteAnalyser(p.id)}
               />
             ))}
             {portal && <WorldPortal portal={portal} />}

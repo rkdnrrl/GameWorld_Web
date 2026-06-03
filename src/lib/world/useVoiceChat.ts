@@ -77,6 +77,10 @@ export interface VoiceChatState {
   /** 0~1 — 특정 유저 음성 게인. 미설정 = 1.0 */
   getPeerGain: (peerId: string) => number;
   setPeerGain: (peerId: string, v: number) => void;
+  /** 내 마이크 amplitude analyser (lip-sync 용). 마이크 OFF / 권한 거부 시 undefined */
+  getMyAnalyser: () => AnalyserNode | undefined;
+  /** 특정 원격 유저 voice analyser (lip-sync 용). 아직 연결 안 됐으면 undefined */
+  getRemoteAnalyser: (peerId: string) => AnalyserNode | undefined;
 }
 
 interface RemotePeerInfo {
@@ -131,6 +135,8 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
   // ref 객체 통째로 넘기면 외부 변경이 즉시 노드에 반영됨.
   const micGainNodeRef    = useRef<GainNode | null>(null);
   const masterGainNodeRef = useRef<GainNode | null>(null);
+  // 내 마이크 amplitude analyser (lip-sync 용). applyMicProcessing 안에서 생성.
+  const myAnalyserRef     = useRef<AnalyserNode | null>(null);
   const [micGain,    setMicGainState]    = useState<number>(() => loadPersistedGain(LS_MIC_GAIN, 1));
   const [masterGain, setMasterGainState] = useState<number>(() => loadPersistedGain(LS_MASTER_GAIN, 1));
   const [peerGains,  setPeerGains]       = useState<Record<string, number>>(() => loadPersistedPeerGains());
@@ -192,6 +198,7 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
       const processed = await applyMicProcessing(micStream, micGain).catch(() => null);
       const micTrack = processed?.track || micStream.getAudioTracks()[0];
       micGainNodeRef.current = processed?.gainNode || null;
+      myAnalyserRef.current = processed?.analyser || null;
       if (!micTrack) throw new Error('no mic track');
       transceiver = pc.addTransceiver(micTrack, { direction: 'sendonly' });
 
@@ -634,11 +641,18 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
     try { audioCtxRef.current?.close(); } catch {}
   }, []);
 
+  const getMyAnalyser = useCallback(() => myAnalyserRef.current ?? undefined, []);
+  const getRemoteAnalyser = useCallback(
+    (peerId: string) => remotesRef.current.get(peerId)?.analyser,
+    [],
+  );
+
   return {
     status, error, speakingIds, micOnIds,
     micGain, setMicGain,
     masterGain, setMasterGain,
     getPeerGain, setPeerGain,
+    getMyAnalyser, getRemoteAnalyser,
   };
 }
 
@@ -724,7 +738,7 @@ let rnnoiseWasmCachePromise: Promise<ArrayBuffer> | null = null;
 async function applyMicProcessing(
   micStream: MediaStream,
   initialGain: number,
-): Promise<{ track: MediaStreamTrack; gainNode: GainNode }> {
+): Promise<{ track: MediaStreamTrack; gainNode: GainNode; analyser: AnalyserNode }> {
   const { RnnoiseWorkletNode, loadRnnoise } = await import('@sapphi-red/web-noise-suppressor');
 
   // 48kHz 고정 (RNNoise 가정)
@@ -747,9 +761,16 @@ async function applyMicProcessing(
   gainNode.gain.value = Math.max(0, Math.min(1, initialGain));
   const dest = ctx.createMediaStreamDestination();
 
-  source.connect(denoise).connect(gainNode).connect(dest);
+  // lip-sync 용 analyser — gain 적용된 신호 분석. 송신 체인엔 영향 없음 (분기).
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 256;
+  analyser.smoothingTimeConstant = 0.4;
+
+  source.connect(denoise).connect(gainNode);
+  gainNode.connect(dest);
+  gainNode.connect(analyser);
 
   const track = dest.stream.getAudioTracks()[0];
   if (!track) throw new Error('no processed mic track');
-  return { track, gainNode };
+  return { track, gainNode, analyser };
 }
