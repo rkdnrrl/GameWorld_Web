@@ -20,7 +20,8 @@
     "serverError": "サーバーに接続できません。",
     "checking": "確認中…",
     "totalCount": "合計 {count} 件",
-    "pageOf": "{page} / {total}"
+    "pageOf": "{page} / {total}",
+    "close": "閉じる"
   },
   "Metadata": {
     "title": "ALP",
@@ -1976,7 +1977,9 @@
     "packNotFound": "パックが見つかりません。",
     "tabAssets": "アセット",
     "tabPacks": "パック",
-    "renameHint": "クリックして名前変更"
+    "renameHint": "クリックして名前変更",
+    "newScriptBtn": "📜 新しいスクリプト作成",
+    "newScriptHint": "(コードを直接入力)"
   },
   "Notifications": {
     "aria": "通知",

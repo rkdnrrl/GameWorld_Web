@@ -620,6 +620,7 @@ function AssetPickerModal({ onSelect, onClose, officialChars }: {
   officialChars?: PublicCharacter[];
 }) {
   const t = useTranslations('Character');
+  const tCommon = useTranslations('Common');
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
@@ -717,7 +718,7 @@ function AssetPickerModal({ onSelect, onClose, officialChars }: {
       }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <h3 style={{ margin: 0, color: '#fff', fontSize: 16 }}>{t('assetPickerTitle')}</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 20, cursor: 'pointer' }}>✕</button>
+          <button onClick={onClose} aria-label={tCommon('close')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 20, cursor: 'pointer' }}>✕</button>
         </div>
 
         {/* 검색 + 태그 필터 */}

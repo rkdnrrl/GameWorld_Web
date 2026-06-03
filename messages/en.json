@@ -20,7 +20,8 @@
     "serverError": "Cannot connect to server.",
     "checking": "Checking…",
     "totalCount": "Total {count} items",
-    "pageOf": "{page} / {total}"
+    "pageOf": "{page} / {total}",
+    "close": "Close"
   },
   "Metadata": {
     "title": "ALP",
@@ -1976,7 +1977,9 @@
     "packNotFound": "Pack not found.",
     "tabAssets": "Assets",
     "tabPacks": "Packs",
-    "renameHint": "Click to rename"
+    "renameHint": "Click to rename",
+    "newScriptBtn": "📜 Create new script",
+    "newScriptHint": "(enter code directly)"
   },
   "Notifications": {
     "aria": "Notifications",

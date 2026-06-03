@@ -20,7 +20,8 @@
     "serverError": "서버에 연결할 수 없습니다.",
     "checking": "확인 중…",
     "totalCount": "총 {count}건",
-    "pageOf": "{page} / {total}"
+    "pageOf": "{page} / {total}",
+    "close": "닫기"
   },
   "Metadata": {
     "title": "ALP",
@@ -1976,7 +1977,9 @@
     "packNotFound": "팩을 찾을 수 없습니다.",
     "tabAssets": "에셋",
     "tabPacks": "팩",
-    "renameHint": "클릭하여 이름 변경"
+    "renameHint": "클릭하여 이름 변경",
+    "newScriptBtn": "📜 새 스크립트 만들기",
+    "newScriptHint": "(코드 직접 입력)"
   },
   "Notifications": {
     "aria": "알림",

@@ -20,7 +20,8 @@
     "serverError": "无法连接到服务器。",
     "checking": "检查中…",
     "totalCount": "共 {count} 条",
-    "pageOf": "{page} / {total}"
+    "pageOf": "{page} / {total}",
+    "close": "关闭"
   },
   "Metadata": {
     "title": "ALP",
@@ -1976,7 +1977,9 @@
     "packNotFound": "合集未找到。",
     "tabAssets": "资源",
     "tabPacks": "合集",
-    "renameHint": "点击重命名"
+    "renameHint": "点击重命名",
+    "newScriptBtn": "📜 新建脚本",
+    "newScriptHint": "(直接输入代码)"
   },
   "Notifications": {
     "aria": "通知",

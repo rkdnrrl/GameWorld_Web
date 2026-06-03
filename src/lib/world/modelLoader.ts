@@ -40,9 +40,9 @@ async function getSharedMeshopt() {
   return _meshoptPromise;
 }
 
-export type SupportedModelExt = 'fbx' | 'glb' | 'gltf' | 'dae' | 'obj';
+export type SupportedModelExt = 'fbx' | 'glb' | 'gltf' | 'vrm' | 'dae' | 'obj';
 
-export const SUPPORTED_MODEL_EXTENSIONS: readonly SupportedModelExt[] = ['fbx', 'glb', 'gltf', 'dae', 'obj'];
+export const SUPPORTED_MODEL_EXTENSIONS: readonly SupportedModelExt[] = ['fbx', 'glb', 'gltf', 'vrm', 'dae', 'obj'];
 
 /** URL 의 확장자에서 모델 타입 추론. 쿼리스트링 안전. */
 export function detectModelExt(url: string): SupportedModelExt | null {
@@ -63,11 +63,14 @@ export function detectModelExt(url: string): SupportedModelExt | null {
 export async function loadStaticModel(url: string, manager?: THREE.LoadingManager): Promise<THREE.Object3D> {
   const ext = detectModelExt(url);
 
-  if (ext === 'glb' || ext === 'gltf') {
-    const [{ GLTFLoader }, draco, meshopt] = await Promise.all([
+  if (ext === 'glb' || ext === 'gltf' || ext === 'vrm') {
+    // VRMLoaderPlugin 도 등록 — VRoid 등 VRM 캐릭터의 MToon 머티리얼 정상 복원.
+    // 일반 GLB 면 plugin 이 noop, gltf.userData.vrm 은 undefined.
+    const [{ GLTFLoader }, draco, meshopt, vrmMod] = await Promise.all([
       import('three/examples/jsm/loaders/GLTFLoader.js'),
       getSharedDracoLoader(),
       getSharedMeshopt(),
+      import('@pixiv/three-vrm'),
     ]);
     return new Promise((resolve, reject) => {
       const loader = new GLTFLoader(manager);
@@ -75,7 +78,17 @@ export async function loadStaticModel(url: string, manager?: THREE.LoadingManage
       loader.setDRACOLoader(draco as any);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       loader.setMeshoptDecoder(meshopt as any);
-      loader.load(url, (gltf) => resolve(gltf.scene), undefined, reject);
+      loader.register((parser) => new vrmMod.VRMLoaderPlugin(parser));
+      loader.load(url, (gltf) => {
+        const vrm = gltf.userData?.vrm;
+        if (vrm) {
+          // VRM 0.x 는 forward Z+, 1.0 정렬로 회전 (1.0 모델에선 throw → 무시)
+          try { vrmMod.VRMUtils.rotateVRM0(vrm); } catch { /* noop */ }
+          resolve(vrm.scene);
+        } else {
+          resolve(gltf.scene);
+        }
+      }, undefined, reject);
     });
   }
 

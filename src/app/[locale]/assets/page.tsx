@@ -750,7 +750,7 @@ export default function AssetsPage() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               }}
             >
-              📜 새 스크립트 만들기 <span style={{ opacity: 0.5, fontSize: 11, fontWeight: 500 }}>(코드 직접 입력)</span>
+              {t('newScriptBtn')} <span style={{ opacity: 0.5, fontSize: 11, fontWeight: 500 }}>{t('newScriptHint')}</span>
             </button>
 
             {/* 📂 .alp 맵 파일 가져오기 — AI 가 만들어준 .alp/.json 파일을 맵 에셋으로 업로드 */}
