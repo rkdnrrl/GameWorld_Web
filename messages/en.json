@@ -2166,6 +2166,9 @@
     "message": "Message",
     "follow": "Follow",
     "following_active": "Following",
-    "thatsYou": "That's you"
+    "thatsYou": "That's you",
+    "voiceVolumeTitle": "🔊 Voice Volume",
+    "voiceVolumeOff": "Mic off",
+    "voiceVolumeSpeaking": "Speaking"
   }
 }

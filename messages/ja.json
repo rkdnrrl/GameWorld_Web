@@ -2166,6 +2166,9 @@
     "message": "メッセージ",
     "follow": "フォロー",
     "following_active": "フォロー中",
-    "thatsYou": "あなた自身です"
+    "thatsYou": "あなた自身です",
+    "voiceVolumeTitle": "🔊 音声ボリューム",
+    "voiceVolumeOff": "マイクオフ",
+    "voiceVolumeSpeaking": "通話中"
   }
 }

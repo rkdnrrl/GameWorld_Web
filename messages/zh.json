@@ -2166,6 +2166,9 @@
     "message": "消息",
     "follow": "关注",
     "following_active": "已关注",
-    "thatsYou": "这是你自己"
+    "thatsYou": "这是你自己",
+    "voiceVolumeTitle": "🔊 语音音量",
+    "voiceVolumeOff": "麦克风关闭",
+    "voiceVolumeSpeaking": "正在说话"
   }
 }

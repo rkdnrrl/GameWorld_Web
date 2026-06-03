@@ -4206,7 +4206,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       {/* ── 모바일 컨트롤: Canvas 완전 바깥의 position:fixed DOM ── */}
       {isMobile && <MobileControls inputLocked={chatInputActive} />}
       {selectedRemote && (
-        <RemotePlayerInfoPanel player={selectedRemote} onClose={() => setSelectedRemote(null)} />
+        <RemotePlayerInfoPanel
+          player={selectedRemote}
+          onClose={() => setSelectedRemote(null)}
+          micOn={voice.micOnIds.has(selectedRemote.id)}
+          speaking={voice.speakingIds.has(selectedRemote.id)}
+          voiceGain={voice.getPeerGain(selectedRemote.id)}
+          onVoiceGainChange={(v) => voice.setPeerGain(selectedRemote.id, v)}
+        />
       )}
 
       {/* 음성 마이크 토글 (Phase 22) — 우상단. listen-only 는 자동, 이 버튼은 송신 ON/OFF */}

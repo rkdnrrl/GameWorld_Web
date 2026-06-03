@@ -29,7 +29,20 @@ interface FullProfile {
   isMe: boolean;
 }
 
-export function RemotePlayerInfoPanel({ player, onClose }: { player: RemotePlayer; onClose: () => void }) {
+interface VoiceProps {
+  /** 이 유저가 마이크 켰는지 — false 면 슬라이더 disabled */
+  micOn?: boolean;
+  /** 지금 말하고 있는지 */
+  speaking?: boolean;
+  /** 0~1, 미지정 시 1.0 */
+  voiceGain?: number;
+  onVoiceGainChange?: (v: number) => void;
+}
+
+export function RemotePlayerInfoPanel({
+  player, onClose,
+  micOn, speaking, voiceGain, onVoiceGainChange,
+}: { player: RemotePlayer; onClose: () => void } & VoiceProps) {
   const router = useRouter();
   const t = useTranslations('PlayerPanel');
   const tFriends = useTranslations('Friends');
@@ -203,6 +216,43 @@ export function RemotePlayerInfoPanel({ player, onClose }: { player: RemotePlaye
 
         {loading && <p style={{ padding: 14, textAlign: 'center', opacity: 0.5, fontSize: 12 }}>{t('loading')}</p>}
         {error && <p style={{ padding: '6px 18px', color: '#fca5a5', fontSize: 12 }}>{error}</p>}
+
+        {/* 음성 볼륨 — 본인이 아니고 onVoiceGainChange 가 있을 때만 */}
+        {profile && !profile.isMe && onVoiceGainChange && (
+          <div style={{
+            margin: '8px 18px 0', padding: 12, borderRadius: 10,
+            background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                {t('voiceVolumeTitle')}
+                {micOn && (
+                  <span style={{
+                    width: 7, height: 7, borderRadius: '50%',
+                    background: speaking ? '#22c55e' : 'rgba(255,255,255,0.25)',
+                    flexShrink: 0,
+                  }} title={speaking ? t('voiceVolumeSpeaking') : ''} />
+                )}
+              </span>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', minWidth: 36, textAlign: 'right' }}>
+                {Math.round((voiceGain ?? 1) * 100)}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0} max={1} step={0.01}
+              value={voiceGain ?? 1}
+              disabled={!micOn}
+              onChange={(e) => onVoiceGainChange(parseFloat(e.target.value))}
+              style={{ width: '100%', accentColor: '#6366f1', opacity: micOn ? 1 : 0.4 }}
+            />
+            {!micOn && (
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>
+                {t('voiceVolumeOff')}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 액션 버튼들 */}
         {profile && !profile.isMe && (

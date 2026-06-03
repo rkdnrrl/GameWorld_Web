@@ -522,6 +522,10 @@ export function VideoControlBar({ registry, targetId, onSeekBy, onSeekTo, onTogg
 
 // 캔버스 레이아웃 (px) — 클릭 hit 판정 + 그리기 좌표 공유
 const CAN_W = 512, CAN_H = 256;
+
+// 리모컨 클릭 가능한 최대 거리(m) — 카메라/캐릭터로부터. "팔 닿을 거리" 개념.
+// 이 거리보다 멀면 클릭 무시 (VRChat 의 interactable distance 와 유사).
+const REMOTE_INTERACT_DISTANCE = 3;
 const HIT = {
   title: { x: 0, y: 0, w: CAN_W, h: 44 },
   prev:  { x: 16,  y: 60, w: 60, h: 60 },   // ⏪
@@ -730,7 +734,10 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, he
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
       const hits = raycaster.intersectObject(meshRef.current);
-      if (hits.length > 0 && hits[0].uv) handleUv(hits[0].uv);
+      // 거리 제한 — 손 닿을 거리 안에서만 클릭 허용
+      if (hits.length > 0 && hits[0].distance <= REMOTE_INTERACT_DISTANCE && hits[0].uv) {
+        handleUv(hits[0].uv);
+      }
     };
     window.addEventListener('pointerdown', onClick);
     return () => window.removeEventListener('pointerdown', onClick);
@@ -744,6 +751,8 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, he
       onPointerDown={interactive ? (e) => {
         // 1인칭(pointer lock 또는 firstPerson) 모드에선 마우스 hover 클릭 무시 — 위 raycaster 가 처리
         if (document.pointerLockElement || firstPerson) return;
+        // 손 닿을 거리 밖이면 무시 — 멀리서는 클릭 안 됨
+        if (typeof e.distance === 'number' && e.distance > REMOTE_INTERACT_DISTANCE) return;
         e.stopPropagation();
         if (!e.uv) return;
         handleUv(e.uv);

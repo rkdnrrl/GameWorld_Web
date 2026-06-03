@@ -2166,6 +2166,9 @@
     "message": "메시지",
     "follow": "팔로우",
     "following_active": "팔로잉",
-    "thatsYou": "본인이에요"
+    "thatsYou": "본인이에요",
+    "voiceVolumeTitle": "🔊 음성 볼륨",
+    "voiceVolumeOff": "마이크 꺼짐",
+    "voiceVolumeSpeaking": "말하는 중"
   }
 }
