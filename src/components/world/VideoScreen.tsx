@@ -34,11 +34,26 @@ export interface VideoHandle {
   duration: () => number;
   setPlaying: (playing: boolean) => void;
   paused: () => boolean;
-  /** 볼륨 0~1. 음소거 상태와 독립적 (YouTube 패턴) — 로컬 전용, broadcast 안 함. */
+  /** "base" 볼륨 0~1 — UI 슬라이더가 표시·동기화하는 값. 거리 attenuation 전. */
   getVolume: () => number;
   setVolume: (v: number) => void;
   isMuted: () => boolean;
   setMuted: (m: boolean) => void;
+  /**
+   * 외부(WorldCanvas/StudioCanvas)가 매 프레임 호출 — 카메라↔영상 화면 거리(m).
+   * 내부에서 base × attenuation 으로 실제 볼륨 적용 (거리 멀수록 작게).
+   */
+  setListenerDistance?: (d: number) => void;
+}
+
+// 영상 거리 감쇠 — 음성보다 조금 더 멀리까지 들리게.
+export const VIDEO_REF_DISTANCE = 5;   // 5m 안 풀 볼륨
+export const VIDEO_MAX_DISTANCE = 30;  // 30m 밖 무음
+function videoAttenuation(d: number): number {
+  if (!Number.isFinite(d) || d <= VIDEO_REF_DISTANCE) return 1;
+  if (d >= VIDEO_MAX_DISTANCE) return 0;
+  // linear — 음악/환경음용 자연스러운 페이드
+  return 1 - (d - VIDEO_REF_DISTANCE) / (VIDEO_MAX_DISTANCE - VIDEO_REF_DISTANCE);
 }
 export type VideoRegistry = React.MutableRefObject<Map<string, VideoHandle>>;
 
@@ -99,16 +114,27 @@ export function VideoScreenMaterial({ url, objId, selected, side = THREE.FrontSi
 
   useEffect(() => {
     if (!registry || !objId) return;
+    // base = 사용자/동기화 의도 볼륨, video.volume = 거리감쇠 적용한 effective
+    let base = 1;
+    let lastApplied = -1;
+    const applyEffective = (att: number) => {
+      const eff = Math.max(0, Math.min(1, base * att));
+      if (Math.abs(eff - lastApplied) > 0.005) {
+        video.volume = eff;
+        lastApplied = eff;
+      }
+    };
     const handle: VideoHandle = {
       getTime: () => video.currentTime,
       seek: (t) => { try { video.currentTime = t; } catch { /* noop */ } },
       duration: () => video.duration,
       setPlaying: (p) => { if (p) video.play().catch(() => {}); else video.pause(); },
       paused: () => video.paused,
-      getVolume: () => video.volume,
-      setVolume: (v) => { video.volume = Math.max(0, Math.min(1, v)); },
+      getVolume: () => base,
+      setVolume: (v) => { base = Math.max(0, Math.min(1, v)); applyEffective(1); },
       isMuted:   () => video.muted,
       setMuted:  (m) => { video.muted = m; },
+      setListenerDistance: (d) => applyEffective(videoAttenuation(d)),
     };
     registry.current.set(objId, handle);
     return () => { registry.current.delete(objId); };
@@ -240,16 +266,29 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
   useEffect(() => {
     if (!registry || !objId) return;
     console.log('[YT] register handle', objId);
+    // base = 사용자/동기화 의도 볼륨 (0~1). 실제 player.setVolume 은 base × 거리감쇠.
+    // YT setVolume 은 postMessage 기반이라 매 프레임 호출은 비싸므로 정수 비율 변화시에만 호출.
+    let base = 1;
+    let lastAppliedV100 = -1;
+    const applyEffective = (att: number) => {
+      const eff = Math.max(0, Math.min(1, base * att));
+      const v100 = Math.round(eff * 100);
+      if (v100 !== lastAppliedV100) {
+        try { playerRef.current?.setVolume?.(v100); } catch { /* noop */ }
+        lastAppliedV100 = v100;
+      }
+    };
     const handle: VideoHandle = {
       getTime: () => playerRef.current?.getCurrentTime?.() ?? 0,
       seek: (t) => { console.log('[YT] seek', objId, '→', t); try { playerRef.current?.seekTo?.(t, true); } catch { /* noop */ } },
       duration: () => playerRef.current?.getDuration?.() ?? 0,
       setPlaying: (p) => { console.log('[YT] setPlaying', objId, '→', p); try { p ? playerRef.current?.playVideo?.() : playerRef.current?.pauseVideo?.(); } catch { /* noop */ } },
       paused: () => (playerRef.current?.getPlayerState?.() ?? 1) !== 1,  // 1 = playing
-      getVolume: () => { try { return (playerRef.current?.getVolume?.() ?? 100) / 100; } catch { return 1; } },
-      setVolume: (v) => { try { playerRef.current?.setVolume?.(Math.round(Math.max(0, Math.min(1, v)) * 100)); } catch { /* noop */ } },
+      getVolume: () => base,
+      setVolume: (v) => { base = Math.max(0, Math.min(1, v)); applyEffective(1); },
       isMuted:   () => { try { return !!playerRef.current?.isMuted?.(); } catch { return false; } },
       setMuted:  (m) => { try { m ? playerRef.current?.mute?.() : playerRef.current?.unMute?.(); } catch { /* noop */ } },
+      setListenerDistance: (d) => applyEffective(videoAttenuation(d)),
     };
     registry.current.set(objId, handle);
     return () => { console.log('[YT] unregister handle', objId); registry.current.delete(objId); };
@@ -356,6 +395,36 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
     </Html>
   );
 });
+
+/**
+ * Listener 거리 업데이트 — 매 프레임 카메라 위치 ↔ 비디오 객체 위치 거리 계산해서
+ * registry 의 모든 handle 에 setListenerDistance 호출. 호출부는 objects(id→position) 만 넘기면 됨.
+ *
+ * Canvas 안 (R3F context) 에서만 사용 가능. 빈 객체 또는 position 없는 객체는 자동 스킵.
+ */
+export function VideoDistanceUpdater({
+  registry, objectsById,
+}: {
+  registry: VideoRegistry;
+  /** id → [x, y, z] 또는 { position: [x,y,z] } */
+  objectsById: Map<string, { position?: [number, number, number] | { x: number; y: number; z: number } }>;
+}) {
+  const { camera } = useThree();
+  const tmp = useMemo(() => new THREE.Vector3(), []);
+  useFrame(() => {
+    if (registry.current.size === 0) return;
+    for (const [objId, handle] of registry.current) {
+      if (!handle.setListenerDistance) continue;
+      const o = objectsById.get(objId);
+      const p = o?.position;
+      if (!p) continue;
+      if (Array.isArray(p)) tmp.set(p[0], p[1], p[2]);
+      else tmp.set(p.x, p.y, p.z);
+      handle.setListenerDistance(camera.position.distanceTo(tmp));
+    }
+  });
+  return null;
+}
 
 /* ── 멀티 동기화 — 호스트가 보낸 시각을 핸들에 반영 (0.5초 이상 차이날 때만 seek) ── */
 export function applyVideoSync(

@@ -26,7 +26,7 @@ import { UiInspector } from './UiInspector';
 import { createGameRuntime } from '@/lib/world/gameRuntime';
 import { execUiButtonScript } from '@/lib/world/uiButtonScript';
 import GameHud from '@/components/world/GameHud';
-import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, VideoScreenCtx, parseYouTubeId, parseUrlKind, normalizeMediaUrl, ImageMaterial, GenericIframeOverlay, VideoRemotePanel, type VideoRegistry, type VideoHandle } from '@/components/world/VideoScreen';
+import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, VideoScreenCtx, parseYouTubeId, parseUrlKind, normalizeMediaUrl, ImageMaterial, GenericIframeOverlay, VideoRemotePanel, VideoDistanceUpdater, type VideoRegistry, type VideoHandle } from '@/components/world/VideoScreen';
 import AiGuideModal from './AiGuideModal';
 import StudioTopBar from './StudioTopBar';
 import StudioShortcutsModal from './StudioShortcutsModal';
@@ -7235,6 +7235,7 @@ export default function StudioCanvas() {
             /* ── 시뮬레이션 모드 ── */
             <Suspense fallback={null}>
               <VideoScreenCtx.Provider value={{ live: true, withSound: true, registry: simVideoRegistry }}>
+              <VideoDistanceUpdater registry={simVideoRegistry} objectsById={new Map(simObjs.map(o => [o.id, o]))} />
               <Physics gravity={[0, worldPhysics.gravity, 0]} interpolate={false}>
                 <SimScene objects={simObjs} transforms={simTransforms} myAssets={myAssets} gameApi={simGameRuntime.api}
                   player={simCharacter ? {

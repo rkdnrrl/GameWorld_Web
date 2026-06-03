@@ -32,7 +32,7 @@ import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
-import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, parseUrlKind, normalizeMediaUrl, ImageMaterial, GenericIframeOverlay, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, VideoRemotePanel, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
+import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, parseUrlKind, normalizeMediaUrl, ImageMaterial, GenericIframeOverlay, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, VideoRemotePanel, VideoDistanceUpdater, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
 import { RemotePlayerInfoPanel } from './RemotePlayerInfoPanel';
 import { useVoiceChat } from '@/lib/world/useVoiceChat';
 import { createGameRuntime, GAME_SYNC_EVENT, GAME_SOUND_EVENT, type GameSnapshot } from '@/lib/world/gameRuntime';
@@ -4440,6 +4440,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
 
         <Suspense fallback={null}>
           <VideoScreenCtx.Provider value={videoCtxValue}>
+          <VideoDistanceUpdater registry={videoRegistry} objectsById={objectsById} />
           <Physics gravity={[0, gravityY, 0]} interpolate={false}>
             {customObjects !== undefined ? (
               // 유저 제작 월드 — 기본 그라운드 없음. 필요하면 평면 직접 배치
