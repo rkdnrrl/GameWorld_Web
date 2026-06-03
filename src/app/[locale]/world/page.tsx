@@ -92,6 +92,17 @@ export default function WorldPage() {
   // 통합 설정 모달 — ⚙ 클릭 또는 ESC 키로 열림. 그래픽/전체화면/허브 옵션 모두 포함.
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'graphics' | 'display' | 'hub' | 'develop'>('graphics');
+  // 설정에서 하위 모달(캐릭터/맵/포탈) 진입 시 true → 그 모달 X 닫을 때 설정으로 복귀.
+  const [returnToSettings, setReturnToSettings] = useState(false);
+  const closeCharModal = () => {
+    setCharModalOpen(false);
+    if (returnToSettings) { setReturnToSettings(false); setSettingsOpen(true); }
+  };
+  const closeMapModal = () => {
+    setMapModalOpen(false);
+    setPortalPickMode(false);
+    if (returnToSettings) { setReturnToSettings(false); setSettingsOpen(true); }
+  };
   const [mapModalOpen, setMapModalOpen] = useState(false);
   const [charModalOpen, setCharModalOpen] = useState(false);
   const [mapTab, setMapTab] = useState<'home' | 'mine' | 'public'>('home');
@@ -806,13 +817,13 @@ export default function WorldPage() {
                         <div style={{ fontSize: 16, fontWeight: 700 }}>{character?.name ? String(character.name) : t('unknownCharacter')}</div>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <button onClick={() => { setSettingsOpen(false); openCharacterBrowser(); }} style={actionBtn}>
+                        <button onClick={() => { setSettingsOpen(false); setReturnToSettings(true); openCharacterBrowser(); }} style={actionBtn}>
                           🧍 {t('changeCharacter')}
                         </button>
-                        <button onClick={() => { setSettingsOpen(false); openMapBrowser(); }} style={actionBtn}>
+                        <button onClick={() => { setSettingsOpen(false); setReturnToSettings(true); openMapBrowser(); }} style={actionBtn}>
                           🗺 {t('moveMap')}
                         </button>
-                        <button onClick={() => { setSettingsOpen(false); openPortalBrowser(); }}
+                        <button onClick={() => { setSettingsOpen(false); setReturnToSettings(true); openPortalBrowser(); }}
                           style={{ ...actionBtn, border: '1px solid rgba(34,211,238,0.4)', background: 'rgba(34,211,238,0.12)' }}>
                           🌀 {t('portalOpen')}
                         </button>
@@ -849,7 +860,7 @@ export default function WorldPage() {
 
       {charModalOpen && (
         <div
-          onClick={() => setCharModalOpen(false)}
+          onClick={closeCharModal}
           style={{ position: 'absolute', inset: 0, background: 'rgba(3,7,18,0.72)', backdropFilter: 'blur(6px)', zIndex: 16777275, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
         >
           <div
@@ -859,7 +870,7 @@ export default function WorldPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
               <div style={{ fontSize: 18, fontWeight: 800 }}>{t('changeCharacter')}</div>
               <button
-                onClick={() => setCharModalOpen(false)}
+                onClick={closeCharModal}
                 style={{ border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontWeight: 700 }}
               >
                 X
@@ -919,7 +930,7 @@ export default function WorldPage() {
 
       {mapModalOpen && (
         <div
-          onClick={() => { setMapModalOpen(false); setPortalPickMode(false); }}
+          onClick={closeMapModal}
           style={{ position: 'absolute', inset: 0, background: 'rgba(3,7,18,0.72)', backdropFilter: 'blur(6px)', zIndex: 16777275, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
         >
           <div
@@ -929,7 +940,7 @@ export default function WorldPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
               <div style={{ fontSize: 18, fontWeight: 800 }}>{portalPickMode ? `🌀 ${t('portalPickTitle')}` : t('moveMap')}</div>
               <button
-                onClick={() => { setMapModalOpen(false); setPortalPickMode(false); }}
+                onClick={closeMapModal}
                 style={{ border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontWeight: 700 }}
               >
                 X
