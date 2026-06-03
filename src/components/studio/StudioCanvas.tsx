@@ -6906,9 +6906,9 @@ export default function StudioCanvas() {
                         style={{ accentColor: '#fbbf24' }} />
                     </label>
                   </>)}
-                  {/* 그림자 */}
+                  {/* 그림자 — UI 와 렌더링 default 일관성 (false). WebGL 텍스처 한계(16)로 한 씬당 5~6개만 권장. */}
                   <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={selected.castShadow ?? true}
+                    <input type="checkbox" checked={selected.castShadow ?? false}
                       onChange={e => { setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, castShadow: e.target.checked } : o)); pushHistory(objects); }} />
                     {t('inspShadow')}
                   </label>
