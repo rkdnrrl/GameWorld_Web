@@ -3250,9 +3250,10 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         devLog('[VID] recv SYNC', objectId, 'from', fromId, 'data', data, 'isHost', isHostRef.current, 'hostIdRef', hostIdRef.current);
         if (isHostRef.current) return;            // 호스트는 권위자 — 수신 무시
         // 진짜 호스트가 보낸 것만 적용 — 들어온 사람이 hostId 초기값으로 자기를 호스트로 잘못 판정하고
-        // broadcast 하는 케이스 차단 (그 sync 가 비호스트한테 seek 호출해 영상 reset 시킴)
-        if (!fromId || (hostIdRef.current && fromId !== hostIdRef.current)) {
-          devLog('[VID] SYNC rejected — sender not real host', { fromId, realHost: hostIdRef.current });
+        // broadcast 하는 케이스 차단 (그 sync 가 비호스트한테 seek 호출해 영상 reset 시킴).
+        // hostIdRef.current 가 아직 미확정(빈 값)이면 안전하게 무시 — host 메시지 도착 후 다음 sync 부터 적용.
+        if (!fromId || !hostIdRef.current || fromId !== hostIdRef.current) {
+          devLog('[VID] SYNC rejected — host unverified or sender mismatch', { fromId, realHost: hostIdRef.current });
           return;
         }
         const d = data as { t?: number; playing?: boolean; url?: string };
@@ -3270,11 +3271,17 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       if (event === VIDEO_CTL_EVENT) {
         devLog('[VID] recv CTL', objectId, 'from', fromId, 'data', data);
         const d = data as VideoControlCmd;
+        // 본인이 보낸 echo 는 무시 — 이미 로컬에서 적용했음 (자기→자기 broadcast 가 도착하는 케이스).
+        if (fromId && fromId === playerId) return;
         if (typeof d.seekTo === 'number') videoRegistry.current.get(objectId)?.seek(d.seekTo);
         if (typeof d.playing === 'boolean') videoRegistry.current.get(objectId)?.setPlaying(d.playing);
         if (typeof d.volume === 'number') videoRegistry.current.get(objectId)?.setVolume(d.volume);
         if (typeof d.muted === 'boolean') videoRegistry.current.get(objectId)?.setMuted(d.muted);
-        if (d.url) { const url = d.url; setVideoUrlOverrides(m => ({ ...m, [objectId]: url })); }
+        // same-value skip — 같은 url 이면 새 state 객체 안 만듦 → 불필요한 re-render 차단.
+        if (d.url) {
+          const url = d.url;
+          setVideoUrlOverrides(m => m[objectId] === url ? m : ({ ...m, [objectId]: url }));
+        }
         return;
       }
       // 게임 상태+HUD 스냅샷 — 호스트가 보낸 걸 비호스트가 반영 (HUD 표시)
