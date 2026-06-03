@@ -373,16 +373,14 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
     };
   }, [url, live]);
 
-  // 상호작용 가능하게 — drei portal 의 wrapper div 들 zIndex 를 캔버스(16777271)보다 위로 강제.
-  // 그래야 마우스 클릭이 iframe 으로 가서 호스팅 게임 조작 가능. drei 가 매 프레임 8388634 로 갱신하므로
-  // useFrame 으로 매 프레임 덮어씀.
+  // 상호작용 가능하게 — drei portal 의 iframe 의 immediate wrapper(=drei 가 만든 transform div) 만
+  // 캔버스(16777271)보다 위로. 5단계까지 끌어올리면 공통 portal root 까지 영향받아 같은 root 안의
+  // 다른 Html(YouTube 등) 도 캔버스 위로 떠서 모든 오브젝트 앞으로 그려짐 → 캐릭터 가림 버그.
+  // 1단계만 올려도 클릭 도달 OK (캐릭터 mesh 보다 위, 다른 Html 은 영향 X).
   useFrame(() => {
     if (!live) return;
-    let cur: HTMLElement | null = iframeRef.current?.parentElement ?? null;
-    for (let i = 0; i < 5 && cur && cur.tagName !== 'BODY'; i++) {
-      if (cur.style.zIndex !== '16777272') cur.style.zIndex = '16777272';
-      cur = cur.parentElement;
-    }
+    const wrap = iframeRef.current?.parentElement;
+    if (wrap && wrap.style.zIndex !== '16777272') wrap.style.zIndex = '16777272';
   });
 
   if (!live) return null;
