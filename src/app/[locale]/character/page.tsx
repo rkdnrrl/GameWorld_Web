@@ -1093,7 +1093,13 @@ export default function CharacterPage() {
       }
       await loadCharacters();
       setCreatingNew(false);
-      router.replace('/world');
+      // iframe 안 (월드 모달) 이면 부모에게 알림 → 모달 닫고 캐릭터 reload.
+      // 일반 페이지 진입이면 평소대로 /world 라우팅.
+      if (typeof window !== 'undefined' && window.self !== window.top) {
+        try { window.parent.postMessage({ type: 'alp:character-saved' }, window.location.origin); } catch { /* noop */ }
+      } else {
+        router.replace('/world');
+      }
     } catch {
       setError(t('networkError'));
     } finally {

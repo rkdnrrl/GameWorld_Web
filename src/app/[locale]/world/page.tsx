@@ -105,6 +105,26 @@ export default function WorldPage() {
   };
   const [mapModalOpen, setMapModalOpen] = useState(false);
   const [charModalOpen, setCharModalOpen] = useState(false);
+  // 캐릭터 관리 (편집/생성) 모달 — iframe 으로 /character 페이지 임베드
+  const [charManagerOpen, setCharManagerOpen] = useState(false);
+  const closeCharManager = () => {
+    setCharManagerOpen(false);
+    if (returnToSettings) { setReturnToSettings(false); setSettingsOpen(true); }
+  };
+  // iframe 안에서 캐릭터 저장 완료 시 postMessage 받음 → 모달 닫음.
+  // (캐릭터 자동 반영은 사용자가 캐릭터 다시 선택 또는 페이지 새로고침 시)
+  useEffect(() => {
+    if (!charManagerOpen) return;
+    const onMsg = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if ((e.data as { type?: string })?.type === 'alp:character-saved') {
+        closeCharManager();
+      }
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [charManagerOpen]);
   const [mapTab, setMapTab] = useState<'home' | 'mine' | 'public'>('home');
   const [mapSearch, setMapSearch] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
@@ -841,7 +861,7 @@ export default function WorldPage() {
                         style={{ ...actionBtn, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.12)' }}>
                         🛠 {th('develop')}
                       </button>
-                      <button onClick={() => router.push('/character')} style={actionBtn}>
+                      <button onClick={() => { setSettingsOpen(false); setReturnToSettings(true); setCharManagerOpen(true); }} style={actionBtn}>
                         🧍 {t('manageCharacters')}
                       </button>
                     </div>
@@ -857,6 +877,29 @@ export default function WorldPage() {
           </div>
         );
       })()}
+
+      {charManagerOpen && (
+        <div
+          onClick={closeCharManager}
+          style={{ position: 'absolute', inset: 0, background: 'rgba(3,7,18,0.78)', backdropFilter: 'blur(8px)', zIndex: 16777276, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: 'min(1100px, 97vw)', height: 'min(900px, 92vh)', display: 'flex', flexDirection: 'column', borderRadius: 14, border: '1px solid rgba(255,255,255,0.16)', background: '#0b1220', color: '#fff', overflow: 'hidden' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>🧍 {t('manageCharacters')}</div>
+              <button onClick={closeCharManager} aria-label="Close" style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: '#fff', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontSize: 13 }}>✕</button>
+            </div>
+            <iframe
+              src="/character"
+              title={t('manageCharacters')}
+              style={{ flex: 1, width: '100%', border: 'none', background: '#0b1220' }}
+              // sandbox 안 줌 — 같은 origin 이라 fetch/localStorage 등 필요
+            />
+          </div>
+        </div>
+      )}
 
       {charModalOpen && (
         <div
@@ -899,7 +942,7 @@ export default function WorldPage() {
                         {previewChar.id === activeCharId ? t('activeCharacter') : t('changeCharacter')}
                       </button>
                       <button
-                        onClick={() => router.push('/character')}
+                        onClick={() => { setCharModalOpen(false); setCharManagerOpen(true); }}
                         style={{ border: '1px solid rgba(255,255,255,0.2)', borderRadius: 9, padding: '9px 12px', cursor: 'pointer', background: 'rgba(79,70,229,0.25)', color: '#fff', fontSize: 12, fontWeight: 800 }}
                       >
                         {t('manageCharacters')}
