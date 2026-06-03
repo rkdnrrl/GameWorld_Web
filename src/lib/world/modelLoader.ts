@@ -84,6 +84,11 @@ export async function loadStaticModel(url: string, manager?: THREE.LoadingManage
         if (vrm) {
           // VRM 0.x 는 forward Z+, 1.0 정렬로 회전 (1.0 모델에선 throw → 무시)
           try { vrmMod.VRMUtils.rotateVRM0(vrm); } catch { /* noop */ }
+          // mixamoRig.findMixamoCompatibleBones 가 VRM humanoid API 우선 사용하도록 부착.
+          // string-match alias 의존 X → 본 매칭 신뢰성 100%.
+          if (vrm.humanoid) vrm.scene.userData.vrmHumanoid = vrm.humanoid;
+          // expressionManager / vrm 인스턴스 전체도 (lipSync 등이 접근).
+          vrm.scene.userData.vrm = vrm;
           resolve(vrm.scene);
         } else {
           resolve(gltf.scene);
