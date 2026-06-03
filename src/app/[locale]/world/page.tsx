@@ -227,6 +227,34 @@ export default function WorldPage() {
     return [...set];
   }, [character, platformEmoteSlots, CORE_ANIM_SLOTS]);
 
+  // 키보드 단축키 — 1~9 키로 emote 슬롯 즉시 트리거. 채팅창·input·iframe 안에선 무시.
+  useEffect(() => {
+    if (emoteSlots.length === 0) return;
+    const onKey = (e: KeyboardEvent) => {
+      // 채팅/검색 등 input 안에서는 비활성
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      if ((e.target as HTMLElement | null)?.isContentEditable) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // 1~9 → emoteSlots[0..8]
+      if (e.key >= '1' && e.key <= '9') {
+        const idx = parseInt(e.key, 10) - 1;
+        const slot = emoteSlots[idx];
+        if (!slot) return;
+        e.preventDefault();
+        setEmoteSlot(prev => prev === slot ? null : slot);
+      } else if (e.key === '0' || e.key === 'Escape') {
+        // 0 또는 ESC → emote 해제
+        if (emoteSlot) {
+          e.preventDefault();
+          setEmoteSlot(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [emoteSlots, emoteSlot]);
+
   useEffect(() => {
     // 견고한 redirect 헬퍼 — next-intl router 가 안 먹는 경우 window.location 으로 강제.
     function goCharacter() {
@@ -1207,11 +1235,12 @@ export default function WorldPage() {
           minWidth: 180, boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
         }}>
           <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '0 6px 4px' }}>
-            커스텀 애니메이션
+            커스텀 애니메이션 · 1~9 키
           </div>
-          {emoteSlots.map(slot => {
+          {emoteSlots.map((slot, idx) => {
             const active = emoteSlot === slot;
             const isLoop = emoteLoopMap[slot] !== false; // 기본값 루프
+            const hotkey = idx < 9 ? String(idx + 1) : null;
             return (
               <div key={slot} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 2px' }}>
                 {/* 재생/정지 버튼 */}
@@ -1228,6 +1257,7 @@ export default function WorldPage() {
                 >
                   <span style={{ fontSize: 13 }}>{active ? '■' : '▶'}</span>
                   <span style={{ fontSize: 11, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slot}</span>
+                  {hotkey && <span style={{ fontSize: 10, opacity: 0.5, fontWeight: 700, padding: '1px 5px', background: 'rgba(255,255,255,0.08)', borderRadius: 4 }}>{hotkey}</span>}
                 </button>
                 {/* 루프/한번만 토글 */}
                 <button

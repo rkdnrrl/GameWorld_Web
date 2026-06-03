@@ -2034,7 +2034,9 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick,
           document.body.style.cursor = 'default';
         } : undefined}
       >
-        <CharacterMesh appearance={appearance} animStateRef={animStateRef} castShadow={castShadow ?? false} getAnalyser={getAnalyser} />
+        {/* RemotePlayer 도 본인 emote 의 oneshot 매핑(appearance.animOneShot) 적용 → 무한 loop 방지.
+            런타임 emoteLoopMap 은 client-local 이라 sync 못 함 — 캐릭터 등록 시 영구 매핑만 따름. */}
+        <CharacterMesh appearance={appearance} animStateRef={animStateRef} castShadow={castShadow ?? false} emoteOneShotOverride={Array.isArray(appearance.animOneShot) ? (appearance.animOneShot as unknown[]).map(String) : []} getAnalyser={getAnalyser} />
       </group>
       <Text
         position={[0, 1.8, 0]}
