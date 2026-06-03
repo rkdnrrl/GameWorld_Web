@@ -1812,8 +1812,11 @@ function SpotLightWithTarget({ color, intensity, distance, angle, penumbra, cast
       <spotLight ref={lightRef}
         color={color} intensity={intensity} distance={distance}
         angle={angle} penumbra={penumbra} decay={1} castShadow={castShadow}
+        shadow-mapSize={[1024, 1024]}
         shadow-camera-near={0.1}
         shadow-camera-far={distance > 0 ? distance : 100}
+        shadow-bias={-0.0005}
+        shadow-normalBias={0.02}
       />
       {/* 그룹이 같은 parent group 안에 있으므로 회전이 적용된 local -Y 방향을 target으로 사용 */}
       <group ref={targetRef} position={[0, -5, 0]} />
@@ -1860,8 +1863,11 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
             distance={obj.lightDistance ?? 0}
             decay={1}
             castShadow={obj.castShadow ?? false}
+            shadow-mapSize={[1024, 1024]}
             shadow-camera-near={0.1}
             shadow-camera-far={(obj.lightDistance ?? 0) > 0 ? obj.lightDistance! : 100}
+            shadow-bias={-0.0005}
+            shadow-normalBias={0.02}
           />
         )}
         {obj.kind === 'spotlight' && (
@@ -2222,7 +2228,12 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
   // 조명은 Three.js 라이트로 렌더링 (물리 없음)
   if (obj.kind === 'pointlight') return (
     <pointLight ref={lightRefCb} position={t.pos} color={obj.lightColor || '#ffffff'}
-      intensity={obj.lightIntensity ?? 1} distance={obj.lightDistance ?? 0} decay={1} castShadow={obj.castShadow ?? false} />
+      intensity={obj.lightIntensity ?? 1} distance={obj.lightDistance ?? 0} decay={1} castShadow={obj.castShadow ?? false}
+      shadow-mapSize={[1024, 1024]}
+      shadow-camera-near={0.1}
+      shadow-camera-far={(obj.lightDistance ?? 0) > 0 ? obj.lightDistance! : 100}
+      shadow-bias={-0.0005}
+      shadow-normalBias={0.02} />
   );
   if (obj.kind === 'dirlight') return (
     <directionalLight ref={lightRefCb} position={t.pos} color={obj.lightColor || '#ffffff'}
@@ -2236,7 +2247,12 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
     <spotLight ref={lightRefCb} position={t.pos} color={obj.lightColor || '#ffffff'}
       intensity={obj.lightIntensity ?? 1} distance={obj.lightDistance ?? 0}
       angle={(obj.lightAngle ?? 45) * Math.PI / 180} penumbra={obj.lightPenumbra ?? 0.2}
-      decay={1} castShadow={obj.castShadow ?? false} />
+      decay={1} castShadow={obj.castShadow ?? false}
+      shadow-mapSize={[1024, 1024]}
+      shadow-camera-near={0.1}
+      shadow-camera-far={(obj.lightDistance ?? 0) > 0 ? obj.lightDistance! : 100}
+      shadow-bias={-0.0005}
+      shadow-normalBias={0.02} />
   );
 
   const assetConfig = getAssetMaterialConfig(myAssets.find(a => a.modelUrl === obj.assetUrl));
