@@ -2044,18 +2044,13 @@ function SceneRefCapture({ target }: { target: { current: THREE.Scene | null } }
 
 /* ── 노출(toneMapping) + HDRI IBL 강도 라이브 업데이트
    gl prop / Environment prop 은 초기 마운트만 적용되므로 매 렌더마다 직접 세팅한다. */
-/** 스튜디오 메인 태양광 — 카메라 위치 따라가서 shadow frustum (±80) 안에 캐릭터/오브젝트 항상 들어오게.
- *  버그 fix: 라이트가 고정 좌표 (20,30,10) 라 멀리 가면 그림자 frustum 박스 밖이라 그림자가 끊기거나
- *  검은 띠 같은 아티팩트 발생. 방향은 (20,30,10) → cam 으로 일정 유지.
- *  Shadow params 튜닝:
- *    - shadow-camera-near 10 — near=0.1 일 때 depth 정밀도 부족으로 띠/잘림 발생
- *    - shadow-bias -0.0001 — -0.0005 는 너무 커서 peter-panning (그림자 들뜸)
- *    - shadow-normalBias 0.04 — 표면 normal 기준 추가 보정, acne 감소
+/** 스튜디오 메인 태양광 — 카메라 위치 따라가서 shadow frustum 안에 캐릭터/오브젝트 항상 들어오게.
+ *  Shadow params 는 월드의 FollowingSunLight + GraphicsApplier 와 동일하게 동기화 — 검증된 값.
  */
 function FollowingStudioSun({ intensity }: { intensity: number }) {
   const ref = useRef<THREE.DirectionalLight>(null);
   const { gl } = useThree();
-  // shadowMap type 강제 PCFSoft — 기본 PCF 보다 가장자리 부드러움 + jagged 줄무늬 감소
+  // shadowMap type 강제 PCFSoft — 기본 PCF 보다 가장자리 부드러움
   useEffect(() => {
     gl.shadowMap.enabled = true;
     gl.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -2074,12 +2069,12 @@ function FollowingStudioSun({ intensity }: { intensity: number }) {
       position={[20, 30, 10]}
       intensity={intensity}
       castShadow
-      shadow-mapSize={[4096, 4096]}
-      shadow-camera-left={-80} shadow-camera-right={80}
-      shadow-camera-top={80} shadow-camera-bottom={-80}
-      shadow-camera-near={10} shadow-camera-far={200}
-      shadow-bias={-0.0001}
-      shadow-normalBias={0.04}
+      shadow-mapSize={[2048, 2048]}
+      shadow-camera-left={-60} shadow-camera-right={60}
+      shadow-camera-top={60} shadow-camera-bottom={-60}
+      shadow-camera-near={0.5} shadow-camera-far={150}
+      shadow-bias={-0.0005}
+      shadow-normalBias={0.02}
     />
   );
 }
