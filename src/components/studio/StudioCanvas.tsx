@@ -2049,13 +2049,6 @@ function SceneRefCapture({ target }: { target: { current: THREE.Scene | null } }
  */
 function FollowingStudioSun({ intensity }: { intensity: number }) {
   const ref = useRef<THREE.DirectionalLight>(null);
-  const { gl } = useThree();
-  // shadowMap type 강제 PCFSoft — 기본 PCF 보다 가장자리 부드러움
-  useEffect(() => {
-    gl.shadowMap.enabled = true;
-    gl.shadowMap.type = THREE.PCFSoftShadowMap;
-    gl.shadowMap.needsUpdate = true;
-  }, [gl]);
   useFrame((state) => {
     if (!ref.current) return;
     const cam = state.camera.position;
@@ -7382,7 +7375,7 @@ export default function StudioCanvas() {
         }}
       >
         <Canvas
-          shadows
+          shadows={{ enabled: true, type: THREE.PCFShadowMap, autoUpdate: true }}
           camera={{ position: [8, 8, 8], fov: 50 }}
           dpr={[1, 2]}
           gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: exposure }}
