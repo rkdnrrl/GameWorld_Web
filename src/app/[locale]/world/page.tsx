@@ -111,34 +111,45 @@ export default function WorldPage() {
     setCharManagerOpen(false);
     if (returnToSettings) { setReturnToSettings(false); setSettingsOpen(true); }
   };
-  // 활성 캐릭터 다시 fetch — 캐릭터 모달에서 저장 후 자동 반영용
+  // 활성 캐릭터 다시 fetch — 캐릭터 모달에서 저장 후 자동 반영용.
+  // cache: 'no-store' 로 브라우저 캐시 우회 + 새 객체 reference 로 강제 React re-render.
   const reloadActiveCharacter = useCallback(async () => {
     const token = session.getToken();
     if (!token) return;
     try {
-      const res = await fetch(`${API}/api/characters/me`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${API}/api/characters/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      });
       if (!res.ok) return;
       const data = await res.json().catch(() => null);
       const active = data?.character;
       if (active?.id) {
-        setCharacter(active);
-        setMyChars(prev => prev.map(c => c.id === active.id ? active : c));
+        const fresh = { ...active, appearance: { ...(active.appearance ?? {}) } };
+        console.log('[world] setCharacter fresh:', fresh.id, 'modelUrl:', fresh.appearance?.modelUrl, 'modelScale:', fresh.appearance?.modelScale);
+        setCharacter(fresh);
+        setMyChars(prev => prev.map(c => c.id === active.id ? fresh : c));
       }
       // 캐릭터 목록도 갱신 (새 캐릭터 생성 등)
-      const listRes = await fetch(`${API}/api/characters`, { headers: { Authorization: `Bearer ${token}` } });
+      const listRes = await fetch(`${API}/api/characters`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      });
       if (listRes.ok) {
         const list = await listRes.json().catch(() => null);
         if (Array.isArray(list?.characters)) setMyChars(list.characters);
       }
-    } catch { /* noop */ }
+    } catch (e) { console.warn('[world] reloadActiveCharacter failed:', e); }
   }, [API]);
 
   // iframe 안에서 캐릭터 저장 완료 시 postMessage 받음 → 모달 닫고 캐릭터 즉시 반영.
   useEffect(() => {
     if (!charManagerOpen) return;
     const onMsg = (e: MessageEvent) => {
+      console.log('[world] message received:', e.data, 'origin:', e.origin);
       if (e.origin !== window.location.origin) return;
       if ((e.data as { type?: string })?.type === 'alp:character-saved') {
+        console.log('[world] character-saved → reloading active character');
         reloadActiveCharacter();
         closeCharManager();
       }
