@@ -1239,6 +1239,7 @@
     "saveFailed": "保存失敗",
     "playTest": "▶ プレイテスト",
     "newWorldDefault": "新しいワールド",
+    "confirmDiscardUnsaved": "保存されていない変更があります。破棄して新しいワールドを始めますか？",
     "hudHint": "右クリック: 回転 · ホイール: 拡大/縮小 · WASD: 移動 · QE: 上下 · Shift: 加速 · クリック: 選択 · Del: 削除 · Ctrl+Z/Y: 元に戻す",
     "material": "マテリアル",
     "matDefault": "デフォルト",

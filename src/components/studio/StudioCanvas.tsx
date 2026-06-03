@@ -5912,7 +5912,12 @@ export default function StudioCanvas() {
                 style={{ padding: '8px 9px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(99,102,241,0.24)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                 🗺 {t('openMyWorlds')}
               </button>
-              <button onClick={() => router.replace('/studio')}
+              <button onClick={() => {
+                // 같은 URL 이면 router.replace 가 navigation 을 skip → 강제 reload 로 state 완전 초기화.
+                // 미저장 변경 안전장치: 변경 있으면 confirm.
+                if (dirty && !window.confirm(t('confirmDiscardUnsaved'))) return;
+                window.location.assign(window.location.pathname.replace(/\/studio.*/, '/studio'));
+              }}
                 style={{ padding: '8px 9px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(16,185,129,0.22)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                 ＋ {t('newWorldDefault')}
               </button>

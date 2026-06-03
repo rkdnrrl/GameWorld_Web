@@ -1239,6 +1239,7 @@
     "saveFailed": "Save failed",
     "playTest": "▶ Test Play",
     "newWorldDefault": "New World",
+    "confirmDiscardUnsaved": "You have unsaved changes. Discard and start a new world?",
     "hudHint": "R-click: Rotate · Wheel: Zoom · WASD: Move · QE: Up/Down · Shift: Fast · Click: Select · Del: Delete · Ctrl+Z/Y: Undo",
     "material": "Material",
     "matDefault": "Default",
