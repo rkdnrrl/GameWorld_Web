@@ -1979,7 +1979,12 @@
     "tabPacks": "팩",
     "renameHint": "클릭하여 이름 변경",
     "newScriptBtn": "📜 새 스크립트 만들기",
-    "newScriptHint": "(코드 직접 입력)"
+    "newScriptHint": "(코드 직접 입력)",
+    "errFileTooLarge": "파일이 2MB 를 초과합니다.",
+    "errNotAlpMap": "이 파일은 alp-map 포맷이 아닙니다 (format={format}).",
+    "errNoObjects": "맵 파일에 objects 배열이 없습니다.",
+    "errLoginRequired": "로그인이 필요합니다.",
+    "errImportFailed": "가져오기 실패: {detail}"
   },
   "Notifications": {
     "aria": "알림",

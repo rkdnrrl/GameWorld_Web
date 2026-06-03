@@ -19,6 +19,7 @@ const REASONS: ReportReason[] = ['inappropriate', 'copyright', 'spam', 'malware'
 
 export default function AssetReportModal({ asset, onClose, onSubmit }: Props) {
   const t = useTranslations('Assets');
+  const tCommon = useTranslations('Common');
   const [reason, setReason] = useState<ReportReason>('inappropriate');
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -64,7 +65,7 @@ export default function AssetReportModal({ asset, onClose, onSubmit }: Props) {
               {asset.name}
             </div>
           </div>
-          <button onClick={onClose}
+          <button onClick={onClose} aria-label={tCommon('close')}
             style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', opacity: 0.6 }}>
             ✕
           </button>

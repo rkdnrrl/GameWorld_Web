@@ -24,6 +24,7 @@ function normalize(tag: string): string {
 
 export default function AssetTagEditor({ asset, allAssets, onClose, onSave }: Props) {
   const t = useTranslations('Assets');
+  const tCommon = useTranslations('Common');
   const [tags, setTags] = useState<string[]>(asset.tags || []);
   const [input, setInput] = useState('');
   const [saving, setSaving] = useState(false);
@@ -106,7 +107,7 @@ export default function AssetTagEditor({ asset, allAssets, onClose, onSave }: Pr
             <div style={{ fontSize: 11, opacity: 0.5 }}>{t('tagEditorFor')}</div>
             <div style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{asset.name}</div>
           </div>
-          <button onClick={onClose}
+          <button onClick={onClose} aria-label={tCommon('close')}
             style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', opacity: 0.6 }}>
             ✕
           </button>

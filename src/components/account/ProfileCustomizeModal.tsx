@@ -14,6 +14,7 @@ interface Props {
 
 export default function ProfileCustomizeModal({ open, onClose }: Props) {
   const t = useTranslations('AccountCustomize');
+  const tCommon = useTranslations('Common');
   const panelRef = useRef<HTMLDivElement>(null);
 
   // ESC 닫기 + body 스크롤 잠금
@@ -48,7 +49,7 @@ export default function ProfileCustomizeModal({ open, onClose }: Props) {
           <button
             type="button"
             onClick={onClose}
-            aria-label="닫기"
+            aria-label={tCommon('close')}
             className="rounded-full w-8 h-8 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-300 text-lg"
           >×</button>
         </div>

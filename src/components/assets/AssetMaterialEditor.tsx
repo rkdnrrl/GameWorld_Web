@@ -77,6 +77,7 @@ function TexturePicker({ images, onSelect, onClose, title }: {
   title: string;
 }) {
   const t = useTranslations('Studio');
+  const tCommon = useTranslations('Common');
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}
       onClick={onClose}>
@@ -84,7 +85,7 @@ function TexturePicker({ images, onSelect, onClose, title }: {
         onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{title}</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 18, cursor: 'pointer' }}>✕</button>
+          <button onClick={onClose} aria-label={tCommon('close')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 18, cursor: 'pointer' }}>✕</button>
         </div>
         {images.length === 0 ? (
           <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, textAlign: 'center', padding: 30 }}>
@@ -115,12 +116,24 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
   onSaved: (updated: any) => void;
 }) {
   const t = useTranslations('Studio');
+  const tCommon = useTranslations('Common');
   // metadata.materialConfig (신규) 우선, fallback 으로 materialConfig (구버전)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const initialCfg = (asset as any).metadata?.materialConfig || asset.materialConfig || {};
   const [cfg, setCfg] = useState<MaterialConfig>(initialCfg);
   const [saving, setSaving] = useState(false);
   const [picker, setPicker] = useState<null | 'albedo' | 'normal' | 'roughness'>(null);
+
+  // ESC 닫기 — 다른 asset 모달과 일관성. picker 모달 떠있으면 그것만 닫음.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (picker) setPicker(null);
+      else onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [picker, onClose]);
 
   const imageAssets = allAssets.filter(a => /\.(png|jpe?g|webp)$/i.test(a.modelUrl));
 
@@ -160,7 +173,7 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
         <div style={{ width: 380, background: '#1e293b', display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>📦 {asset.name}</div>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 18, cursor: 'pointer' }}>✕</button>
+            <button onClick={onClose} aria-label={tCommon('close')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 18, cursor: 'pointer' }}>✕</button>
           </div>
           <div style={{ flex: 1, background: 'linear-gradient(160deg,#1e293b,#0f172a)', position: 'relative' }}>
             <div style={{

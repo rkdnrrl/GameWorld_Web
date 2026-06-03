@@ -1979,7 +1979,12 @@
     "tabPacks": "Packs",
     "renameHint": "Click to rename",
     "newScriptBtn": "📜 Create new script",
-    "newScriptHint": "(enter code directly)"
+    "newScriptHint": "(enter code directly)",
+    "errFileTooLarge": "File exceeds 2MB.",
+    "errNotAlpMap": "Not an alp-map file (format={format}).",
+    "errNoObjects": "Map file is missing the objects array.",
+    "errLoginRequired": "Login required.",
+    "errImportFailed": "Import failed: {detail}"
   },
   "Notifications": {
     "aria": "Notifications",

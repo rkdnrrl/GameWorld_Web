@@ -763,21 +763,21 @@ export default function AssetsPage() {
                 const file = e.target.files?.[0];
                 e.currentTarget.value = '';
                 if (!file) return;
-                if (file.size > 2 * 1024 * 1024) { setError('파일이 2MB 를 초과합니다.'); return; }
+                if (file.size > 2 * 1024 * 1024) { setError(t('errFileTooLarge')); return; }
                 try {
                   const text = await file.text();
                   const parsed = JSON.parse(text);
                   // 포맷 검증 — alp-map 또는 objects 배열 존재
                   if (parsed.format && parsed.format !== 'alp-map') {
-                    setError(`이 파일은 alp-map 포맷이 아닙니다 (format=${parsed.format}).`);
+                    setError(t('errNotAlpMap', { format: parsed.format }));
                     return;
                   }
                   if (!Array.isArray(parsed.objects)) {
-                    setError('맵 파일에 objects 배열이 없습니다.');
+                    setError(t('errNoObjects'));
                     return;
                   }
                   const tok = token();
-                  if (!tok) { setError('로그인 필요'); return; }
+                  if (!tok) { setError(t('errLoginRequired')); return; }
                   // 파일명에서 .alp/.json 떼고 에셋 이름으로
                   const baseName = (parsed.name || file.name.replace(/\.(alp|alpmap\.json|json)$/i, '')).slice(0, 80);
                   const { objects, description, icon } = parsed;
@@ -808,7 +808,7 @@ export default function AssetsPage() {
                   setAssets(d.assets || []);
                   setError('');
                 } catch (err) {
-                  setError('가져오기 실패: ' + (err as Error).message);
+                  setError(t('errImportFailed', { detail: (err as Error).message }));
                 }
               }}
             />

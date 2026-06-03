@@ -17,6 +17,7 @@ interface Props {
 
 export default function AssetFolderEditor({ asset, allAssets, onClose, onSave }: Props) {
   const t = useTranslations('Assets');
+  const tCommon = useTranslations('Common');
   const [input, setInput] = useState(asset.folder || '');
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
@@ -71,7 +72,7 @@ export default function AssetFolderEditor({ asset, allAssets, onClose, onSave }:
             <div style={{ fontSize: 11, opacity: 0.5 }}>{t('folderEditorFor')}</div>
             <div style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{asset.name}</div>
           </div>
-          <button onClick={onClose}
+          <button onClick={onClose} aria-label={tCommon('close')}
             style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', opacity: 0.6 }}>
             ✕
           </button>

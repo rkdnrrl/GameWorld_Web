@@ -1979,7 +1979,12 @@
     "tabPacks": "合集",
     "renameHint": "点击重命名",
     "newScriptBtn": "📜 新建脚本",
-    "newScriptHint": "(直接输入代码)"
+    "newScriptHint": "(直接输入代码)",
+    "errFileTooLarge": "文件超过 2MB。",
+    "errNotAlpMap": "不是 alp-map 格式 (format={format})。",
+    "errNoObjects": "地图文件缺少 objects 数组。",
+    "errLoginRequired": "需要登录。",
+    "errImportFailed": "导入失败: {detail}"
   },
   "Notifications": {
     "aria": "通知",

@@ -1979,7 +1979,12 @@
     "tabPacks": "パック",
     "renameHint": "クリックして名前変更",
     "newScriptBtn": "📜 新しいスクリプト作成",
-    "newScriptHint": "(コードを直接入力)"
+    "newScriptHint": "(コードを直接入力)",
+    "errFileTooLarge": "ファイルが 2MB を超えています。",
+    "errNotAlpMap": "alp-map 形式ではありません (format={format})。",
+    "errNoObjects": "マップファイルに objects 配列がありません。",
+    "errLoginRequired": "ログインが必要です。",
+    "errImportFailed": "インポート失敗: {detail}"
   },
   "Notifications": {
     "aria": "通知",

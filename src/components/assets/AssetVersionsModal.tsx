@@ -19,6 +19,7 @@ interface Props {
 
 export default function AssetVersionsModal({ asset, onClose, onAssetChanged }: Props) {
   const t = useTranslations('Assets');
+  const tCommon = useTranslations('Common');
   const [versions, setVersions] = useState<Version[] | null>(null);
   const [current, setCurrent]   = useState<number>(asset.currentVersion ?? 1);
   const [error, setError]   = useState('');
@@ -125,7 +126,7 @@ export default function AssetVersionsModal({ asset, onClose, onAssetChanged }: P
               {asset.name}
             </div>
           </div>
-          <button onClick={onClose}
+          <button onClick={onClose} aria-label={tCommon('close')}
             style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', opacity: 0.6 }}>
             ✕
           </button>
