@@ -23,23 +23,44 @@ export interface LipSyncTarget {
   jawRest?: THREE.Euler;
 }
 
-/** mouth-open morph target 이름 후보 (대소문자 무시) */
+/** mouth-open morph target 이름 후보 (대소문자 무시, 공백/언더바/하이픈 제거 후 비교) */
 const MORPH_CANDIDATES = [
+  // Ready Player Me / 일반
   'mouthopen', 'jawopen',
   'mouth_open', 'jaw_open',
   'viseme_aa', 'viseme_a', 'viseme_o', 'viseme_e',
   'aa', 'a',
   'mouth open', 'jaw open',
-  '입벌림', '입열기',
+  // VRoid / VRM 0.x — A/I/U/E/O 단일 문자
+  // (정확 매칭은 'a' 가 단일 문자라 위에서 이미 잡힘)
+  // VRM 1.0 / Oculus viseme
+  'viseme_pp', 'viseme_ff', 'aa_open', 'ahopen',
+  // 한국어 / 한자
+  '입벌림', '입열기', '口開け', '張嘴',
+];
+
+/** 끝부분 매칭 패턴 — VRoid 의 긴 prefix (Face.M_F00_...Fcl_MTH_A) 잡기 */
+const MORPH_SUFFIX_PATTERNS = [
+  /fcl_?mth_?a$/i,    // Fcl_MTH_A, FclMthA
+  /fcl_?mth_?aa$/i,
+  /fcl_?mth_?o$/i,
+  /mouth_?open$/i,
+  /jaw_?open$/i,
+  /viseme_?aa$/i,
 ];
 
 /** jaw bone 이름 후보 (substring 매칭, 대소문자 무시) */
 const JAW_BONE_CANDIDATES = ['jaw', '턱'];
 
-/** GLB/FBX scene 에서 lip-sync 타겟을 찾음 (한번만 호출, 결과 캐시). */
+/** GLB/FBX scene 에서 lip-sync 타겟을 찾음 (한번만 호출, 결과 캐시).
+ *  디버그: localStorage 에 `alp_lipsync_debug=1` 세팅하면 매칭 안 된 morph 이름들을 console 에 출력.
+ *  (VRoid/RPM 등 새 캐릭터 import 후 매칭 실패 시 후보 추가 판단용)
+ */
 export function findLipSyncTarget(root: THREE.Object3D): LipSyncTarget {
   const morphs: Array<{ mesh: THREE.Mesh; index: number }> = [];
   let jawBone: THREE.Object3D | undefined;
+  const debug = typeof window !== 'undefined' && window.localStorage?.getItem('alp_lipsync_debug') === '1';
+  const allMorphNames: string[] = [];
 
   root.traverse((obj) => {
     // morph target 검색
@@ -47,8 +68,11 @@ export function findLipSyncTarget(root: THREE.Object3D): LipSyncTarget {
     if (mesh.isMesh && mesh.morphTargetDictionary && mesh.morphTargetInfluences) {
       const dict = mesh.morphTargetDictionary;
       for (const key of Object.keys(dict)) {
+        if (debug) allMorphNames.push(key);
         const lower = key.toLowerCase().replace(/[\s_-]/g, '');
-        if (MORPH_CANDIDATES.some((c) => c.replace(/[\s_-]/g, '') === lower)) {
+        const exactMatch = MORPH_CANDIDATES.some((c) => c.replace(/[\s_-]/g, '') === lower);
+        const suffixMatch = !exactMatch && MORPH_SUFFIX_PATTERNS.some((re) => re.test(key));
+        if (exactMatch || suffixMatch) {
           morphs.push({ mesh, index: dict[key] });
           break; // 한 메시당 첫 매칭만
         }
@@ -65,6 +89,11 @@ export function findLipSyncTarget(root: THREE.Object3D): LipSyncTarget {
       }
     }
   });
+
+  if (debug) {
+    console.log('[lipSync] morphs found in model:', allMorphNames);
+    console.log('[lipSync] matched morphs:', morphs.length, '/ jaw bone:', jawBone?.name);
+  }
 
   if (morphs.length > 0) {
     return { kind: 'morph', morphs };

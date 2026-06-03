@@ -564,7 +564,7 @@ const SUGGESTED_TAG = 'character';
 /** 사이드바 태그 칩 최대 개수 */
 const MAX_TAG_CHIPS = 8;
 
-/** 에셋 카드 썸네일 — modelUrl 이 FBX 면 lazy 3D 프리뷰 생성, 보이는 동안에만 큐 처리 */
+/** 에셋 카드 썸네일 — modelUrl 이 3D 모델 (FBX/GLB/GLTF/VRM) 이면 lazy 프리뷰 생성, 보이는 동안에만 큐 처리 */
 function PickerThumb({ asset, isOfficial }: { asset: Asset; isOfficial: boolean }) {
   const [thumb, setThumb] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -572,7 +572,7 @@ function PickerThumb({ asset, isOfficial }: { asset: Asset; isOfficial: boolean 
 
   useEffect(() => {
     if (asset.thumbnailUrl) return;          // 서버 썸네일 우선
-    if (!/\.fbx(\?|$)/i.test(asset.modelUrl)) return;  // FBX 만 3D 썸 생성
+    if (!/\.(fbx|glb|gltf|vrm)(\?|$)/i.test(asset.modelUrl)) return;  // 3D 모델만 썸 생성
     const el = ref.current;
     if (!el) return;
     let cancelled = false;
@@ -649,10 +649,10 @@ function AssetPickerModal({ onSelect, onClose, officialChars }: {
       .then(r => r.json())
       .then(d => {
         const list: Asset[] = d.assets || [];
-        // FBX 만 (kind === 'model' or 확장자)
-        const fbxOnly = list.filter(a => /\.fbx(\?|$)/i.test(a.modelUrl));
+        // 캐릭터 모델 확장자 — FBX 외에 GLB/GLTF/VRM (VRoid) 도 허용
+        const modelOnly = list.filter(a => /\.(fbx|glb|gltf|vrm)(\?|$)/i.test(a.modelUrl));
         // 공식 캐릭터는 항상 맨 앞에 (id 중복 방지를 위해 official: prefix 사용)
-        const merged = [...officialAssets, ...fbxOnly];
+        const merged = [...officialAssets, ...modelOnly];
         setAssets(merged);
         // 추천 태그가 1개 이상 매칭되면 자동 활성화
         if (!initialized.current) {
