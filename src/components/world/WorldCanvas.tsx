@@ -285,8 +285,10 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   const lipTargetRef    = useRef<LipSyncTarget | null>(null);
   const lipBufRef       = useRef<Uint8Array>(new Uint8Array(ANALYSER_BUFFER_SIZE));
   const lipLevelRef     = useRef(0);
-  const micIconRef      = useRef<HTMLDivElement>(null);
-  // morph/bone 없는 캐릭터엔 머리 위 🎤 fallback 표시 (true = morph 있음, false = fallback 필요)
+  // morph 없는 캐릭터엔 머리 위 emissive sphere 로 "말하는 중" 표시.
+  // ⚠️ 처음엔 drei <Html> 로 🎤 이모지 띄웠는데 video 화면의 occlude="blending" stacking 을 깨먹음
+  // (drei Html 끼리 zIndex 간섭). 순수 3D mesh 로 교체 — 비디오에 영향 0.
+  const micMeshRef      = useRef<THREE.Mesh>(null);
   const [hasLipMorph, setHasLipMorph] = useState<boolean>(true);
 
   useEffect(() => {
@@ -477,9 +479,10 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       const smoothed = smoothLevel(lipLevelRef.current, raw);
       lipLevelRef.current = smoothed;
       applyLipSync(target, smoothed);
-      // fallback 🎤 — DOM opacity 만 ref 로 직접 조작 (re-render 회피)
-      if (target.kind === 'none' && micIconRef.current) {
-        micIconRef.current.style.opacity = String(smoothed);
+      // fallback mesh — material.opacity 만 ref 로 직접 조작 (re-render 회피)
+      if (target.kind === 'none' && micMeshRef.current) {
+        const mat = micMeshRef.current.material as THREE.MeshBasicMaterial;
+        mat.opacity = smoothed;
       }
     }
 
@@ -532,10 +535,12 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
     <group scale={userScale} position={[0, offsetY, 0]}>
       <primitive object={obj} />
       {!hasLipMorph && (
-        // morph/jaw 없는 캐릭터 — 머리 위 🎤 아이콘으로 말하기 표시 (opacity 는 ref 로 useFrame 마다 조작)
-        <Html position={[0, 1.85, 0]} center distanceFactor={6} zIndexRange={[10, 0]} pointerEvents="none">
-          <div ref={micIconRef} style={{ opacity: 0, fontSize: 28, lineHeight: 1, userSelect: 'none', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))' }}>🎤</div>
-        </Html>
+        // morph/jaw 없는 캐릭터 — 머리 위 작은 emissive sphere 로 말하기 표시.
+        // 순수 3D mesh — drei <Html> 안 씀 (video 화면 occlude blending 안 깨먹음).
+        <mesh ref={micMeshRef} position={[0, 1.85, 0]}>
+          <sphereGeometry args={[0.06, 12, 12]} />
+          <meshBasicMaterial color="#22c55e" transparent opacity={0} depthWrite={false} toneMapped={false} />
+        </mesh>
       )}
     </group>
   );
