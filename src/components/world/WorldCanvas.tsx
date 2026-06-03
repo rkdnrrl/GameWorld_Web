@@ -2967,7 +2967,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const [videoUrlOverrides, setVideoUrlOverrides] = useState<Record<string, string>>({});
   // 컨트롤 바/리모컨 동작 — 등록된 비디오 스크린에 적용 + 다른 플레이어에게 broadcast(__videoctl__).
   // targetId 지정 시 그 화면만(비디오 리모컨), 미지정 시 등록된 모두(2D 바).
-  const runVideoControl = useCallback((cmd: { seekBy?: number; seekTo?: number; playing?: boolean; url?: string }, targetId?: string) => {
+  const runVideoControl = useCallback((cmd: { seekBy?: number; seekTo?: number; playing?: boolean; url?: string; volume?: number; muted?: boolean }, targetId?: string) => {
     const ids = targetId ? [targetId] : [...videoRegistry.current.keys()];
     for (const objId of ids) {
       const v = videoRegistry.current.get(objId);
@@ -2983,6 +2983,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       if (v && typeof cmd.playing === 'boolean') {
         v.setPlaying(cmd.playing);
         sendScriptEvent?.(objId, VIDEO_CTL_EVENT, { playing: cmd.playing });
+      }
+      if (v && typeof cmd.volume === 'number') {
+        v.setVolume(cmd.volume);
+        sendScriptEvent?.(objId, VIDEO_CTL_EVENT, { volume: cmd.volume });
+      }
+      if (v && typeof cmd.muted === 'boolean') {
+        v.setMuted(cmd.muted);
+        sendScriptEvent?.(objId, VIDEO_CTL_EVENT, { muted: cmd.muted });
       }
       if (cmd.url) {
         const url = cmd.url;
@@ -3218,6 +3226,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         const d = data as VideoControlCmd;
         if (typeof d.seekTo === 'number') videoRegistry.current.get(objectId)?.seek(d.seekTo);
         if (typeof d.playing === 'boolean') videoRegistry.current.get(objectId)?.setPlaying(d.playing);
+        if (typeof d.volume === 'number') videoRegistry.current.get(objectId)?.setVolume(d.volume);
+        if (typeof d.muted === 'boolean') videoRegistry.current.get(objectId)?.setMuted(d.muted);
         if (d.url) { const url = d.url; setVideoUrlOverrides(m => ({ ...m, [objectId]: url })); }
         return;
       }
@@ -4492,6 +4502,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                           onSeekBy={(d) => targetIds.forEach(tid => runVideoControl({ seekBy: d }, tid))}
                           onSeekTo={(t) => targetIds.forEach(tid => runVideoControl({ seekTo: t }, tid))}
                           onTogglePlay={(p) => targetIds.forEach(tid => runVideoControl({ playing: p }, tid))}
+                          onSetVolume={(v) => targetIds.forEach(tid => runVideoControl({ volume: v, muted: false }, tid))}
+                          onToggleMute={(m) => targetIds.forEach(tid => runVideoControl({ muted: !m }, tid))}
                           onChangeUrl={() => {
                             const u = window.prompt('새 URL (YouTube / mp4 / gif / 호스팅 게임 등)', targets[0].videoUrl || '');
                             if (u && u.trim()) targetIds.forEach(tid => runVideoControl({ url: u.trim() }, tid));

@@ -20,7 +20,12 @@ import * as THREE from 'three';
 export const VIDEO_SYNC_EVENT = '__video__';
 // 유저 컨트롤(앞/뒤 이동·URL 변경) 동기화 이벤트 — 주기적 sync(__video__)와 별개의 1회성 명령.
 export const VIDEO_CTL_EVENT = '__videoctl__';
-export interface VideoControlCmd { seekTo?: number; url?: string; playing?: boolean }
+export interface VideoControlCmd {
+  seekTo?: number; url?: string; playing?: boolean;
+  /** 볼륨 0~1 — 전체 월드 동기화 */
+  volume?: number;
+  muted?: boolean;
+}
 
 /** 파일영상/YouTube 공통 재생 핸들 — 동기화가 소스 종류를 몰라도 되게 추상화. */
 export interface VideoHandle {
@@ -29,6 +34,11 @@ export interface VideoHandle {
   duration: () => number;
   setPlaying: (playing: boolean) => void;
   paused: () => boolean;
+  /** 볼륨 0~1. 음소거 상태와 독립적 (YouTube 패턴) — 로컬 전용, broadcast 안 함. */
+  getVolume: () => number;
+  setVolume: (v: number) => void;
+  isMuted: () => boolean;
+  setMuted: (m: boolean) => void;
 }
 export type VideoRegistry = React.MutableRefObject<Map<string, VideoHandle>>;
 
@@ -95,6 +105,10 @@ export function VideoScreenMaterial({ url, objId, selected, side = THREE.FrontSi
       duration: () => video.duration,
       setPlaying: (p) => { if (p) video.play().catch(() => {}); else video.pause(); },
       paused: () => video.paused,
+      getVolume: () => video.volume,
+      setVolume: (v) => { video.volume = Math.max(0, Math.min(1, v)); },
+      isMuted:   () => video.muted,
+      setMuted:  (m) => { video.muted = m; },
     };
     registry.current.set(objId, handle);
     return () => { registry.current.delete(objId); };
@@ -232,6 +246,10 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
       duration: () => playerRef.current?.getDuration?.() ?? 0,
       setPlaying: (p) => { console.log('[YT] setPlaying', objId, '→', p); try { p ? playerRef.current?.playVideo?.() : playerRef.current?.pauseVideo?.(); } catch { /* noop */ } },
       paused: () => (playerRef.current?.getPlayerState?.() ?? 1) !== 1,  // 1 = playing
+      getVolume: () => { try { return (playerRef.current?.getVolume?.() ?? 100) / 100; } catch { return 1; } },
+      setVolume: (v) => { try { playerRef.current?.setVolume?.(Math.round(Math.max(0, Math.min(1, v)) * 100)); } catch { /* noop */ } },
+      isMuted:   () => { try { return !!playerRef.current?.isMuted?.(); } catch { return false; } },
+      setMuted:  (m) => { try { m ? playerRef.current?.mute?.() : playerRef.current?.unMute?.(); } catch { /* noop */ } },
     };
     registry.current.set(objId, handle);
     return () => { console.log('[YT] unregister handle', objId); registry.current.delete(objId); };
@@ -340,7 +358,10 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
 });
 
 /* ── 멀티 동기화 — 호스트가 보낸 시각을 핸들에 반영 (0.5초 이상 차이날 때만 seek) ── */
-export function applyVideoSync(handle: VideoHandle, data: { t?: number; playing?: boolean }): void {
+export function applyVideoSync(
+  handle: VideoHandle,
+  data: { t?: number; playing?: boolean; volume?: number; muted?: boolean },
+): void {
   const t = typeof data.t === 'number' ? data.t : null;
   const dur = handle.duration();
   if (t !== null && Number.isFinite(dur) && dur > 0) {
@@ -349,6 +370,13 @@ export function applyVideoSync(handle: VideoHandle, data: { t?: number; playing?
   }
   if (data.playing === false && !handle.paused()) handle.setPlaying(false);
   else if (data.playing !== false && handle.paused()) handle.setPlaying(true);
+  if (typeof data.volume === 'number') {
+    const cur = handle.getVolume();
+    if (Math.abs(cur - data.volume) > 0.02) handle.setVolume(data.volume);
+  }
+  if (typeof data.muted === 'boolean' && handle.isMuted() !== data.muted) {
+    handle.setMuted(data.muted);
+  }
 }
 
 /* ── 영상 컨트롤 바 (월드·스튜디오 공용) ── 스크러버 + 재생/일시정지 + ±5초 + (선택)URL.
@@ -430,11 +458,17 @@ const HIT = {
   prev:  { x: 16,  y: 60, w: 60, h: 60 },   // ⏪
   play:  { x: 88,  y: 60, w: 60, h: 60 },   // ▶/⏸
   next:  { x: 160, y: 60, w: 60, h: 60 },   // ⏩
+  mute:  { x: 232, y: 60, w: 60, h: 60 },   // 🔊/🔇
+  vol:   { x: 300, y: 70, w: 130, h: 40 },  // 볼륨 슬라이더
   url:   { x: 436, y: 60, w: 60, h: 60 },   // 🔗
   scrub: { x: 16,  y: 150, w: CAN_W - 32, h: 36 }, // 스크러버 트랙
 };
 
-function drawRemote(ctx: CanvasRenderingContext2D, title: string, cur: number, dur: number, paused: boolean) {
+function drawRemote(
+  ctx: CanvasRenderingContext2D,
+  title: string, cur: number, dur: number, paused: boolean,
+  volume: number, muted: boolean,
+) {
   // 배경
   ctx.fillStyle = 'rgba(10,12,20,0.92)';
   ctx.fillRect(0, 0, CAN_W, CAN_H);
@@ -462,11 +496,23 @@ function drawRemote(ctx: CanvasRenderingContext2D, title: string, cur: number, d
   drawBtn(HIT.prev, '⏪');
   drawBtn(HIT.play, paused ? '▶' : '⏸');
   drawBtn(HIT.next, '⏩');
+  drawBtn(HIT.mute, muted || volume <= 0 ? '🔇' : '🔊', muted ? '#f87171' : '#a5b4fc');
   drawBtn(HIT.url,  '🔗', '#fcd34d');
-  // 시간
+  // 볼륨 슬라이더 트랙
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  ctx.fillRect(HIT.vol.x, HIT.vol.y + HIT.vol.h / 2 - 4, HIT.vol.w, 8);
+  const volRatio = muted ? 0 : Math.max(0, Math.min(1, volume));
+  ctx.fillStyle = muted ? '#7f1d1d' : '#22c55e';
+  ctx.fillRect(HIT.vol.x, HIT.vol.y + HIT.vol.h / 2 - 4, HIT.vol.w * volRatio, 8);
+  // 볼륨 thumb
+  ctx.beginPath();
+  ctx.arc(HIT.vol.x + HIT.vol.w * volRatio, HIT.vol.y + HIT.vol.h / 2, 8, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  // 시간 — 볼륨 슬라이더와 겹치지 않게 아래로 이동
   ctx.fillStyle = '#c7d2fe';
-  ctx.font = '16px monospace';
-  ctx.fillText(fmtTime(cur) + ' / ' + fmtTime(dur), 240, 90);
+  ctx.font = '14px monospace';
+  ctx.fillText(fmtTime(cur) + ' / ' + fmtTime(dur), 232, 130);
   // 스크러버
   ctx.fillStyle = 'rgba(255,255,255,0.12)';
   ctx.fillRect(HIT.scrub.x, HIT.scrub.y + HIT.scrub.h / 2 - 4, HIT.scrub.w, 8);
@@ -492,7 +538,7 @@ function hitTest(px: number, py: number): keyof typeof HIT | null {
   return null;
 }
 
-export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, height = 0.8, offsetY = 1, interactive = true, firstPerson = false, onSeekBy, onSeekTo, onTogglePlay, onChangeUrl }: {
+export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, height = 0.8, offsetY = 1, interactive = true, firstPerson = false, onSeekBy, onSeekTo, onTogglePlay, onChangeUrl, onSetVolume, onToggleMute }: {
   registry: VideoRegistry;
   /** 비어 있으면 미리보기 모드 (조작 없이 시각화만). */
   targetId: string;
@@ -509,6 +555,10 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, he
   onSeekTo: (t: number) => void;
   onTogglePlay: (play: boolean) => void;
   onChangeUrl: () => void;
+  /** 볼륨 0~1 — 미지정 시 음소거 토글만 가능 (편집 미리보기). */
+  onSetVolume?: (v: number) => void;
+  /** 음소거 토글 — 호출 시 현재 muted 상태 받음 (true → unmute). */
+  onToggleMute?: (currentlyMuted: boolean) => void;
 }) {
   // 유튜브 제목 best-effort
   const [titled, setTitled] = useState<{ url: string; title: string }>({ url: '', title: '' });
@@ -552,7 +602,9 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, he
       const cur = h?.getTime() || 0;
       const dur = h?.duration() || 0;
       const paused = h?.paused() ?? true;
-      drawRemote(ctx, shownTitle, cur, dur, paused);
+      const volume = h?.getVolume() ?? 1;
+      const muted  = h?.isMuted() ?? false;
+      drawRemote(ctx, shownTitle, cur, dur, paused, volume, muted);
       texture.needsUpdate = true;
     };
     tick();
@@ -570,6 +622,16 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, he
     else if (hit === 'play') {
       const h = registry.current.get(targetId);
       onTogglePlay(h?.paused() ?? true);
+    }
+    else if (hit === 'mute') {
+      const h = registry.current.get(targetId);
+      onToggleMute?.(h?.isMuted() ?? false);
+    }
+    else if (hit === 'vol') {
+      if (onSetVolume) {
+        const ratio = Math.max(0, Math.min(1, (px - HIT.vol.x) / HIT.vol.w));
+        onSetVolume(ratio);
+      }
     }
     else if (hit === 'url')  onChangeUrl();
     else if (hit === 'scrub') {

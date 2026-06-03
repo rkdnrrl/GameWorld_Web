@@ -3748,7 +3748,7 @@ export default function StudioCanvas() {
   // 시뮬 중 URL 변경(리모컨 🔗) 오버라이드 — objId→새 URL. stopSim 에서 초기화.
   const [simVideoUrlOverrides, setSimVideoUrlOverrides] = useState<Record<string, string>>({});
   // targetId 지정 시 그 화면만(리모컨), 미지정 시 등록된 모두(2D 바). 단일 플레이라 로컬 조작.
-  const runSimVideoControl = useCallback((cmd: { seekBy?: number; seekTo?: number; playing?: boolean; url?: string }, targetId?: string) => {
+  const runSimVideoControl = useCallback((cmd: { seekBy?: number; seekTo?: number; playing?: boolean; url?: string; volume?: number; muted?: boolean }, targetId?: string) => {
     if (cmd.url && targetId) setSimVideoUrlOverrides(m => ({ ...m, [targetId]: cmd.url! }));
     const ids = targetId ? [targetId] : [...simVideoRegistry.current.keys()];
     for (const objId of ids) {
@@ -3756,6 +3756,8 @@ export default function StudioCanvas() {
       if (v && typeof cmd.seekBy === 'number') v.seek(Math.max(0, (v.getTime() || 0) + cmd.seekBy));
       if (v && typeof cmd.seekTo === 'number') v.seek(cmd.seekTo);
       if (v && typeof cmd.playing === 'boolean') v.setPlaying(cmd.playing);
+      if (v && typeof cmd.volume === 'number') v.setVolume(cmd.volume);
+      if (v && typeof cmd.muted === 'boolean') v.setMuted(cmd.muted);
       if (cmd.url && !targetId) setSimVideoUrlOverrides(m => ({ ...m, [objId]: cmd.url! }));
     }
   }, []);
@@ -7280,6 +7282,8 @@ export default function StudioCanvas() {
                           onSeekBy={(d) => targetIds.forEach(tid => runSimVideoControl({ seekBy: d }, tid))}
                           onSeekTo={(t) => targetIds.forEach(tid => runSimVideoControl({ seekTo: t }, tid))}
                           onTogglePlay={(p) => targetIds.forEach(tid => runSimVideoControl({ playing: p }, tid))}
+                          onSetVolume={(v) => targetIds.forEach(tid => runSimVideoControl({ volume: v, muted: false }, tid))}
+                          onToggleMute={(m) => targetIds.forEach(tid => runSimVideoControl({ muted: !m }, tid))}
                           onChangeUrl={() => {
                             const u = window.prompt(tCanvas("prompt_new_url"), targets[0].videoUrl || '');
                             if (u && u.trim()) targetIds.forEach(tid => runSimVideoControl({ url: u.trim() }, tid));
