@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import GameCard, { type Game } from "@/components/GameCard";
+import HeroVideoBackground from "@/components/HeroVideoBackground";
 
 /** 게임 목록에서 숨김 */
 const HIDDEN_GAME_IDS = new Set<string>(["rock-clicker", "alchemy"]);
@@ -41,19 +42,8 @@ export default async function Home() {
 
       {/* ── Hero ─────────────────────────────────────────── */}
       <section className="relative overflow-hidden border-b border-white/5">
-        {/* 배경 동영상 — public/hero-bg.mp4 + 첫 프레임 fallback hero-bg.jpg 업로드 필요. */}
-        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-        <video
-          className="absolute inset-0 h-full w-full object-cover"
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          poster="/hero-bg.jpg"
-        >
-          <source src="/hero-bg.mp4" type="video/mp4" />
-        </video>
+        {/* 배경 비디오 — NEXT_PUBLIC_HERO_YOUTUBE_ID 환경변수로 YouTube 사용 가능 */}
+        <HeroVideoBackground />
 
         {/* 어둠 오버레이 — 텍스트 가독성 보장 */}
         <div className="absolute inset-0 bg-gradient-to-b from-[#0b1020]/40 via-[#0b1020]/60 to-[#0b1020]" />
