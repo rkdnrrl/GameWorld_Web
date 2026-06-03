@@ -3,6 +3,7 @@ import React, { Suspense, useRef, useEffect, useState, useMemo, useCallback } fr
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Html, Sky, Text, Environment, useProgress, PerformanceMonitor } from '@react-three/drei';
 import { Physics, RigidBody, CapsuleCollider, CuboidCollider, useRapier } from '@react-three/rapier';
+import { devLog } from '@/lib/devLog';
 
 /** Rapier 강체 — 우리가 호출하는 메서드만 추린 미니 인터페이스 (버전 무관) */
 interface RapierBodyApi {
@@ -48,7 +49,7 @@ const OBJ_FALL_RESET = 50;
 // 멀티플레이 동기화 디버그 로그 — 기본 OFF. 매 프레임/충돌마다 console.log 하면
 // (특히 DevTools 열린 상태) 심각한 렉을 유발하므로 평소엔 끈다. 디버깅 시 true.
 const SYNC_DEBUG = false;
-const slog = (...args: unknown[]) => { if (SYNC_DEBUG) console.log(...args); };
+const slog = (...args: unknown[]) => { if (SYNC_DEBUG) devLog(...args); };
 
 /** 두 각도 간 짧은 방향으로 보간 (-π~π 경계 넘어가도 한바퀴 안 돔) */
 function lerpAngle(current: number, target: number, t: number): number {
@@ -3192,12 +3193,12 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       }
       // 비디오 스크린 동기화 — 호스트가 보낸 재생시각을 비호스트가 자기 영상에 반영 (watch party)
       if (event === VIDEO_SYNC_EVENT) {
-        console.log('[VID] recv SYNC', objectId, 'from', fromId, 'data', data, 'isHost', isHostRef.current, 'hostIdRef', hostIdRef.current);
+        devLog('[VID] recv SYNC', objectId, 'from', fromId, 'data', data, 'isHost', isHostRef.current, 'hostIdRef', hostIdRef.current);
         if (isHostRef.current) return;            // 호스트는 권위자 — 수신 무시
         // 진짜 호스트가 보낸 것만 적용 — 들어온 사람이 hostId 초기값으로 자기를 호스트로 잘못 판정하고
         // broadcast 하는 케이스 차단 (그 sync 가 비호스트한테 seek 호출해 영상 reset 시킴)
         if (!fromId || (hostIdRef.current && fromId !== hostIdRef.current)) {
-          console.log('[VID] SYNC rejected — sender not real host', { fromId, realHost: hostIdRef.current });
+          devLog('[VID] SYNC rejected — sender not real host', { fromId, realHost: hostIdRef.current });
           return;
         }
         const d = data as { t?: number; playing?: boolean; url?: string };
@@ -3213,7 +3214,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       }
       // 비디오 컨트롤 명령(앞/뒤 5초·URL 변경) — 호스트 포함 모든 클라가 반영 (누가 눌러도 동기화)
       if (event === VIDEO_CTL_EVENT) {
-        console.log('[VID] recv CTL', objectId, 'from', fromId, 'data', data);
+        devLog('[VID] recv CTL', objectId, 'from', fromId, 'data', data);
         const d = data as VideoControlCmd;
         if (typeof d.seekTo === 'number') videoRegistry.current.get(objectId)?.seek(d.seekTo);
         if (typeof d.playing === 'boolean') videoRegistry.current.get(objectId)?.setPlaying(d.playing);
@@ -3255,7 +3256,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     if (!objectStatesRef) return;
     objectStatesRef.current = (states) => {
       const now = performance.now();
-      if (SYNC_DEBUG && Math.random() < 0.05) console.log('[ALP-SYNC] recv states', states.length, states.map(s => s.id));
+      if (SYNC_DEBUG && Math.random() < 0.05) devLog('[ALP-SYNC] recv states', states.length, states.map(s => s.id));
       for (const s of states) {
         // grabbedBy 추적 — broadcast 마다 갱신 (null/없음 = 안 들고 있음)
         if (s.grabbedBy) remoteGrabbedByRef.current.set(s.id, s.grabbedBy);
@@ -3800,7 +3801,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       }
       if (states.length > 0) {
         sendObjectStates(states);
-        if (SYNC_DEBUG && Math.random() < 0.05) console.log('[ALP-SYNC] sent states', states.length, states.map(s => s.id));
+        if (SYNC_DEBUG && Math.random() < 0.05) devLog('[ALP-SYNC] sent states', states.length, states.map(s => s.id));
       }
     }, 25); // 40Hz — 권한 이전 시 빠른 수렴
     return () => clearInterval(interval);

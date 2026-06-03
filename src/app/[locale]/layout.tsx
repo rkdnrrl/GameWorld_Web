@@ -5,6 +5,7 @@ import Script from "next/script";
 import "../globals.css";
 import BackendConnectionBanner from "@/components/BackendConnectionBanner";
 import Header from "@/components/Header";
+import OnboardingModal from "@/components/OnboardingModal";
 import PostHogInit from "@/components/PostHogInit";
 import SentryClientInit from "@/components/SentryClientInit";
 import SessionExpiredBanner from "@/components/SessionExpiredBanner";
@@ -50,6 +51,7 @@ export default async function LocaleLayout({
           <SessionRefresher />
           <Header />
           <BackendConnectionBanner enabled={showBackendConnectionBanner} />
+          <OnboardingModal />
           <main className="flex w-full min-w-0 max-w-full flex-1 flex-col overflow-x-hidden">
             {children}
           </main>

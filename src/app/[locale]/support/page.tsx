@@ -11,7 +11,8 @@ import { useTranslations } from 'next-intl';
 import { api } from '@/lib/api';
 import { SupporterBadge } from '@/components/SupporterBadge';
 
-const MUGCUP_URL = 'https://mug-cup.kr/airliveplay';  // TODO: 실제 머그컵 페이지 URL 로 변경
+// 미설정 시 머그컵 카드 자체 숨김. 결정되면 Vercel env 에 NEXT_PUBLIC_MUGCUP_URL 등록.
+const MUGCUP_URL = process.env.NEXT_PUBLIC_MUGCUP_URL?.trim() || '';
 const TOSS_URL   = '/ko/donate';                       // 토스페이먼츠 (기존 /donate 페이지)
 
 interface Supporter {
@@ -44,19 +45,21 @@ export default function SupportPage() {
         <p className="text-slate-400 max-w-2xl mx-auto">{t('heroDesc')}</p>
       </section>
 
-      {/* 후원 채널 */}
-      <section className="grid sm:grid-cols-2 gap-4 mb-12">
-        <a
-          href={MUGCUP_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block p-6 rounded-xl border-2 border-amber-500/40 bg-gradient-to-br from-amber-900/30 to-amber-800/10 hover:border-amber-400 transition"
-        >
-          <div className="text-3xl mb-2">☕</div>
-          <h3 className="text-lg font-bold text-amber-300">{t('mugcupTitle')}</h3>
-          <p className="text-sm text-slate-300 mt-1">{t('mugcupDesc')}</p>
-          <p className="text-xs text-amber-200 mt-3">→ mug-cup.kr</p>
-        </a>
+      {/* 후원 채널 — 머그컵 URL 미설정 시 토스만 노출 */}
+      <section className={`grid gap-4 mb-12 ${MUGCUP_URL ? 'sm:grid-cols-2' : 'sm:grid-cols-1'}`}>
+        {MUGCUP_URL && (
+          <a
+            href={MUGCUP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block p-6 rounded-xl border-2 border-amber-500/40 bg-gradient-to-br from-amber-900/30 to-amber-800/10 hover:border-amber-400 transition"
+          >
+            <div className="text-3xl mb-2">☕</div>
+            <h3 className="text-lg font-bold text-amber-300">{t('mugcupTitle')}</h3>
+            <p className="text-sm text-slate-300 mt-1">{t('mugcupDesc')}</p>
+            <p className="text-xs text-amber-200 mt-3">→ {new URL(MUGCUP_URL).hostname}</p>
+          </a>
+        )}
         <Link
           href={TOSS_URL}
           className="block p-6 rounded-xl border-2 border-indigo-500/40 bg-gradient-to-br from-indigo-900/30 to-indigo-800/10 hover:border-indigo-400 transition"

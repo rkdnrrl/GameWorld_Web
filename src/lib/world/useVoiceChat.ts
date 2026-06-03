@@ -24,6 +24,23 @@ const PANNER_REF_DISTANCE = 2;       // 2m 이내 풀 볼륨 (대화 거리)
 const PANNER_MAX_DISTANCE = 20;      // 20m 이상 무음
 const PANNER_ROLLOFF      = 1.5;     // 빠른 감쇠 (현실적)
 
+/**
+ * Spatial culling — 이 거리 밖 유저는 track 자체를 pull 안 함.
+ * 40명+ 한 방 동시 통화 시 클라이언트 CPU·메모리 폭주 방지.
+ * MAX_DISTANCE 보다 약간 크게 잡아 hysteresis 확보 (경계 진동 방지).
+ */
+const VOICE_CULL_DISTANCE = 25;
+const VOICE_CULL_HYSTERESIS = 5;     // pull 중인 peer 가 이 거리 더 멀어져야 cleanup
+const VOICE_CULL_INTERVAL_MS = 2000; // 거리 재평가 주기
+
+function distance3D(
+  a: { x: number; y: number; z: number },
+  b: { x: number; y: number; z: number },
+): number {
+  const dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
 const VOICE_API_BASE = (typeof window !== 'undefined' && (window as { __ALP_API__?: string }).__ALP_API__) || 'https://airliveplay.com';
 
 interface VoiceTrackMessage {
@@ -402,10 +419,16 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
         return prev;
       });
       if (m.mic && m.sessionId && m.trackName) {
-        // 캐싱 — session 시작 전에 받았으면 나중에 처리
+        // 캐싱 — session 시작 전 또는 거리 밖 이라 지금 pull 안 해도 나중에 가까워지면 사용
         pendingTracksRef.current.set(m.fromId, { sessionId: m.sessionId, trackName: m.trackName });
         if (enabled && sessionIdRef.current) {
-          pullRemoteTrack(m.fromId, m.sessionId, m.trackName);
+          // 거리 컬링 — localPose 와 peerPose 둘 다 있고 거리 안에 있을 때만 즉시 pull
+          const me = localPoseRef?.current;
+          const peer = posesRef?.current?.get(m.fromId);
+          const inRange = !me || !peer || distance3D(me, peer) <= VOICE_CULL_DISTANCE;
+          if (inRange) {
+            pullRemoteTrack(m.fromId, m.sessionId, m.trackName);
+          }
         }
       } else {
         pendingTracksRef.current.delete(m.fromId);
@@ -429,16 +452,61 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
     if (enabled && status === 'ready') broadcastMyTrack(true);
   }, [peerIds, enabled, status, broadcastMyTrack]);
 
-  /** session 준비됐을 때 캐시된 voice_track 들을 일괄 pull */
+  /** session 준비됐을 때 캐시된 voice_track 들을 일괄 pull (거리 컬링) */
   useEffect(() => {
     if (!enabled || (status !== 'ready' && status !== 'listening')) return;
     if (!sessionIdRef.current) return;
+    const me = localPoseRef?.current;
     pendingTracksRef.current.forEach((info, peerId) => {
-      if (!remotesRef.current.has(peerId)) {
+      if (remotesRef.current.has(peerId)) return;
+      const peer = posesRef?.current?.get(peerId);
+      const inRange = !me || !peer || distance3D(me, peer) <= VOICE_CULL_DISTANCE;
+      if (inRange) {
         pullRemoteTrack(peerId, info.sessionId, info.trackName);
       }
     });
-  }, [enabled, status, pullRemoteTrack, peerIds]);
+  }, [enabled, status, pullRemoteTrack, peerIds, posesRef, localPoseRef]);
+
+  /** 주기적 거리 재평가 — 멀어진 remote 정리 + 가까워진 pending pull */
+  useEffect(() => {
+    if (!enabled || (status !== 'ready' && status !== 'listening')) return;
+    const intervalId = setInterval(() => {
+      const me = localPoseRef?.current;
+      const poses = posesRef?.current;
+      if (!me || !poses) return;
+
+      // 1) 너무 멀어진 활성 remote → cleanup (+ pending 으로 되돌리기)
+      for (const peerId of [...remotesRef.current.keys()]) {
+        const peer = poses.get(peerId);
+        if (!peer) continue; // pose 없으면 손대지 않음
+        if (distance3D(me, peer) > VOICE_CULL_DISTANCE + VOICE_CULL_HYSTERESIS) {
+          // pending 에 복원해서 다시 가까워지면 재pull 가능
+          const info = remotesRef.current.get(peerId);
+          if (info?.sessionId && info?.trackName) {
+            pendingTracksRef.current.set(peerId, {
+              sessionId: info.sessionId,
+              trackName: info.trackName,
+            });
+          }
+          cleanupRemote(peerId);
+        }
+      }
+
+      // 2) 가까워진 pending → pull
+      const sessionReady = !!sessionIdRef.current;
+      if (sessionReady) {
+        pendingTracksRef.current.forEach((info, peerId) => {
+          if (remotesRef.current.has(peerId)) return;
+          const peer = poses.get(peerId);
+          if (!peer) return;
+          if (distance3D(me, peer) <= VOICE_CULL_DISTANCE) {
+            pullRemoteTrack(peerId, info.sessionId, info.trackName);
+          }
+        });
+      }
+    }, VOICE_CULL_INTERVAL_MS);
+    return () => clearInterval(intervalId);
+  }, [enabled, status, posesRef, localPoseRef, pullRemoteTrack, cleanupRemote]);
 
   /** 3D 위치 업데이트 RAF */
   useEffect(() => {

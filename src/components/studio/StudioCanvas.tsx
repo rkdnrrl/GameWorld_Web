@@ -13,6 +13,7 @@ import AssetPreviewModal from '@/components/assets/AssetPreviewModal';
 import type { Asset as RegistryAsset } from '@/lib/assets/types';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
+import { devLog } from '@/lib/devLog';
 import { PerfManager } from '@/lib/world/PerfManager';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
@@ -273,7 +274,7 @@ function ComponentsSection({
         e.preventDefault(); e.stopPropagation();
         setDropOver(false);
         const id = e.dataTransfer.getData('text/plain');
-        console.log('[ComponentsSection.drop] assetId=', id);
+        devLog('[ComponentsSection.drop] assetId=', id);
         if (id) onAttachFromAsset(id);
       }}
     >
@@ -3076,7 +3077,7 @@ function SimGameComponentTick({ allObjects, scriptBodyRefs, npcAttackRef, npcPat
         if (now - last < cd) continue;
         npcAttackRef.current.set(obj.id, now);
         // 시뮬은 solo — 콘솔 로그만 (사용자 게임 스크립트는 game.add('hp', -n) 으로 처리 가능)
-        console.log('[sim-npc] attack', obj.id, 'amount', npc.props?.amount ?? 10);
+        devLog('[sim-npc] attack', obj.id, 'amount', npc.props?.amount ?? 10);
       }
     }
     void healthInvulnRef;   // 시뮬 단순화 — invuln 안 씀
@@ -3901,7 +3902,7 @@ export default function StudioCanvas() {
   };
   // [DEBUG] panel state 변화 추적 — 사용자가 strip 클릭해도 패널이 안 열리는 버그 진단용
   useEffect(() => {
-    console.log('[PANEL STATE] leftPanelOpen=', leftPanelOpen, 'rightPanelOpen=', rightPanelOpen);
+    devLog('[PANEL STATE] leftPanelOpen=', leftPanelOpen, 'rightPanelOpen=', rightPanelOpen);
   }, [leftPanelOpen, rightPanelOpen]);
   // 조명 선택 시 자동으로 transform 탭 (조명은 material/script 비활성)
   const [simTransforms, setSimTransforms] = useState<SimTransforms>({});
@@ -4162,7 +4163,7 @@ export default function StudioCanvas() {
         // bgColor 만 있으면 procedural Sky 켜기 — 푸른 하늘
         setSkyEnabled(true);
       }
-      console.log(`[map asset] merged ${merged.length} objects + env`, { envAmb, envHdri, envBg });
+      devLog(`[map asset] merged ${merged.length} objects + env`, { envAmb, envHdri, envBg });
     };
     window.addEventListener(MAP_APPLY_EVENT, handler);
     return () => window.removeEventListener(MAP_APPLY_EVENT, handler);
@@ -4196,11 +4197,11 @@ export default function StudioCanvas() {
     setLoading(true);
     setLoadError(null);
     const tok = session.getToken();
-    console.log('[studio] loading world', editingId);
+    devLog('[studio] loading world', editingId);
     fetch(`${API}/api/worlds/${editingId}`, { headers: tok ? { Authorization: `Bearer ${tok}` } : {} })
       .then(async r => {
         const text = await r.text();
-        console.log('[studio] response status:', r.status);
+        devLog('[studio] response status:', r.status);
         try { return JSON.parse(text); } catch { throw new Error('Invalid JSON: ' + text.slice(0, 100)); }
       })
       .then(d => {
@@ -4208,7 +4209,7 @@ export default function StudioCanvas() {
           setLoadError(d.error?.message || tCanvas("msg_world_not_found"));
           return;
         }
-        console.log('[studio] loaded:', d.world.name, 'objects:', d.world.mapData?.objects?.length ?? 0);
+        devLog('[studio] loaded:', d.world.name, 'objects:', d.world.mapData?.objects?.length ?? 0);
         setName(d.world.name);
         setDescription(d.world.description || '');
         setIsPublic(Boolean(d.world.isPublic));
@@ -5747,7 +5748,7 @@ export default function StudioCanvas() {
   // 이름이 같은 ScriptComponent 가 이미 라이브러리에 있으면 재사용 (간단 dedup).
   async function attachScriptAssetToSelection(assetId: string) {
     const asset = myAssets.find(a => a.id === assetId);
-    console.log('[attachScriptAsset]', { assetId, found: !!asset, kind: asset?.kind, name: asset?.name, hasMeta: !!asset?.metadata });
+    devLog('[attachScriptAsset]', { assetId, found: !!asset, kind: asset?.kind, name: asset?.name, hasMeta: !!asset?.metadata });
     if (!asset) { console.warn('[attachScriptAsset] asset not in myAssets — id=', assetId); return; }
     if (asset.kind !== 'script') { console.warn('[attachScriptAsset] kind is', asset.kind, '— not script. Skip.'); return; }
     let comp = scriptComponents.find(c => c.name === asset.name);
@@ -5970,7 +5971,7 @@ export default function StudioCanvas() {
       )}
       {/* 데스크톱 전용 패널 닫기 버튼 (우측 상단 corner) */}
       {!isMobile && (
-        <button type="button" onClick={() => { console.log('[CLOSE-LEFT] click'); setLeftPanelOpen(false); }}
+        <button type="button" onClick={() => { devLog('[CLOSE-LEFT] click'); setLeftPanelOpen(false); }}
           title={tCanvas("tooltip_close_panel")}
           style={{
             position: 'absolute', top: 6, right: 6, zIndex: 5,
@@ -6535,7 +6536,7 @@ export default function StudioCanvas() {
         )}
         {/* 데스크톱 전용 패널 닫기 버튼 (좌측 상단 corner) */}
         {!isMobile && (
-          <button type="button" onClick={() => { console.log('[CLOSE-RIGHT] click'); setRightPanelOpen(false); }}
+          <button type="button" onClick={() => { devLog('[CLOSE-RIGHT] click'); setRightPanelOpen(false); }}
             title={tCanvas("tooltip_close_panel")}
             style={{
               position: 'absolute', top: 6, left: 6, zIndex: 5,
@@ -7083,7 +7084,7 @@ export default function StudioCanvas() {
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          console.log('[STRIP-LEFT] click — opening left panel');
+          devLog('[STRIP-LEFT] click — opening left panel');
           setLeftPanelOpen(true);
           if (isMobile) setStudioMode('settings');
         }}
@@ -7106,7 +7107,7 @@ export default function StudioCanvas() {
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          console.log('[STRIP-RIGHT] click — opening right panel');
+          devLog('[STRIP-RIGHT] click — opening right panel');
           setRightPanelOpen(true);
           if (isMobile) setStudioMode('scene');
         }}
