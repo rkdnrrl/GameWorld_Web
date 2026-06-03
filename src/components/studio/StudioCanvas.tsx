@@ -1430,7 +1430,7 @@ function WaterMesh({ color, selected }: { color: string; selected: boolean }) {
       <planeGeometry args={[1, 1, 16, 16]} />
       <meshStandardMaterial color={color} transparent opacity={0.75}
         roughness={0.15} metalness={0.1} side={THREE.DoubleSide}
-        emissive={selected ? '#1e88e5' : '#000000'} emissiveIntensity={selected ? 0.3 : 0} />
+        emissive={selected ? '#22d3ee' : '#000000'} emissiveIntensity={selected ? 0.5 : 0} />
     </mesh>
   );
 }
@@ -1638,13 +1638,14 @@ function PrimitiveMaterial({ obj, selected }: { obj: MapObject; selected?: boole
   const side = obj.kind === 'plane' ? THREE.DoubleSide : THREE.FrontSide;
   if (matRef.current) {
     matRef.current.side = side;
-    matRef.current.emissive.set(selected ? '#334155' : '#000000');
-    matRef.current.emissiveIntensity = selected ? 0.4 : 0;
+    // 선택 시 cyan glow — 어두운 환경에서도 명확히 보임
+    matRef.current.emissive.set(selected ? '#22d3ee' : '#000000');
+    matRef.current.emissiveIntensity = selected ? 0.6 : 0;
     return <primitive object={matRef.current} attach="material" />;
   }
   return <meshStandardMaterial color={obj.color} side={side}
-    emissive={selected ? '#334155' : '#000000'}
-    emissiveIntensity={selected ? 0.4 : 0} />;
+    emissive={selected ? '#22d3ee' : '#000000'}
+    emissiveIntensity={selected ? 0.6 : 0} />;
 }
 
 function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }: {
@@ -4282,17 +4283,69 @@ export default function StudioCanvas() {
         if (e.key === 'Escape' && !document.pointerLockElement) stopSim();
         return;
       }
-      // Undo/Redo
+      // Undo/Redo/Duplicate/Save (modifier 단축키 — 입력창에서도 통함)
       if (e.ctrlKey || e.metaKey) {
         if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
         if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) { e.preventDefault(); redo(); return; }
         if (e.key === 'd') { e.preventDefault(); duplicate(); return; }
+        if (e.key === 's') { e.preventDefault(); save(); return; }   // Ctrl+S 저장
+        // Ctrl+A — 전체 선택 (입력창은 텍스트 전체선택 기본 동작 그대로)
+        if (e.key === 'a' || e.key === 'A') {
+          const tag = (e.target as HTMLElement)?.tagName;
+          if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+          e.preventDefault();
+          const all = objects.filter(o => !o.hidden).map(o => o.id);
+          if (all.length === 0) return;
+          setMultiSelectedIds(new Set(all));
+          setSelectedId(all[0]);
+          return;
+        }
+        // Ctrl+H — 선택된 객체 hidden 토글 (다중 포함)
+        if (e.key === 'h' || e.key === 'H') {
+          const tag = (e.target as HTMLElement)?.tagName;
+          if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+          e.preventDefault();
+          const targets = new Set<string>();
+          if (selectedId) targets.add(selectedId);
+          multiSelectedIds.forEach(id => targets.add(id));
+          if (targets.size === 0) return;
+          setObjects(prev => prev.map(o => targets.has(o.id) ? { ...o, hidden: !o.hidden } : o));
+          return;
+        }
+        // Ctrl+I — 선택 반전
+        if (e.key === 'i' || e.key === 'I') {
+          const tag = (e.target as HTMLElement)?.tagName;
+          if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+          e.preventDefault();
+          const current = new Set<string>(multiSelectedIds);
+          if (selectedId) current.add(selectedId);
+          const inverted = objects.filter(o => !o.hidden && !current.has(o.id)).map(o => o.id);
+          setMultiSelectedIds(new Set(inverted));
+          setSelectedId(inverted[0] ?? null);
+          return;
+        }
       }
       // 입력창에 포커스되어 있으면 단축키 무시
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      // ESC — 선택 해제 (단일 + 다중)
+      if (e.key === 'Escape') {
+        setSelectedId(null);
+        setMultiSelectedIds(new Set());
+        return;
+      }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         deleteSelected(); // 선택된 전부(다중 포함) 삭제 — 아무것도 없으면 no-op
+      }
+      // 화살표 키 — 선택된 객체 미세 이동 (Shift = 1, 기본 = 0.1). RMB 비행 중엔 카메라 우선.
+      else if (selectedId && !rmbHeldRef.current && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault();
+        const step = e.shiftKey ? 1 : 0.1;
+        const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+        const dz = e.key === 'ArrowUp'   ? -step : e.key === 'ArrowDown'  ? step : 0;
+        setObjects(prev => prev.map(o => o.id === selectedId
+          ? { ...o, position: [o.position[0] + dx, o.position[1], o.position[2] + dz] }
+          : o));
       }
       // 변환 도구 단축키 (유니티식 W=이동 E=회전 R=스케일). RMB 비행 중엔 무시(카메라 입력 우선).
       else if (!rmbHeldRef.current && (e.key === 'w' || e.key === 'W')) setMode('translate');
