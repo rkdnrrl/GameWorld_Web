@@ -41,11 +41,25 @@ export default async function Home() {
 
       {/* ── Hero ─────────────────────────────────────────── */}
       <section className="relative overflow-hidden border-b border-white/5">
-        {/* 배경 그라데이션 */}
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-purple-900/30 to-pink-900/20" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(99,102,241,0.15),transparent_50%)]" />
+        {/* 배경 동영상 — public/hero-bg.mp4 + 첫 프레임 fallback hero-bg.jpg 업로드 필요. */}
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+        <video
+          className="absolute inset-0 h-full w-full object-cover"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          poster="/hero-bg.jpg"
+        >
+          <source src="/hero-bg.mp4" type="video/mp4" />
+        </video>
 
-        <div className="relative mx-auto max-w-[1280px] px-4 py-16 text-center sm:px-6 sm:py-24">
+        {/* 어둠 오버레이 — 텍스트 가독성 보장 */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0b1020]/40 via-[#0b1020]/60 to-[#0b1020]" />
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/30 via-purple-900/20 to-transparent mix-blend-overlay" />
+
+        <div className="relative mx-auto max-w-[1280px] px-4 py-20 text-center sm:px-6 sm:py-32">
           <h1 className="mb-5 whitespace-pre-line text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-6xl">
             {t("heroTitle")}
           </h1>
