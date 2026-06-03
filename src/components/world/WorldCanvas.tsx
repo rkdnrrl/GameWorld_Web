@@ -1011,29 +1011,38 @@ function RemotePlayerCrosshairClick({
 }) {
   const { camera, scene } = useThree();
   useEffect(() => {
-    const onPointerDown = (e: PointerEvent) => {
-      if (!document.pointerLockElement) return;  // 1인칭(pointer lock)만 — 3인칭은 기존 onClick 사용
-      if (e.button !== 0) return;
+    // 화면 중앙 raycast — 가장 가까운 player 의 mesh 찾아 클릭 발동.
+    // PC: pointer lock + 좌클릭, 모바일: alp:fp-tap 가상 버튼 둘 다 같은 로직.
+    const tryCrosshairHit = () => {
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
       const hits = raycaster.intersectObject(scene, true);
       for (const hit of hits) {
         if (hit.distance > 10) break;  // 10m 너머는 정지 (정렬돼 있어서 break 안전)
-        // hit.object 부터 부모 거슬러 올라가며 userData.playerId 찾기
         let obj: THREE.Object3D | null = hit.object;
         while (obj) {
           const pid = obj.userData?.playerId as string | undefined;
           if (pid) {
             const p = players[pid];
             if (p) { onPlayerClick(p); return; }
-            return;  // playerId 매치했는데 players 에 없으면 그냥 종료
+            return;
           }
           obj = obj.parent;
         }
       }
     };
+    const onPointerDown = (e: PointerEvent) => {
+      if (!document.pointerLockElement) return;  // 1인칭(pointer lock)만 — 3인칭은 기존 onClick 사용
+      if (e.button !== 0) return;
+      tryCrosshairHit();
+    };
+    const onMobileTap = () => { tryCrosshairHit(); };
     window.addEventListener('pointerdown', onPointerDown);
-    return () => window.removeEventListener('pointerdown', onPointerDown);
+    document.addEventListener('alp:fp-tap', onMobileTap);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('alp:fp-tap', onMobileTap);
+    };
   }, [camera, scene, players, onPlayerClick]);
   return null;
 }
@@ -1496,29 +1505,37 @@ export function Player({
       }
       // 1인칭 + 포인터 락 + (잡고 있지 않음) → 정조준한 오브젝트 클릭 (onClick 스크립트 + 파티클 버스트)
       if (cameraModeRef.current === 'first' && isLocked.current && !grabbedIdRef.current) {
-        try {
-          const camPos = camera.position;
-          const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
-          const fy = -Math.sin(_mob.camV);
-          const fz = -Math.cos(_mob.camH) * Math.cos(_mob.camV);
-          const ray = new rapier.Ray({ x: camPos.x, y: camPos.y, z: camPos.z }, { x: fx, y: fy, z: fz });
-          const hit = rWorld.castRay(ray, 6.0, true, undefined, undefined, undefined, body.current ?? undefined);
-          const hitBody = hit?.collider?.parent();
-          if (hitBody && scriptBodyRefs) {
-            let clickedId: string | null = null;
-            for (const [id, ref] of scriptBodyRefs.current) {
-              if (ref.body.current === hitBody) { clickedId = id; break; }
-            }
-            if (clickedId) {
-              // 스크립트 실행/전달은 부모(onObjectClick)가 호스트 권위에 맞춰 처리. 여기선 알리기만.
-              onObjectClick?.(clickedId);
-              return;  // 클릭 소비 — 포인터락 유지
-            }
-          }
-        } catch { /* Rapier 초기화 중 무시 */ }
+        if (fireFirstPersonRayClick()) return;  // 클릭 소비 — 포인터락 유지
       }
       tryLockPointer();
     };
+    /** 1인칭 정조준 raycast 클릭 — 미디어 리모컨/스크립트 onClick 발동.
+     *  PC onClick + 모바일 alp:fp-tap 둘 다에서 호출. hit 성공 시 true. */
+    const fireFirstPersonRayClick = (): boolean => {
+      if (cameraModeRef.current !== 'first' || grabbedIdRef.current) return false;
+      try {
+        const camPos = camera.position;
+        const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
+        const fy = -Math.sin(_mob.camV);
+        const fz = -Math.cos(_mob.camH) * Math.cos(_mob.camV);
+        const ray = new rapier.Ray({ x: camPos.x, y: camPos.y, z: camPos.z }, { x: fx, y: fy, z: fz });
+        const hit = rWorld.castRay(ray, 6.0, true, undefined, undefined, undefined, body.current ?? undefined);
+        const hitBody = hit?.collider?.parent();
+        if (hitBody && scriptBodyRefs) {
+          let clickedId: string | null = null;
+          for (const [id, ref] of scriptBodyRefs.current) {
+            if (ref.body.current === hitBody) { clickedId = id; break; }
+          }
+          if (clickedId) {
+            onObjectClick?.(clickedId);
+            return true;
+          }
+        }
+      } catch { /* Rapier 초기화 중 무시 */ }
+      return false;
+    };
+    // 모바일 1인칭 가상 탭 버튼 → 같은 raycast 클릭 실행 (잡기/던지기 제외, 순수 클릭만)
+    const onMobileFpTap = () => { fireFirstPersonRayClick(); };
     const onPointerDown = () => tryLockPointer();
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
@@ -1538,6 +1555,7 @@ export function Player({
     el.addEventListener('wheel', onWheel, { passive: false });
     el.addEventListener('click', onClick);
     el.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('alp:fp-tap', onMobileFpTap as EventListener);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
@@ -1546,6 +1564,7 @@ export function Player({
       el.removeEventListener('wheel', onWheel);
       el.removeEventListener('click', onClick);
       el.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('alp:fp-tap', onMobileFpTap as EventListener);
     };
   }, [gl, inputLocked, onToggleCameraMode]);
 
@@ -2810,12 +2829,14 @@ function WorldPortal({ portal }: { portal: PortalState }) {
 }
 
 /* ── 모바일 컨트롤 컴포넌트 (Canvas 완전 바깥 — drei Html 스케일 영향 없음) ── */
-function MobileControls({ inputLocked }: { inputLocked: boolean }) {
+function MobileControls({ inputLocked, cameraMode }: { inputLocked: boolean; cameraMode: 'first' | 'third' }) {
   const [joystickKnob, setJoystickKnob] = useState({ x: 0, y: 0, active: false });
   const [mobileSprinting, setMobileSprinting] = useState(false);
   // 모바일 자세 토글 상태 (시각 표시용)
   const [crouchOn, setCrouchOn] = useState(false);
   const [proneOn, setProneOn] = useState(false);
+  // 1인칭 탭 시각 피드백 (눌렀을 때 잠깐 highlight)
+  const [tapFlash, setTapFlash] = useState(false);
 
   return (
     <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', userSelect: 'none', zIndex: 16777273 }}>
@@ -3008,6 +3029,35 @@ function MobileControls({ inputLocked }: { inputLocked: boolean }) {
         }}
         aria-label="camera"
       >📷</button>
+
+      {/* 1인칭 탭 버튼 — 화면 중앙 크로스헤어 위치. 누르면 정조준 오브젝트(미디어 리모컨 등) 클릭 발동.
+          PC 는 pointer lock + 좌클릭으로 처리되지만 모바일은 pointer lock 없으므로 가상 버튼 필요.
+          tabIndex=-1, 카메라 룩(전체 배경)과 분리되어 드래그/탭 혼동 없음. */}
+      {cameraMode === 'first' && (
+        <button type="button"
+          onPointerDown={e => {
+            e.stopPropagation();
+            if (inputLocked) return;
+            setTapFlash(true);
+            window.setTimeout(() => setTapFlash(false), 150);
+            document.dispatchEvent(new CustomEvent('alp:fp-tap'));
+          }}
+          style={{
+            position: 'absolute', left: '50%', top: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 64, height: 64, borderRadius: '50%',
+            border: `2px solid ${tapFlash ? 'rgba(165,180,252,0.95)' : 'rgba(255,255,255,0.35)'}`,
+            background: tapFlash ? 'rgba(99,102,241,0.45)' : 'rgba(10,15,30,0.18)',
+            color: '#fff', fontSize: 28, fontWeight: 300, lineHeight: 1,
+            pointerEvents: 'auto', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: tapFlash ? '0 0 16px rgba(99,102,241,0.6)' : 'none',
+            transition: 'background 0.08s, border-color 0.08s, box-shadow 0.08s',
+            backdropFilter: 'blur(2px)',
+          }}
+          aria-label="tap"
+        >＋</button>
+      )}
 
     </div>
   );
@@ -4431,7 +4481,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   return (
     <>
       {/* ── 모바일 컨트롤: Canvas 완전 바깥의 position:fixed DOM ── */}
-      {isMobile && <MobileControls inputLocked={chatInputActive} />}
+      {isMobile && <MobileControls inputLocked={chatInputActive} cameraMode={cameraMode} />}
       {selectedRemote && (
         <RemotePlayerInfoPanel
           player={selectedRemote}
