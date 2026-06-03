@@ -435,8 +435,10 @@ export function VideoDistanceUpdater({
 
 /**
  * 비디오 첫 mount 시 자동 재생/정지 정책 적용.
- * videoRemote 의 initiallyPlaying prop 이 한번이라도 false 면 모든 비디오 처음에 pause.
- * 이미 적용한 id 는 set 에 기록해서 재실행 안 함 (사용자 수동 play 후 다시 pause 막음).
+ * videoRemote 의 initiallyPlaying prop 이 한번이라도 false 면 처음 1.5초 동안 모든 비디오 pause 유지.
+ * 1.5초 동안 reapply 이유: YouTube iframe / mp4 video element / GIF 가 ready timing 이 제각각이라
+ * 한 번 setPlaying(false) 호출해도 그 후 자동 재생 시작. 첫 frame ~ 1.5초 사이 매 frame 재시도.
+ * 1.5초 후엔 stop — 사용자가 수동 play 누르면 정상 재생.
  */
 export function VideoInitialStateApplier({
   registry, initiallyPaused,
@@ -444,13 +446,20 @@ export function VideoInitialStateApplier({
   registry: VideoRegistry;
   initiallyPaused: boolean;
 }) {
-  const applied = useRef<Set<string>>(new Set());
+  const startTime = useRef<number | null>(null);
+  // initiallyPaused 변경 시 timer 리셋 — 새로 1.5초 윈도우 시작
+  useEffect(() => {
+    if (initiallyPaused) startTime.current = null;
+  }, [initiallyPaused]);
   useFrame(() => {
     if (!initiallyPaused) return;
-    for (const [id, handle] of registry.current) {
-      if (applied.current.has(id)) continue;
-      applied.current.add(id);
-      try { handle.setPlaying(false); } catch { /* noop */ }
+    if (startTime.current === null) startTime.current = performance.now();
+    const elapsed = performance.now() - startTime.current;
+    if (elapsed > 1500) return; // 1.5초 후 reapply 중단
+    for (const [, handle] of registry.current) {
+      try {
+        if (handle.paused?.() === false) handle.setPlaying(false);
+      } catch { /* noop */ }
     }
   });
   return null;
