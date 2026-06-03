@@ -1038,6 +1038,41 @@ function RemotePlayerCrosshairClick({
   return null;
 }
 
+/** 메인 태양광 — 카메라 위치 따라가서 shadow frustum 이 항상 캐릭터 근처에 머물게.
+ *  버그 fix: 라이트가 고정 좌표 (20,30,10) 라 캐릭터가 멀리 가면 shadow camera 박스
+ *  (±60) 밖이라 그림자 끊김. 매 frame 카메라 추적해서 frustum 안에 들어오게 함.
+ *  방향은 (20,30,10) → cam 으로 일정 유지 → 그림자 방향 일관성 OK. */
+function FollowingSunLight({ intensity, castShadow, shadowMapSize, shadowFar }: {
+  intensity: number;
+  castShadow: boolean;
+  shadowMapSize: [number, number];
+  shadowFar: number;
+}) {
+  const ref = useRef<THREE.DirectionalLight>(null);
+  useFrame((state) => {
+    if (!ref.current) return;
+    const cam = state.camera.position;
+    ref.current.position.set(cam.x + 20, cam.y + 30, cam.z + 10);
+    ref.current.target.position.copy(cam);
+    ref.current.target.updateMatrixWorld();
+  });
+  return (
+    <directionalLight
+      ref={ref}
+      position={[20, 30, 10]}
+      intensity={intensity}
+      castShadow={castShadow}
+      shadow-mapSize={shadowMapSize}
+      shadow-camera-left={-60}
+      shadow-camera-right={60}
+      shadow-camera-top={60}
+      shadow-camera-bottom={-60}
+      shadow-camera-near={0.5}
+      shadow-camera-far={shadowFar}
+    />
+  );
+}
+
 function GraphicsApplier({ shadowSize, shadowFilter, shadowRadius }: {
   shadowSize: number;
   shadowFilter: 'basic' | 'pcf' | 'pcfsoft';
@@ -1062,27 +1097,31 @@ function GraphicsApplier({ shadowSize, shadowFilter, shadowRadius }: {
     });
   }, [shadowFilter, gl, scene]);
 
-  // 셰도우맵 사이즈 + radius 변경
+  // 셰도우맵 사이즈 + radius 변경 — 모든 castShadow 광원에 적용 (Directional/Point/Spot)
   useEffect(() => {
     gl.shadowMap.needsUpdate = true;
     scene.traverse(obj => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const light = obj as any;
-      if (light.isDirectionalLight && light.shadow) {
-        light.shadow.mapSize.set(shadowSize || 1024, shadowSize || 1024);
-        light.shadow.radius = shadowRadius;
-        // 그림자 아티팩트 (peter-panning, acne) 감소
-        light.shadow.bias       = -0.0005;
-        light.shadow.normalBias = 0.02;
-        // 카메라 범위 좁혀서 텍셀 밀도 ↑ → 선명도 ↑
+      const isDir   = light.isDirectionalLight;
+      const isPoint = light.isPointLight;
+      const isSpot  = light.isSpotLight;
+      if (!(isDir || isPoint || isSpot) || !light.shadow) return;
+      light.shadow.mapSize.set(shadowSize || 1024, shadowSize || 1024);
+      light.shadow.radius = shadowRadius;
+      // 그림자 아티팩트 (peter-panning, acne) 감소
+      light.shadow.bias       = -0.0005;
+      light.shadow.normalBias = 0.02;
+      // DirectionalLight 만 near/far 강제 (Point/Spot 은 distance 기반이라 JSX 값 존중)
+      if (isDir) {
         light.shadow.camera.near = 0.5;
         light.shadow.camera.far  = 120;
-        if (light.shadow.map) {
-          light.shadow.map.dispose();
-          light.shadow.map = null;
-        }
-        light.shadow.camera.updateProjectionMatrix();
       }
+      if (light.shadow.map) {
+        light.shadow.map.dispose();
+        light.shadow.map = null;
+      }
+      light.shadow.camera.updateProjectionMatrix();
     });
   }, [shadowSize, shadowRadius, gl, scene]);
   return null;
@@ -4546,15 +4585,11 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         {/* 조명 — sceneSettings 기반 */}
         <ambientLight intensity={ambientIntensity} />
         {dirIntensity > 0 && (
-          <directionalLight
-            position={[20, 30, 10]}
+          <FollowingSunLight
             intensity={dirIntensity}
             castShadow={shadowsEnabled}
-            shadow-mapSize={shadowMapSize}
-            shadow-camera-left={-60}
-            shadow-camera-right={60}
-            shadow-camera-top={60}
-            shadow-camera-bottom={-60}
+            shadowMapSize={shadowMapSize}
+            shadowFar={150}
           />
         )}
         {/* 사용자 추가 조명 */}
