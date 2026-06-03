@@ -403,11 +403,13 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
  * Canvas 안 (R3F context) 에서만 사용 가능. 빈 객체 또는 position 없는 객체는 자동 스킵.
  */
 export function VideoDistanceUpdater({
-  registry, objectsById,
+  registry, objectsById, globalAudio,
 }: {
   registry: VideoRegistry;
   /** id → [x, y, z] 또는 { position: [x,y,z] } */
   objectsById: Map<string, { position?: [number, number, number] | { x: number; y: number; z: number } }>;
+  /** 전역 음향 모드 — videoRemote 의 globalAudio prop 이 하나라도 true 면 모든 비디오 거리 무시 (전역). */
+  globalAudio?: boolean;
 }) {
   const { camera } = useThree();
   const tmp = useMemo(() => new THREE.Vector3(), []);
@@ -415,12 +417,40 @@ export function VideoDistanceUpdater({
     if (registry.current.size === 0) return;
     for (const [objId, handle] of registry.current) {
       if (!handle.setListenerDistance) continue;
+      // 전역 음향 — 거리 0 으로 고정 (감쇠 없음, 항상 최대 볼륨)
+      if (globalAudio) {
+        handle.setListenerDistance(0);
+        continue;
+      }
       const o = objectsById.get(objId);
       const p = o?.position;
       if (!p) continue;
       if (Array.isArray(p)) tmp.set(p[0], p[1], p[2]);
       else tmp.set(p.x, p.y, p.z);
       handle.setListenerDistance(camera.position.distanceTo(tmp));
+    }
+  });
+  return null;
+}
+
+/**
+ * 비디오 첫 mount 시 자동 재생/정지 정책 적용.
+ * videoRemote 의 initiallyPlaying prop 이 한번이라도 false 면 모든 비디오 처음에 pause.
+ * 이미 적용한 id 는 set 에 기록해서 재실행 안 함 (사용자 수동 play 후 다시 pause 막음).
+ */
+export function VideoInitialStateApplier({
+  registry, initiallyPaused,
+}: {
+  registry: VideoRegistry;
+  initiallyPaused: boolean;
+}) {
+  const applied = useRef<Set<string>>(new Set());
+  useFrame(() => {
+    if (!initiallyPaused) return;
+    for (const [id, handle] of registry.current) {
+      if (applied.current.has(id)) continue;
+      applied.current.add(id);
+      try { handle.setPlaying(false); } catch { /* noop */ }
     }
   });
   return null;
