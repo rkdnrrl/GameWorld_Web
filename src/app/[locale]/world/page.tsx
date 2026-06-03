@@ -91,6 +91,7 @@ export default function WorldPage() {
 
   // 통합 설정 모달 — ⚙ 클릭 또는 ESC 키로 열림. 그래픽/전체화면/허브 옵션 모두 포함.
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'graphics' | 'display' | 'hub' | 'develop'>('graphics');
   const [mapModalOpen, setMapModalOpen] = useState(false);
   const [charModalOpen, setCharModalOpen] = useState(false);
   const [mapTab, setMapTab] = useState<'home' | 'mine' | 'public'>('home');
@@ -677,156 +678,174 @@ export default function WorldPage() {
         ))}
       </div>
 
-      {/* 통합 설정 모달 — ⚙ 클릭 또는 ESC 로 열림. 그래픽 / 디스플레이 / 허브 섹션 포함. */}
-      {settingsOpen && (
-        <div
-          onClick={() => setSettingsOpen(false)}
-          style={{ position: 'absolute', inset: 0, background: 'rgba(2,6,23,0.78)', backdropFilter: 'blur(8px)', zIndex: 16777276, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
-        >
+      {/* 통합 설정 모달 — 사이드바 탭으로 그룹화 (모던·심플). ESC 로 토글. */}
+      {settingsOpen && (() => {
+        const TABS = [
+          { id: 'graphics', icon: '🎨', label: t('graphics') },
+          { id: 'display',  icon: '🖥', label: t('display') },
+          { id: 'hub',      icon: '🌐', label: t('hubControl') },
+          { id: 'develop',  icon: '🛠', label: th('develop') },
+        ] as const;
+        const tabBtn = (active: boolean): React.CSSProperties => ({
+          display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
+          padding: '11px 14px', borderRadius: 10, border: 'none',
+          background: active ? 'rgba(99,102,241,0.22)' : 'transparent',
+          color: active ? '#fff' : 'rgba(255,255,255,0.65)',
+          fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          transition: 'background 0.12s',
+        });
+        const sectionTitle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 };
+        const card: React.CSSProperties = { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: 14 };
+        const actionBtn: React.CSSProperties = { width: '100%', textAlign: 'left', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: '#fff', borderRadius: 9, padding: '11px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 };
+        return (
           <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              width: 'min(720px, 96vw)', maxHeight: '88vh', overflow: 'hidden',
-              background: 'linear-gradient(180deg, rgba(15,23,42,0.97), rgba(2,6,23,0.97))',
-              border: '1px solid rgba(255,255,255,0.14)', borderRadius: 14,
-              color: '#fff', display: 'flex', flexDirection: 'column',
-            }}
+            onClick={() => setSettingsOpen(false)}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(2,6,23,0.78)', backdropFilter: 'blur(8px)', zIndex: 16777276, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
           >
-            {/* 헤더 */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-              <div style={{ fontSize: 16, fontWeight: 800 }}>⚙️ {t('settings')}</div>
-              <button
-                onClick={() => setSettingsOpen(false)}
-                title="ESC"
-                style={{ border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', fontWeight: 700, fontSize: 12 }}
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* 본문 — 좌측: 그래픽, 우측: 디스플레이 + 허브 */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, flex: 1, overflow: 'hidden' }}>
-              {/* 좌측 — 그래픽 */}
-              <div style={{ padding: 16, overflowY: 'auto', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
-                <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7, marginBottom: 10, letterSpacing: 0.4 }}>🎨 {t('graphics')}</div>
-                <GraphicsPanel
-                  settings={graphics}
-                  updateSettings={updateGraphics}
-                  applyPreset={applyGraphicsPreset}
-                  mode="embedded"
-                />
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: 'min(760px, 96vw)', height: 'min(560px, 88vh)',
+                background: '#0b1020', border: '1px solid rgba(255,255,255,0.10)',
+                borderRadius: 16, color: '#fff', display: 'flex', flexDirection: 'column',
+                boxShadow: '0 24px 60px rgba(0,0,0,0.55)',
+                overflow: 'hidden',
+              }}
+            >
+              {/* 헤더 */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'rgba(255,255,255,0.9)' }}>⚙️ {t('settings')}</div>
+                <button
+                  onClick={() => setSettingsOpen(false)}
+                  title="ESC"
+                  style={{ border: 'none', background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >×</button>
               </div>
 
-              {/* 우측 — 디스플레이 + 허브 */}
-              <div style={{ padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
-                {/* 디스플레이 — 전체화면 */}
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7, marginBottom: 10, letterSpacing: 0.4 }}>🖥 {t('display')}</div>
-                  <button
-                    onClick={toggleFullscreen}
-                    style={{ width: '100%', border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', borderRadius: 8, padding: '10px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700, textAlign: 'left' }}
-                  >
-                    {isFullscreen ? `⛶ ${t('exitFullscreen')}` : `⛶ ${t('enterFullscreen')}`}
-                  </button>
-                </div>
+              {/* 본문 — 사이드바 + 콘텐츠 */}
+              <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+                {/* 사이드바 탭 */}
+                <nav style={{ width: 180, padding: 12, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
+                  {TABS.map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setSettingsTab(tab.id)}
+                      style={tabBtn(settingsTab === tab.id)}
+                    >
+                      <span style={{ fontSize: 16 }}>{tab.icon}</span>
+                      <span>{tab.label}</span>
+                    </button>
+                  ))}
+                </nav>
 
-                {/* 시점 — 1인칭 / 3인칭 */}
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7, marginBottom: 10, letterSpacing: 0.4 }}>👁 {t('viewMode')}</div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {([['first', `👁 ${t('firstPerson')}`], ['third', `🎥 ${t('thirdPerson')}`]] as const).map(([m, label]) => (
-                      <button
-                        key={m}
-                        onClick={() => changeCameraMode(m)}
-                        style={{
-                          flex: 1,
-                          border: `1px solid ${cameraMode === m ? 'rgba(99,102,241,0.6)' : 'rgba(255,255,255,0.18)'}`,
-                          background: cameraMode === m ? 'rgba(99,102,241,0.25)' : 'rgba(255,255,255,0.06)',
-                          color: '#fff', borderRadius: 8, padding: '10px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700,
-                        }}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  <div style={{ fontSize: 10, opacity: 0.45, marginTop: 6 }}>{t('viewModeHint')}</div>
-                  {/* 1인칭 시야각(FOV) */}
-                  <div style={{ marginTop: 12, opacity: cameraMode === 'first' ? 1 : 0.5 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                      <span style={{ fontSize: 12, fontWeight: 700 }}>{t('fov')}</span>
-                      <span style={{ fontSize: 12, color: '#a5b4fc', fontWeight: 700 }}>{fpFov}°</span>
-                    </div>
-                    <input
-                      type="range" min={50} max={110} step={1} value={fpFov}
-                      onChange={(e) => changeFpFov(Number(e.target.value))}
-                      style={{ width: '100%', accentColor: '#6366f1' }}
+                {/* 콘텐츠 */}
+                <div style={{ flex: 1, padding: '20px 24px', overflowY: 'auto' }}>
+                  {/* 🎨 그래픽 */}
+                  {settingsTab === 'graphics' && (
+                    <GraphicsPanel
+                      settings={graphics}
+                      updateSettings={updateGraphics}
+                      applyPreset={applyGraphicsPreset}
+                      mode="embedded"
                     />
-                    {cameraMode !== 'first' && (
-                      <div style={{ fontSize: 10, opacity: 0.5, marginTop: 4 }}>{t('fovFirstOnly')}</div>
-                    )}
-                  </div>
-                </div>
+                  )}
 
-                {/* 허브 */}
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7, marginBottom: 10, letterSpacing: 0.4 }}>🌐 {t('hubControl')}</div>
+                  {/* 🖥 디스플레이 + 시점 */}
+                  {settingsTab === 'display' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                      <div>
+                        <div style={sectionTitle}>{t('display')}</div>
+                        <button onClick={toggleFullscreen} style={actionBtn}>
+                          ⛶ {isFullscreen ? t('exitFullscreen') : t('enterFullscreen')}
+                        </button>
+                      </div>
 
-                  <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginBottom: 4 }}>{t('currentCharacter')}</div>
-                  <div style={{ color: '#fff', fontSize: 13, fontWeight: 700, marginBottom: 10 }}>{(character?.name ? String(character.name) : t('unknownCharacter'))}</div>
+                      <div>
+                        <div style={sectionTitle}>{t('viewMode')}</div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          {([['first', '👁', t('firstPerson')], ['third', '🎥', t('thirdPerson')]] as const).map(([m, icon, label]) => (
+                            <button
+                              key={m}
+                              onClick={() => changeCameraMode(m)}
+                              style={{
+                                flex: 1, padding: '11px 12px', borderRadius: 10, cursor: 'pointer',
+                                border: `1px solid ${cameraMode === m ? 'rgba(99,102,241,0.55)' : 'rgba(255,255,255,0.10)'}`,
+                                background: cameraMode === m ? 'rgba(99,102,241,0.18)' : 'rgba(255,255,255,0.03)',
+                                color: '#fff', fontSize: 13, fontWeight: 600,
+                              }}
+                            >
+                              {icon} {label}
+                            </button>
+                          ))}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 6 }}>{t('viewModeHint')}</div>
+                      </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <button
-                      onClick={() => { setSettingsOpen(false); openCharacterBrowser(); }}
-                      style={{ border: '1px solid rgba(79,70,229,0.4)', background: 'rgba(79,70,229,0.18)', color: '#fff', borderRadius: 8, padding: '9px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700, textAlign: 'left' }}
-                    >
-                      🧍 {t('changeCharacter')}
-                    </button>
-                    <button
-                      onClick={() => { setSettingsOpen(false); openMapBrowser(); }}
-                      style={{ border: '1px solid rgba(79,70,229,0.4)', background: 'rgba(79,70,229,0.18)', color: '#fff', borderRadius: 8, padding: '9px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700, textAlign: 'left' }}
-                    >
-                      🗺 {t('moveMap')}
-                    </button>
-                    <button
-                      onClick={() => { setSettingsOpen(false); openPortalBrowser(); }}
-                      style={{ border: '1px solid rgba(34,211,238,0.45)', background: 'rgba(34,211,238,0.16)', color: '#fff', borderRadius: 8, padding: '9px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700, textAlign: 'left' }}
-                    >
-                      🌀 {t('portalOpen')}
-                    </button>
-                  </div>
+                      {/* FOV — 1인칭에서만 활성 */}
+                      <div style={{ ...card, opacity: cameraMode === 'first' ? 1 : 0.5 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600 }}>{t('fov')}</span>
+                          <span style={{ fontSize: 13, color: '#a5b4fc', fontWeight: 700 }}>{fpFov}°</span>
+                        </div>
+                        <input type="range" min={50} max={110} step={1} value={fpFov}
+                          onChange={(e) => changeFpFov(Number(e.target.value))}
+                          disabled={cameraMode !== 'first'}
+                          style={{ width: '100%', accentColor: '#6366f1' }} />
+                        {cameraMode !== 'first' && (
+                          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 6 }}>{t('fovFirstOnly')}</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
-                  <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginTop: 14, marginBottom: 6 }}>{th('develop')}</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                    <button
-                      onClick={() => router.push('/assets')}
-                      style={{ border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#fff', borderRadius: 8, padding: '8px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 700, textAlign: 'left' }}
-                    >
-                      📦 {th('inventory')}
-                    </button>
-                    <button
-                      onClick={() => router.push('/worlds')}
-                      style={{ border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.15)', color: '#fff', borderRadius: 8, padding: '8px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 700, textAlign: 'left' }}
-                    >
-                      🛠 {th('develop')}
-                    </button>
-                    <button
-                      onClick={() => router.push('/character')}
-                      style={{ gridColumn: '1 / -1', border: '1px solid rgba(79,70,229,0.35)', background: 'rgba(79,70,229,0.15)', color: '#fff', borderRadius: 8, padding: '8px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 700, textAlign: 'left' }}
-                    >
-                      🧍 {t('manageCharacters')}
-                    </button>
-                  </div>
+                  {/* 🌐 허브 */}
+                  {settingsTab === 'hub' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      <div style={card}>
+                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{t('currentCharacter')}</div>
+                        <div style={{ fontSize: 16, fontWeight: 700 }}>{character?.name ? String(character.name) : t('unknownCharacter')}</div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <button onClick={() => { setSettingsOpen(false); openCharacterBrowser(); }} style={actionBtn}>
+                          🧍 {t('changeCharacter')}
+                        </button>
+                        <button onClick={() => { setSettingsOpen(false); openMapBrowser(); }} style={actionBtn}>
+                          🗺 {t('moveMap')}
+                        </button>
+                        <button onClick={() => { setSettingsOpen(false); openPortalBrowser(); }}
+                          style={{ ...actionBtn, border: '1px solid rgba(34,211,238,0.4)', background: 'rgba(34,211,238,0.12)' }}>
+                          🌀 {t('portalOpen')}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 🛠 개발 */}
+                  {settingsTab === 'develop' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <button onClick={() => router.push('/assets')} style={actionBtn}>
+                        📦 {th('inventory')}
+                      </button>
+                      <button onClick={() => router.push('/worlds')}
+                        style={{ ...actionBtn, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.12)' }}>
+                        🛠 {th('develop')}
+                      </button>
+                      <button onClick={() => router.push('/character')} style={actionBtn}>
+                        🧍 {t('manageCharacters')}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
 
-            {/* 푸터 힌트 */}
-            <div style={{ padding: '8px 18px', borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: 10, opacity: 0.45, textAlign: 'right' }}>
-              ESC {t('escToToggle')}
+              {/* 푸터 힌트 */}
+              <div style={{ padding: '10px 18px', borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: 11, color: 'rgba(255,255,255,0.35)', textAlign: 'right' }}>
+                ESC {t('escToToggle')}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {charModalOpen && (
         <div
