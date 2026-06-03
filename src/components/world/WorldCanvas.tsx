@@ -3394,7 +3394,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           devLog('[VID] SYNC rejected — host unverified or sender mismatch', { fromId, realHost: hostIdRef.current });
           return;
         }
-        const d = data as { t?: number; playing?: boolean; url?: string };
+        const d = data as { t?: number; playing?: boolean; url?: string; volume?: number; muted?: boolean };
         // url 동기화 — 호스트가 리모컨으로 바꾼 영상 url 을 늦게 들어온 사람도 같은 영상 보게.
         // 같은 url 이면 setState 새 객체 안 만들어 re-render 폭주 방지.
         if (d.url) {
@@ -3404,7 +3404,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         // 호스트가 playing:true 보냈으면 — 호스트가 의도적으로 재생한 것. 자동재생 lock 해제.
         if (d.playing === true) videoUnlockedRef.current.add(objectId);
         const v = videoRegistry.current.get(objectId);
-        if (v) applyVideoSync(v, d);
+        if (v) applyVideoSync(v, d);  // applyVideoSync 는 t/playing/volume/muted 모두 처리
         return;
       }
       // 비디오 컨트롤 명령(앞/뒤 5초·URL 변경) — 호스트 포함 모든 클라가 반영 (누가 눌러도 동기화)
@@ -3685,18 +3685,29 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       }
     }
   }, [customObjects, runVideoControl]);
+  // 호스트 video sync — 2초 주기 + 신규 유저 입장 시 즉시 1회. URL/volume/muted/playing 은
+  // t 값과 무관하게 항상 동기화 (YouTube ready 전 t=0 이라도 신규 유저는 URL/볼륨 받아야 함).
+  // t 는 유효할 때(>0)만 포함 — 0 은 신규 유저 영상을 처음으로 되감기게 만들 수 있어 제외.
+  const broadcastVideoState = useCallback(() => {
+    if (!sendScriptEvent || !hostId || hostId !== playerId) return;
+    for (const [objId, v] of videoRegistry.current) {
+      const t = v.getTime();
+      const url = videoUrlOverridesRef.current[objId];
+      const payload: { t?: number; playing: boolean; url?: string; volume?: number; muted?: boolean } = {
+        playing: !v.paused(),
+        volume: v.getVolume(),
+        muted: v.isMuted(),
+      };
+      if (Number.isFinite(t) && t > 0) payload.t = t;
+      if (url) payload.url = url;
+      sendScriptEvent(objId, VIDEO_SYNC_EVENT, payload);
+    }
+  }, [sendScriptEvent, hostId, playerId]);
   useEffect(() => {
     if (!isHost || !sendScriptEvent || !hostId || hostId !== playerId) return;
-    const iv = setInterval(() => {
-      for (const [objId, v] of videoRegistry.current) {
-        const t = v.getTime();
-        if (!Number.isFinite(t) || t <= 0) continue;
-        const url = videoUrlOverridesRef.current[objId];
-        sendScriptEvent(objId, VIDEO_SYNC_EVENT, url ? { t, playing: !v.paused(), url } : { t, playing: !v.paused() });
-      }
-    }, 2000);
+    const iv = setInterval(broadcastVideoState, 2000);
     return () => clearInterval(iv);
-  }, [isHost, sendScriptEvent, hostId, playerId]);
+  }, [isHost, sendScriptEvent, hostId, playerId, broadcastVideoState]);
 
   // 호스트: 게임 상태+HUD 가 바뀌면 200ms 주기로 전원에게 스냅샷 broadcast → 비호스트도 HUD 표시.
   useEffect(() => {
@@ -3710,6 +3721,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // 새 플레이어 입장(또는 본인이 호스트가 됨) 시 다음 틱에 스냅샷 재전송 → 늦게 들어온 사람도 현재 HUD 받음.
   const playerCount = Object.keys(players).length;
   useEffect(() => { if (isHost) gameRuntime.markDirty(); }, [isHost, playerCount, gameRuntime]);
+  // 신규 유저 입장 시 즉시 video state broadcast — URL/볼륨/음소거 동기화 (2초 tick 대기 안 함).
+  useEffect(() => { if (isHost) broadcastVideoState(); }, [isHost, playerCount, broadcastVideoState]);
 
   // ── NPC AI — 호스트만 실행 (권위). 10Hz 로 가장 가까운 플레이어 추적/공격. ──
   useEffect(() => {
