@@ -1984,7 +1984,13 @@
     "errNotAlpMap": "alp-map 形式ではありません (format={format})。",
     "errNoObjects": "マップファイルに objects 配列がありません。",
     "errLoginRequired": "ログインが必要です。",
-    "errImportFailed": "インポート失敗: {detail}"
+    "errImportFailed": "インポート失敗: {detail}",
+    "errLoadFailed": "アセットを読み込めません。",
+    "errLikeFailed": "いいねを処理できません。",
+    "errImportShortFailed": "アセットをインポートできません。",
+    "errUnpublishFailed": "公開解除に失敗しました。",
+    "errDeleteFailed": "削除に失敗しました。",
+    "errMoveFailed": "移動に失敗しました。"
   },
   "Notifications": {
     "aria": "通知",
@@ -2096,7 +2102,12 @@
     "loginRequired": "ログインが必要です。",
     "loading": "読み込み中…",
     "blocked": "ブロック中",
-    "btnMessage": "メッセージ"
+    "btnMessage": "メッセージ",
+    "errLoadFailed": "フレンド一覧を読み込めません。",
+    "errAcceptFailed": "フレンド申請を承認できません。",
+    "errRejectFailed": "フレンド申請を拒否できません。",
+    "errCancelFailed": "フレンド申請を取り消せません。",
+    "errRemoveFailed": "フレンドを削除できません。"
   },
   "AccountCustomize": {
     "title": "プロフィールカスタマイズ",
@@ -2144,7 +2155,8 @@
     "noMessages": "メッセージがありません。",
     "inputPlaceholder": "メッセージを入力…",
     "send": "送信",
-    "loginRequired": "ログインが必要です。"
+    "loginRequired": "ログインが必要です。",
+    "deletedUser": "(退会したユーザー)"
   },
   "Supporters": {
     "heroTitle": "AirLivePlay を応援してください",

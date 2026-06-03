@@ -114,7 +114,7 @@ export default function AssetBrowsePage() {
         setHasMore(d.hasMore);
         setError('');
       })
-      .catch(e => setError(e instanceof ApiError ? e.message : 'load failed'))
+      .catch(e => setError(e instanceof ApiError ? e.message : t('errLoadFailed')))
       .finally(() => setLoading(false));
   }, [q, kindSel, tagSel, sort]);
 
@@ -129,7 +129,7 @@ export default function AssetBrowsePage() {
       setPage(next);
       setHasMore(d.hasMore);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'load failed');
+      setError(e instanceof Error ? e.message : t('errLoadFailed'));
     } finally {
       setLoading(false);
     }
@@ -147,7 +147,7 @@ export default function AssetBrowsePage() {
         setPackHasMore(d.hasMore);
         setError('');
       })
-      .catch(e => setError(e instanceof ApiError ? e.message : 'load failed'))
+      .catch(e => setError(e instanceof ApiError ? e.message : t('errLoadFailed')))
       .finally(() => setPackLoading(false));
   }, [tab, q, sort]);
 
@@ -161,7 +161,7 @@ export default function AssetBrowsePage() {
       setPackPage(next);
       setPackHasMore(d.hasMore);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'load failed');
+      setError(e instanceof Error ? e.message : t('errLoadFailed'));
     } finally {
       setPackLoading(false);
     }
@@ -175,7 +175,7 @@ export default function AssetBrowsePage() {
       await api.importPack(tk, p.id);
       setImportedPackIds(prev => new Set(prev).add(p.id));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'import failed');
+      setError(e instanceof ApiError ? e.message : t('errImportShortFailed'));
     } finally {
       setImportingPackId(null);
     }
@@ -199,7 +199,7 @@ export default function AssetBrowsePage() {
         : await api.likeAsset(tk, a.id);
       setAssets(prev => prev.map(x => x.id === a.id ? { ...x, liked: res.liked, likeCount: res.likeCount } : x));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'like failed');
+      setError(e instanceof ApiError ? e.message : t('errLikeFailed'));
     } finally {
       setLikingId(null);
     }
@@ -214,7 +214,7 @@ export default function AssetBrowsePage() {
       await api.cloneAsset(tk, a.id);
       setImportedIds(prev => new Set(prev).add(a.id));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'import failed');
+      setError(e instanceof ApiError ? e.message : t('errImportShortFailed'));
     } finally {
       setImportingId(null);
     }
@@ -232,7 +232,7 @@ export default function AssetBrowsePage() {
       setTotal(prev => Math.max(0, prev - 1));
       setDetailId(null);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'unpublish failed');
+      setError(e instanceof ApiError ? e.message : t('errUnpublishFailed'));
     } finally {
       setUnpublishingId(null);
     }

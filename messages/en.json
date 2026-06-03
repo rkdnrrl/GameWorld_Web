@@ -1984,7 +1984,13 @@
     "errNotAlpMap": "Not an alp-map file (format={format}).",
     "errNoObjects": "Map file is missing the objects array.",
     "errLoginRequired": "Login required.",
-    "errImportFailed": "Import failed: {detail}"
+    "errImportFailed": "Import failed: {detail}",
+    "errLoadFailed": "Could not load assets.",
+    "errLikeFailed": "Could not like.",
+    "errImportShortFailed": "Could not import asset.",
+    "errUnpublishFailed": "Could not unpublish.",
+    "errDeleteFailed": "Delete failed.",
+    "errMoveFailed": "Move failed."
   },
   "Notifications": {
     "aria": "Notifications",
@@ -2096,7 +2102,12 @@
     "loginRequired": "Login required.",
     "loading": "Loading…",
     "blocked": "Blocked",
-    "btnMessage": "Message"
+    "btnMessage": "Message",
+    "errLoadFailed": "Could not load friends.",
+    "errAcceptFailed": "Could not accept friend request.",
+    "errRejectFailed": "Could not reject friend request.",
+    "errCancelFailed": "Could not cancel friend request.",
+    "errRemoveFailed": "Could not remove friend."
   },
   "AccountCustomize": {
     "title": "Customize Profile",
@@ -2144,7 +2155,8 @@
     "noMessages": "No messages.",
     "inputPlaceholder": "Type a message…",
     "send": "Send",
-    "loginRequired": "Login required."
+    "loginRequired": "Login required.",
+    "deletedUser": "(deleted user)"
   },
   "Supporters": {
     "heroTitle": "Support AirLivePlay",

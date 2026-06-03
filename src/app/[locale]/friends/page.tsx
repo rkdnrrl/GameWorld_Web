@@ -47,7 +47,7 @@ export default function FriendsPage() {
       setReceived(r.requests);
       setSent(s.requests);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'load failed');
+      setError(e instanceof ApiError ? e.message : t('errLoadFailed'));
     } finally {
       setLoading(false);
     }
@@ -58,23 +58,23 @@ export default function FriendsPage() {
   async function onAccept(id: string) {
     const tk = session.getToken(); if (!tk) return;
     try { await api.acceptFriendRequest(tk, id); load(); }
-    catch (e) { setError(e instanceof Error ? e.message : 'accept failed'); }
+    catch (e) { setError(e instanceof ApiError ? e.message : t('errAcceptFailed')); }
   }
   async function onReject(id: string) {
     const tk = session.getToken(); if (!tk) return;
     try { await api.rejectFriendRequest(tk, id); load(); }
-    catch (e) { setError(e instanceof Error ? e.message : 'reject failed'); }
+    catch (e) { setError(e instanceof ApiError ? e.message : t('errRejectFailed')); }
   }
   async function onCancel(id: string) {
     const tk = session.getToken(); if (!tk) return;
     try { await api.cancelFriendRequest(tk, id); load(); }
-    catch (e) { setError(e instanceof Error ? e.message : 'cancel failed'); }
+    catch (e) { setError(e instanceof ApiError ? e.message : t('errCancelFailed')); }
   }
   async function onRemove(userId: string) {
     if (!confirm(t('confirmRemove'))) return;
     const tk = session.getToken(); if (!tk) return;
     try { await api.removeFriend(tk, userId); load(); }
-    catch (e) { setError(e instanceof Error ? e.message : 'remove failed'); }
+    catch (e) { setError(e instanceof ApiError ? e.message : t('errRemoveFailed')); }
   }
 
   if (needsLogin) {

@@ -1984,7 +1984,13 @@
     "errNotAlpMap": "이 파일은 alp-map 포맷이 아닙니다 (format={format}).",
     "errNoObjects": "맵 파일에 objects 배열이 없습니다.",
     "errLoginRequired": "로그인이 필요합니다.",
-    "errImportFailed": "가져오기 실패: {detail}"
+    "errImportFailed": "가져오기 실패: {detail}",
+    "errLoadFailed": "에셋 목록을 불러올 수 없습니다.",
+    "errLikeFailed": "좋아요 처리에 실패했습니다.",
+    "errImportShortFailed": "에셋 가져오기에 실패했습니다.",
+    "errUnpublishFailed": "공개 해제에 실패했습니다.",
+    "errDeleteFailed": "삭제에 실패했습니다.",
+    "errMoveFailed": "이동에 실패했습니다."
   },
   "Notifications": {
     "aria": "알림",
@@ -2096,7 +2102,12 @@
     "loginRequired": "로그인이 필요합니다.",
     "loading": "불러오는 중…",
     "blocked": "차단됨",
-    "btnMessage": "메시지"
+    "btnMessage": "메시지",
+    "errLoadFailed": "친구 목록을 불러올 수 없습니다.",
+    "errAcceptFailed": "친구 요청을 수락하지 못했습니다.",
+    "errRejectFailed": "친구 요청을 거절하지 못했습니다.",
+    "errCancelFailed": "친구 요청을 취소하지 못했습니다.",
+    "errRemoveFailed": "친구 삭제에 실패했습니다."
   },
   "AccountCustomize": {
     "title": "프로필 꾸미기",
@@ -2144,7 +2155,8 @@
     "noMessages": "메시지가 없습니다.",
     "inputPlaceholder": "메시지 입력…",
     "send": "보내기",
-    "loginRequired": "로그인이 필요합니다."
+    "loginRequired": "로그인이 필요합니다.",
+    "deletedUser": "(탈퇴한 사용자)"
   },
   "Supporters": {
     "heroTitle": "에어플레이를 응원해주세요",

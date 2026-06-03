@@ -66,7 +66,7 @@ export default function MessagesPage() {
                   </div>}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="font-medium truncate">{c.other?.username || '(deleted)'}<SupporterIcon tier={c.other?.supporterTier} /></p>
+                  <p className="font-medium truncate">{c.other?.username || t('deletedUser')}<SupporterIcon tier={c.other?.supporterTier} /></p>
                   {c.lastMessageAt && <p className="text-xs text-slate-500 shrink-0">{new Date(c.lastMessageAt).toLocaleDateString()}</p>}
                 </div>
                 <p className="text-sm text-slate-400 truncate">{c.lastMessageText || t('noMessages')}</p>

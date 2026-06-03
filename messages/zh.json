@@ -1984,7 +1984,13 @@
     "errNotAlpMap": "不是 alp-map 格式 (format={format})。",
     "errNoObjects": "地图文件缺少 objects 数组。",
     "errLoginRequired": "需要登录。",
-    "errImportFailed": "导入失败: {detail}"
+    "errImportFailed": "导入失败: {detail}",
+    "errLoadFailed": "无法加载资源。",
+    "errLikeFailed": "无法点赞。",
+    "errImportShortFailed": "无法导入资源。",
+    "errUnpublishFailed": "无法取消公开。",
+    "errDeleteFailed": "删除失败。",
+    "errMoveFailed": "移动失败。"
   },
   "Notifications": {
     "aria": "通知",
@@ -2096,7 +2102,12 @@
     "loginRequired": "需要登录。",
     "loading": "加载中…",
     "blocked": "已屏蔽",
-    "btnMessage": "消息"
+    "btnMessage": "消息",
+    "errLoadFailed": "无法加载好友列表。",
+    "errAcceptFailed": "无法接受好友请求。",
+    "errRejectFailed": "无法拒绝好友请求。",
+    "errCancelFailed": "无法取消好友请求。",
+    "errRemoveFailed": "无法删除好友。"
   },
   "AccountCustomize": {
     "title": "装饰个人资料",
@@ -2144,7 +2155,8 @@
     "noMessages": "没有消息。",
     "inputPlaceholder": "输入消息…",
     "send": "发送",
-    "loginRequired": "需要登录。"
+    "loginRequired": "需要登录。",
+    "deletedUser": "(已注销用户)"
   },
   "Supporters": {
     "heroTitle": "支持 AirLivePlay",

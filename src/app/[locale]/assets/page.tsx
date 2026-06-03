@@ -129,7 +129,7 @@ export default function AssetsPage() {
         const tk = session.getToken() || '';
         await api.batchUpdateAssets(tk, { ids, action: 'delete', value: null });
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'delete failed');
+        setError(e instanceof Error ? e.message : t('errDeleteFailed'));
         fetch(`${API}/api/assets/my`, { headers: { Authorization: `Bearer ${token()}` } })
           .then(r => r.json()).then(d => setAssets(d.assets || [])).catch(() => {});
       }
@@ -518,7 +518,7 @@ export default function AssetsPage() {
       const tk = session.getToken() || '';
       await api.batchUpdateAssets(tk, { ids: filtered, action: 'move', value: folder });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'move failed');
+      setError(e instanceof Error ? e.message : t('errMoveFailed'));
       fetch(`${API}/api/assets/my`, { headers: { Authorization: `Bearer ${token()}` } })
         .then(r => r.json()).then(d => setAssets(d.assets || [])).catch(() => {});
     }

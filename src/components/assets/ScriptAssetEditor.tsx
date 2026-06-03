@@ -86,6 +86,20 @@ export default function ScriptAssetEditor({ open, editing, folder, onClose, onSa
     setSnippetsOpen(false);
   }, [editing, open]);
 
+  // ESC 닫기 — 코드 편집 중이라도 textarea 안에서 ESC 누르면 모달 닫힘 (textarea blur 후 ESC 1회 더 권장)
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      // 코드 편집 중 (TEXTAREA) 에선 ESC 1번에 모달 안 닫음 — 사용자 의도가 코드 편집 종료일 수도
+      if (tag === 'TEXTAREA') (e.target as HTMLTextAreaElement).blur();
+      else onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
   // 예제 스니펫 삽입 — 비었거나 기본 템플릿이면 교체, 아니면 끝에 덧붙임.
   function insertSnippet(snippetCode: string) {
     setCode(prev => {

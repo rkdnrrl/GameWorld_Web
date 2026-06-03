@@ -107,6 +107,14 @@ export default function OnboardingModal({ forceOpen, onClose }: Props) {
 
   const step = useMemo(() => STEPS[idx], [idx]);
 
+  // ESC 키 = skip (backdrop 클릭과 같은 동작)
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') finish('skipped'); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, finish]);
+
   if (!open || !step) return null;
 
   const total = STEPS.length;

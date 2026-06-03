@@ -57,7 +57,7 @@ export default function FollowingFeedPage() {
         setHasMore(d.hasMore);
         setError('');
       })
-      .catch(e => setError(e instanceof ApiError ? e.message : 'load failed'))
+      .catch(e => setError(e instanceof ApiError ? e.message : t('errLoadFailed')))
       .finally(() => setLoading(false));
   }, []);
 
@@ -73,7 +73,7 @@ export default function FollowingFeedPage() {
       setPage(next);
       setHasMore(d.hasMore);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'load failed');
+      setError(e instanceof Error ? e.message : t('errLoadFailed'));
     } finally {
       setLoading(false);
     }
@@ -87,7 +87,7 @@ export default function FollowingFeedPage() {
       await api.cloneAsset(tk, a.id);
       setImportedIds(prev => new Set(prev).add(a.id));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'import failed');
+      setError(e instanceof ApiError ? e.message : t('errImportShortFailed'));
     } finally {
       setImportingId(null);
     }
@@ -101,7 +101,7 @@ export default function FollowingFeedPage() {
       const res = a.liked ? await api.unlikeAsset(tk, a.id) : await api.likeAsset(tk, a.id);
       setAssets(prev => prev.map(x => x.id === a.id ? { ...x, liked: res.liked, likeCount: res.likeCount } : x));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'like failed');
+      setError(e instanceof ApiError ? e.message : t('errLikeFailed'));
     } finally {
       setLikingId(null);
     }
