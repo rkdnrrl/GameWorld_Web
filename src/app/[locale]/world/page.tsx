@@ -111,20 +111,42 @@ export default function WorldPage() {
     setCharManagerOpen(false);
     if (returnToSettings) { setReturnToSettings(false); setSettingsOpen(true); }
   };
-  // iframe 안에서 캐릭터 저장 완료 시 postMessage 받음 → 모달 닫음.
-  // (캐릭터 자동 반영은 사용자가 캐릭터 다시 선택 또는 페이지 새로고침 시)
+  // 활성 캐릭터 다시 fetch — 캐릭터 모달에서 저장 후 자동 반영용
+  const reloadActiveCharacter = useCallback(async () => {
+    const token = session.getToken();
+    if (!token) return;
+    try {
+      const res = await fetch(`${API}/api/characters/me`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const data = await res.json().catch(() => null);
+      const active = data?.character;
+      if (active?.id) {
+        setCharacter(active);
+        setMyChars(prev => prev.map(c => c.id === active.id ? active : c));
+      }
+      // 캐릭터 목록도 갱신 (새 캐릭터 생성 등)
+      const listRes = await fetch(`${API}/api/characters`, { headers: { Authorization: `Bearer ${token}` } });
+      if (listRes.ok) {
+        const list = await listRes.json().catch(() => null);
+        if (Array.isArray(list?.characters)) setMyChars(list.characters);
+      }
+    } catch { /* noop */ }
+  }, [API]);
+
+  // iframe 안에서 캐릭터 저장 완료 시 postMessage 받음 → 모달 닫고 캐릭터 즉시 반영.
   useEffect(() => {
     if (!charManagerOpen) return;
     const onMsg = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return;
       if ((e.data as { type?: string })?.type === 'alp:character-saved') {
+        reloadActiveCharacter();
         closeCharManager();
       }
     };
     window.addEventListener('message', onMsg);
     return () => window.removeEventListener('message', onMsg);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [charManagerOpen]);
+  }, [charManagerOpen, reloadActiveCharacter]);
   const [mapTab, setMapTab] = useState<'home' | 'mine' | 'public'>('home');
   const [mapSearch, setMapSearch] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
