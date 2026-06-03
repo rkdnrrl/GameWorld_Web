@@ -1324,7 +1324,7 @@
     "scGizmo": "기즈모 모드",
     "scGizmoHint": "W: 이동 · E: 회전 · R: 크기",
     "scEdit": "편집",
-    "scEditHint": "Ctrl+S: 저장 · Ctrl+Z: 되돌리기 · Ctrl+Y: 다시 · Ctrl+D: 복제 · Ctrl+G: 그룹화 · Ctrl+Shift+G: 그룹 해제 · Ctrl+A: 전체 선택 · Ctrl+I: 선택 반전 · Ctrl+H: 숨기기 · Ctrl+클릭(트리): 토글 선택 · Del: 삭제 · ←↑→↓: 미세 이동 (Shift=1m) · F: 선택 포커스 · T: 트리 패널 토글 · N: 인스펙터 토글 · Esc: 선택 해제",
+    "scEditHint": "Ctrl+S: 저장 · Ctrl+Z: 되돌리기 · Ctrl+Y: 다시 · Ctrl+D: 복제 · Ctrl+G: 그룹화 · Ctrl+Shift+G: 그룹 해제 · Ctrl+A: 전체 선택 · Ctrl+I: 선택 반전 · Ctrl+H: 숨기기 · Ctrl+L: 잠금 · Ctrl+클릭(트리): 토글 선택 · Del: 삭제 · ←↑→↓: 미세 이동 (Shift=1m) · F: 선택 포커스 · T: 트리 패널 토글 · N: 인스펙터 토글 · Esc: 선택 해제",
     "scSim": "시뮬레이션",
     "scSimHint": "Esc: 중지 · F8: 자유시점/추적 전환",
     "lightColor": "색상",

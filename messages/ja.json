@@ -1324,7 +1324,7 @@
     "scGizmo": "ギズモモード",
     "scGizmoHint": "W: 移動 · E: 回転 · R: 拡縮",
     "scEdit": "編集",
-    "scEditHint": "Ctrl+S: 保存 · Ctrl+Z: 元に戻す · Ctrl+Y: やり直し · Ctrl+D: 複製 · Ctrl+G: グループ化 · Ctrl+Shift+G: 解除 · Ctrl+A: 全選択 · Ctrl+I: 反転 · Ctrl+H: 非表示 · Ctrl+クリック(ツリー): トグル選択 · Del: 削除 · ←↑→↓: 微移動 (Shift=1m) · F: フォーカス · T: ツリーパネル · N: インスペクタ · Esc: 選択解除",
+    "scEditHint": "Ctrl+S: 保存 · Ctrl+Z: 元に戻す · Ctrl+Y: やり直し · Ctrl+D: 複製 · Ctrl+G: グループ化 · Ctrl+Shift+G: 解除 · Ctrl+A: 全選択 · Ctrl+I: 反転 · Ctrl+H: 非表示 · Ctrl+L: ロック · Ctrl+クリック(ツリー): トグル選択 · Del: 削除 · ←↑→↓: 微移動 (Shift=1m) · F: フォーカス · T: ツリーパネル · N: インスペクタ · Esc: 選択解除",
     "scSim": "シミュレーション",
     "scSimHint": "Esc: 停止 · F8: 自由視点 / 追従カメラ切替",
     "lightColor": "色",

@@ -1324,7 +1324,7 @@
     "scGizmo": "Gizmo mode",
     "scGizmoHint": "W: translate · E: rotate · R: scale",
     "scEdit": "Edit",
-    "scEditHint": "Ctrl+S: save · Ctrl+Z: undo · Ctrl+Y: redo · Ctrl+D: duplicate · Ctrl+G: group · Ctrl+Shift+G: ungroup · Ctrl+A: select all · Ctrl+I: invert · Ctrl+H: hide · Ctrl+click (tree): toggle select · Del: delete · ←↑→↓: nudge (Shift=1m) · F: focus · T: tree panel · N: inspector · Esc: deselect",
+    "scEditHint": "Ctrl+S: save · Ctrl+Z: undo · Ctrl+Y: redo · Ctrl+D: duplicate · Ctrl+G: group · Ctrl+Shift+G: ungroup · Ctrl+A: select all · Ctrl+I: invert · Ctrl+H: hide · Ctrl+L: lock · Ctrl+click (tree): toggle select · Del: delete · ←↑→↓: nudge (Shift=1m) · F: focus · T: tree panel · N: inspector · Esc: deselect",
     "scSim": "Simulation",
     "scSimHint": "Esc: stop · F8: free-cam / follow-cam toggle",
     "lightColor": "Color",

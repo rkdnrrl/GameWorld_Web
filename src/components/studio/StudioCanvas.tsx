@@ -4306,6 +4306,21 @@ export default function StudioCanvas() {
           else groupSelected();
           return;
         }
+        // Ctrl+L — 선택된 객체 잠금 토글 (locked=true 시 transform 기즈모 차단)
+        if (e.key === 'l' || e.key === 'L') {
+          const tag = (e.target as HTMLElement)?.tagName;
+          if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+          e.preventDefault();
+          const targets = new Set<string>();
+          if (selectedId) targets.add(selectedId);
+          multiSelectedIds.forEach(id => targets.add(id));
+          if (targets.size === 0) return;
+          const cur = objectsRef.current;
+          const first = cur.find(o => targets.has(o.id));
+          const nextLocked = !first?.locked;
+          setObjects(prev => prev.map(o => targets.has(o.id) ? { ...o, locked: nextLocked } : o));
+          return;
+        }
         // Ctrl+A — 전체 선택 (입력창은 텍스트 전체선택 기본 동작 그대로)
         if (e.key === 'a' || e.key === 'A') {
           const tag = (e.target as HTMLElement)?.tagName;
