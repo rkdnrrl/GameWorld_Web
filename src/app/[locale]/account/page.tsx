@@ -6,6 +6,7 @@ import { ApiError, api, session, type User } from "@/lib/api";
 import { useLoggedIn } from "@/lib/useLoggedIn";
 import { useTranslations } from "next-intl";
 import { supabase } from "@/lib/supabase";
+import ProfileCustomizeModal from "@/components/account/ProfileCustomizeModal";
 
 function formatJoined(iso: string | undefined) {
   if (!iso) return "-";
@@ -23,6 +24,7 @@ export default function AccountPage() {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [customizeOpen, setCustomizeOpen] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [nicknameInput, setNicknameInput] = useState("");
   const [nicknameMessage, setNicknameMessage] = useState<string | null>(null);
@@ -173,13 +175,15 @@ export default function AccountPage() {
           <div className="mt-6 rounded-xl border border-indigo-200 bg-indigo-50 p-6">
             <h2 className="text-lg font-semibold text-indigo-800">{t("customizeSection")}</h2>
             <p className="mt-2 text-sm text-indigo-700">{t("customizeDesc")}</p>
-            <Link
-              href="/account/customize"
+            <button
+              type="button"
+              onClick={() => setCustomizeOpen(true)}
               className="mt-4 inline-block rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
             >
               {t("customizeButton")}
-            </Link>
+            </button>
           </div>
+          <ProfileCustomizeModal open={customizeOpen} onClose={() => setCustomizeOpen(false)} />
 
           <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-6">
             <h2 className="text-lg font-semibold text-emerald-800">{t("friendsSection")}</h2>
