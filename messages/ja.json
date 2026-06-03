@@ -2171,5 +2171,32 @@
     "voiceVolumeTitle": "🔊 音声ボリューム",
     "voiceVolumeOff": "マイクオフ",
     "voiceVolumeSpeaking": "通話中"
+  },
+  "Launcher": {
+    "tagline": "A I R   L I V E   P L A Y",
+    "welcome": "ようこそ、",
+    "loginButton": "ログイン",
+    "readyTitle": "準備はいいですか？",
+    "readyDesc": "友達と一緒に仮想世界へ入ろう",
+    "enterWorld": "ワールドに入る",
+    "loginNeededTitle": "ALP へようこそ",
+    "loginNeededDesc": "ワールドに入るにはログインが必要です",
+    "cardGames": "ゲーム",
+    "cardGamesDesc": "釣り・料理・ダンジョンなどのミニゲーム",
+    "cardFriends": "フレンド",
+    "cardFriendsDesc": "オンラインのフレンド一覧",
+    "cardCharacter": "キャラクター",
+    "cardCharacterDesc": "キャラクター変更・カスタマイズ",
+    "cardStudio": "スタジオ",
+    "cardStudioDesc": "自分だけのワールドを作る",
+    "cardAnnouncements": "お知らせ",
+    "cardAnnouncementsDesc": "パッチノート・アップデート",
+    "cardInventory": "インベントリ",
+    "cardInventoryDesc": "獲得したアイテム",
+    "settings": "設定",
+    "support": "サポート",
+    "fullscreenHint": "フルスクリーン切替",
+    "quit": "終了",
+    "quitConfirm": "本当に終了しますか？ ワールドから退出し、ボイスチャットが切断されます。"
   }
 }

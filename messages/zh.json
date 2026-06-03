@@ -2171,5 +2171,32 @@
     "voiceVolumeTitle": "🔊 语音音量",
     "voiceVolumeOff": "麦克风关闭",
     "voiceVolumeSpeaking": "正在说话"
+  },
+  "Launcher": {
+    "tagline": "A I R   L I V E   P L A Y",
+    "welcome": "欢迎，",
+    "loginButton": "登录",
+    "readyTitle": "准备好了吗？",
+    "readyDesc": "和朋友们一起进入虚拟世界",
+    "enterWorld": "进入世界",
+    "loginNeededTitle": "欢迎来到 ALP",
+    "loginNeededDesc": "进入世界需要先登录",
+    "cardGames": "游戏",
+    "cardGamesDesc": "钓鱼·烹饪·地下城等小游戏",
+    "cardFriends": "好友",
+    "cardFriendsDesc": "在线好友列表",
+    "cardCharacter": "角色",
+    "cardCharacterDesc": "更换 / 装扮角色",
+    "cardStudio": "工作室",
+    "cardStudioDesc": "创建自己的世界",
+    "cardAnnouncements": "公告",
+    "cardAnnouncementsDesc": "补丁说明 / 更新",
+    "cardInventory": "背包",
+    "cardInventoryDesc": "已获得的物品",
+    "settings": "设置",
+    "support": "支持",
+    "fullscreenHint": "切换全屏",
+    "quit": "退出",
+    "quitConfirm": "确定要退出吗？将离开世界并断开语音通话。"
   }
 }

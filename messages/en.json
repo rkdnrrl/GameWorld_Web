@@ -2171,5 +2171,32 @@
     "voiceVolumeTitle": "🔊 Voice Volume",
     "voiceVolumeOff": "Mic off",
     "voiceVolumeSpeaking": "Speaking"
+  },
+  "Launcher": {
+    "tagline": "A I R   L I V E   P L A Y",
+    "welcome": "Welcome,",
+    "loginButton": "Log in",
+    "readyTitle": "Ready to play?",
+    "readyDesc": "Enter the virtual world with your friends",
+    "enterWorld": "Enter World",
+    "loginNeededTitle": "Welcome to ALP",
+    "loginNeededDesc": "Please log in to enter the world",
+    "cardGames": "Games",
+    "cardGamesDesc": "Fishing, cooking, dungeons and more",
+    "cardFriends": "Friends",
+    "cardFriendsDesc": "See who's online",
+    "cardCharacter": "Character",
+    "cardCharacterDesc": "Change & customize your avatar",
+    "cardStudio": "Studio",
+    "cardStudioDesc": "Build your own world",
+    "cardAnnouncements": "News",
+    "cardAnnouncementsDesc": "Patch notes & updates",
+    "cardInventory": "Inventory",
+    "cardInventoryDesc": "Items you've collected",
+    "settings": "Settings",
+    "support": "Support",
+    "fullscreenHint": "Toggle fullscreen",
+    "quit": "Quit",
+    "quitConfirm": "Quit ALP? You'll leave the world and voice chat will disconnect."
   }
 }
