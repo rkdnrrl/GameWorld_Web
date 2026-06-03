@@ -7473,7 +7473,8 @@ export default function StudioCanvas() {
                     multiSelectedIds={multiSelectedIds}
                     myAssets={myAssets}
                     onObjectClick={id => {
-                      if (shiftHeldRef.current) {
+                      // 뷰포트 다중 선택은 Ctrl+클릭 (트리 다중과 일관성). Shift 는 카메라 가속 우선.
+                      if (ctrlHeldRef.current) {
                         shiftClickObject(id);
                       } else {
                         setStudioMode('scene');
