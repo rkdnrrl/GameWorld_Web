@@ -904,6 +904,50 @@ function CanvasPointerEventsKeeper() {
   return null;
 }
 
+/**
+ * 1인칭(pointer lock) 모드에서 크로스헤어(화면 중앙) 클릭으로 다른 플레이어 패널 열기.
+ *
+ * R3F 의 onClick 은 마우스 좌표 기반이라 pointer lock 중엔 안 잡힘.
+ * 화면 중앙 (NDC 0,0) 에서 raycaster 발사 → userData.playerId 가진 mesh 찾아 호출부에 전달.
+ * 10m 이내만 — 너무 먼 사람은 무시.
+ *
+ * 다른 mesh(벽 등)에 가려진 플레이어는 자동 제외 (intersection 순서가 거리 오름차순).
+ */
+function RemotePlayerCrosshairClick({
+  players, onPlayerClick,
+}: {
+  players: Record<string, RemotePlayer>;
+  onPlayerClick: (p: RemotePlayer) => void;
+}) {
+  const { camera, scene } = useThree();
+  useEffect(() => {
+    const onPointerDown = (e: PointerEvent) => {
+      if (!document.pointerLockElement) return;  // 1인칭(pointer lock)만 — 3인칭은 기존 onClick 사용
+      if (e.button !== 0) return;
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+      const hits = raycaster.intersectObject(scene, true);
+      for (const hit of hits) {
+        if (hit.distance > 10) break;  // 10m 너머는 정지 (정렬돼 있어서 break 안전)
+        // hit.object 부터 부모 거슬러 올라가며 userData.playerId 찾기
+        let obj: THREE.Object3D | null = hit.object;
+        while (obj) {
+          const pid = obj.userData?.playerId as string | undefined;
+          if (pid) {
+            const p = players[pid];
+            if (p) { onPlayerClick(p); return; }
+            return;  // playerId 매치했는데 players 에 없으면 그냥 종료
+          }
+          obj = obj.parent;
+        }
+      }
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    return () => window.removeEventListener('pointerdown', onPointerDown);
+  }, [camera, scene, players, onPlayerClick]);
+  return null;
+}
+
 function GraphicsApplier({ shadowSize, shadowFilter, shadowRadius }: {
   shadowSize: number;
   shadowFilter: 'basic' | 'pcf' | 'pcfsoft';
@@ -1843,6 +1887,7 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick 
       <group
         ref={meshRef}
         position={[0, PLAYER_MESH_Y, 0]}
+        userData={{ playerId: player.id }}
         onClick={onPlayerClick ? (e) => {
           e.stopPropagation();
           onPlayerClick(player);
@@ -4467,6 +4512,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         />
         <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
         <CanvasPointerEventsKeeper />
+        <RemotePlayerCrosshairClick players={players} onPlayerClick={setSelectedRemote} />
 
         {/* 스튜디오 시뮬레이션과 동일한 Sky 파라미터(기본 turbidity/rayleigh) — WYSIWYG 일치 */}
         {showSky && !hdriBackground && <Sky sunPosition={[20, 10, 10]} />}
