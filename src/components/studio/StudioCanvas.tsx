@@ -3790,6 +3790,8 @@ export default function StudioCanvas() {
   const simGameRuntime = useMemo(() => createGameRuntime({ onUiSet, onUiVisible }), [onUiSet, onUiVisible]);
   // 영상 컨트롤(스크러버/재생·정지/±5초) 용 레지스트리 — 시뮬 영상 핸들 등록처. 단일 플레이라 로컬 조작.
   const simVideoRegistry: VideoRegistry = useRef<Map<string, VideoHandle>>(new Map());
+  // 자동재생 잠금 해제 ID — VideoInitialStateApplier 가 매 frame 강제 pause. ▶ 클릭 시 unlock.
+  const simVideoUnlockedRef = useRef<Set<string>>(new Set());
   // 시뮬 중 URL 변경(리모컨 🔗) 오버라이드 — objId→새 URL. stopSim 에서 초기화.
   const [simVideoUrlOverrides, setSimVideoUrlOverrides] = useState<Record<string, string>>({});
   // targetId 지정 시 그 화면만(리모컨), 미지정 시 등록된 모두(2D 바). 단일 플레이라 로컬 조작.
@@ -3800,7 +3802,10 @@ export default function StudioCanvas() {
       const v = simVideoRegistry.current.get(objId);
       if (v && typeof cmd.seekBy === 'number') v.seek(Math.max(0, (v.getTime() || 0) + cmd.seekBy));
       if (v && typeof cmd.seekTo === 'number') v.seek(cmd.seekTo);
-      if (v && typeof cmd.playing === 'boolean') v.setPlaying(cmd.playing);
+      if (v && typeof cmd.playing === 'boolean') {
+        if (cmd.playing) simVideoUnlockedRef.current.add(objId);
+        v.setPlaying(cmd.playing);
+      }
       if (v && typeof cmd.volume === 'number') v.setVolume(cmd.volume);
       if (v && typeof cmd.muted === 'boolean') v.setMuted(cmd.muted);
       if (cmd.url && !targetId) setSimVideoUrlOverrides(m => ({ ...m, [objId]: cmd.url! }));
@@ -7419,7 +7424,8 @@ export default function StudioCanvas() {
                 // 어떤 videoRemote 든 globalAudio=true 면 전역 음향
                 globalAudio={simObjs.some(o => o.components?.some(c => c.type === 'videoRemote' && c.props?.globalAudio))} />
               <VideoInitialStateApplier registry={simVideoRegistry}
-                initiallyPaused={simObjs.some(o => o.components?.some(c => c.type === 'videoRemote' && c.props?.initiallyPlaying === false))} />
+                initiallyPaused={simObjs.some(o => o.components?.some(c => c.type === 'videoRemote' && c.props?.initiallyPlaying === false))}
+                unlockedRef={simVideoUnlockedRef} />
               <Physics gravity={[0, worldPhysics.gravity, 0]} interpolate={false}>
                 <SimScene objects={simObjs} transforms={simTransforms} myAssets={myAssets} gameApi={simGameRuntime.api}
                   player={simCharacter ? {

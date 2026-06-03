@@ -3111,6 +3111,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const clickBurstRef = useRef<Map<string, number>>(new Map());
   // 비디오 스크린 레지스트리 — objId→<video>. 소리 켜기(제스처)+멀티 동기화에 사용.
   const videoRegistry: VideoRegistry = useRef<Map<string, VideoHandle>>(new Map());
+  // 자동재생 잠금 해제 ID — VideoInitialStateApplier 가 매 frame 강제 pause. 사용자 ▶ 클릭 또는
+  // 호스트 sync 로 playing:true 도착하면 unlock → 그 후 정상 재생. "입장 시 자동 재생" off 일 때만 효력.
+  const videoUnlockedRef = useRef<Set<string>>(new Set());
   // 월드는 실제 재생(live) + 소리 ON(첫 클릭에 unmute) + 동기화 ON. (value 고정 → 재렌더 방지)
   const videoCtxValue = useMemo(() => ({ live: true, withSound: true, registry: videoRegistry }), []);
   // 게임 로직 레이어 — 스크립트의 game/ui/world.playSound 가 이 스토어로 들어옴. <GameHud> 가 그림.
@@ -3161,6 +3164,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         sendScriptEvent?.(objId, VIDEO_CTL_EVENT, { seekTo: cmd.seekTo });
       }
       if (v && typeof cmd.playing === 'boolean') {
+        if (cmd.playing) videoUnlockedRef.current.add(objId);
         v.setPlaying(cmd.playing);
         sendScriptEvent?.(objId, VIDEO_CTL_EVENT, { playing: cmd.playing });
       }
@@ -3397,6 +3401,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           const newUrl = d.url;
           setVideoUrlOverrides(prev => prev[objectId] === newUrl ? prev : ({ ...prev, [objectId]: newUrl }));
         }
+        // 호스트가 playing:true 보냈으면 — 호스트가 의도적으로 재생한 것. 자동재생 lock 해제.
+        if (d.playing === true) videoUnlockedRef.current.add(objectId);
         const v = videoRegistry.current.get(objectId);
         if (v) applyVideoSync(v, d);
         return;
@@ -3408,7 +3414,10 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         // 본인이 보낸 echo 는 무시 — 이미 로컬에서 적용했음 (자기→자기 broadcast 가 도착하는 케이스).
         if (fromId && fromId === playerId) return;
         if (typeof d.seekTo === 'number') videoRegistry.current.get(objectId)?.seek(d.seekTo);
-        if (typeof d.playing === 'boolean') videoRegistry.current.get(objectId)?.setPlaying(d.playing);
+        if (typeof d.playing === 'boolean') {
+          if (d.playing) videoUnlockedRef.current.add(objectId);
+          videoRegistry.current.get(objectId)?.setPlaying(d.playing);
+        }
         if (typeof d.volume === 'number') videoRegistry.current.get(objectId)?.setVolume(d.volume);
         if (typeof d.muted === 'boolean') videoRegistry.current.get(objectId)?.setMuted(d.muted);
         // same-value skip — 같은 url 이면 새 state 객체 안 만듦 → 불필요한 re-render 차단.
@@ -4684,7 +4693,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             globalAudio={!!customObjects?.some(o => o.components?.some(c => c.type === 'videoRemote' && c.props?.globalAudio))} />
           <VideoInitialStateApplier registry={videoRegistry}
             // 어떤 videoRemote 든 initiallyPlaying=false 면 모든 비디오 처음에 정지
-            initiallyPaused={!!customObjects?.some(o => o.components?.some(c => c.type === 'videoRemote' && c.props?.initiallyPlaying === false))} />
+            initiallyPaused={!!customObjects?.some(o => o.components?.some(c => c.type === 'videoRemote' && c.props?.initiallyPlaying === false))}
+            unlockedRef={videoUnlockedRef} />
           <Physics gravity={[0, gravityY, 0]} interpolate={false}>
             {customObjects !== undefined ? (
               // 유저 제작 월드 — 기본 그라운드 없음. 필요하면 평면 직접 배치
