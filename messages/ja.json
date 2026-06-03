@@ -36,6 +36,7 @@
     "inventory": "インベントリ",
     "logout": "ログアウト",
     "relogin": "再ログイン",
+    "expiryWarning": "⏰ {mins}分後にログインが切れます。",
     "login": "ログイン",
     "announcements": "お知らせ",
     "community": "掲示板",
@@ -589,7 +590,9 @@
     "tierEpic": "エピック",
     "tierLegendary": "レジェンダリー",
     "backHome": "← ホームへ",
-    "headerLink": "装備"
+    "headerLink": "装備",
+    "loginRequired": "ログインが必要です。",
+    "loginCta": "ログイン →"
   },
   "Leaderboard": {
     "title": "🏆 ランキング",
@@ -2198,5 +2201,14 @@
     "fullscreenHint": "フルスクリーン切替",
     "quit": "終了",
     "quitConfirm": "本当に終了しますか？ ワールドから退出し、ボイスチャットが切断されます。"
+  },
+  "Developer": {
+    "loading": "読み込み中…",
+    "notFound": "開発者が見つかりません。",
+    "backToGames": "← ゲーム一覧",
+    "badge": "開発者",
+    "gameCount": "🎮 {count}個のゲーム",
+    "releasedGames": "公開中のゲーム",
+    "noGames": "まだ公開されたゲームはありません。"
   }
 }

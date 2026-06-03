@@ -211,10 +211,10 @@ async function loadFBXCached(url: string): Promise<FBXLoaded> {
           loader.register((parser) => new vrmMod.VRMLoaderPlugin(parser));
           loader.load(url, (gltf) => {
             const vrm = (gltf.userData?.vrm as VRMLike | undefined);
-            // VRM 이면 카메라 향하도록 회전 정리 (Y-up 표준)
+            // VRM 이면 카메라 향하도록 회전 정리 (Y-up 표준).
+            // rotateVRM0 은 VRM 1.0 모델에선 unsupported throw 가능 → try/catch.
             if (vrm) {
-              vrmMod.VRMUtils.rotateVRM0(vrm as never); // VRM 0.x → 1.0 방향 맞춤 (1.0 면 noop)
-              // 메모리 절감: 불필요 vertex 제거 (선택)
+              try { vrmMod.VRMUtils.rotateVRM0(vrm as never); } catch { /* VRM 1.0 — noop */ }
               try { vrmMod.VRMUtils.removeUnnecessaryJoints(vrm.scene); } catch { /* noop */ }
             }
             const result: FBXLoaded = {

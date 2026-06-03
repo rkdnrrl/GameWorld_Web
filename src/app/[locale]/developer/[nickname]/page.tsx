@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import type { GameCategory } from "@/components/GameCard";
 import DeveloperProfileEdit from "@/components/DeveloperProfileEdit";
@@ -30,6 +31,7 @@ type DevProfile = {
 export default function DeveloperPage() {
   const params  = useParams();
   const nickname = decodeURIComponent(String(params?.nickname ?? ""));
+  const t = useTranslations("Developer");
 
   const [data,    setData]    = useState<DevProfile | null | false>(null); // null=로딩, false=없음
   const [loading, setLoading] = useState(true);
@@ -46,7 +48,7 @@ export default function DeveloperPage() {
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center bg-[#f5f5f5]">
-        <p className="text-gray-400">불러오는 중…</p>
+        <p className="text-gray-400">{t("loading")}</p>
       </div>
     );
   }
@@ -54,8 +56,8 @@ export default function DeveloperPage() {
   if (!data) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 bg-[#f5f5f5]">
-        <p className="text-lg text-gray-500">개발자를 찾을 수 없습니다.</p>
-        <Link href="/games" className="text-sm text-blue-600 hover:underline">← 게임 목록</Link>
+        <p className="text-lg text-gray-500">{t("notFound")}</p>
+        <Link href="/games" className="text-sm text-blue-600 hover:underline">{t("backToGames")}</Link>
       </div>
     );
   }
@@ -89,7 +91,7 @@ export default function DeveloperPage() {
               <div className="flex flex-wrap items-center gap-3">
                 <h1 className="text-2xl font-bold text-gray-900">{data.nickname}</h1>
                 <span className="rounded-full bg-indigo-100 px-3 py-0.5 text-xs font-semibold text-indigo-600">
-                  개발자
+                  {t("badge")}
                 </span>
                 {/* 내 프로필이면 편집 링크 */}
                 <DeveloperProfileEdit
@@ -106,7 +108,7 @@ export default function DeveloperPage() {
               )}
 
               <div className="mt-3 flex flex-wrap gap-4 text-sm text-gray-500">
-                <span>🎮 {data.games.length}개 게임</span>
+                <span>{t("gameCount", { count: data.games.length })}</span>
                 {data.websiteUrl && (
                   <a href={data.websiteUrl} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-1 text-blue-600 hover:underline">
@@ -119,10 +121,10 @@ export default function DeveloperPage() {
         </div>
 
         {/* ── 게임 목록 ── */}
-        <h2 className="mb-4 text-lg font-semibold text-gray-800">출시한 게임</h2>
+        <h2 className="mb-4 text-lg font-semibold text-gray-800">{t("releasedGames")}</h2>
 
         {data.games.length === 0 ? (
-          <p className="py-16 text-center text-gray-400">아직 출시된 게임이 없습니다.</p>
+          <p className="py-16 text-center text-gray-400">{t("noGames")}</p>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {data.games.map((g) => {

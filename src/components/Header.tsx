@@ -119,7 +119,7 @@ export default function Header() {
       {/* 만료 임박 경고 배너 */}
       {loggedIn && expiryWarningMins !== null && (
         <div className="flex items-center justify-between gap-3 bg-amber-500 px-4 py-2 text-sm font-medium text-white">
-          <span>⏰ {expiryWarningMins}분 후 로그인이 만료됩니다.</span>
+          <span>{t("expiryWarning", { mins: expiryWarningMins })}</span>
           <Link
             href="/login"
             className="shrink-0 rounded bg-white px-3 py-1 text-xs font-bold text-amber-700 hover:bg-amber-50"

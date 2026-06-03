@@ -37,6 +37,7 @@
     "logout": "Logout",
     "login": "Login",
     "relogin": "Re-login",
+    "expiryWarning": "⏰ Session expires in {mins} min.",
     "announcements": "News",
     "community": "Community",
     "shop": "Shop",
@@ -589,7 +590,9 @@
     "tierEpic": "Epic",
     "tierLegendary": "Legendary",
     "backHome": "← Home",
-    "headerLink": "Equipment"
+    "headerLink": "Equipment",
+    "loginRequired": "Login required.",
+    "loginCta": "Log in →"
   },
   "Leaderboard": {
     "title": "🏆 Leaderboard",
@@ -2198,5 +2201,14 @@
     "fullscreenHint": "Toggle fullscreen",
     "quit": "Quit",
     "quitConfirm": "Quit ALP? You'll leave the world and voice chat will disconnect."
+  },
+  "Developer": {
+    "loading": "Loading…",
+    "notFound": "Developer not found.",
+    "backToGames": "← Games list",
+    "badge": "Developer",
+    "gameCount": "🎮 {count} games",
+    "releasedGames": "Released games",
+    "noGames": "No games released yet."
   }
 }

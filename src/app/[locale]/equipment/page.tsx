@@ -124,8 +124,8 @@ export default function EquipmentPage() {
   if (!session.getToken() && !loading) {
     return (
       <section className="mx-auto max-w-2xl px-4 py-16 text-center">
-        <p className="text-zinc-500">로그인이 필요합니다.</p>
-        <Link href="/login" className="mt-4 inline-block text-blue-600 hover:underline">로그인 →</Link>
+        <p className="text-zinc-500">{t("loginRequired")}</p>
+        <Link href="/login" className="mt-4 inline-block text-blue-600 hover:underline">{t("loginCta")}</Link>
       </section>
     );
   }

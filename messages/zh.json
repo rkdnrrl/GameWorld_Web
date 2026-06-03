@@ -36,6 +36,7 @@
     "inventory": "背包",
     "logout": "退出登录",
     "relogin": "重新登录",
+    "expiryWarning": "⏰ 登录将在 {mins} 分钟后过期。",
     "login": "登录",
     "announcements": "公告",
     "community": "社区",
@@ -589,7 +590,9 @@
     "tierEpic": "史诗",
     "tierLegendary": "传说",
     "backHome": "← 返回首页",
-    "headerLink": "装备"
+    "headerLink": "装备",
+    "loginRequired": "需要登录。",
+    "loginCta": "登录 →"
   },
   "Leaderboard": {
     "title": "🏆 排行榜",
@@ -2198,5 +2201,14 @@
     "fullscreenHint": "切换全屏",
     "quit": "退出",
     "quitConfirm": "确定要退出吗？将离开世界并断开语音通话。"
+  },
+  "Developer": {
+    "loading": "加载中…",
+    "notFound": "未找到开发者。",
+    "backToGames": "← 游戏列表",
+    "badge": "开发者",
+    "gameCount": "🎮 {count} 款游戏",
+    "releasedGames": "已发布游戏",
+    "noGames": "尚未发布任何游戏。"
   }
 }
