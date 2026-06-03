@@ -4166,8 +4166,25 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const [selectedRemote, setSelectedRemote] = useState<RemotePlayer | null>(null);
   /** 음성 채팅 (Phase 22) — listen-only 자동, mic 은 사용자 토글 */
   const [voiceEnabled, setVoiceEnabled] = useState(false);  // 첫 user gesture 시 true
-  const [voiceMicOn, setVoiceMicOn] = useState(false);
+  const [voiceMicOn, setVoiceMicOnState] = useState(false);
   const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
+
+  // 마이크 ON/OFF 선호도 영속화 — 한 번 켜면 새로고침·월드이동 후에도 유지.
+  // 브라우저 마이크 권한도 도메인 단위로 한 번 허용하면 영구이므로 자동 복원 안전.
+  const setVoiceMicOn = useCallback((updater: boolean | ((p: boolean) => boolean)) => {
+    setVoiceMicOnState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      try { window.localStorage.setItem('alp_voice_mic_on', next ? '1' : '0'); } catch { /* noop */ }
+      return next;
+    });
+  }, []);
+  // 첫 user gesture (voiceEnabled=true) 후 저장된 선호도 복원
+  useEffect(() => {
+    if (!voiceEnabled) return;
+    try {
+      if (window.localStorage.getItem('alp_voice_mic_on') === '1') setVoiceMicOnState(true);
+    } catch { /* noop */ }
+  }, [voiceEnabled]);
   const peerIdList = useMemo(() => Object.keys(players), [players]);
   const voice = useVoiceChat({
     socket: socketRef?.current ?? null,
