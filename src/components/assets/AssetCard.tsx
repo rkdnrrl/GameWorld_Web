@@ -285,8 +285,9 @@ export default function AssetCard({
               {t('download')}
             </a>
           )}
-          {asset.metadata?.referenceOnly ? (
-            // 마켓에서 가져온(참조) 에셋 — 원본 소유자 것이라 공개/비공개 전환 불가
+          {(asset.metadata?.referenceOnly || asset.metadata?.importedFrom) ? (
+            // 마켓에서 가져온(참조) 에셋 — 원본 소유자 것이라 공개/비공개 전환 불가.
+            // 옛 데이터 호환: referenceOnly 가 없어도 importedFrom 있으면 동일 취급.
             <span
               title={t('referencedHint')}
               style={{
