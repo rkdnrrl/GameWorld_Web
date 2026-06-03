@@ -167,8 +167,11 @@ export const CORE_ANIM_STATES = ['idle', 'walk', 'run', 'jump', 'fall', 'crouch'
 
 export interface AnimTrim { start?: number; end?: number; }
 
-/* ── FBX 캐시 — 같은 URL 한 번만 로드 ───── */
-type FBXLoaded = { obj: THREE.Object3D; anims: THREE.AnimationClip[] };
+/* ── 캐릭터 모델 캐시 — 같은 URL 한 번만 로드 (FBX/GLB/GLTF/VRM 통합) ───── */
+// VRM 의 경우 vrm 필드 채워짐 — 매 frame vrm.update(dt) 필요 (스프링본, 표정 etc).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type VRMLike = { update: (dt: number) => void; expressionManager?: any; scene: THREE.Object3D };
+type FBXLoaded = { obj: THREE.Object3D; anims: THREE.AnimationClip[]; vrm?: VRMLike };
 const fbxCache    = new Map<string, FBXLoaded>();
 const fbxLoading  = new Map<string, Promise<FBXLoaded>>();
 
@@ -195,20 +198,51 @@ async function loadFBXCached(url: string): Promise<FBXLoaded> {
   if (fbxCache.has(url))    return fbxCache.get(url)!;
   if (fbxLoading.has(url))  return fbxLoading.get(url)!;
 
-  const p = new Promise<FBXLoaded>((resolve, reject) => {
-    import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
-      new FBXLoader().load(url, (fbx) => {
-        const result: FBXLoaded = {
-          obj:   fbx,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          anims: ((fbx as any).animations as THREE.AnimationClip[]) ?? [],
-        };
-        fbxCache.set(url, result);
-        fbxLoading.delete(url);
-        resolve(result);
-      }, undefined, reject);
-    });
-  });
+  const isGltf = /\.(glb|gltf|vrm)(\?|$)/i.test(url);
+
+  const p = isGltf
+    ? new Promise<FBXLoaded>((resolve, reject) => {
+        // GLB/VRM — GLTFLoader + VRMLoaderPlugin (MToon 셰이더 복원 + expressionManager 등)
+        Promise.all([
+          import('three/examples/jsm/loaders/GLTFLoader.js'),
+          import('@pixiv/three-vrm'),
+        ]).then(([{ GLTFLoader }, vrmMod]) => {
+          const loader = new GLTFLoader();
+          loader.register((parser) => new vrmMod.VRMLoaderPlugin(parser));
+          loader.load(url, (gltf) => {
+            const vrm = (gltf.userData?.vrm as VRMLike | undefined);
+            // VRM 이면 카메라 향하도록 회전 정리 (Y-up 표준)
+            if (vrm) {
+              vrmMod.VRMUtils.rotateVRM0(vrm as never); // VRM 0.x → 1.0 방향 맞춤 (1.0 면 noop)
+              // 메모리 절감: 불필요 vertex 제거 (선택)
+              try { vrmMod.VRMUtils.removeUnnecessaryJoints(vrm.scene); } catch { /* noop */ }
+            }
+            const result: FBXLoaded = {
+              obj:   vrm?.scene ?? gltf.scene,
+              anims: gltf.animations ?? [],
+              vrm,
+            };
+            fbxCache.set(url, result);
+            fbxLoading.delete(url);
+            resolve(result);
+          }, undefined, reject);
+        }).catch(reject);
+      })
+    : new Promise<FBXLoaded>((resolve, reject) => {
+        import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
+          new FBXLoader().load(url, (fbx) => {
+            const result: FBXLoaded = {
+              obj:   fbx,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              anims: ((fbx as any).animations as THREE.AnimationClip[]) ?? [],
+            };
+            fbxCache.set(url, result);
+            fbxLoading.delete(url);
+            resolve(result);
+          }, undefined, reject);
+        });
+      });
+
   fbxLoading.set(url, p);
   return p;
 }
@@ -281,6 +315,8 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   const feetCalibFrames = useRef(0);
   const feetCalibDone   = useRef(false);
   const footBones       = useRef<THREE.Object3D[]>([]);
+  // VRM 인스턴스 — 매 frame vrm.update(dt) 호출 필요 (스프링본, expressionManager 등)
+  const vrmRef          = useRef<VRMLike | null>(null);
   // lip-sync (음성 amplitude → 입 morph 또는 jaw bone)
   const lipTargetRef    = useRef<LipSyncTarget | null>(null);
   const lipBufRef       = useRef<Uint8Array>(new Uint8Array(ANALYSER_BUFFER_SIZE));
@@ -331,9 +367,14 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
     };
 
     (async () => {
-      const { obj: source, anims } = await loadFBXCached(url);
+      const { obj: source, anims, vrm } = await loadFBXCached(url);
+      vrmRef.current = vrm ?? null;
+      // VRM 일 땐 clone 우회 — expressionManager 가 원본 scene 만 가리키기 때문.
+      // (같은 VRM 을 여러 인스턴스로 동시 사용하면 lipSync 공유됨 — 일반 케이스 아니라 OK)
+      const skipClone = !!vrm;
       if (cancelled) return;
-      const cloned = await cloneFBX(source);
+      // VRM 은 clone 우회 (expressionManager 가 원본 scene 만 가리킴)
+      const cloned = skipClone ? source : await cloneFBX(source);
       if (cancelled) return;
       cloned.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).castShadow = castShadow; });
       autoNormalize(cloned, rotX, 1.8);
@@ -376,8 +417,9 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       });
 
       setObj(cloned);
-      // lip-sync 타겟 검색 (morph 또는 jaw bone). 없으면 머리 위 🎤 fallback 활성.
-      const lipTarget = findLipSyncTarget(cloned);
+      // lip-sync 타겟 검색 — VRM 이면 expressionManager 우선, 아니면 morph/jaw bone.
+      // 없으면 머리 위 🎤 fallback 활성.
+      const lipTarget = findLipSyncTarget(cloned, vrm);
       lipTargetRef.current = lipTarget;
       setHasLipMorph(lipTarget.kind !== 'none');
       // 새 모델 로드 — 발 보정 리셋 + foot bone 찾기
@@ -432,6 +474,10 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   // 본 위치는 마지막 포즈에 멈춰있어 캐릭터가 정적으로 보이지만 멀어서 차이 거의 X.
   // 가까이 들어오면 자동으로 update 재개 + state 전환 따라잡음.
   useFrame((state, dt) => {
+    // VRM 업데이트 (스프링본 + expressionManager). mixer 없어도 매 frame 필요.
+    if (vrmRef.current) {
+      try { vrmRef.current.update(dt); } catch { /* noop */ }
+    }
     if (!mixer.current) return;
     let skipMixer = false;
     // 탭 백그라운드면 mixer skip — 보이지도 않는데 본 계산 불필요

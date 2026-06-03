@@ -6,14 +6,16 @@
  *  - 후원자 명단 (크레딧)
  */
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { Link } from '@/i18n/navigation';
 import { useTranslations } from 'next-intl';
 import { api } from '@/lib/api';
 import { SupporterBadge } from '@/components/SupporterBadge';
 
 // 미설정 시 머그컵 카드 자체 숨김. 결정되면 Vercel env 에 NEXT_PUBLIC_MUGCUP_URL 등록.
 const MUGCUP_URL = process.env.NEXT_PUBLIC_MUGCUP_URL?.trim() || '';
-const TOSS_URL   = '/ko/donate';                       // 토스페이먼츠 (기존 /donate 페이지)
+// next-intl 의 Link 가 현재 locale 자동 prepend (예: /ko/donate, /en/donate).
+// 하드코딩 '/ko/donate' 는 영어/일본어/중국어 사용자가 한국어 페이지로 빠짐.
+const TOSS_URL   = '/donate';
 
 interface Supporter {
   id: string; username: string; profileImageUrl: string | null; iconEmoji: string | null;

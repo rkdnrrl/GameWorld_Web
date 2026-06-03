@@ -14,13 +14,18 @@ import * as THREE from 'three';
 /** 캐릭터에서 발견된 입 제어 핸들 */
 export interface LipSyncTarget {
   /** 무엇이 입을 제어하는지 — UI fallback 판단용 */
-  kind: 'morph' | 'bone' | 'none';
+  kind: 'expression' | 'morph' | 'bone' | 'none';
   /** kind='morph' 시 morphTarget 이 있는 메시들 + 해당 influence 인덱스 */
   morphs: Array<{ mesh: THREE.Mesh; index: number }>;
   /** kind='bone' 시 회전할 jaw bone */
   jawBone?: THREE.Object3D;
   /** jawBone 의 기본 회전 (복원용) */
   jawRest?: THREE.Euler;
+  /** kind='expression' — VRM expressionManager (vrm.update() 가 매 frame 호출되어야 적용됨) */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  expressionManager?: any;
+  /** kind='expression' — viseme 이름 ('aa' / 'A' / 'mouthOpen') */
+  expressionName?: string;
 }
 
 /** mouth-open morph target 이름 후보 (대소문자 무시, 공백/언더바/하이픈 제거 후 비교) */
@@ -53,14 +58,34 @@ const MORPH_SUFFIX_PATTERNS = [
 const JAW_BONE_CANDIDATES = ['jaw', '턱'];
 
 /** GLB/FBX scene 에서 lip-sync 타겟을 찾음 (한번만 호출, 결과 캐시).
+ *  VRM 의 expressionManager 가 있으면 그게 우선 (가장 정확한 viseme 제어).
  *  디버그: localStorage 에 `alp_lipsync_debug=1` 세팅하면 매칭 안 된 morph 이름들을 console 에 출력.
- *  (VRoid/RPM 등 새 캐릭터 import 후 매칭 실패 시 후보 추가 판단용)
+ *
+ *  @param vrm 선택. VRM 인스턴스 있으면 expressionManager 로 viseme 매칭 시도.
  */
-export function findLipSyncTarget(root: THREE.Object3D): LipSyncTarget {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function findLipSyncTarget(root: THREE.Object3D, vrm?: any): LipSyncTarget {
   const morphs: Array<{ mesh: THREE.Mesh; index: number }> = [];
   let jawBone: THREE.Object3D | undefined;
   const debug = typeof window !== 'undefined' && window.localStorage?.getItem('alp_lipsync_debug') === '1';
   const allMorphNames: string[] = [];
+
+  // VRM expressionManager 우선 매칭 (가장 정확)
+  const em = vrm?.expressionManager;
+  if (em) {
+    // VRM 표준 viseme: aa / ih / ou / ee / oh — 'aa' 가 입 가장 크게 벌림
+    const candidates = ['aa', 'A', 'mouthOpen', 'oh', 'OH'];
+    for (const name of candidates) {
+      // expression 이 존재하면 (있으면 expressions 배열에 있음)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const exp = em.getExpression?.(name) ?? (em.expressionMap && em.expressionMap[name]);
+      if (exp) {
+        if (debug) console.log('[lipSync] VRM expression matched:', name);
+        return { kind: 'expression', morphs: [], expressionManager: em, expressionName: name };
+      }
+    }
+    if (debug) console.log('[lipSync] VRM has expressionManager but no aa/mouthOpen — fallback to morph search');
+  }
 
   root.traverse((obj) => {
     // morph target 검색
@@ -125,7 +150,10 @@ export function smoothLevel(prev: number, target: number): number {
 
 /** 매 프레임 호출 — level 0~1 을 캐릭터 입에 적용. */
 export function applyLipSync(target: LipSyncTarget, level: number): void {
-  if (target.kind === 'morph') {
+  if (target.kind === 'expression' && target.expressionManager && target.expressionName) {
+    // VRM expressionManager — setValue 후 vrm.update(dt) 가 actual blend shape 적용함
+    try { target.expressionManager.setValue(target.expressionName, level); } catch { /* noop */ }
+  } else if (target.kind === 'morph') {
     for (const { mesh, index } of target.morphs) {
       if (mesh.morphTargetInfluences) {
         mesh.morphTargetInfluences[index] = level;

@@ -16,6 +16,7 @@ interface ShopItem {
 
 export default function ShopPage() {
   const t = useTranslations("Shop");
+  const tCommon = useTranslations("Common");
   const [items, setItems] = useState<ShopItem[]>([]);
   const [coins, setCoins] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -92,7 +93,7 @@ export default function ShopPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-zinc-500">불러오는 중…</p>
+        <p className="text-sm text-zinc-500">{tCommon("loading")}</p>
       ) : (
         <ul className="space-y-3">
           {items.map((item) => (
