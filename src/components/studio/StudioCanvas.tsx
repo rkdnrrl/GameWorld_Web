@@ -4008,6 +4008,8 @@ export default function StudioCanvas() {
   const isMarqueeRef = useRef(false);
   const dragStartRef = useRef<Map<string, {p:[number,number,number];r:[number,number,number];s:[number,number,number]}>>(new Map());
   const shiftHeldRef = useRef(false);
+  // Ctrl/Cmd held — 트리 클릭으로 개별 토글 선택 (Shift 와 별개)
+  const ctrlHeldRef = useRef(false);
   // 트리 범위 선택용 앵커(마지막 단일 클릭 지점) + 키보드 핸들러에서 읽을 최신 선택 상태
   const rangeAnchorRef = useRef<string | null>(null);
   const selRef = useRef<{ sel: string | null; multi: Set<string> }>({ sel: null, multi: new Set() });
@@ -4020,13 +4022,19 @@ export default function StudioCanvas() {
   const rmbHeldRef = useRef(false);
 
   useEffect(() => {
-    const dn = (e: KeyboardEvent) => { if (e.key === 'Shift') shiftHeldRef.current = true; };
-    const up = (e: KeyboardEvent) => { if (e.key === 'Shift') shiftHeldRef.current = false; };
+    const dn = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') shiftHeldRef.current = true;
+      if (e.key === 'Control' || e.key === 'Meta') ctrlHeldRef.current = true;
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') shiftHeldRef.current = false;
+      if (e.key === 'Control' || e.key === 'Meta') ctrlHeldRef.current = false;
+    };
     const mdn = (e: MouseEvent) => { if (e.button === 2) rmbHeldRef.current = true; };
     const mup = (e: MouseEvent) => { if (e.button === 2) rmbHeldRef.current = false; };
     // 자가 보정 — 네이티브 컨텍스트 메뉴 등으로 mouseup 을 놓쳐도 buttons 비트로 RMB 상태 복구
     const mmv = (e: MouseEvent) => { rmbHeldRef.current = (e.buttons & 2) === 2; };
-    const blur = () => { shiftHeldRef.current = false; rmbHeldRef.current = false; };
+    const blur = () => { shiftHeldRef.current = false; ctrlHeldRef.current = false; rmbHeldRef.current = false; };
     window.addEventListener('keydown', dn);
     window.addEventListener('keyup', up);
     window.addEventListener('mousedown', mdn);
@@ -4289,6 +4297,15 @@ export default function StudioCanvas() {
         if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) { e.preventDefault(); redo(); return; }
         if (e.key === 'd') { e.preventDefault(); duplicate(); return; }
         if (e.key === 's') { e.preventDefault(); save(); return; }   // Ctrl+S 저장
+        // Ctrl+G 그룹화 / Ctrl+Shift+G 그룹 해제
+        if (e.key === 'g' || e.key === 'G') {
+          const tag = (e.target as HTMLElement)?.tagName;
+          if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+          e.preventDefault();
+          if (e.shiftKey) ungroupSelected();
+          else groupSelected();
+          return;
+        }
         // Ctrl+A — 전체 선택 (입력창은 텍스트 전체선택 기본 동작 그대로)
         if (e.key === 'a' || e.key === 'A') {
           const tag = (e.target as HTMLElement)?.tagName;
@@ -4352,6 +4369,9 @@ export default function StudioCanvas() {
       else if (!rmbHeldRef.current && (e.key === 'e' || e.key === 'E')) setMode('rotate');
       else if (!rmbHeldRef.current && (e.key === 'r' || e.key === 'R')) setMode('scale');
       else if ((e.key === 'f' || e.key === 'F') && selectedId) focusObject(selectedId);
+      // 패널 토글 — T=트리(좌측) / N=인스펙터(우측). Blender 식.
+      else if (!rmbHeldRef.current && (e.key === 't' || e.key === 'T')) setLeftPanelOpen(prev => !prev);
+      else if (!rmbHeldRef.current && (e.key === 'n' || e.key === 'N')) setRightPanelOpen(prev => !prev);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -4512,6 +4532,51 @@ export default function StudioCanvas() {
     } catch (e) {
       alert(tCanvas("alert_prefab_save_failed", { message: (e as Error).message }));
     }
+  }
+
+  /* Ctrl+G — 선택된 객체들을 새 empty 그룹의 자식으로 묶기.
+     위치 보정 없음 (자식 local position 그대로) — group 자체는 원점 (0,0,0). */
+  function groupSelected() {
+    const { sel, multi } = selRef.current;
+    const baseIds = multi.size > 0 ? [...multi] : sel ? [sel] : [];
+    if (baseIds.length < 1) return;
+    const groupId = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const targets = new Set(baseIds);
+    setObjects(prev => {
+      const next: MapObject[] = [
+        ...prev.map(o => targets.has(o.id) ? { ...o, parentId: groupId } : o),
+        {
+          id: groupId,
+          kind: 'empty' as const,
+          label: makeLabel('empty'),
+          position: [0, 0, 0] as [number, number, number],
+          rotation: [0, 0, 0] as [number, number, number],
+          scale:    [1, 1, 1] as [number, number, number],
+          color: '#60a5fa',
+        },
+      ];
+      pushHistory(next);
+      return next;
+    });
+    setSelectedId(groupId);
+    setMultiSelectedIds(new Set());
+  }
+
+  /* Ctrl+Shift+G — 선택된 empty 그룹 해제. 자식들의 parentId 풀고 그룹 자체 제거. */
+  function ungroupSelected() {
+    const { sel, multi } = selRef.current;
+    const targets = new Set<string>(multi.size > 0 ? [...multi] : sel ? [sel] : []);
+    if (targets.size === 0) return;
+    setObjects(prev => {
+      const groupIds = new Set(prev.filter(o => targets.has(o.id) && o.kind === 'empty').map(o => o.id));
+      if (groupIds.size === 0) return prev;
+      const next = prev
+        .filter(o => !groupIds.has(o.id))
+        .map(o => o.parentId && groupIds.has(o.parentId) ? { ...o, parentId: undefined } : o);
+      pushHistory(next);
+      return next;
+    });
+    setMultiSelectedIds(new Set());
   }
 
   /* 프리팹을 씬에 인스턴스화 — 위치 인자로 받음.
@@ -6164,7 +6229,10 @@ export default function StudioCanvas() {
                 onFocusObject={focusObject}
                 onContextMenu={(objId, x, y) => setTreeCtxMenu({ x, y, objId })}
                 selectedCallback={id => {
-                  if (shiftHeldRef.current) {
+                  if (ctrlHeldRef.current) {
+                    // Ctrl+클릭 — 토글 선택 (개별 추가/제거)
+                    shiftClickObject(id);
+                  } else if (shiftHeldRef.current) {
                     rangeSelectObject(id);
                   } else {
                     setStudioMode('scene');

@@ -1324,7 +1324,7 @@
     "scGizmo": "操纵器模式",
     "scGizmoHint": "W: 移动 · E: 旋转 · R: 缩放",
     "scEdit": "编辑",
-    "scEditHint": "Ctrl+S: 保存 · Ctrl+Z: 撤销 · Ctrl+Y: 重做 · Ctrl+D: 复制 · Ctrl+A: 全选 · Ctrl+I: 反选 · Ctrl+H: 隐藏 · Del: 删除 · ←↑→↓: 微调 (Shift=1m) · F: 聚焦 · Esc: 取消选择",
+    "scEditHint": "Ctrl+S: 保存 · Ctrl+Z: 撤销 · Ctrl+Y: 重做 · Ctrl+D: 复制 · Ctrl+G: 编组 · Ctrl+Shift+G: 解除编组 · Ctrl+A: 全选 · Ctrl+I: 反选 · Ctrl+H: 隐藏 · Ctrl+点击(树): 切换选择 · Del: 删除 · ←↑→↓: 微调 (Shift=1m) · F: 聚焦 · T: 树面板 · N: 检查器 · Esc: 取消选择",
     "scSim": "模拟",
     "scSimHint": "Esc: 停止 · F8: 自由视角 / 跟随相机切换",
     "lightColor": "颜色",
