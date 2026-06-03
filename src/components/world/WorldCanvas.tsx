@@ -33,6 +33,7 @@ import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimati
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, parseUrlKind, normalizeMediaUrl, ImageMaterial, GenericIframeOverlay, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, VideoRemotePanel, VideoDistanceUpdater, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
+import VoiceSettingsPanel from './VoiceSettingsPanel';
 import { RemotePlayerInfoPanel } from './RemotePlayerInfoPanel';
 import { useVoiceChat } from '@/lib/world/useVoiceChat';
 import { createGameRuntime, GAME_SYNC_EVENT, GAME_SOUND_EVENT, type GameSnapshot } from '@/lib/world/gameRuntime';
@@ -4166,6 +4167,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   /** 음성 채팅 (Phase 22) — listen-only 자동, mic 은 사용자 토글 */
   const [voiceEnabled, setVoiceEnabled] = useState(false);  // 첫 user gesture 시 true
   const [voiceMicOn, setVoiceMicOn] = useState(false);
+  const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
   const peerIdList = useMemo(() => Object.keys(players), [players]);
   const voice = useVoiceChat({
     socket: socketRef?.current ?? null,
@@ -4238,6 +4240,36 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           background: 'rgba(251,191,36,0.85)', color: '#000', fontSize: 11,
           borderRadius: 6, zIndex: 16777273, pointerEvents: 'none', maxWidth: 200,
         }}>{voice.error}</div>
+      )}
+
+      {/* 음성 설정 (Phase 37) — 마이크 버튼 왼쪽에 🎚 토글 */}
+      <button
+        type="button"
+        onClick={() => setVoiceSettingsOpen(v => !v)}
+        title="음성 설정 — 마이크·전체·개별 볼륨"
+        style={{
+          position: 'fixed', top: 76, right: 68,
+          width: 44, height: 44, borderRadius: '50%',
+          border: `2px solid ${voiceSettingsOpen ? '#a5b4fc' : 'rgba(255,255,255,0.25)'}`,
+          background: voiceSettingsOpen ? 'rgba(99,102,241,0.4)' : 'rgba(10,15,30,0.55)',
+          color: '#fff', fontSize: 18, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 16777273, boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
+          pointerEvents: 'auto',
+        }}
+      >
+        🎚
+      </button>
+      {voiceSettingsOpen && (
+        <VoiceSettingsPanel
+          micGain={voice.micGain} setMicGain={voice.setMicGain}
+          masterGain={voice.masterGain} setMasterGain={voice.setMasterGain}
+          micOnPeers={[...voice.micOnIds].map(id => ({ id, name: players[id]?.username || id.slice(0, 8) }))}
+          speakingIds={voice.speakingIds}
+          getPeerGain={voice.getPeerGain}
+          setPeerGain={voice.setPeerGain}
+          onClose={() => setVoiceSettingsOpen(false)}
+        />
       )}
 
       {/* 말하는 사람 인디케이터 (좌상단 리스트) */}

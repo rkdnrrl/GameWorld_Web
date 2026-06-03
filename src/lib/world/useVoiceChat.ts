@@ -68,6 +68,15 @@ export interface VoiceChatState {
   error?: string;
   speakingIds: Set<string>;
   micOnIds: Set<string>;
+  /** 0~1 — 내 마이크 송신 게인 (다른 유저에게 들리는 내 목소리 크기) */
+  micGain: number;
+  setMicGain: (v: number) => void;
+  /** 0~1 — 모든 원격 음성 마스터 게인 */
+  masterGain: number;
+  setMasterGain: (v: number) => void;
+  /** 0~1 — 특정 유저 음성 게인. 미설정 = 1.0 */
+  getPeerGain: (peerId: string) => number;
+  setPeerGain: (peerId: string, v: number) => void;
 }
 
 interface RemotePeerInfo {
@@ -75,8 +84,24 @@ interface RemotePeerInfo {
   trackName: string;
   pannerMid?: string;
   panner?: PannerNode;
+  personalGain?: GainNode;   // 이 유저만 줄이기/키우기
   analyser?: AnalyserNode;
   rafId?: number;
+}
+
+const LS_MIC_GAIN     = 'alp_voice_mic_gain';
+const LS_MASTER_GAIN  = 'alp_voice_master_gain';
+const LS_PEER_GAINS   = 'alp_voice_peer_gains';
+
+function loadPersistedGain(key: string, fallback: number): number {
+  if (typeof window === 'undefined') return fallback;
+  const v = parseFloat(window.localStorage.getItem(key) ?? '');
+  return Number.isFinite(v) && v >= 0 && v <= 1 ? v : fallback;
+}
+function loadPersistedPeerGains(): Record<string, number> {
+  if (typeof window === 'undefined') return {};
+  try { return JSON.parse(window.localStorage.getItem(LS_PEER_GAINS) ?? '{}'); }
+  catch { return {}; }
 }
 
 export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, posesRef, localPoseRef }: Options): VoiceChatState {
@@ -100,6 +125,39 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
   const audioCtxRef    = useRef<AudioContext | null>(null);
   // 더미 audio element (Safari workaround — addStream 안정성)
   const sinkElemRef    = useRef<HTMLAudioElement | null>(null);
+
+  // ── 게인 상태 ──────────────────────────────────────────────
+  // 마이크 게인: applyNoiseSuppression 안의 GainNode 가 .gain.value 직접 참조.
+  // ref 객체 통째로 넘기면 외부 변경이 즉시 노드에 반영됨.
+  const micGainNodeRef    = useRef<GainNode | null>(null);
+  const masterGainNodeRef = useRef<GainNode | null>(null);
+  const [micGain,    setMicGainState]    = useState<number>(() => loadPersistedGain(LS_MIC_GAIN, 1));
+  const [masterGain, setMasterGainState] = useState<number>(() => loadPersistedGain(LS_MASTER_GAIN, 1));
+  const [peerGains,  setPeerGains]       = useState<Record<string, number>>(() => loadPersistedPeerGains());
+
+  const setMicGain = useCallback((v: number) => {
+    const clamped = Math.max(0, Math.min(1, v));
+    setMicGainState(clamped);
+    if (micGainNodeRef.current) micGainNodeRef.current.gain.value = clamped;
+    try { window.localStorage.setItem(LS_MIC_GAIN, String(clamped)); } catch { /* noop */ }
+  }, []);
+  const setMasterGain = useCallback((v: number) => {
+    const clamped = Math.max(0, Math.min(1, v));
+    setMasterGainState(clamped);
+    if (masterGainNodeRef.current) masterGainNodeRef.current.gain.value = clamped;
+    try { window.localStorage.setItem(LS_MASTER_GAIN, String(clamped)); } catch { /* noop */ }
+  }, []);
+  const setPeerGain = useCallback((peerId: string, v: number) => {
+    const clamped = Math.max(0, Math.min(1, v));
+    setPeerGains(prev => {
+      const next = { ...prev, [peerId]: clamped };
+      try { window.localStorage.setItem(LS_PEER_GAINS, JSON.stringify(next)); } catch { /* noop */ }
+      return next;
+    });
+    const info = remotesRef.current.get(peerId);
+    if (info?.personalGain) info.personalGain.gain.value = clamped;
+  }, []);
+  const getPeerGain = useCallback((peerId: string) => peerGains[peerId] ?? 1, [peerGains]);
 
   /** 백엔드 voice API 호출 helper */
   const apiCall = useCallback(async <T = unknown>(path: string, method: 'POST' | 'PUT', body: unknown): Promise<T> => {
@@ -130,9 +188,10 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
     // mic 있으면 sendonly, 없으면 recvonly (listen-only)
     let transceiver: RTCRtpTransceiver | null = null;
     if (micStream) {
-      // RNNoise 노이즈 제거 시도 (실패해도 raw track 사용)
-      const cleanedTrack = await applyNoiseSuppression(micStream).catch(() => null);
-      const micTrack = cleanedTrack || micStream.getAudioTracks()[0];
+      // RNNoise 노이즈 제거 + 사용자 마이크 게인 적용 (실패해도 raw track 사용)
+      const processed = await applyMicProcessing(micStream, micGain).catch(() => null);
+      const micTrack = processed?.track || micStream.getAudioTracks()[0];
+      micGainNodeRef.current = processed?.gainNode || null;
       if (!micTrack) throw new Error('no mic track');
       transceiver = pc.addTransceiver(micTrack, { direction: 'sendonly' });
 
@@ -228,6 +287,15 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
       document.body.appendChild(el);
 
       if (!sinkElemRef.current) sinkElemRef.current = el;
+
+      // 마스터 게인 노드 (한 ctx 당 1개) — 모든 원격 음성이 여길 통과
+      if (!masterGainNodeRef.current) {
+        const mg = ctx.createGain();
+        mg.gain.value = masterGain;
+        mg.connect(ctx.destination);
+        masterGainNodeRef.current = mg;
+      }
+
       const src = ctx.createMediaStreamSource(el.srcObject as MediaStream);
       const panner = ctx.createPanner();
       panner.panningModel  = 'HRTF';
@@ -239,12 +307,18 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
       const pose = posesRef?.current?.get(peerId);
       if (pose) setPannerPosition(panner, pose.x, pose.y, pose.z);
 
+      const personalGain = ctx.createGain();
+      personalGain.gain.value = peerGains[peerId] ?? 1;
+
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
+      // src → analyser (음성 활성 감지용)
       src.connect(analyser);
-      src.connect(panner).connect(ctx.destination);
+      // src → panner → personalGain → masterGain → destination (실제 출력 체인)
+      src.connect(panner).connect(personalGain).connect(masterGainNodeRef.current);
 
       info.panner = panner;
+      info.personalGain = personalGain;
       info.analyser = analyser;
 
       const buf = new Uint8Array(analyser.frequencyBinCount);
@@ -314,6 +388,7 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
     if (!info) return;
     if (info.rafId) cancelAnimationFrame(info.rafId);
     if (info.panner) try { info.panner.disconnect(); } catch {}
+    if (info.personalGain) try { info.personalGain.disconnect(); } catch {}
     remotesRef.current.delete(peerId);
     setSpeakingIds(prev => { if (!prev.has(peerId)) return prev; const n = new Set(prev); n.delete(peerId); return n; });
     setMicOnIds(prev => { if (!prev.has(peerId)) return prev; const n = new Set(prev); n.delete(peerId); return n; });
@@ -553,12 +628,18 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
     remotesRef.current.forEach((info) => {
       if (info.rafId) cancelAnimationFrame(info.rafId);
       if (info.panner) try { info.panner.disconnect(); } catch {}
+    if (info.personalGain) try { info.personalGain.disconnect(); } catch {}
     });
     sinkElemRef.current?.remove();
     try { audioCtxRef.current?.close(); } catch {}
   }, []);
 
-  return { status, error, speakingIds, micOnIds };
+  return {
+    status, error, speakingIds, micOnIds,
+    micGain, setMicGain,
+    masterGain, setMasterGain,
+    getPeerGain, setPeerGain,
+  };
 }
 
 function setPannerPosition(panner: PannerNode, x: number, y: number, z: number) {
@@ -635,7 +716,15 @@ function enhanceOpusSdp(sdp: string): string {
  */
 let rnnoiseWasmCachePromise: Promise<ArrayBuffer> | null = null;
 
-async function applyNoiseSuppression(micStream: MediaStream): Promise<MediaStreamTrack> {
+/**
+ * 마이크 stream 처리 파이프라인:
+ *   source → RNNoise → GainNode(사용자 마이크 게인) → MediaStreamDestination
+ * GainNode 를 반환해서 외부에서 .gain.value 로 실시간 조절 가능.
+ */
+async function applyMicProcessing(
+  micStream: MediaStream,
+  initialGain: number,
+): Promise<{ track: MediaStreamTrack; gainNode: GainNode }> {
   const { RnnoiseWorkletNode, loadRnnoise } = await import('@sapphi-red/web-noise-suppressor');
 
   // 48kHz 고정 (RNNoise 가정)
@@ -650,17 +739,17 @@ async function applyNoiseSuppression(micStream: MediaStream): Promise<MediaStrea
     });
   }
   const wasmBinary = await rnnoiseWasmCachePromise;
-
   await ctx.audioWorklet.addModule('/voice/rnnoise-worklet.js');
 
   const source = ctx.createMediaStreamSource(micStream);
   const denoise = new RnnoiseWorkletNode(ctx, { maxChannels: 1, wasmBinary });
+  const gainNode = ctx.createGain();
+  gainNode.gain.value = Math.max(0, Math.min(1, initialGain));
   const dest = ctx.createMediaStreamDestination();
 
-  source.connect(denoise);
-  denoise.connect(dest);
+  source.connect(denoise).connect(gainNode).connect(dest);
 
-  const cleaned = dest.stream.getAudioTracks()[0];
-  if (!cleaned) throw new Error('no cleaned track');
-  return cleaned;
+  const track = dest.stream.getAudioTracks()[0];
+  if (!track) throw new Error('no processed mic track');
+  return { track, gainNode };
 }
