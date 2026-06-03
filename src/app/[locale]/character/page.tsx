@@ -1012,7 +1012,9 @@ export default function CharacterPage() {
     setShowPicker(false);
     setShowMixamoGuide(false);
     setModelScale(1.0);
-    setModelRotX(-Math.PI / 2);
+    // 좌표계 기본값: FBX = Z-up (-90°), GLB/GLTF/VRM = Y-up (0°)
+    const isYUp = /\.(glb|gltf|vrm)(\?|$)/i.test(asset.modelUrl);
+    setModelRotX(isYUp ? 0 : -Math.PI / 2);
     setModelOffsetY(0);
     setAvailableAnims([]);
     setAnimMap(Object.fromEntries(operatorSlots.map(s => [s, ''])));
