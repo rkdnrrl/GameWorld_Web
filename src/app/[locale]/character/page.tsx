@@ -5,7 +5,6 @@ import { OrbitControls } from '@react-three/drei';
 import { useRouter } from '@/i18n/navigation';
 import { useTranslations } from 'next-intl';
 import { session } from '@/lib/api';
-import CreatorNav from '@/components/creator/CreatorNav';
 import * as THREE from 'three';
 import { retargetClipsToModel, hasSkeleton } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
@@ -1200,7 +1199,6 @@ export default function CharacterPage() {
         fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif",
         boxSizing: 'border-box',
       }}>
-        <CreatorNav />
         <div style={{
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
         padding: '24px 16px',

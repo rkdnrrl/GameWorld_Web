@@ -628,6 +628,27 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
     return () => cancelAnimationFrame(raf);
   }, [enabled, posesRef, localPoseRef]);
 
+  /**
+   * AudioContext 자동 resume — 새로고침 직후 사용자 제스처 없이 attachPanner 가 호출되면
+   * 새 AudioContext 가 suspended 로 시작해 영구 무음 되는 버그 방지. 첫 클릭/키/터치 한 번에 resume.
+   * enabled 동안 listener 유지 (resume 후에도 ctx 가 다시 suspended 되는 케이스 — OS sleep 등 — 대비).
+   */
+  useEffect(() => {
+    if (!enabled) return;
+    const tryResume = () => {
+      const ctx = audioCtxRef.current;
+      if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+    };
+    window.addEventListener('pointerdown', tryResume);
+    window.addEventListener('keydown', tryResume);
+    window.addEventListener('touchstart', tryResume, { passive: true });
+    return () => {
+      window.removeEventListener('pointerdown', tryResume);
+      window.removeEventListener('keydown', tryResume);
+      window.removeEventListener('touchstart', tryResume);
+    };
+  }, [enabled]);
+
   /** unmount 시 전부 정리 */
   useEffect(() => () => {
     micStreamRef.current?.getTracks().forEach(t => t.stop());

@@ -17,9 +17,9 @@ type Tab = {
   labelKey: string;
 };
 
+// 캐릭터 탭은 월드 안 모달(/character iframe)에서 접근 — 헤더에서 노출 안 함.
 const TABS: Tab[] = [
   { match: '/assets',    href: '/assets',    icon: '📦', labelKey: 'navAssets' },
-  { match: '/character', href: '/character', icon: '🎮', labelKey: 'navCharacter' },
   { match: '/studio',    href: '/studio',    icon: '🏗️', labelKey: 'navStudio' },
 ];
 
