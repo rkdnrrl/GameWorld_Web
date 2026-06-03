@@ -2044,6 +2044,34 @@ function SceneRefCapture({ target }: { target: { current: THREE.Scene | null } }
 
 /* ── 노출(toneMapping) + HDRI IBL 강도 라이브 업데이트
    gl prop / Environment prop 은 초기 마운트만 적용되므로 매 렌더마다 직접 세팅한다. */
+/** 스튜디오 메인 태양광 — 카메라 위치 따라가서 shadow frustum (±80) 안에 캐릭터/오브젝트 항상 들어오게.
+ *  버그 fix: 라이트가 고정 좌표 (20,30,10) 라 멀리 가면 그림자 frustum 박스 밖이라 그림자가 끊기거나
+ *  검은 띠 같은 아티팩트 발생. 방향은 (20,30,10) → cam 으로 일정 유지. */
+function FollowingStudioSun({ intensity }: { intensity: number }) {
+  const ref = useRef<THREE.DirectionalLight>(null);
+  useFrame((state) => {
+    if (!ref.current) return;
+    const cam = state.camera.position;
+    ref.current.position.set(cam.x + 20, cam.y + 30, cam.z + 10);
+    ref.current.target.position.copy(cam);
+    ref.current.target.updateMatrixWorld();
+  });
+  return (
+    <directionalLight
+      ref={ref}
+      position={[20, 30, 10]}
+      intensity={intensity}
+      castShadow
+      shadow-mapSize={[2048, 2048]}
+      shadow-camera-left={-80} shadow-camera-right={80}
+      shadow-camera-top={80} shadow-camera-bottom={-80}
+      shadow-camera-near={0.1} shadow-camera-far={200}
+      shadow-bias={-0.0005}
+      shadow-normalBias={0.02}
+    />
+  );
+}
+
 function ExposureUpdater({ exposure, hdriIntensity }: { exposure: number; hdriIntensity: number }) {
   const { gl, scene } = useThree();
   gl.toneMappingExposure = exposure;
@@ -7356,12 +7384,7 @@ export default function StudioCanvas() {
           <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
           <CanvasPointerEventsKeeper simulating={simulating} />
           <ambientLight intensity={lightAmbient} />
-          <directionalLight position={[20, 30, 10]} intensity={lightDir} castShadow
-            shadow-mapSize={[2048, 2048]}
-            shadow-camera-left={-80} shadow-camera-right={80}
-            shadow-camera-top={80} shadow-camera-bottom={-80}
-            shadow-camera-near={0.1} shadow-camera-far={200}
-            shadow-bias={-0.0005} />
+          <FollowingStudioSun intensity={lightDir} />
           {skyEnabled && !hdriBackground && <Sky sunPosition={[20, 10, 10]} />}
           {/* HDRI 환경맵 — 커스텀 URL 우선, 없으면 프리셋, none이면 미사용 */}
           {hdriUrl.trim() ? (
