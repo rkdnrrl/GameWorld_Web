@@ -66,24 +66,8 @@ export async function createHumanoidCharacter(
   const loaded = await loadHumanoid(url, opts);
   const { root, bones, vrm, allBoneNames, allMorphTargets, diagnosis } = loaded;
 
-  // VRM spring bone — center bone (hips) 설정으로 캐릭터 이동을 spring 계산에서 분리.
-  // center 가 hips 면 캐릭터 전체 이동·회전은 머리카락도 같이 따라가서 떨림 없음.
-  // 머리카락의 흔들림은 hips 기준 상대 회전만 spring 처리 → 자연스럽게 흩날림.
-  // 모델이 명시적으로 center 설정한 joint 는 그대로 두고 (의도 존중), null 만 보강.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = (vrm as any)?.springBoneManager;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const hipsNode = (vrm as any)?.humanoid?.getRawBoneNode?.('hips')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    || (vrm as any)?.humanoid?.getNormalizedBoneNode?.('hips');
-  if (sb?.joints && hipsNode) {
-    try {
-      for (const joint of sb.joints) {
-        if (!joint) continue;
-        if (joint.center == null) joint.center = hipsNode;
-      }
-    } catch { /* noop */ }
-  }
+  // VRM spring bone — 모델 원본 설정 그대로 사용. 우리가 stiffness/center 손대지 않음.
+  // vrm-viewer.ownverse.world 와 동일 패턴: vrm.update(dt) 통합 호출만.
 
   // mixer root = vrm.scene (또는 root). HumanoidMesh 에서 VRMA clip 의 track name 을
   // raw bone 이름으로 rewrite → mixer 가 raw scene 안의 raw bone 직접 driving.
@@ -157,26 +141,9 @@ export async function createHumanoidCharacter(
       headNode.scale.setScalar(visible ? 1 : 0.001);
     },
     update: (dt) => {
-      // VRM 부속 컴포넌트 개별 호출 — spring bone 만 substep 으로 떨림 방지.
-      // vrm.update(dt) 통합 호출 시 큰 dt 가 spring 진동 유발.
-      if (vrm) {
-        try { vrm.humanoid?.update?.(); } catch { /* noop */ }
-        try { vrm.lookAt?.update?.(dt); } catch { /* noop */ }
-        try { vrm.expressionManager?.update?.(); } catch { /* noop */ }
-        try { vrm.nodeConstraintManager?.update?.(); } catch { /* noop */ }
-        // spring bone — 작은 step 으로 여러 번 update (떨림/oscillation 방지).
-        // 1/120s step → 60Hz 게임에서 2 substep, 30Hz 에서 4 substep. 안정성 ↑.
-        if (vrm.springBoneManager?.update) {
-          const SPRING_STEP = 1 / 120;
-          let remaining = Math.min(dt, 0.1); // 큰 dt cap (탭 전환 등)
-          try {
-            while (remaining > 0) {
-              const step = Math.min(remaining, SPRING_STEP);
-              vrm.springBoneManager.update(step);
-              remaining -= step;
-            }
-          } catch { /* noop */ }
-        }
+      // vrm-viewer 와 동일: vrm.update(dt) 통합 호출 → mixer.update(dt). dt 만 cap (큰 dt 시 진동).
+      if (vrm?.update) {
+        try { vrm.update(Math.min(dt, 0.05)); } catch { /* noop */ }
       }
       mixer.update(dt);
       // VRM 없을 때 head bone 으로 lookAt fallback — 머리만 타깃 응시
