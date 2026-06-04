@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { createHumanoidCharacter, type HumanoidCharacter } from '@/lib/character/humanoidCharacter';
-import { loadAnimationSource, retargetWithSkeletonUtils, type AnimationSource } from '@/lib/character/humanoidAnimation';
+import { loadAnimationSource, retargetWithSkeletonUtils, normalizeClipToHumanoidNames, retargetClipToHumanoid, type AnimationSource } from '@/lib/character/humanoidAnimation';
 import type { AnimSlot } from '@/lib/character/humanoid';
 
 /** 슬롯별 raw 애니메이션 source 모듈 캐시 — 캐릭터별 retarget 위해 한 번만 로드. */
@@ -118,11 +118,22 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
             if (!clipUrl) return;
             try {
               const src = await getAnimationSource(clipUrl, slot);
-              const retargeted = await retargetWithSkeletonUtils(src.root, src.clip, c.bones);
-              retargeted.name = slot;
-              clipMap.set(slot as AnimSlot, retargeted);
+              // Pass 1 — SkeletonUtils.retargetClip (rest pose 보정, 정확)
+              let retargeted: THREE.AnimationClip | null = null;
+              try {
+                retargeted = await retargetWithSkeletonUtils(src.root, src.clip, c.bones);
+              } catch (e1) {
+                console.warn(`[humanoid] ${slot} SkeletonUtils 실패 — 단순 본 이름 매핑 fallback`, e1);
+                // Pass 2 — 단순 본 이름 매핑 (rest pose 보정 X, 자세 어긋날 수 있지만 T-pose 보단 나음)
+                const normalized = normalizeClipToHumanoidNames(src.clip);
+                retargeted = retargetClipToHumanoid(normalized, c.bones);
+              }
+              if (retargeted) {
+                retargeted.name = slot;
+                clipMap.set(slot as AnimSlot, retargeted);
+              }
             } catch (e) {
-              console.warn(`[humanoid] ${slot} 클립 로드/retarget 실패`, e);
+              console.warn(`[humanoid] ${slot} 클립 로드 실패`, e);
             }
           }));
           if (cancelled) return;

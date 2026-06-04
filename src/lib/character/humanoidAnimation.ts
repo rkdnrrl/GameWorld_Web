@@ -50,11 +50,11 @@ export async function loadAnimationSource(url: string, name?: string): Promise<A
 }
 
 /** SkeletonUtils.retargetClip 으로 source → target 본 매핑 + rest pose 보정.
- *  three.js 의 표준 retargeter — 본 hierarchy + rest pose 차이를 자동 보정 (이론상).
+ *  three.js 의 표준 retargeter.
  *
- *  @param source source root (FBX 의 fbx, GLB 의 scene 등 — skeleton 포함)
+ *  @param source source root (FBX/GLB 의 root — SkinnedMesh + skeleton 포함)
  *  @param clip source clip (raw)
- *  @param targetBones 캐릭터의 humanoid → 실제 본 매핑 (humanoidCharacter.bones)
+ *  @param targetBones 캐릭터의 humanoid → 실제 본 매핑
  *  @returns target 본 이름 기준 retargeted clip
  */
 export async function retargetWithSkeletonUtils(
@@ -62,27 +62,47 @@ export async function retargetWithSkeletonUtils(
   clip: THREE.AnimationClip,
   targetBones: Partial<Record<HumanoidBoneName, THREE.Object3D>>,
 ): Promise<THREE.AnimationClip> {
+  // SkinnedMesh 가 있어야 skeleton 접근 가능
+  let sourceSkinned: THREE.SkinnedMesh | null = null;
+  source.traverse((o) => {
+    const sm = o as THREE.SkinnedMesh;
+    if (sm.isSkinnedMesh && sm.skeleton?.bones?.length && !sourceSkinned) sourceSkinned = sm;
+  });
+  if (!sourceSkinned) throw new Error('source 에 SkinnedMesh 없음 — SkeletonUtils retarget 불가');
+
+  // target 도 SkinnedMesh 찾기 — bones map 의 hips 부모 거슬러 올라가 scene 또는 그 위
+  const hipsBone = targetBones.hips;
+  if (!hipsBone) throw new Error('target 에 hips 본 없음');
+  let targetRoot: THREE.Object3D = hipsBone;
+  let i = 0;
+  // 최상위 (R3F Scene 직전) 까지 거슬러 올라감 — 안전하게 10단계 제한
+  while (targetRoot.parent && i < 10) { targetRoot = targetRoot.parent; i++; }
+  let targetSkinned: THREE.SkinnedMesh | null = null;
+  targetRoot.traverse((o) => {
+    const sm = o as THREE.SkinnedMesh;
+    if (sm.isSkinnedMesh && sm.skeleton?.bones?.length && !targetSkinned) targetSkinned = sm;
+  });
+  if (!targetSkinned) throw new Error('target 에 SkinnedMesh 없음');
+
   const { retargetClip } = await import('three/examples/jsm/utils/SkeletonUtils.js');
-  // source 의 본 이름 → humanoid → target 의 그 humanoid 본 이름 매핑.
-  // SkeletonUtils 가 본을 매칭할 때 getBoneName 콜백으로 source 본 이름을 target 본 이름으로 rename.
+  // source 의 본 이름 → humanoid 표준 → target 의 그 humanoid 본 이름
   const getBoneName = (bone: THREE.Bone): string => {
     const humanoid = detectHumanoidName(bone.name);
     if (!humanoid) return bone.name;
     const targetBone = targetBones[humanoid];
     return targetBone?.name ?? bone.name;
   };
-  // target root 를 만들기 위해 humanoid bones map 에서 hips 부터 trace
-  const hipsBone = targetBones.hips;
-  if (!hipsBone) throw new Error('target 에 hips 본 없음 — retarget 불가');
-  // hips 의 최상위 부모 = target skeleton root
-  let targetRoot: THREE.Object3D = hipsBone;
-  while (targetRoot.parent && targetRoot.parent.type !== 'Scene') targetRoot = targetRoot.parent;
+
+  // SkeletonUtils.retargetClip 는 target/source 가 SkinnedMesh 또는 Skeleton 가진 Object3D
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const retargeted = (retargetClip as any)(targetRoot, source, clip, {
+  const retargeted = (retargetClip as any)(targetSkinned, sourceSkinned, clip, {
     fps: 30,
     useFirstFramePosition: true,
     getBoneName,
   });
+  if (!retargeted || !retargeted.tracks?.length) {
+    throw new Error('SkeletonUtils.retargetClip 결과가 비어있음');
+  }
   return retargeted;
 }
 
