@@ -16,6 +16,28 @@ import { createHumanoidCharacter, type HumanoidCharacter } from '@/lib/character
 import { loadVRMA, vrmaToClip } from '@/lib/character/vrmAnimation';
 import type { AnimSlot } from '@/lib/character/humanoid';
 
+const API = (typeof window !== 'undefined' && (window as { __ALP_API__?: string }).__ALP_API__) || 'https://airliveplay.com';
+
+/** 운영자 등록 슬롯 클립 url — 모든 캐릭터 공용. 모듈 캐시 (첫 호출에 fetch, 이후 캐시). */
+let clipUrlsPromise: Promise<Partial<Record<AnimSlot, string>>> | null = null;
+function getOperatorClipUrls(): Promise<Partial<Record<AnimSlot, string>>> {
+  if (!clipUrlsPromise) {
+    clipUrlsPromise = fetch(`${API}/api/character-animations`)
+      .then((r) => r.ok ? r.json() : { slots: {} })
+      .then((d: { slots?: Record<string, { modelUrl?: string; enabled?: boolean }> }) => {
+        const slots = d.slots || {};
+        const out: Partial<Record<AnimSlot, string>> = {};
+        for (const slot of ['idle','walk','run','jump','fall'] as AnimSlot[]) {
+          const s = slots[slot];
+          if (s?.modelUrl && s.enabled !== false) out[slot] = s.modelUrl;
+        }
+        return out;
+      })
+      .catch(() => ({}));
+  }
+  return clipUrlsPromise;
+}
+
 export interface HumanoidMeshProps {
   /** 모델 URL — .vrm / .glb / .gltf / .fbx 등 */
   url: string;
@@ -72,10 +94,14 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
         const c = await getCharacter(url, manualBoneMap);
         if (cancelled) return;
         local = c;
-        // ── 클립 로드 ── 운영자가 등록한 슬롯별 VRMA. VRM 인스턴스 필수.
-        if (c.vrm && clipUrls) {
+        // ── 클립 로드 ── prop clipUrls 우선, 없으면 운영자 등록 글로벌. VRM 인스턴스 필수 (vrma).
+        const effectiveClipUrls = clipUrls && Object.keys(clipUrls).length
+          ? clipUrls
+          : await getOperatorClipUrls();
+        if (cancelled) return;
+        if (c.vrm && effectiveClipUrls) {
           const clipMap = new Map<AnimSlot, THREE.AnimationClip>();
-          await Promise.all(Object.entries(clipUrls).map(async ([slot, clipUrl]) => {
+          await Promise.all(Object.entries(effectiveClipUrls).map(async ([slot, clipUrl]) => {
             if (!clipUrl) return;
             try {
               const vrma = await loadVRMA(clipUrl);

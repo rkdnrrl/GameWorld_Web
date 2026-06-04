@@ -18,6 +18,10 @@ interface RapierBodyApi {
   setAngvel(v: { x: number; y: number; z: number }, wakeUp: boolean): void;
 }
 import * as THREE from 'three';
+import { HumanoidMesh } from './HumanoidMesh';
+
+/** animStateRef 가 없을 때 fallback — 항상 idle. */
+const FALLBACK_IDLE_REF: React.RefObject<AnimState> = { current: 'idle' as AnimState };
 import type { ChatBubble, RemotePlayer, PlayerPose } from '@/lib/world/useGameSocket';
 import type { GraphicsSettings } from '@/lib/world/graphicsSettings';
 import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
@@ -29,6 +33,7 @@ import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UI_SYNC_EVENT, DATA_SYNC_EVENT, type UiData } from '@/lib/world/uiObjects';
 import { api as backendApi } from '@/lib/api';
+// ⚠ T10 임시 — dead CustomModel/loadFBXCached 가 아직 의존. 다음 step 에서 전체 삭제 시 함께 제거
 import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
 import PostFX, { derivePostFX } from '@/lib/world/PostFX';
@@ -61,8 +66,11 @@ function lerpAngle(current: number, target: number, t: number): number {
   return current + diff * t;
 }
 
-/* ── 커스텀 3D 모델 (Suspense 없이 명령형 로드 — RigidBody 리셋 방지) ── */
-/** 모델을 목표 높이(m)에 맞춰 자동 정규화 + 회전 적용 + 발 정렬
+/* ─── ⚠ T10 폐기 영역 시작 ───
+ *  옛 CustomModel + loadFBXCached + autoNormalize + cloneFBX + trimClip + getRenderableBounds 등
+ *  통합 humanoid 시스템 (HumanoidMesh) 으로 대체됨. 이 블록 전부 dead code.
+ *  ────────────────────────────── */
+/** [DEAD] 모델을 목표 높이(m)에 맞춰 자동 정규화 + 회전 적용 + 발 정렬
  *  rotX 를 미리 적용한 뒤 측정/align 해야 Z-up FBX (Meshy 등) 도 발이 y=0 에 옴
  */
 /** 크기·회전·발 정렬(bind pose box.min.y → y=0) — 자동 클리어런스 X. 사용자가 offsetY 슬라이더로 수동 조정 */
@@ -609,86 +617,36 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   );
 }
 
-/* ── 캐릭터 메쉬 (커스텀 or 블록형) ───── */
+/* ── 캐릭터 메쉬 (통합 humanoid — VRChat 식) ─────
+ * 옛 매핑 시스템 (animSlots/animSlotUrls/animOneShot/animTrims/fbxRotX) 완전 폐기.
+ * 새 appearance v2: { modelUrl, scale, offsetY, manualBoneMap }
+ * 운영자 등록 마스터 클립 url 은 GLOBAL_CLIP_URLS 에서 받음 (T9 에서 운영자 API 정리 예정).
+ */
 function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneShotOverride, hideHead = false, getAnalyser }: {
   appearance: Record<string, unknown>;
   animStateRef?: React.RefObject<AnimState>;
   castShadow?: boolean;
   emoteOneShotOverride?: string[];
-  /** 1인칭일 때 머리 숨김 — 애니메이션으로 머리가 시야에 들어오는 것 방지 */
   hideHead?: boolean;
-  /** 음성 amplitude analyser — lip-sync. 본인 또는 원격 유저용. */
   getAnalyser?: () => AnalyserNode | undefined;
 }) {
-  const modelUrl   = appearance.modelUrl as string | undefined;
-  const userScale  = Number(appearance.modelScale) || 1.0;
-  const rotX       = Number(appearance.fbxRotX ?? -Math.PI / 2);
-  const offsetY    = Number(appearance.fbxOffsetY ?? 0);
-
-  // appearance 내용 기반 안정화 — 버튼 클릭 등 리렌더 시 새 객체 생성 방지
-  // (새 객체가 생기면 CustomModel useEffect가 재실행 → 모델 리로드 → 순간 T-포즈)
-  const appearanceKey = JSON.stringify(appearance);
-  const trims = useMemo(
-    () => (appearance.animTrims ?? {}) as Record<string, AnimTrim>,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [appearanceKey],
-  );
-  const blockedAnimStates = useMemo(
-    () => Array.isArray(appearance.animAutoMapBlocked)
-      ? Object.fromEntries((appearance.animAutoMapBlocked as unknown[]).map((slot) => [String(slot), true])) as Record<string, boolean>
-      : undefined,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [appearanceKey],
-  );
-  const animNames = useMemo<Record<string, string>>(
-    () => appearance.animSlots
-      ? { ...(appearance.animSlots as Record<string, string>) }
-      : {
-          idle:   String(appearance.idleAnim   ?? ''),
-          walk:   String(appearance.walkAnim   ?? ''),
-          run:    String(appearance.runAnim    ?? ''),
-          jump:   String(appearance.jumpAnim   ?? ''),
-          crouch: String(appearance.crouchAnim ?? ''),
-          prone:  String(appearance.proneAnim  ?? ''),
-        },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [appearanceKey],
-  );
-  const animOneShot = useMemo(
-    () => {
-      const fromAppearance = Array.isArray(appearance.animOneShot)
-        ? (appearance.animOneShot as unknown[]).map(String)
-        : [];
-      // 패널에서 '한번만' 설정한 슬롯을 병합 (루프 설정 슬롯은 appearance에서 제거)
-      const overrideOnce = emoteOneShotOverride ?? [];
-      const merged = new Set([...fromAppearance, ...overrideOnce]);
-      return merged.size > 0 ? [...merged] : undefined;
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [appearanceKey, emoteOneShotOverride],
-  );
-  const animSlotUrls = useMemo(
-    () => (appearance.animSlotUrls as Record<string, string> | undefined) || undefined,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [appearanceKey],
-  );
+  const modelUrl     = appearance.modelUrl as string | undefined;
+  const userScale    = Number(appearance.scale ?? appearance.modelScale ?? 1.0) || 1.0;
+  const offsetY      = Number(appearance.offsetY ?? appearance.fbxOffsetY ?? 0);
+  const manualBoneMap = (appearance.manualBoneMap as Record<string, string> | undefined) || undefined;
+  void emoteOneShotOverride;  // 옛 시스템 — 무시 (T6 이모트 polish 다음 단계)
 
   if (modelUrl) {
     return (
-      <CustomModel
+      <HumanoidMesh
         url={modelUrl}
-        userScale={userScale}
-        rotX={rotX}
-        offsetY={offsetY}
-        castShadow={castShadow}
-        animStateRef={animStateRef}
-        animNames={animNames}
-        animTrims={trims}
-        blockedAnimStates={blockedAnimStates}
-        animOneShot={animOneShot}
-        animSlotUrls={animSlotUrls}
-        hideHead={hideHead}
+        manualBoneMap={manualBoneMap}
+        animStateRef={animStateRef ?? FALLBACK_IDLE_REF}
         getAnalyser={getAnalyser}
+        hideHead={hideHead}
+        castShadow={castShadow}
+        userScale={userScale}
+        offsetY={offsetY}
       />
     );
   }
