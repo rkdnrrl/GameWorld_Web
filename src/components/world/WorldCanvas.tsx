@@ -1217,6 +1217,8 @@ const _mob = {
   crouchNonce: 0,
   proneNonce:  0,
   cameraNonce: 0,
+  /** 탭 감지 (모바일) — pointerdown 시점 위치·시각 + 드래그 marker. 거리 <10px·시간 <250ms 면 탭. */
+  tap: { startX: 0, startY: 0, startTime: 0, moved: false },
 };
 
 export type CameraMode = 'first' | 'third';
@@ -2842,7 +2844,8 @@ function MobileControls({ inputLocked, cameraMode }: { inputLocked: boolean; cam
   return (
     <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', userSelect: 'none', zIndex: 16777273 }}>
 
-      {/* 카메라 룩 + 핀치 줌: 전체화면 배경 */}
+      {/* 카메라 룩 + 핀치 줌 + 탭 클릭: 전체화면 배경
+          탭 vs 드래그 구별: pointerdown ↔ pointerup 사이 거리 < 10px && 시간 < 250ms = 탭 → 클릭 발동. */}
       <div
         style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', touchAction: 'none' }}
         onPointerDown={(e) => {
@@ -2858,6 +2861,10 @@ function MobileControls({ inputLocked, cameraMode }: { inputLocked: boolean; cam
           if (!_mob.lookTouch.active) {
             _mob.lookTouch.active = true; _mob.lookTouch.pointerId = e.pointerId;
             _mob.lookTouch.lastX = e.clientX; _mob.lookTouch.lastY = e.clientY;
+            // 탭 감지용 시작 시각·위치 기록 (드래그 시 무효화)
+            _mob.tap.startX = e.clientX; _mob.tap.startY = e.clientY;
+            _mob.tap.startTime = performance.now();
+            _mob.tap.moved = false;
           }
         }}
         onPointerMove={(e) => {
@@ -2868,6 +2875,7 @@ function MobileControls({ inputLocked, cameraMode }: { inputLocked: boolean; cam
             const dist = Math.hypot(_mob.pinch.x2 - _mob.pinch.x1, _mob.pinch.y2 - _mob.pinch.y1);
             _mob.camDist = Math.max(1.1, Math.min(14, _mob.camDist - (dist - _mob.pinch.lastDist) * 0.018));
             _mob.pinch.lastDist = dist;
+            _mob.tap.moved = true;  // 핀치 = 드래그 — 탭 무효
             return;
           }
           if (!_mob.lookTouch.active || _mob.lookTouch.pointerId !== e.pointerId) return;
@@ -2876,6 +2884,11 @@ function MobileControls({ inputLocked, cameraMode }: { inputLocked: boolean; cam
           _mob.lookTouch.lastX = e.clientX; _mob.lookTouch.lastY = e.clientY;
           _mob.camH -= dx * 0.005;
           _mob.camV = Math.max(-1.1, Math.min(1.3, _mob.camV + dy * 0.005));
+          // 시작점에서 10px 이상 이동했으면 탭 아님 → 드래그
+          if (!_mob.tap.moved) {
+            const tdx = e.clientX - _mob.tap.startX, tdy = e.clientY - _mob.tap.startY;
+            if (Math.hypot(tdx, tdy) > 10) _mob.tap.moved = true;
+          }
         }}
         onPointerUp={(e) => {
           if (_mob.pinch.active) {
@@ -2891,12 +2904,35 @@ function MobileControls({ inputLocked, cameraMode }: { inputLocked: boolean; cam
           }
           if (_mob.lookTouch.pointerId !== e.pointerId) return;
           _mob.lookTouch.active = false; _mob.lookTouch.pointerId = -1;
+          // 탭 감지 — 1인칭에서만 클릭 발동 (3인칭은 mesh onClick 으로 처리됨)
+          if (cameraMode === 'first' && !_mob.tap.moved) {
+            const elapsed = performance.now() - _mob.tap.startTime;
+            if (elapsed < 250) {
+              setTapFlash(true);
+              window.setTimeout(() => setTapFlash(false), 150);
+              document.dispatchEvent(new CustomEvent('alp:fp-tap'));
+            }
+          }
         }}
         onPointerCancel={(e) => {
           if (_mob.pinch.active) { _mob.pinch.active = false; _mob.pinch.id2 = -1; }
           if (_mob.lookTouch.pointerId === e.pointerId) { _mob.lookTouch.active = false; _mob.lookTouch.pointerId = -1; }
         }}
       />
+
+      {/* 1인칭 탭 시각 피드백 — 화면 가운데 작은 크로스헤어 (탭 가능 위치 표시). 누르면 잠깐 보라색 highlight */}
+      {cameraMode === 'first' && (
+        <div style={{
+          position: 'absolute', left: '50%', top: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: 18, height: 18, borderRadius: '50%',
+          border: `2px solid ${tapFlash ? 'rgba(165,180,252,0.95)' : 'rgba(255,255,255,0.45)'}`,
+          background: tapFlash ? 'rgba(99,102,241,0.35)' : 'transparent',
+          boxShadow: tapFlash ? '0 0 14px rgba(99,102,241,0.6)' : 'none',
+          transition: 'background 0.08s, border-color 0.08s, box-shadow 0.08s',
+          pointerEvents: 'none',
+        }} />
+      )}
 
       {/* 조이스틱 (왼쪽 하단) */}
       <div
@@ -3030,56 +3066,6 @@ function MobileControls({ inputLocked, cameraMode }: { inputLocked: boolean; cam
         }}
         aria-label="camera"
       >📷</button>
-
-      {/* 1인칭 탭 버튼 — 화면 중앙 크로스헤어 위치. 누르면 정조준 오브젝트(미디어 리모컨 등) 클릭 발동.
-          PC 는 pointer lock + 좌클릭으로 처리되지만 모바일은 pointer lock 없으므로 가상 버튼 필요.
-
-          ⚠ 모바일 함정 회피:
-          - touchAction: 'none' — 브라우저 기본 제스처(스크롤·줌·long-press 메뉴) 차단
-          - touchstart 추가 — iOS Safari 일부 환경에서 pointerdown 누락 케이스 보강
-          - zIndex 명시 — 카메라 룩 배경(div) 보다 확실히 위로
-          - stopPropagation 으로 카메라 룩 활성화 차단 */}
-      {cameraMode === 'first' && (
-        <button type="button"
-          onPointerDown={e => {
-            e.stopPropagation();
-            e.preventDefault();
-            if (inputLocked) return;
-            setTapFlash(true);
-            window.setTimeout(() => setTapFlash(false), 150);
-            document.dispatchEvent(new CustomEvent('alp:fp-tap'));
-          }}
-          onTouchStart={e => {
-            // iOS Safari 보강 — pointerdown 안 오는 케이스 대비
-            e.stopPropagation();
-            e.preventDefault();
-          }}
-          onClick={e => {
-            // 마우스 입력 / 일부 모바일 환경 — pointerdown 외에 click 도 받음
-            e.stopPropagation();
-            if (inputLocked) return;
-            document.dispatchEvent(new CustomEvent('alp:fp-tap'));
-          }}
-          style={{
-            position: 'absolute', left: '50%', top: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: 64, height: 64, borderRadius: '50%',
-            border: `2px solid ${tapFlash ? 'rgba(165,180,252,0.95)' : 'rgba(255,255,255,0.35)'}`,
-            background: tapFlash ? 'rgba(99,102,241,0.45)' : 'rgba(10,15,30,0.18)',
-            color: '#fff', fontSize: 28, fontWeight: 300, lineHeight: 1,
-            pointerEvents: 'auto', cursor: 'pointer',
-            touchAction: 'none',
-            zIndex: 16777275,  // 카메라 룩 div(zIndex 없음) 위로
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: tapFlash ? '0 0 16px rgba(99,102,241,0.6)' : 'none',
-            transition: 'background 0.08s, border-color 0.08s, box-shadow 0.08s',
-            backdropFilter: 'blur(2px)',
-            WebkitTapHighlightColor: 'transparent',
-            userSelect: 'none',
-          }}
-          aria-label="tap"
-        >＋</button>
-      )}
 
     </div>
   );
