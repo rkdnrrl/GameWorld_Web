@@ -21,7 +21,7 @@ import { useRouter } from '@/i18n/navigation';
 import { useTranslations } from 'next-intl';
 import { session } from '@/lib/api';
 import { HumanoidMesh } from '@/components/world/HumanoidMesh';
-import { createHumanoidCharacter, type HumanoidCharacter as HumanoidChar } from '@/lib/character/humanoidCharacter';
+import type { HumanoidCharacter as HumanoidChar } from '@/lib/character/humanoidCharacter';
 import { HUMANOID_BONES, REQUIRED_HUMANOID_BONES, type HumanoidBoneName, type AnimSlot } from '@/lib/character/humanoid';
 import { AssetPicker } from '@/components/character/AssetPicker';
 
@@ -101,28 +101,19 @@ export default function CharacterPage() {
   };
   useEffect(() => { loadCharacters(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
-  // ── 모델 url 변경 시 진단 새로 ──
+  // 진단은 HumanoidMesh 의 onLoaded callback 에서 받음 (별도 로드 X — 인스턴스 1개)
+  const handleCharLoaded = (char: HumanoidChar) => {
+    setDiagnosis({
+      total: char.diagnosis.total,
+      matched: char.diagnosis.matched,
+      missingRequired: char.diagnosis.missingRequired,
+      missingOptional: char.diagnosis.missingOptional,
+      allBoneNames: char.allBoneNames,
+    });
+  };
   useEffect(() => {
-    if (!modelUrl) { setDiagnosis(null); return; }
-    let cancelled = false;
-    (async () => {
-      try {
-        const char: HumanoidChar = await createHumanoidCharacter(modelUrl, { manualBoneMap });
-        if (cancelled) return;
-        setDiagnosis({
-          total: char.diagnosis.total,
-          matched: char.diagnosis.matched,
-          missingRequired: char.diagnosis.missingRequired,
-          missingOptional: char.diagnosis.missingOptional,
-          allBoneNames: char.allBoneNames,
-        });
-      } catch (e) {
-        console.warn('[char-page] 진단 실패', e);
-        setDiagnosis(null);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [modelUrl, manualBoneMap]);
+    if (!modelUrl) setDiagnosis(null);
+  }, [modelUrl]);
 
   // ── 저장 ──
   const handleSave = async () => {
@@ -215,7 +206,7 @@ export default function CharacterPage() {
             <directionalLight position={[3, 6, 3]} intensity={0.8} castShadow />
             <gridHelper args={[6, 12, '#444', '#222']} position={[0, 0, 0]} />
             {modelUrl && (
-              <PreviewWrap modelUrl={modelUrl} manualBoneMap={manualBoneMap} scale={scale} offsetY={offsetY} />
+              <PreviewWrap modelUrl={modelUrl} manualBoneMap={manualBoneMap} scale={scale} offsetY={offsetY} onLoaded={handleCharLoaded} />
             )}
             <OrbitControls target={[0, 1, 0]} enablePan={false} minDistance={1.5} maxDistance={6} />
           </Canvas>
@@ -349,13 +340,12 @@ function btnStyle(color: string): React.CSSProperties {
 }
 
 /** Canvas 안 미리보기 wrapper — animStateRef 와 grid 등 보조. */
-function PreviewWrap({ modelUrl, manualBoneMap, scale, offsetY }: {
+function PreviewWrap({ modelUrl, manualBoneMap, scale, offsetY, onLoaded }: {
   modelUrl: string; manualBoneMap: Partial<Record<HumanoidBoneName, string>>; scale: number; offsetY: number;
+  onLoaded?: (char: HumanoidChar) => void;
 }) {
   const animStateRef = useRef<AnimSlot>('idle');
-  // 디스크 (바닥 표시) 자동 회전
-  const discRef = useRef<THREE.Group>(null);
-  useFrame((_, dt) => { if (discRef.current) discRef.current.rotation.y += dt * 0.2; });
+  void useFrame;  // dt-rotation 시 lint
   return (
     <group position={[0, offsetY, 0]}>
       <mesh receiveShadow position={[0, 0, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -369,6 +359,7 @@ function PreviewWrap({ modelUrl, manualBoneMap, scale, offsetY }: {
         userScale={scale}
         enableLookAt={false}
         targetHeight={1.8}
+        onLoaded={onLoaded}
       />
     </group>
   );

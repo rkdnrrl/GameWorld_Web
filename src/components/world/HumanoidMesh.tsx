@@ -61,6 +61,8 @@ export interface HumanoidMeshProps {
   offsetY?: number;
   /** 크기 배율 */
   userScale?: number;
+  /** 로드 완료 시 콜백 — character page 가 진단/매칭 결과 받음 */
+  onLoaded?: (char: HumanoidCharacter) => void;
 }
 
 /** 단일 캐시 — 같은 url 요청 중복 로드 방지. dispose 는 페이지 unmount 시 안 함 (캐시) */
@@ -78,7 +80,7 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
   const {
     url, manualBoneMap, clipUrls, animStateRef, getAnalyser,
     hideHead = false, castShadow = true, enableLookAt = true,
-    targetHeight = 1.8, offsetY = 0, userScale = 1,
+    targetHeight = 1.8, offsetY = 0, userScale = 1, onLoaded,
   } = props;
 
   const { camera } = useThree();
@@ -117,20 +119,25 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
             c.setSlot('idle');
           }
         }
-        // 모델 크기 정규화 — 표준 1.8m 기준 자동 스케일
-        c.scene.updateMatrixWorld(true);
-        const box = new THREE.Box3().setFromObject(c.scene);
-        const size = box.getSize(new THREE.Vector3());
-        const maxDim = Math.max(size.x, size.y, size.z);
-        if (maxDim > 0) {
-          const scale = (targetHeight / maxDim) * userScale;
-          c.scene.scale.setScalar(scale);
+        // 모델 크기 정규화 — 캐릭터당 1회만 (캐시 char 가 여러 마운트에서 공유될 때 누적 변경 방지)
+        if (!c.scene.userData.__normalized) {
           c.scene.updateMatrixWorld(true);
-          // 발 -> y=0
-          const box2 = new THREE.Box3().setFromObject(c.scene);
-          c.scene.position.y -= box2.min.y;
+          const box = new THREE.Box3().setFromObject(c.scene);
+          const size = box.getSize(new THREE.Vector3());
+          const maxDim = Math.max(size.x, size.y, size.z);
+          if (maxDim > 0) {
+            const baseScale = targetHeight / maxDim;
+            c.scene.scale.setScalar(baseScale);
+            c.scene.updateMatrixWorld(true);
+            const box2 = new THREE.Box3().setFromObject(c.scene);
+            c.scene.position.y -= box2.min.y;
+            c.scene.userData.__baseScale = baseScale;
+          }
+          c.scene.userData.__normalized = true;
         }
+        // userScale 은 group 에 적용 (scene 누적 변경 X)
         setChar(c);
+        try { onLoaded?.(c); } catch { /* noop */ }
       } catch (e) {
         console.warn('[humanoid] 캐릭터 로드 실패', e);
       }
@@ -197,6 +204,6 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     char.update(dt);
   });
 
-  // y offset 은 group 에 적용 — char.scene 의 발 정렬 보존
-  return <group ref={groupRef} position={[0, offsetY, 0]} />;
+  // group 에 user 의 scale + offsetY 적용 (char.scene 은 base 정규화만, 누적 변경 X)
+  return <group ref={groupRef} position={[0, offsetY, 0]} scale={userScale} />;
 }
