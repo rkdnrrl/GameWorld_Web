@@ -34,68 +34,71 @@ const DOWN = new THREE.Vector3(0, -1, 0);
 function raycastGround(
   foot: THREE.Object3D,
   scene: THREE.Object3D,
+  characterRoot: THREE.Object3D | null,
   rayRange: number,
 ): { y: number } | null {
   foot.updateMatrixWorld(true);
   const footPos = foot.getWorldPosition(TMP_V);
-  // 발 위 rayRange 부터 아래로 raycast (foot 자신 ancestor 는 자동 제외 — raycaster 가 mesh 만 hit)
   TMP_RAY.set(new THREE.Vector3(footPos.x, footPos.y + rayRange, footPos.z), DOWN);
   TMP_RAY.far = rayRange * 2;
   const hits = TMP_RAY.intersectObject(scene, true);
-  // 자기 캐릭터의 mesh 제외 — foot 의 ancestor 인지
+  // hit object 의 ancestor 중 characterRoot 가 있으면 self → skip
   for (const h of hits) {
-    let o: THREE.Object3D | null = h.object;
-    let self = false;
-    while (o) {
-      if (o === foot) { self = true; break; }
-      o = o.parent;
+    let isSelf = false;
+    if (characterRoot) {
+      let o: THREE.Object3D | null = h.object;
+      while (o) {
+        if (o === characterRoot) { isSelf = true; break; }
+        o = o.parent;
+      }
     }
-    if (!self) return { y: h.point.y };
+    if (!isSelf) return { y: h.point.y };
   }
   return null;
 }
 
 export function createHumanoidFootIK(
   bones: Partial<Record<HumanoidBoneName, THREE.Object3D>>,
+  characterRoot: THREE.Object3D | null = null,
 ): HumanoidFootIK {
   const leftFoot = bones.leftFoot;
   const rightFoot = bones.rightFoot;
   const hips = bones.hips;
 
-  // 발/hips 중 하나라도 없으면 — 작동 안 함 (안전 no-op)
   const valid = !!(leftFoot && rightFoot && hips);
 
-  // hips 원래 y 위치 기준 — 보정 시 일정 이상 벗어나지 않게 (점프 시 hips 못 내려가게 보호)
-  // 매 frame 의 hips.position.y 가 mixer 가 set 한 값. 그 위에 offset 추가.
+  // 부드러운 transition 용 누적 offset (mixer 가 매 frame hips.position reset 하지만
+  // 우리 IK 가 매 frame 같은 currentOffset 을 그 위에 적용 → 시각적 일관성)
+  let currentOffset = 0;
 
   return {
     enabled: valid,
     groundOffset: 0.0,
-    rayRange: 0.35,
-    hipsLerp: 0.25,
-    maxDelta: 0.15,
+    rayRange: 0.4,
+    hipsLerp: 0.2,
+    maxDelta: 0.2,
     update(scene) {
       if (!this.enabled || !valid) return;
-      const lh = raycastGround(leftFoot!, scene, this.rayRange);
-      const rh = raycastGround(rightFoot!, scene, this.rayRange);
-      if (!lh || !rh) return;
 
-      // 양 발의 현재 y 위치
-      const leftFootY = leftFoot!.getWorldPosition(TMP_V).y;
-      const rightFootY = rightFoot!.getWorldPosition(TMP_V).y;
+      const lh = raycastGround(leftFoot!, scene, characterRoot, this.rayRange);
+      const rh = raycastGround(rightFoot!, scene, characterRoot, this.rayRange);
 
-      // 각 발이 ground 까지 떨어진 거리 (양수 = 떠 있음)
-      const leftLift  = leftFootY  - (lh.y + this.groundOffset);
-      const rightLift = rightFootY - (rh.y + this.groundOffset);
+      // target offset = 더 많이 떠 있는 발의 lift 만큼
+      let targetOffset = 0;
+      if (lh && rh) {
+        const leftFootY = leftFoot!.getWorldPosition(TMP_V).y;
+        const rightFootY = rightFoot!.getWorldPosition(TMP_V).y;
+        const leftLift  = leftFootY  - (lh.y + this.groundOffset);
+        const rightLift = rightFootY - (rh.y + this.groundOffset);
+        const lower = Math.min(leftLift, rightLift);
+        // 큰 차이 = 점프·낙하 → 보정 안 함
+        if (Math.abs(lower) <= this.maxDelta) targetOffset = lower;
+      }
 
-      // 더 많이 떠 있는 발 = 그 거리만큼 hips 내림. 두 발 다 박혀있으면 hips 올림.
-      const lower = Math.min(leftLift, rightLift);
-      if (Math.abs(lower) < 0.005) return;            // 떨림 방지
-      if (Math.abs(lower) > this.maxDelta) return;     // 점프·낙하 시 보호
-
-      // hips 의 parent (보통 캐릭터 root 또는 그 위) 의 local 좌표계로 변환 필요.
-      // 단순화: hips 의 local y 만 lerp. parent transform 영향 적다 가정 (대부분 캐릭터에 OK).
-      hips!.position.y -= lower * this.hipsLerp;
+      // smooth toward target
+      currentOffset += (targetOffset - currentOffset) * this.hipsLerp;
+      // 매 frame mixer 가 set 한 hips.position 위에 동일 offset 적용 → 일관된 시각적 보정
+      hips!.position.y -= currentOffset;
     },
   };
 }

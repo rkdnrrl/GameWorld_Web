@@ -288,10 +288,10 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     char.setLookAtTarget(enableLookAt ? camera : null);
   }, [char, enableLookAt, camera]);
 
-  // Foot IK — enableFootIK=true 일 때만 솔버 생성. false 면 인스턴스 자체 없음 → useFrame skip.
+  // Foot IK — enableFootIK=true 일 때만 솔버 생성. char.scene 전달 → raycast self exclusion.
   useEffect(() => {
     if (!char || !enableFootIK) { footIKRef.current = null; return; }
-    footIKRef.current = createHumanoidFootIK(char.bones);
+    footIKRef.current = createHumanoidFootIK(char.bones, char.scene);
     return () => { footIKRef.current = null; };
   }, [char, enableFootIK]);
 
