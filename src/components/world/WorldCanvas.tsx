@@ -486,8 +486,13 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
   // 본 위치는 마지막 포즈에 멈춰있어 캐릭터가 정적으로 보이지만 멀어서 차이 거의 X.
   // 가까이 들어오면 자동으로 update 재개 + state 전환 따라잡음.
   useFrame((state, dt) => {
-    // VRM 업데이트 (스프링본 + expressionManager). mixer 없어도 매 frame 필요.
+    // VRM 업데이트 (스프링본 + expressionManager + lookAt). mixer 없어도 매 frame 필요.
     if (vrmRef.current) {
+      // VRChat 식 시선 추적 — 캐릭터들이 카메라(= 본인 시점)를 응시. 자연스러운 대화 느낌.
+      // RemotePlayer 의 vrm 은 본인 카메라를, 본인 vrm 은 본인 카메라를 본다 (3인칭=셀카).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const la = (vrmRef.current as any).lookAt;
+      if (la && la.target !== state.camera) la.target = state.camera;
       try { vrmRef.current.update(dt); } catch { /* noop */ }
     }
     if (!mixer.current) return;

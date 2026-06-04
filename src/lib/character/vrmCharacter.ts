@@ -107,12 +107,29 @@ export function retargetMixamoToVRM(clips: THREE.AnimationClip[], vrm: VRM): THR
 export interface VRMCharacter {
   vrm: VRM;
   scene: THREE.Object3D;
-  /** 매 frame 호출 — expressionManager / lookAt / springbone 등 갱신 */
+  mixer: THREE.AnimationMixer;
+  /** 슬롯별 AnimationAction. setSlot 이 이걸로 crossFade. */
+  actions: Map<string, THREE.AnimationAction>;
+  /** 현재 활성 슬롯 (마지막 setSlot 결과). */
+  currentSlot: string | null;
+  /** 슬롯별 clip 등록 + AnimationAction 생성. 동일 슬롯 재등록 시 옛 action 정지. */
+  setClipMap: (clips: Map<string, THREE.AnimationClip>) => void;
+  /** 슬롯 전환 — crossFade. 첫 setSlot 은 즉시 시작. */
+  setSlot: (slot: string, fadeSec?: number) => void;
+  /** 매 frame 호출 — mixer + expressionManager + lookAt + springbone 갱신. */
   update: (dt: number) => void;
-  /** lipSync 진폭 (0~1) 을 'aa' expression 에 적용. P2 에서 5-viseme 으로 확장 */
+  /** lipSync 진폭 (0~1) 을 'aa' expression 에 적용. */
   setLipSyncAmplitude: (amp: number) => void;
-  /** 1인칭일 때 머리 본 숨김 — 머리가 카메라 안쪽 가리지 않게 */
+  /** 1인칭일 때 머리 본 숨김 — 머리가 카메라 안쪽 가리지 않게. */
   setHeadVisible: (visible: boolean) => void;
+  /** lookAt target 설정 — Object3D 면 그 위치를 응시. null 이면 응시 해제(정면). */
+  setLookAtTarget: (target: THREE.Object3D | null) => void;
+  /** 표정 expression 설정. name=happy/sad/angry/surprised/relaxed/neutral. 0~1 강도. */
+  setExpression: (name: string, value: number) => void;
+  /** 모든 표정 해제 (neutral 1, 나머지 0). */
+  clearExpressions: () => void;
+  /** 자원 정리. */
+  dispose: () => void;
 }
 
 /** VRM 모델 로드 + VRMCharacter 인터페이스 생성. */
@@ -143,25 +160,82 @@ export async function loadVRMCharacter(url: string): Promise<VRMCharacter> {
 
   // 머리 본 — 1인칭 hideHead 용
   const headNode = vrm.humanoid?.getNormalizedBoneNode('head') || null;
+  // 표정 표준 이름 — VRM 1.0 expression preset.
+  const EXPRESSION_NAMES = ['happy', 'sad', 'angry', 'surprised', 'relaxed', 'neutral'];
 
-  return {
+  // mixer + 슬롯별 action 관리
+  const mixer = new THREE.AnimationMixer(vrm.scene);
+  const actions = new Map<string, THREE.AnimationAction>();
+  let currentSlot: string | null = null;
+
+  const character: VRMCharacter = {
     vrm,
     scene: vrm.scene,
-    update: (dt: number) => {
+    mixer,
+    actions,
+    get currentSlot() { return currentSlot; },
+    setClipMap: (clips) => {
+      // 기존 action 모두 정지/해제
+      for (const a of actions.values()) a.stop();
+      actions.clear();
+      currentSlot = null;
+      for (const [slot, clip] of clips) {
+        const a = mixer.clipAction(clip);
+        a.loop = THREE.LoopRepeat;
+        a.enabled = true;
+        actions.set(slot, a);
+      }
+    },
+    setSlot: (slot, fadeSec = 0.25) => {
+      const next = actions.get(slot);
+      if (!next || currentSlot === slot) return;
+      const prev = currentSlot ? actions.get(currentSlot) : undefined;
+      next.reset().play();
+      if (prev && prev !== next) {
+        next.crossFadeFrom(prev, fadeSec, true);
+      } else {
+        next.weight = 1;
+      }
+      currentSlot = slot;
+    },
+    update: (dt) => {
+      mixer.update(dt);
       try { vrm.update(dt); } catch { /* VRM 내부 에러 무시 */ }
     },
-    setLipSyncAmplitude: (amp: number) => {
+    setLipSyncAmplitude: (amp) => {
       const em = vrm.expressionManager;
       if (!em) return;
-      // 'aa' viseme — 0~1 입 벌림. amplitude 증폭 1.5 (음성이 작아도 입 잘 보이게)
       const v = Math.min(1, Math.max(0, amp * 1.5));
       try { em.setValue('aa', v); } catch { /* noop */ }
     },
-    setHeadVisible: (visible: boolean) => {
+    setHeadVisible: (visible) => {
       if (!headNode) return;
       headNode.scale.setScalar(visible ? 1 : 0.001);
     },
+    setLookAtTarget: (target) => {
+      if (!vrm.lookAt) return;
+      vrm.lookAt.target = target ?? undefined;
+    },
+    setExpression: (name, value) => {
+      const em = vrm.expressionManager;
+      if (!em) return;
+      const v = Math.min(1, Math.max(0, value));
+      try { em.setValue(name, v); } catch { /* 모델이 지원 안 하는 표정 — noop */ }
+    },
+    clearExpressions: () => {
+      const em = vrm.expressionManager;
+      if (!em) return;
+      for (const n of EXPRESSION_NAMES) {
+        try { em.setValue(n, n === 'neutral' ? 1 : 0); } catch { /* noop */ }
+      }
+    },
+    dispose: () => {
+      mixer.stopAllAction();
+      actions.clear();
+      currentSlot = null;
+    },
   };
+  return character;
 }
 
 /** URL 이 VRM 인지 검사 (확장자 기반) */
