@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import type { VRM } from '@pixiv/three-vrm';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMAnimationLoaderPlugin, createVRMAnimationClip, type VRMAnimation } from '@pixiv/three-vrm-animation';
-import { ANIM_SLOTS, HUMANOID_BONES, detectHumanoidName, type AnimSlot, type HumanoidBoneName } from './humanoid';
+import { ANIM_SLOTS, type AnimSlot, type HumanoidBoneName } from './humanoid';
 
 /** .vrma 파일 1개 로드 → VRMAnimation 인스턴스. */
 export async function loadVRMA(url: string): Promise<VRMAnimation> {
@@ -34,14 +34,73 @@ export function vrmaToClip(vrma: VRMAnimation, vrm: VRM, name?: string): THREE.A
 }
 
 /**
- * FBX → VRM AnimationClip — OWNverse vrm-viewer 방식.
+ * Mixamo bone → VRM humanoid bone 표준 매핑.
+ * 공식 three-vrm/examples/humanoidAnimation/mixamoVRMRigMap.js 그대로.
+ */
+const mixamoVRMRigMap: Record<string, string> = {
+  mixamorigHips: 'hips',
+  mixamorigSpine: 'spine',
+  mixamorigSpine1: 'chest',
+  mixamorigSpine2: 'upperChest',
+  mixamorigNeck: 'neck',
+  mixamorigHead: 'head',
+  mixamorigLeftShoulder: 'leftShoulder',
+  mixamorigLeftArm: 'leftUpperArm',
+  mixamorigLeftForeArm: 'leftLowerArm',
+  mixamorigLeftHand: 'leftHand',
+  mixamorigLeftHandThumb1: 'leftThumbMetacarpal',
+  mixamorigLeftHandThumb2: 'leftThumbProximal',
+  mixamorigLeftHandThumb3: 'leftThumbDistal',
+  mixamorigLeftHandIndex1: 'leftIndexProximal',
+  mixamorigLeftHandIndex2: 'leftIndexIntermediate',
+  mixamorigLeftHandIndex3: 'leftIndexDistal',
+  mixamorigLeftHandMiddle1: 'leftMiddleProximal',
+  mixamorigLeftHandMiddle2: 'leftMiddleIntermediate',
+  mixamorigLeftHandMiddle3: 'leftMiddleDistal',
+  mixamorigLeftHandRing1: 'leftRingProximal',
+  mixamorigLeftHandRing2: 'leftRingIntermediate',
+  mixamorigLeftHandRing3: 'leftRingDistal',
+  mixamorigLeftHandPinky1: 'leftLittleProximal',
+  mixamorigLeftHandPinky2: 'leftLittleIntermediate',
+  mixamorigLeftHandPinky3: 'leftLittleDistal',
+  mixamorigRightShoulder: 'rightShoulder',
+  mixamorigRightArm: 'rightUpperArm',
+  mixamorigRightForeArm: 'rightLowerArm',
+  mixamorigRightHand: 'rightHand',
+  mixamorigRightHandPinky1: 'rightLittleProximal',
+  mixamorigRightHandPinky2: 'rightLittleIntermediate',
+  mixamorigRightHandPinky3: 'rightLittleDistal',
+  mixamorigRightHandRing1: 'rightRingProximal',
+  mixamorigRightHandRing2: 'rightRingIntermediate',
+  mixamorigRightHandRing3: 'rightRingDistal',
+  mixamorigRightHandMiddle1: 'rightMiddleProximal',
+  mixamorigRightHandMiddle2: 'rightMiddleIntermediate',
+  mixamorigRightHandMiddle3: 'rightMiddleDistal',
+  mixamorigRightHandIndex1: 'rightIndexProximal',
+  mixamorigRightHandIndex2: 'rightIndexIntermediate',
+  mixamorigRightHandIndex3: 'rightIndexDistal',
+  mixamorigRightHandThumb1: 'rightThumbMetacarpal',
+  mixamorigRightHandThumb2: 'rightThumbProximal',
+  mixamorigRightHandThumb3: 'rightThumbDistal',
+  mixamorigLeftUpLeg: 'leftUpperLeg',
+  mixamorigLeftLeg: 'leftLowerLeg',
+  mixamorigLeftFoot: 'leftFoot',
+  mixamorigLeftToeBase: 'leftToes',
+  mixamorigRightUpLeg: 'rightUpperLeg',
+  mixamorigRightLeg: 'rightLowerLeg',
+  mixamorigRightFoot: 'rightFoot',
+  mixamorigRightToeBase: 'rightToes',
+};
+
+/**
+ * FBX (Mixamo) → VRM AnimationClip — 공식 three-vrm `loadMixamoAnimation.js` 알고리즘.
  *
- * Mixamo FBX (또는 다른 humanoid 표준 rig) 의 본 회전을 직접 VRM 의 normalized humanoid 본에 적용.
- * vrm.humanoid 가 rest pose 보정 자동 처리. Mixamo T-pose ↔ VRM T-pose 호환.
+ * 핵심: Mixamo bone 의 rest world rotation 의 inverse 와 parent rest world rotation 을
+ * track quaternion 양옆에 곱해서 normalized humanoid bone 의 local rotation 으로 변환.
+ *   new_quat = parentRestWorldRotation * track_quat * restRotationInverse
  *
- * @param url .fbx 파일 URL
- * @param vrm 캐릭터의 VRM 인스턴스
- * @param name clip 이름
+ * hips position 도 캐릭터 키 비율로 scale.
+ * VRM 0.x 일 때 x/z 축 부호 반전 (좌표계 차이).
  */
 export async function fbxToVrmClip(
   url: string,
@@ -49,44 +108,60 @@ export async function fbxToVrmClip(
   name: string,
 ): Promise<THREE.AnimationClip> {
   const { FBXLoader } = await import('three/examples/jsm/loaders/FBXLoader.js');
-  const fbx = await new Promise<THREE.Object3D & { animations?: THREE.AnimationClip[] }>(
+  const asset = await new Promise<THREE.Object3D & { animations: THREE.AnimationClip[] }>(
     (resolve, reject) => new FBXLoader().load(url, resolve as never, undefined, reject)
   );
-  const clip = fbx.animations?.[0];
+  const clip = THREE.AnimationClip.findByName(asset.animations, 'mixamo.com') ?? asset.animations[0];
   if (!clip) throw new Error(`FBX 에 애니메이션 없음: ${url}`);
 
-  // humanoid name → normalized bone 이름 매핑 (캐릭터의 vrm 기준)
-  const humanoidToNormName = new Map<HumanoidBoneName, string>();
-  for (const h of HUMANOID_BONES) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const node = (vrm as any).humanoid?.getNormalizedBoneNode?.(h);
-    if (node?.name) humanoidToNormName.set(h, node.name);
-  }
+  const tracks: THREE.KeyframeTrack[] = [];
+  const restRotationInverse = new THREE.Quaternion();
+  const parentRestWorldRotation = new THREE.Quaternion();
+  const _quatA = new THREE.Quaternion();
 
-  const validTracks: THREE.KeyframeTrack[] = [];
+  // hips height ratio (Mixamo 캐릭터 vs VRM 캐릭터)
+  const mixamoHips = asset.getObjectByName('mixamorigHips');
+  const motionHipsHeight = mixamoHips?.position.y ?? 1;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vrmHipsHeight = (vrm as any).humanoid?.normalizedRestPose?.hips?.position?.[1] ?? 1;
+  const hipsPositionScale = vrmHipsHeight / motionHipsHeight;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isVrm0 = (vrm as any).meta?.metaVersion === '0';
+
   for (const track of clip.tracks) {
-    const dotIdx = track.name.indexOf('.');
-    if (dotIdx < 0) continue;
-    const fbxBoneName = track.name.substring(0, dotIdx);
-    const prop = track.name.substring(dotIdx + 1);
+    const [mixamoRigName, propertyName] = track.name.split('.');
+    const vrmBoneName = mixamoVRMRigMap[mixamoRigName];
+    if (!vrmBoneName) continue;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const vrmNode = (vrm as any).humanoid?.getNormalizedBoneNode(vrmBoneName);
+    if (!vrmNode?.name) continue;
+    const mixamoRigNode = asset.getObjectByName(mixamoRigName) as THREE.Object3D | undefined;
+    if (!mixamoRigNode) continue;
 
-    // scale 트랙 제외 — VRMA spec 위반 + Mixamo 노이즈
-    if (prop.startsWith('scale')) continue;
-    // position 은 hips 만 — 나머지는 본 길이가 달라 어색 (VRMA spec 도 hips position 만 허용)
-    const humanoidName = detectHumanoidName(fbxBoneName);
-    if (!humanoidName) continue;
-    if (prop.startsWith('position') && humanoidName !== 'hips') continue;
+    mixamoRigNode.getWorldQuaternion(restRotationInverse).invert();
+    mixamoRigNode.parent?.getWorldQuaternion(parentRestWorldRotation);
 
-    const targetBoneName = humanoidToNormName.get(humanoidName);
-    if (!targetBoneName) continue;
-
-    const cloned = track.clone();
-    cloned.name = `${targetBoneName}.${prop}`;
-    validTracks.push(cloned);
+    if (track instanceof THREE.QuaternionKeyframeTrack) {
+      // 각 quaternion 키프레임: parentRest * track * restInverse
+      for (let i = 0; i < track.values.length; i += 4) {
+        const flat: number[] = Array.from(track.values.slice(i, i + 4));
+        _quatA.fromArray(flat);
+        _quatA.premultiply(parentRestWorldRotation).multiply(restRotationInverse);
+        _quatA.toArray(flat);
+        for (let j = 0; j < 4; j++) track.values[i + j] = flat[j];
+      }
+      // VRM 0.x: x, z 반전
+      const values = Array.from(track.values).map((v, i) => isVrm0 && i % 2 === 0 ? -v : v);
+      tracks.push(new THREE.QuaternionKeyframeTrack(`${vrmNode.name}.${propertyName}`, Array.from(track.times), values));
+    } else if (track instanceof THREE.VectorKeyframeTrack) {
+      // position track: scale + (VRM 0.x x/z 반전)
+      const values = Array.from(track.values).map((v, i) => (isVrm0 && i % 3 !== 1 ? -v : v) * hipsPositionScale);
+      tracks.push(new THREE.VectorKeyframeTrack(`${vrmNode.name}.${propertyName}`, Array.from(track.times), values));
+    }
   }
 
-  if (validTracks.length === 0) throw new Error('FBX → VRM 매핑 결과 비어있음');
-  return new THREE.AnimationClip(name, clip.duration, validTracks);
+  if (tracks.length === 0) throw new Error('Mixamo → VRM 매핑 결과 비어있음 (mixamorig 본 이름 확인 필요)');
+  return new THREE.AnimationClip(name, clip.duration, tracks);
 }
 
 /**
