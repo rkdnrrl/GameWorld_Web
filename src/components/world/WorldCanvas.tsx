@@ -1643,9 +1643,8 @@ export function Player({
 
       const isCrouch = crouchRef.current;
       const isProne  = proneRef.current;
-      // VRChat 표준 속도 (walk ~2, run ~4 m/s) — 빠른 이동 시 spring bone (머리카락) 진동 방지.
-      // 이전 값 (walk 5, run 9) 은 너무 빨라 머리카락이 부자연스럽게 튀어다님.
-      const SPEED    = (isProne ? 0.6 : isCrouch ? 1.2 : sprint ? 4 : 2) * speedMulRef.current;
+      // center bone = hips 로 spring 안정화 — 빠른 이동도 자연 흩날림 유지.
+      const SPEED    = (isProne ? 1.0 : isCrouch ? 2.5 : sprint ? 7 : 3.5) * speedMulRef.current;
 
       // 추락 방지: y가 너무 낮으면 스폰 위치로 복귀
       if (posT.y < -50) {

@@ -66,20 +66,30 @@ export async function createHumanoidCharacter(
   const loaded = await loadHumanoid(url, opts);
   const { root, bones, vrm, allBoneNames, allMorphTargets, diagnosis } = loaded;
 
-  // VRM spring bone — 머리카락은 손 X (자연 흩날림 보존).
-  // 가슴 (breast/bust) joint 만 stiffness/dragForce 강화 — 팔이 가슴 collider 와 닿을 때
-  // 큰 진동 방지. 모든 spring 다 건드리지 않고 가슴만.
+  // VRM spring bone:
+  //   1. center = hips 설정 (null 인 joint 만) — 캐릭터 world 이동을 spring 계산에서 분리.
+  //      → 어떤 속도로 달려도 spring 의 base 가 안정 → 자연 흩날림 유지.
+  //      hips 자체의 회전 (idle/walk 모션) 만 spring 이 반응.
+  //   2. 가슴 (breast/bust) joint — stiffness/dragForce 강화. 팔 충돌 시 진동 방지.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = (vrm as any)?.springBoneManager;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hipsNode = (vrm as any)?.humanoid?.getRawBoneNode?.('hips')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    || (vrm as any)?.humanoid?.getNormalizedBoneNode?.('hips');
   if (sb?.joints) {
     try {
       for (const joint of sb.joints) {
-        if (!joint?.bone || !joint?.settings) continue;
-        const name = (joint.bone.name || '').toLowerCase();
-        // VRoid 표준: Bust_L/R, Breast_L/R, J_Sec_L_Bust 등
-        if (name.includes('breast') || name.includes('bust') || name.includes('boob')) {
-          joint.settings.stiffness = Math.max(joint.settings.stiffness || 0, 1.5);
-          joint.settings.dragForce = Math.max(joint.settings.dragForce || 0, 0.8);
+        if (!joint) continue;
+        // center 미설정 joint → hips 로 설정 (캐릭터 이동 무관 흔들림)
+        if (joint.center == null && hipsNode) joint.center = hipsNode;
+        // 가슴 joint 만 추가 안정화
+        if (joint.bone && joint.settings) {
+          const name = (joint.bone.name || '').toLowerCase();
+          if (name.includes('breast') || name.includes('bust') || name.includes('boob')) {
+            joint.settings.stiffness = Math.max(joint.settings.stiffness || 0, 1.5);
+            joint.settings.dragForce = Math.max(joint.settings.dragForce || 0, 0.8);
+          }
         }
       }
     } catch { /* noop */ }
