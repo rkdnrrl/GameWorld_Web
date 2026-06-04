@@ -2838,14 +2838,21 @@ function MobileControls({ inputLocked, cameraMode }: { inputLocked: boolean; cam
   // 모바일 자세 토글 상태 (시각 표시용)
   const [crouchOn, setCrouchOn] = useState(false);
   const [proneOn, setProneOn] = useState(false);
-  // 1인칭 탭 시각 피드백 (눌렀을 때 잠깐 highlight)
+  // 1인칭 탭 시각 피드백 — document 의 alp:fp-tap 이벤트 받으면 잠깐 highlight
   const [tapFlash, setTapFlash] = useState(false);
+  useEffect(() => {
+    const onTap = () => {
+      setTapFlash(true);
+      window.setTimeout(() => setTapFlash(false), 150);
+    };
+    document.addEventListener('alp:fp-tap', onTap);
+    return () => document.removeEventListener('alp:fp-tap', onTap);
+  }, []);
 
   return (
     <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', userSelect: 'none', zIndex: 16777273 }}>
 
-      {/* 카메라 룩 + 핀치 줌 + 탭 클릭: 전체화면 배경
-          탭 vs 드래그 구별: pointerdown ↔ pointerup 사이 거리 < 10px && 시간 < 250ms = 탭 → 클릭 발동. */}
+      {/* 카메라 룩 + 핀치 줌: 전체화면 배경. 탭 클릭은 document 레벨에서 별도 처리 (setPointerCapture 우회). */}
       <div
         style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', touchAction: 'none' }}
         onPointerDown={(e) => {
@@ -2861,10 +2868,6 @@ function MobileControls({ inputLocked, cameraMode }: { inputLocked: boolean; cam
           if (!_mob.lookTouch.active) {
             _mob.lookTouch.active = true; _mob.lookTouch.pointerId = e.pointerId;
             _mob.lookTouch.lastX = e.clientX; _mob.lookTouch.lastY = e.clientY;
-            // 탭 감지용 시작 시각·위치 기록 (드래그 시 무효화)
-            _mob.tap.startX = e.clientX; _mob.tap.startY = e.clientY;
-            _mob.tap.startTime = performance.now();
-            _mob.tap.moved = false;
           }
         }}
         onPointerMove={(e) => {
@@ -2875,7 +2878,6 @@ function MobileControls({ inputLocked, cameraMode }: { inputLocked: boolean; cam
             const dist = Math.hypot(_mob.pinch.x2 - _mob.pinch.x1, _mob.pinch.y2 - _mob.pinch.y1);
             _mob.camDist = Math.max(1.1, Math.min(14, _mob.camDist - (dist - _mob.pinch.lastDist) * 0.018));
             _mob.pinch.lastDist = dist;
-            _mob.tap.moved = true;  // 핀치 = 드래그 — 탭 무효
             return;
           }
           if (!_mob.lookTouch.active || _mob.lookTouch.pointerId !== e.pointerId) return;
@@ -2884,11 +2886,6 @@ function MobileControls({ inputLocked, cameraMode }: { inputLocked: boolean; cam
           _mob.lookTouch.lastX = e.clientX; _mob.lookTouch.lastY = e.clientY;
           _mob.camH -= dx * 0.005;
           _mob.camV = Math.max(-1.1, Math.min(1.3, _mob.camV + dy * 0.005));
-          // 시작점에서 10px 이상 이동했으면 탭 아님 → 드래그
-          if (!_mob.tap.moved) {
-            const tdx = e.clientX - _mob.tap.startX, tdy = e.clientY - _mob.tap.startY;
-            if (Math.hypot(tdx, tdy) > 10) _mob.tap.moved = true;
-          }
         }}
         onPointerUp={(e) => {
           if (_mob.pinch.active) {
@@ -2904,15 +2901,6 @@ function MobileControls({ inputLocked, cameraMode }: { inputLocked: boolean; cam
           }
           if (_mob.lookTouch.pointerId !== e.pointerId) return;
           _mob.lookTouch.active = false; _mob.lookTouch.pointerId = -1;
-          // 탭 감지 — 1인칭에서만 클릭 발동 (3인칭은 mesh onClick 으로 처리됨)
-          if (cameraMode === 'first' && !_mob.tap.moved) {
-            const elapsed = performance.now() - _mob.tap.startTime;
-            if (elapsed < 250) {
-              setTapFlash(true);
-              window.setTimeout(() => setTapFlash(false), 150);
-              document.dispatchEvent(new CustomEvent('alp:fp-tap'));
-            }
-          }
         }}
         onPointerCancel={(e) => {
           if (_mob.pinch.active) { _mob.pinch.active = false; _mob.pinch.id2 = -1; }
@@ -4485,6 +4473,49 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     window.addEventListener('resize', detect);
     return () => window.removeEventListener('resize', detect);
   }, []);
+
+  // ── 모바일 1인칭 탭 → alp:fp-tap (PC 좌클릭과 동등). document 레벨로 capture phase 등록 →
+  //    카메라 룩 div 의 setPointerCapture / React 합성 이벤트와 무관하게 항상 잡힘.
+  //    탭 vs 드래그: 거리 < 10px && 시간 < 250ms = 탭. UI 버튼 위는 closest('button') 으로 skip. ──
+  useEffect(() => {
+    if (!isMobile) return;
+    let startX = 0, startY = 0, startTime = 0, moved = false, active = false;
+    let startTarget: EventTarget | null = null;
+    const onPD = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') return;  // 마우스 입력은 기존 onClick 으로 처리
+      const t = e.target as HTMLElement | null;
+      // UI 버튼/입력 위에서 시작한 탭은 무시 (조이스틱·점프·자세·시점 버튼 등)
+      if (t?.closest('button, [role="button"], input, textarea, select, a')) return;
+      startTarget = e.target;
+      startX = e.clientX; startY = e.clientY;
+      startTime = performance.now();
+      moved = false; active = true;
+    };
+    const onPM = (e: PointerEvent) => {
+      if (!active || e.pointerType !== 'touch' || moved) return;
+      if (Math.hypot(e.clientX - startX, e.clientY - startY) > 10) moved = true;
+    };
+    const onPU = (e: PointerEvent) => {
+      if (!active || e.pointerType !== 'touch') return;
+      active = false;
+      if (moved) return;
+      if (performance.now() - startTime > 250) return;
+      // 1인칭에서만 탭 클릭. 3인칭은 R3F mesh onClick 으로 처리됨.
+      if (cameraMode !== 'first') return;
+      void startTarget;  // (디버깅용 placeholder — 추후 target 검사 필요시 활용)
+      document.dispatchEvent(new CustomEvent('alp:fp-tap'));
+    };
+    document.addEventListener('pointerdown', onPD, true);
+    document.addEventListener('pointermove', onPM, true);
+    document.addEventListener('pointerup', onPU, true);
+    document.addEventListener('pointercancel', onPU, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPD, true);
+      document.removeEventListener('pointermove', onPM, true);
+      document.removeEventListener('pointerup', onPU, true);
+      document.removeEventListener('pointercancel', onPU, true);
+    };
+  }, [isMobile, cameraMode]);
 
   return (
     <>
