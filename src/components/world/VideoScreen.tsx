@@ -753,14 +753,22 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, he
   // alp:fp-tap(모바일 1인칭 탭) 모두 화면 중앙 raycaster 로 처리. mesh hit 시 handleUv.
   // 주의: capture phase X / stopPropagation X — 다른 1인칭 처리(오브젝트 클릭 등) 와 공존.
   const meshRef = useRef<THREE.Mesh>(null);
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
   useEffect(() => {
     if (!interactive) return;
     const tryCrosshairHit = () => {
       if (!meshRef.current) return;
-      // NDC (0,0) = 카메라 view 중앙 = 캔버스 영역 중앙.
+      // 사용자가 보는 visible 중심(visualViewport) 을 NDC 로 변환 — 모바일 주소창 분 보정.
+      // 데스크탑은 visualViewport == window 라 기존 NDC(0,0) 과 동일.
+      const canvas = gl.domElement;
+      const rect = canvas.getBoundingClientRect();
+      const vw = typeof window !== 'undefined' ? window.visualViewport : undefined;
+      const cx = vw ? vw.offsetLeft + vw.width / 2 : window.innerWidth / 2;
+      const cy = vw ? vw.offsetTop  + vw.height / 2 : window.innerHeight / 2;
+      const ndcX = ((cx - rect.left) / rect.width) * 2 - 1;
+      const ndcY = -((cy - rect.top) / rect.height) * 2 + 1;
       const raycaster = new THREE.Raycaster();
-      raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+      raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
       const hits = raycaster.intersectObject(meshRef.current);
       // 거리 제한 — 손 닿을 거리 안에서만 클릭 허용
       if (hits.length > 0 && hits[0].distance <= REMOTE_INTERACT_DISTANCE && hits[0].uv) {

@@ -1513,12 +1513,20 @@ export function Player({
     };
     /** 1인칭 정조준 raycast 클릭 — 미디어 리모컨/스크립트 onClick 발동.
      *  PC onClick + 모바일 alp:fp-tap 둘 다에서 호출. hit 성공 시 true.
-     *  방향: camera.getWorldDirection (실제 카메라 forward, _mob.camH/camV 와 무관).
-     *  2-pass: (1) rapier castRay (정확, collider 기반) → (2) THREE.Raycaster (rapier 매칭 실패 시 fallback). */
+     *  방향: visualViewport 중심(=사용자가 보는 크로스헤어 위치)을 NDC 로 변환 → raycaster forward.
+     *  모바일 주소창 분 보정 — layout viewport 100vh 가운데 ≠ visible 가운데 (사용자가 위 클릭해야 됨 버그). */
     const fireFirstPersonRayClick = (): boolean => {
       if (cameraModeRef.current !== 'first' || grabbedIdRef.current) return false;
-      const fwd = new THREE.Vector3();
-      camera.getWorldDirection(fwd);
+      const canvas = gl.domElement;
+      const rect = canvas.getBoundingClientRect();
+      const vw = typeof window !== 'undefined' ? window.visualViewport : undefined;
+      const cx = vw ? vw.offsetLeft + vw.width / 2 : window.innerWidth / 2;
+      const cy = vw ? vw.offsetTop  + vw.height / 2 : window.innerHeight / 2;
+      const ndcX = ((cx - rect.left) / rect.width) * 2 - 1;
+      const ndcY = -((cy - rect.top) / rect.height) * 2 + 1;
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
+      const fwd = raycaster.ray.direction;
       const camPos = camera.position;
 
       // Pass 1 — rapier castRay (기존 방식, scriptBodyRefs 매칭)
@@ -1538,9 +1546,9 @@ export function Player({
 
       // Pass 2 — THREE.Raycaster fallback. RigidBody 의 userData.objectId 를 부모 거슬러 찾음.
       // rapier scriptBodyRefs 매칭 실패 케이스(예: 동적 마운트/언마운트 직후) 대비.
+      // raycaster 는 위 setFromCamera 결과 그대로 재사용 (같은 visualViewport 중심).
       try {
-        const raycaster = new THREE.Raycaster();
-        raycaster.set(camPos, fwd);
+        void camPos;
         const hits = raycaster.intersectObject(scene, true);
         for (const h of hits) {
           if (h.distance > 15) break;
@@ -2869,6 +2877,33 @@ function MobileControls({ inputLocked, cameraMode }: { inputLocked: boolean; cam
     return () => document.removeEventListener('alp:fp-tap', onTap);
   }, []);
 
+  // 크로스헤어 화면 위치 — visualViewport 중심에 맞춤 (모바일 주소창 분 보정).
+  // layout viewport 의 100vh 가운데 ≠ visible viewport 가운데. 사용자가 보는 visible 중심에 표시 + 탭.
+  const [crosshairPx, setCrosshairPx] = useState<{ x: number; y: number }>(() => ({
+    x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0,
+    y: typeof window !== 'undefined' ? window.innerHeight / 2 : 0,
+  }));
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const vw = window.visualViewport;
+    const update = () => {
+      if (vw) {
+        setCrosshairPx({ x: vw.offsetLeft + vw.width / 2, y: vw.offsetTop + vw.height / 2 });
+      } else {
+        setCrosshairPx({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+      }
+    };
+    update();
+    vw?.addEventListener('resize', update);
+    vw?.addEventListener('scroll', update);
+    window.addEventListener('resize', update);
+    return () => {
+      vw?.removeEventListener('resize', update);
+      vw?.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+
   return (
     <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', userSelect: 'none', zIndex: 16777273 }}>
 
@@ -2928,10 +2963,10 @@ function MobileControls({ inputLocked, cameraMode }: { inputLocked: boolean; cam
         }}
       />
 
-      {/* 1인칭 탭 시각 피드백 — 화면 가운데 작은 크로스헤어 (탭 가능 위치 표시). 누르면 잠깐 보라색 highlight */}
+      {/* 1인칭 탭 시각 피드백 — visualViewport 중앙 (모바일 주소창 분 보정). 누르면 잠깐 보라색 highlight */}
       {cameraMode === 'first' && (
         <div style={{
-          position: 'absolute', left: '50%', top: '50%',
+          position: 'absolute', left: crosshairPx.x, top: crosshairPx.y,
           transform: 'translate(-50%, -50%)',
           width: 18, height: 18, borderRadius: '50%',
           border: `2px solid ${tapFlash ? 'rgba(165,180,252,0.95)' : 'rgba(255,255,255,0.45)'}`,
