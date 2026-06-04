@@ -240,12 +240,21 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
             const baseScale = targetHeight / maxDim;
             c.scene.scale.setScalar(baseScale);
             c.scene.updateMatrixWorld(true);
-            // VRM: 발 본 기준 (머리카락 길어도 발이 ground 닿게 — VRM 의 머리카락 spring bone outlier 처리).
-            // FBX (Mixamo 등): mesh 의 box.min.y 직접 사용 — 발 본 transform 이 mesh 와 다른 좌표계
-            //   이거나 hierarchy 비표준이라 발 본 기반 부정확. mesh bounding box 가 가장 신뢰성 높음.
-            const box2 = new THREE.Box3().setFromObject(c.scene);
+            // mesh 만 정확하게 union — Box3.setFromObject 는 본도 포함해서 부정확할 수 있음.
+            // mesh.isSkinnedMesh / isMesh 만 따로 union → 진짜 mesh 의 발 vertex 가 min.y.
+            const meshBox = new THREE.Box3();
+            let hasMesh = false;
+            c.scene.traverse((o) => {
+              const m = o as THREE.Mesh;
+              if ((m as THREE.SkinnedMesh).isSkinnedMesh || m.isMesh) {
+                const sub = new THREE.Box3().setFromObject(m);
+                if (!sub.isEmpty()) { meshBox.union(sub); hasMesh = true; }
+              }
+            });
+            const box2 = hasMesh ? meshBox : new THREE.Box3().setFromObject(c.scene);
             let baseY: number;
             if (c.vrm) {
+              // VRM 캐릭터 — 발 본 기준 + 머리카락 outlier 처리
               const leftFoot = c.bones.leftFoot;
               const rightFoot = c.bones.rightFoot;
               if (leftFoot && rightFoot) {
@@ -253,10 +262,8 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
                 const footBoneY = Math.min(leftFoot.getWorldPosition(tmp).y, rightFoot.getWorldPosition(tmp).y);
                 const FOOT_SOLE_MAX = 0.15;
                 if (footBoneY - box2.min.y > FOOT_SOLE_MAX) {
-                  // mesh box 가 발 본보다 너무 멀리 (긴 머리카락) — 발 본 - 0.07 (sole 추정)
                   baseY = footBoneY - 0.07;
                 } else {
-                  // mesh sole 이 발 본 근처 — 정확
                   baseY = Math.min(footBoneY, box2.min.y);
                 }
               } else {
