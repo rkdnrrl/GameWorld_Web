@@ -13,8 +13,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { createHumanoidCharacter, type HumanoidCharacter } from '@/lib/character/humanoidCharacter';
-import { loadHumanoidClip } from '@/lib/character/humanoidAnimation';
+import { loadAnimationSource, retargetWithSkeletonUtils, type AnimationSource } from '@/lib/character/humanoidAnimation';
 import type { AnimSlot } from '@/lib/character/humanoid';
+
+/** 슬롯별 raw 애니메이션 source 모듈 캐시 — 캐릭터별 retarget 위해 한 번만 로드. */
+const animSourceCache = new Map<string, Promise<AnimationSource>>();
+function getAnimationSource(url: string, slot: string): Promise<AnimationSource> {
+  const key = `${slot}::${url}`;
+  if (!animSourceCache.has(key)) {
+    animSourceCache.set(key, loadAnimationSource(url, slot));
+  }
+  return animSourceCache.get(key)!;
+}
 
 const API = (typeof window !== 'undefined' && (window as { __ALP_API__?: string }).__ALP_API__) || 'https://airliveplay.com';
 
@@ -96,8 +106,8 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
         const c = await getCharacter(url, manualBoneMap);
         if (cancelled) return;
         local = c;
-        // ── 클립 로드 ── prop clipUrls 우선, 없으면 운영자 등록 글로벌. 포맷 무관 (.fbx/.glb/.vrma).
-        // loadHumanoidClip 이 humanoid 표준 본 이름으로 정규화 → c.setClips 가 캐릭터별 retarget.
+        // ── 클립 로드 ── source root + raw clip → SkeletonUtils.retargetClip 으로 캐릭터별
+        // rest-pose 보정 retarget (본 좌표축 차이 자동 보정).
         const effectiveClipUrls = clipUrls && Object.keys(clipUrls).length
           ? clipUrls
           : await getOperatorClipUrls();
@@ -107,15 +117,26 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
           await Promise.all(Object.entries(effectiveClipUrls).map(async ([slot, clipUrl]) => {
             if (!clipUrl) return;
             try {
-              const clip = await loadHumanoidClip(clipUrl, slot);
-              clipMap.set(slot as AnimSlot, clip);
+              const src = await getAnimationSource(clipUrl, slot);
+              const retargeted = await retargetWithSkeletonUtils(src.root, src.clip, c.bones);
+              retargeted.name = slot;
+              clipMap.set(slot as AnimSlot, retargeted);
             } catch (e) {
-              console.warn(`[humanoid] ${slot} 클립 로드 실패`, e);
+              console.warn(`[humanoid] ${slot} 클립 로드/retarget 실패`, e);
             }
           }));
           if (cancelled) return;
           if (clipMap.size > 0) {
-            c.setClips(clipMap);
+            // setClips 의 내부 retarget 우회 — 이미 retargeted 클립 전달.
+            // mixer 에 직접 등록.
+            c.mixer.stopAllAction();
+            c.actions.clear();
+            for (const [slot, clip] of clipMap) {
+              const action = c.mixer.clipAction(clip);
+              action.loop = THREE.LoopRepeat;
+              action.enabled = true;
+              c.actions.set(slot, action);
+            }
             c.setSlot('idle');
           }
         }

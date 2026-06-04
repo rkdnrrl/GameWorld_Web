@@ -15,6 +15,77 @@
 import * as THREE from 'three';
 import { detectHumanoidName, type HumanoidBoneName } from './humanoid';
 
+/** source skeleton + clip — SkeletonUtils.retargetClip 으로 캐릭터별 rest-pose 보정 retarget. */
+export interface AnimationSource {
+  /** source FBX/GLB 의 root Object3D (skeleton 포함) */
+  root: THREE.Object3D;
+  /** source 의 원본 clip (본 이름 변환 안 된 raw) */
+  clip: THREE.AnimationClip;
+}
+
+/** 어떤 포맷의 애니메이션 파일이든 raw source 로드 (source root + clip). SkeletonUtils retarget 용. */
+export async function loadAnimationSource(url: string, name?: string): Promise<AnimationSource> {
+  const ext = (url.split('?')[0].split('#')[0].split('.').pop() || '').toLowerCase();
+  if (ext === 'fbx') {
+    const { FBXLoader } = await import('three/examples/jsm/loaders/FBXLoader.js');
+    const fbx = await new Promise<THREE.Object3D & { animations?: THREE.AnimationClip[] }>((resolve, reject) =>
+      new FBXLoader().load(url, resolve as never, undefined, reject)
+    );
+    const clip = fbx.animations?.[0];
+    if (!clip) throw new Error(`FBX 에 애니메이션 없음: ${url}`);
+    if (name) clip.name = name;
+    return { root: fbx, clip };
+  }
+  if (ext === 'glb' || ext === 'gltf' || ext === 'vrma') {
+    const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+    const gltf = await new Promise<{ scene: THREE.Object3D; animations?: THREE.AnimationClip[] }>((resolve, reject) =>
+      new GLTFLoader().load(url, resolve as never, undefined, reject)
+    );
+    const clip = gltf.animations?.[0];
+    if (!clip) throw new Error(`GLB/VRMA 에 애니메이션 없음: ${url}`);
+    if (name) clip.name = name;
+    return { root: gltf.scene, clip };
+  }
+  throw new Error(`지원 안 함 확장자: ${ext}`);
+}
+
+/** SkeletonUtils.retargetClip 으로 source → target 본 매핑 + rest pose 보정.
+ *  three.js 의 표준 retargeter — 본 hierarchy + rest pose 차이를 자동 보정 (이론상).
+ *
+ *  @param source source root (FBX 의 fbx, GLB 의 scene 등 — skeleton 포함)
+ *  @param clip source clip (raw)
+ *  @param targetBones 캐릭터의 humanoid → 실제 본 매핑 (humanoidCharacter.bones)
+ *  @returns target 본 이름 기준 retargeted clip
+ */
+export async function retargetWithSkeletonUtils(
+  source: THREE.Object3D,
+  clip: THREE.AnimationClip,
+  targetBones: Partial<Record<HumanoidBoneName, THREE.Object3D>>,
+): Promise<THREE.AnimationClip> {
+  const { retargetClip } = await import('three/examples/jsm/utils/SkeletonUtils.js');
+  // source 의 본 이름 → humanoid → target 의 그 humanoid 본 이름 매핑.
+  // SkeletonUtils 가 본을 매칭할 때 getBoneName 콜백으로 source 본 이름을 target 본 이름으로 rename.
+  const getBoneName = (bone: THREE.Bone): string => {
+    const humanoid = detectHumanoidName(bone.name);
+    if (!humanoid) return bone.name;
+    const targetBone = targetBones[humanoid];
+    return targetBone?.name ?? bone.name;
+  };
+  // target root 를 만들기 위해 humanoid bones map 에서 hips 부터 trace
+  const hipsBone = targetBones.hips;
+  if (!hipsBone) throw new Error('target 에 hips 본 없음 — retarget 불가');
+  // hips 의 최상위 부모 = target skeleton root
+  let targetRoot: THREE.Object3D = hipsBone;
+  while (targetRoot.parent && targetRoot.parent.type !== 'Scene') targetRoot = targetRoot.parent;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const retargeted = (retargetClip as any)(targetRoot, source, clip, {
+    fps: 30,
+    useFirstFramePosition: true,
+    getBoneName,
+  });
+  return retargeted;
+}
+
 /**
  * 어떤 포맷의 애니메이션 파일이든 → humanoid normalized clip 으로 로드.
  *   .fbx / .glb / .gltf: 자체 anims[0] → normalizeClipToHumanoidNames
