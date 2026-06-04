@@ -171,8 +171,11 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
     obj.updateMatrixWorld(true);
   }
 
+  // VRM 은 항상 Y-up 직립 (VRMUtils.rotateVRM0 적용 후) — rotX 무시 (옛 -π/2 default 안전 처리)
+  const isVRM = !!obj.userData?.vrm;
+  const effectiveRotX = isVRM ? 0 : rotX;
   // 2. 회전 적용
-  obj.rotation.set(rotX, 0, 0);
+  obj.rotation.set(effectiveRotX, 0, 0);
   obj.updateMatrixWorld(true);
 
   // 3. 발 -> y=0 정렬
@@ -447,6 +450,11 @@ function CustomPreview({
   // 자동 회전 제거 — OrbitControls 로 사용자가 직접 회전 (충돌 방지)
   useFrame((_, dt) => {
     mixer.current?.update(dt);
+    // VRM 일 때 expressionManager + lookAt + springbone 갱신 (직접 vrm.update 호출)
+    // userData.vrm 은 modelLoader / loadFBXCached / vrmCharacter 가 부착함
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const vrm = obj?.userData?.vrm as { update?: (dt: number) => void } | undefined;
+    if (vrm?.update) { try { vrm.update(dt); } catch { /* noop */ } }
     // 발 보정 — smooth 추적. parent scale 보정 필수 (drift 는 world units, obj.position 은 local units).
     if (footBones.current.length && obj && mixer.current) {
       const parent = obj.parent;

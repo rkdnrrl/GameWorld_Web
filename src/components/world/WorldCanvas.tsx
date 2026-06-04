@@ -219,6 +219,15 @@ async function loadFBXCached(url: string): Promise<FBXLoaded> {
             if (vrm) {
               try { vrmMod.VRMUtils.rotateVRM0(vrm as never); } catch { /* VRM 1.0 — noop */ }
               try { vrmMod.VRMUtils.removeUnnecessaryJoints(vrm.scene); } catch { /* noop */ }
+              // userData 부착 — autoNormalize(rotX 무시) + mixamoRig(humanoid API 우선 매칭) + lipSync 가 활용
+              vrm.scene.userData.vrm = vrm;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              vrm.scene.userData.vrmHumanoid = (vrm as any).humanoid;
+              // 모든 mesh frustumCulled=false — root mesh 가 view 밖이라고 판정되어 사라지는 버그 방지
+              vrm.scene.traverse((c) => {
+                const m = c as THREE.Mesh;
+                if (m.isMesh) m.frustumCulled = false;
+              });
             }
             const result: FBXLoaded = {
               obj:   vrm?.scene ?? gltf.scene,
