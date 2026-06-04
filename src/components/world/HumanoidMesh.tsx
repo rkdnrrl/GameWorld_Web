@@ -85,8 +85,9 @@ export interface HumanoidMeshProps {
   /** 카메라 시선 추적 (default true) */
   enableLookAt?: boolean;
   /**
-   * Foot IK 활성 (default true) — Hips Offset 방식. 다리 본 안 건드리고 hips 만 내림.
-   * 다리 꺾임 0%, 평지 80% 가림 (VRChat 도 같은 한계).
+   * Foot IK 활성 (default false) — Hips Offset 방식은 다리 본 IK 솔버 없이는
+   * mesh 전체가 내려가 발이 박힘. 다리 본 IK 가 추가될 때까지 비활성.
+   * 평지 정렬은 발 본 기준 normalization 으로 처리.
    */
   enableFootIK?: boolean;
   /** 모델 높이 정규화 (1.8m 기준) */
@@ -113,7 +114,7 @@ async function getCharacter(url: string, manualBoneMap?: Partial<Record<string, 
 export function HumanoidMesh(props: HumanoidMeshProps) {
   const {
     url, manualBoneMap, clipUrls, animStateRef, getAnalyser,
-    hideHead = false, castShadow = true, enableLookAt = true, enableFootIK = true,
+    hideHead = false, castShadow = true, enableLookAt = true, enableFootIK = false,
     targetHeight = 1.8, offsetY = 0, userScale = 1, onLoaded,
   } = props;
 
@@ -229,7 +230,8 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
             console.log(`[humanoid] 슬롯 ${clipMap.size}개 등록: ${[...clipMap.keys()].join(', ')} → 시작: ${firstSlot}`);
           }
         }
-        // 모델 크기 정규화 — 캐릭터당 1회만 (캐시 char 가 여러 마운트에서 공유될 때 누적 변경 방지)
+        // 모델 크기 정규화 — 캐릭터당 1회만 (캐시 char 가 여러 마운트에서 공유될 때 누적 변경 방지).
+        // 발 본 위치 기준 — mesh box.min.y 가 머리카락/옷 등 떨어진 vertex 일 수 있어 부정확.
         if (!c.scene.userData.__normalized) {
           c.scene.updateMatrixWorld(true);
           const box = new THREE.Box3().setFromObject(c.scene);
@@ -239,8 +241,21 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
             const baseScale = targetHeight / maxDim;
             c.scene.scale.setScalar(baseScale);
             c.scene.updateMatrixWorld(true);
-            const box2 = new THREE.Box3().setFromObject(c.scene);
-            c.scene.position.y -= box2.min.y;
+            // 발 본 위치를 ground 0 으로 정렬 (둘 중 낮은 발 기준).
+            // fallback — 발 본 없으면 box.min.y 사용 (이전 방식).
+            const leftFoot = c.bones.leftFoot;
+            const rightFoot = c.bones.rightFoot;
+            let baseY: number;
+            if (leftFoot && rightFoot) {
+              const tmp = new THREE.Vector3();
+              const lfY = leftFoot.getWorldPosition(tmp).y;
+              const rfY = rightFoot.getWorldPosition(tmp).y;
+              baseY = Math.min(lfY, rfY);
+            } else {
+              const box2 = new THREE.Box3().setFromObject(c.scene);
+              baseY = box2.min.y;
+            }
+            c.scene.position.y -= baseY;
             c.scene.userData.__baseScale = baseScale;
           }
           c.scene.userData.__normalized = true;
