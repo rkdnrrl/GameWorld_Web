@@ -240,8 +240,8 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
             const baseScale = targetHeight / maxDim;
             c.scene.scale.setScalar(baseScale);
             c.scene.updateMatrixWorld(true);
-            // 발 본 위치를 ground 0 으로 정렬 (둘 중 낮은 발 기준).
-            // fallback — 발 본 없으면 box.min.y 사용 (이전 방식).
+            // 발 본 (발목) 위치를 ground 0 으로 정렬. 발 mesh sole 은 발목보다 약간 아래라
+            // box 의 발 부분 min.y 를 별도로 찾아서 sole offset 자동 계산.
             const leftFoot = c.bones.leftFoot;
             const rightFoot = c.bones.rightFoot;
             let baseY: number;
@@ -249,7 +249,17 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
               const tmp = new THREE.Vector3();
               const lfY = leftFoot.getWorldPosition(tmp).y;
               const rfY = rightFoot.getWorldPosition(tmp).y;
-              baseY = Math.min(lfY, rfY);
+              const footBoneY = Math.min(lfY, rfY);
+              // 전체 mesh 중 발 본 근처 (footBoneY 아래) 의 가장 낮은 vertex = sole
+              const box2 = new THREE.Box3().setFromObject(c.scene);
+              // mesh 의 가장 낮은 점이 발 본보다 아래면 → 그게 sole (정확).
+              // 발 본보다 위면 → 발 본 자체가 가장 낮음 (이상치) → 발 본 사용.
+              baseY = Math.min(footBoneY, box2.min.y);
+              // 단 box2.min.y 가 발 본보다 너무 멀리 (긴 머리카락·옷) 떨어지면 — 발 본 사용 + 적정 offset.
+              const FOOT_SOLE_MAX = 0.15; // 발 본 → sole 합리적 최대 (0.15m)
+              if (footBoneY - box2.min.y > FOOT_SOLE_MAX) {
+                baseY = footBoneY - 0.07; // 발목 ↔ sole 표준 추정 (VRoid/Mixamo 평균)
+              }
             } else {
               const box2 = new THREE.Box3().setFromObject(c.scene);
               baseY = box2.min.y;
