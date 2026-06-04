@@ -66,8 +66,29 @@ export async function createHumanoidCharacter(
   const loaded = await loadHumanoid(url, opts);
   const { root, bones, vrm, allBoneNames, allMorphTargets, diagnosis } = loaded;
 
-  // VRM spring bone — 모델 원본 설정 그대로 사용. 우리가 stiffness/center 손대지 않음.
-  // vrm-viewer.ownverse.world 와 동일 패턴: vrm.update(dt) 통합 호출만.
+  // VRM spring bone — 캐릭터 이동 시 떨림 방지:
+  //   1. center = hips: 캐릭터 전체 이동·회전을 spring 계산에서 분리 → 머리카락이 자연 따라옴
+  //   2. dragForce 최소 0.4: 미세한 감쇠 강화 → oscillation 빠르게 멈춤. stiffness 는 건드리지 않음 (자연스러운 흩날림 유지)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = (vrm as any)?.springBoneManager;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hipsNode = (vrm as any)?.humanoid?.getRawBoneNode?.('hips')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    || (vrm as any)?.humanoid?.getNormalizedBoneNode?.('hips');
+  if (sb?.joints) {
+    try {
+      for (const joint of sb.joints) {
+        if (!joint) continue;
+        // center 안 정해진 joint 에만 hips 적용 (모델이 의도적으로 설정한 건 존중)
+        if (joint.center == null && hipsNode) joint.center = hipsNode;
+        // dragForce 최소값 보장 — 약한 spring 만 강화
+        const s = joint.settings;
+        if (s && typeof s.dragForce === 'number' && s.dragForce < 0.4) {
+          s.dragForce = 0.4;
+        }
+      }
+    } catch { /* noop */ }
+  }
 
   // mixer root = vrm.scene (또는 root). HumanoidMesh 에서 VRMA clip 의 track name 을
   // raw bone 이름으로 rewrite → mixer 가 raw scene 안의 raw bone 직접 driving.
