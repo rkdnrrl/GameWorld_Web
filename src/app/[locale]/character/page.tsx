@@ -331,11 +331,12 @@ function CustomPreview({
       setObj(loaded);
     };
 
-    // FBX만 지원
-    import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
-      new FBXLoader().load(url, (fbx) => {
-        void onLoaded(fbx, (fbx as unknown as { animations: THREE.AnimationClip[] }).animations ?? []);
-      });
+    // 확장자 자동 분기 — FBX/GLB/GLTF/VRM/DAE/OBJ. modelLoader 가 VRM 플러그인 등록 + vrm humanoid 부착.
+    import('@/lib/world/modelLoader').then(({ loadStaticModel }) => {
+      loadStaticModel(url).then((loaded) => {
+        const anims = (loaded as unknown as { animations?: THREE.AnimationClip[] }).animations ?? [];
+        void onLoaded(loaded, anims);
+      }).catch((e) => console.warn('[char preview] load failed', e));
     });
     return () => {
       cancelled = true;

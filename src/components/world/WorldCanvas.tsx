@@ -126,10 +126,13 @@ function autoNormalize(obj: THREE.Object3D, rotX = 0, targetHeight = 1.8) {
   obj.scale.set(1, 1, 1);
   obj.updateMatrixWorld(true);
 
+  // VRM 은 항상 Y-up 직립 (VRMUtils.rotateVRM0 적용 후) — rotX 무시.
+  // userData.vrm 있으면 캐릭터 페이지에서 -π/2 default 저장된 옛 값도 안전하게 0 으로 강제.
+  const isVRM = !!obj.userData?.vrm;
   // 자동 감지 — stored rotX 가 default (-π/2) 면 4 후보 중 가장 키 큰 회전 사용.
   // FBX 가 이미 Y-up 직립이라 -π/2 가 잘못된 경우 자동 보정 (캐릭터 페이지 미수정 옛 데이터 fallback).
-  let effectiveRotX = rotX;
-  if (Math.abs(rotX - (-Math.PI / 2)) < 0.001) {
+  let effectiveRotX = isVRM ? 0 : rotX;
+  if (!isVRM && Math.abs(rotX - (-Math.PI / 2)) < 0.001) {
     const cands = [0, -Math.PI / 2, Math.PI / 2, Math.PI];
     let bestY = -Infinity;
     for (const r of cands) {
