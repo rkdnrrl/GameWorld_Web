@@ -66,7 +66,22 @@ export async function createHumanoidCharacter(
   const loaded = await loadHumanoid(url, opts);
   const { root, bones, vrm, allBoneNames, allMorphTargets, diagnosis } = loaded;
 
-  const mixer = new THREE.AnimationMixer(root);
+  // VRM 캐릭터일 때 mixer 의 root 를 normalizedHumanBonesRoot 로 지정.
+  // createVRMAnimationClip 의 track name = normalized bone 이름이고, normalizedHumanBonesRoot
+  // 가 별도 hierarchy 라 vrm.scene 으로 traverse 시 찾지 못하는 경우 있음.
+  // 직접 normalizedHumanBonesRoot 를 mixer 의 root 로 지정 → traverse 안에서 정확 매칭.
+  // vrm.update(dt) 의 humanoid.update() 가 normalized → raw mirror 적용.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const normRoot = (vrm as any)?.humanoid?.normalizedHumanBonesRoot;
+  const mixerRoot: THREE.Object3D = normRoot ?? root;
+  if (normRoot) {
+    const sampleNames: string[] = [];
+    normRoot.traverse((o: THREE.Object3D) => { if (sampleNames.length < 8) sampleNames.push(o.name); });
+    console.log('[humanoid] mixer root = normalizedHumanBonesRoot. 본 샘플:', sampleNames);
+  } else if (vrm) {
+    console.warn('[humanoid] ⚠ VRM 인스턴스에 normalizedHumanBonesRoot 가 없음 — VRM 0.x 일 가능성');
+  }
+  const mixer = new THREE.AnimationMixer(mixerRoot);
   const actions = new Map<AnimSlot, THREE.AnimationAction>();
   let currentSlot: AnimSlot | null = null;
 

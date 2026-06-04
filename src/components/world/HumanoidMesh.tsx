@@ -155,14 +155,17 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
                 try {
                   const vrma = await loadVRMA(clipUrl);
                   retargeted = vrmaToClip(vrma, c.vrm, slot);
-                  // 디버그 — 첫 5개 track name + scene 안에서 발견되는지 확인
+                  // 디버그 — 첫 3개 track name + scene/normRoot 발견 여부
                   if (retargeted && retargeted.tracks.length > 0) {
-                    const sample = retargeted.tracks.slice(0, 5).map((t) => {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const normRoot = (c.vrm as any)?.humanoid?.normalizedHumanBonesRoot;
+                    const sample = retargeted.tracks.slice(0, 3).map((t) => {
                       const boneName = t.name.split('.')[0];
-                      const found = c.scene.getObjectByName(boneName);
-                      return `${t.name}${found ? '✓' : '❌'}`;
+                      const inScene = !!c.scene.getObjectByName(boneName);
+                      const inNorm = !!normRoot?.getObjectByName?.(boneName);
+                      return `${t.name} scene=${inScene ? '✓' : '✗'} norm=${inNorm ? '✓' : '✗'}`;
                     });
-                    console.log(`[humanoid] ${slot} VRMA clip ${retargeted.tracks.length} tracks, sample:`, sample);
+                    console.log(`[humanoid] ${slot} ${retargeted.tracks.length}tracks | ${sample.join(' | ')}`);
                   }
                 } catch (eVrma) {
                   console.warn(`[humanoid] ${slot} VRMA fast-path 실패 — generic retarget 시도`, eVrma);
