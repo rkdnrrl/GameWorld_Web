@@ -85,9 +85,9 @@ export interface HumanoidMeshProps {
   /** 카메라 시선 추적 (default true) */
   enableLookAt?: boolean;
   /**
-   * Foot IK 활성 (default false) — Hips Offset 방식은 다리 본 IK 솔버 없이는
-   * mesh 전체가 내려가 발이 박힘. 다리 본 IK 가 추가될 때까지 비활성.
-   * 평지 정렬은 발 본 기준 normalization 으로 처리.
+   * Foot IK 활성 (default true) — Two-Bone Analytical IK + knee bend axis 자동 감지.
+   * rest pose 의 무릎 굽힘 평면 normal 을 cross product 로 계산해 모델별 본 축 차이 자동 처리.
+   * 다리 본만 직접 driving — hips 안 건드림 → mesh 전체 안 내려감.
    */
   enableFootIK?: boolean;
   /** 모델 높이 정규화 (1.8m 기준) */
@@ -114,7 +114,7 @@ async function getCharacter(url: string, manualBoneMap?: Partial<Record<string, 
 export function HumanoidMesh(props: HumanoidMeshProps) {
   const {
     url, manualBoneMap, clipUrls, animStateRef, getAnalyser,
-    hideHead = false, castShadow = true, enableLookAt = true, enableFootIK = false,
+    hideHead = false, castShadow = true, enableLookAt = true, enableFootIK = true,
     targetHeight = 1.8, offsetY = 0, userScale = 1, onLoaded,
   } = props;
 
