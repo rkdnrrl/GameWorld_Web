@@ -62,13 +62,23 @@ export async function retargetWithSkeletonUtils(
   clip: THREE.AnimationClip,
   targetBones: Partial<Record<HumanoidBoneName, THREE.Object3D>>,
 ): Promise<THREE.AnimationClip> {
-  // SkinnedMesh 가 있어야 skeleton 접근 가능
+  // SkinnedMesh 검색 — Mixamo "With Skin" 옵션이면 있음. "Without Skin" 이면 본만.
   let sourceSkinned: THREE.SkinnedMesh | null = null;
   source.traverse((o) => {
     const sm = o as THREE.SkinnedMesh;
     if (sm.isSkinnedMesh && sm.skeleton?.bones?.length && !sourceSkinned) sourceSkinned = sm;
   });
-  if (!sourceSkinned) throw new Error('source 에 SkinnedMesh 없음 — SkeletonUtils retarget 불가');
+  // SkinnedMesh 없으면 본 hierarchy 만으로 임시 wrapper 생성 (Mixamo "Without Skin" 대응)
+  if (!sourceSkinned) {
+    const bones: THREE.Bone[] = [];
+    source.traverse((o) => { if ((o as THREE.Bone).isBone) bones.push(o as THREE.Bone); });
+    if (bones.length === 0) throw new Error('source 에 본 자체가 없음');
+    const skeleton = new THREE.Skeleton(bones);
+    const tempMesh = new THREE.SkinnedMesh();
+    tempMesh.bind(skeleton);
+    source.add(tempMesh);
+    sourceSkinned = tempMesh;
+  }
 
   // target 도 SkinnedMesh 찾기 — bones map 의 hips 부모 거슬러 올라가 scene 또는 그 위
   const hipsBone = targetBones.hips;
