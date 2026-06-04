@@ -16,6 +16,13 @@ import { createHumanoidCharacter, type HumanoidCharacter } from '@/lib/character
 import { loadAnimationSource, retargetWithSkeletonUtils, normalizeClipToHumanoidNames, retargetClipToHumanoid, type AnimationSource } from '@/lib/character/humanoidAnimation';
 import { ANIM_SLOTS, ANIM_SLOT_LEGACY_ALIAS, type AnimSlot } from '@/lib/character/humanoid';
 import { createHumanoidFootIK, type HumanoidFootIK } from '@/lib/character/humanoidFootIK';
+import { loadVRMA, vrmaToClip } from '@/lib/character/vrmAnimation';
+
+/** url 의 확장자가 .vrma 인지. query/hash 무시. */
+function isVrmaUrl(url: string): boolean {
+  const ext = (url.split('?')[0].split('#')[0].split('.').pop() || '').toLowerCase();
+  return ext === 'vrma';
+}
 
 /** 슬롯별 raw 애니메이션 source 모듈 캐시 — 캐릭터별 retarget 위해 한 번만 로드. */
 const animSourceCache = new Map<string, Promise<AnimationSource>>();
@@ -128,24 +135,48 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
           : await getOperatorClipUrls();
         if (cancelled) return;
         if (effectiveClipUrls) {
+          const urlCount = Object.values(effectiveClipUrls).filter(Boolean).length;
+          if (urlCount === 0) {
+            console.warn(
+              '[humanoid] 운영자 등록 슬롯이 0개 — 캐릭터가 T-pose 로 표시됩니다.\n' +
+              '운영자 데스크탑 > "캐릭터 애니메이션" 에서 최소 idle 슬롯에 .vrma URL 을 등록하세요.'
+            );
+          }
           const clipMap = new Map<AnimSlot, THREE.AnimationClip>();
           await Promise.all(Object.entries(effectiveClipUrls).map(async ([slot, clipUrl]) => {
             if (!clipUrl) return;
             try {
-              const src = await getAnimationSource(clipUrl, slot);
-              // Pass 1 — SkeletonUtils.retargetClip (rest pose 보정, 정확)
               let retargeted: THREE.AnimationClip | null = null;
-              try {
-                retargeted = await retargetWithSkeletonUtils(src.root, src.clip, c.bones);
-              } catch (e1) {
-                console.warn(`[humanoid] ${slot} SkeletonUtils 실패 — 단순 본 이름 매핑 fallback`, e1);
-                // Pass 2 — 단순 본 이름 매핑 (rest pose 보정 X, 자세 어긋날 수 있지만 T-pose 보단 나음)
-                const normalized = normalizeClipToHumanoidNames(src.clip);
-                retargeted = retargetClipToHumanoid(normalized, c.bones);
+
+              // Fast path — VRMA + VRM 캐릭터: createVRMAnimationClip 직접 호출.
+              // VRMA 는 mesh/bone 없는 glTF 라 SkeletonUtils 가 작동 안 함.
+              // three-vrm-animation 이 humanoid 본 이름 → vrm 인스턴스 본 매핑 자동.
+              if (isVrmaUrl(clipUrl) && c.vrm) {
+                try {
+                  const vrma = await loadVRMA(clipUrl);
+                  retargeted = vrmaToClip(vrma, c.vrm, slot);
+                } catch (eVrma) {
+                  console.warn(`[humanoid] ${slot} VRMA fast-path 실패 — generic retarget 시도`, eVrma);
+                }
               }
-              if (retargeted) {
+
+              if (!retargeted) {
+                const src = await getAnimationSource(clipUrl, slot);
+                // Pass 1 — SkeletonUtils.retargetClip (rest pose 보정, 정확)
+                try {
+                  retargeted = await retargetWithSkeletonUtils(src.root, src.clip, c.bones);
+                } catch (e1) {
+                  console.warn(`[humanoid] ${slot} SkeletonUtils 실패 — 단순 본 이름 매핑 fallback`, e1);
+                  // Pass 2 — 단순 본 이름 매핑 (rest pose 보정 X, 자세 어긋날 수 있지만 T-pose 보단 나음)
+                  const normalized = normalizeClipToHumanoidNames(src.clip);
+                  retargeted = retargetClipToHumanoid(normalized, c.bones);
+                }
+              }
+              if (retargeted && retargeted.tracks.length > 0) {
                 retargeted.name = slot;
                 clipMap.set(slot as AnimSlot, retargeted);
+              } else {
+                console.warn(`[humanoid] ${slot} retarget 결과 비어있음 — skip`);
               }
             } catch (e) {
               console.warn(`[humanoid] ${slot} 클립 로드 실패`, e);
@@ -163,7 +194,10 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
               action.enabled = true;
               c.actions.set(slot, action);
             }
-            c.setSlot('idle');
+            // idle 등록되어 있으면 idle 재생, 아니면 첫 등록된 슬롯이라도 재생 (T-pose 방지)
+            const firstSlot = clipMap.has('idle') ? 'idle' : clipMap.keys().next().value;
+            if (firstSlot) c.setSlot(firstSlot);
+            console.log(`[humanoid] 슬롯 ${clipMap.size}개 등록: ${[...clipMap.keys()].join(', ')} → 시작: ${firstSlot}`);
           }
         }
         // 모델 크기 정규화 — 캐릭터당 1회만 (캐시 char 가 여러 마운트에서 공유될 때 누적 변경 방지)
