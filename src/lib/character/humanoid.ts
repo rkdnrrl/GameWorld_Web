@@ -138,6 +138,76 @@ export const EXPRESSION_ALIASES: Partial<Record<HumanoidExpressionName, string[]
   blinkRight:['blinkright', 'eyeblinkright', 'eyecloseright'],
 };
 
-/** 캐릭터 애니메이션 슬롯 — VRChat 식 단순화. */
-export type AnimSlot = 'idle' | 'walk' | 'run' | 'jump' | 'fall';
-export const ANIM_SLOTS: readonly AnimSlot[] = ['idle', 'walk', 'run', 'jump', 'fall'];
+/**
+ * 캐릭터 애니메이션 슬롯 — VRChat 식 13종.
+ *
+ * 카테고리:
+ *   - idle: 정지
+ *   - locomotion: 4방향 walk + 2방향 run (strafing)
+ *   - jump: start (kick-off) → loop (공중) → land (착지) 3단 상태머신
+ *   - fall: 공중 자유낙하
+ *   - crouch: 앉아 idle + 앉아 이동
+ *
+ * 운영자가 13슬롯에 vrma/fbx URL 등록 → 모든 캐릭터 공용.
+ * 누락 슬롯은 자동 fallback (예: walk_left 없으면 walk_fwd).
+ */
+export type AnimSlot =
+  | 'idle'
+  | 'walk_fwd' | 'walk_bwd' | 'walk_left' | 'walk_right'
+  | 'run_fwd' | 'run_bwd'
+  | 'jump_start' | 'jump_loop' | 'jump_land'
+  | 'fall'
+  | 'crouch_idle' | 'crouch_walk';
+
+export const ANIM_SLOTS: readonly AnimSlot[] = [
+  'idle',
+  'walk_fwd', 'walk_bwd', 'walk_left', 'walk_right',
+  'run_fwd', 'run_bwd',
+  'jump_start', 'jump_loop', 'jump_land',
+  'fall',
+  'crouch_idle', 'crouch_walk',
+];
+
+/** 카테고리 그룹 — 운영자 UI 용. */
+export const ANIM_SLOT_GROUPS: ReadonlyArray<{ key: string; slots: readonly AnimSlot[] }> = [
+  { key: 'idle',       slots: ['idle'] },
+  { key: 'locomotion', slots: ['walk_fwd', 'walk_bwd', 'walk_left', 'walk_right', 'run_fwd', 'run_bwd'] },
+  { key: 'jump',       slots: ['jump_start', 'jump_loop', 'jump_land', 'fall'] },
+  { key: 'crouch',     slots: ['crouch_idle', 'crouch_walk'] },
+];
+
+/**
+ * 누락 슬롯 fallback chain — 운영자가 일부만 등록해도 작동.
+ * 예: walk_left 없으면 walk_fwd 사용. jump_start 없으면 jump_loop.
+ */
+export const ANIM_SLOT_FALLBACK: Partial<Record<AnimSlot, AnimSlot[]>> = {
+  walk_bwd:    ['walk_fwd', 'idle'],
+  walk_left:   ['walk_fwd', 'idle'],
+  walk_right:  ['walk_fwd', 'idle'],
+  run_bwd:     ['run_fwd', 'walk_fwd', 'idle'],
+  run_fwd:     ['walk_fwd', 'idle'],
+  jump_start:  ['jump_loop', 'idle'],
+  jump_land:   ['jump_loop', 'idle'],
+  jump_loop:   ['fall', 'idle'],
+  fall:        ['jump_loop', 'idle'],
+  crouch_idle: ['idle'],
+  crouch_walk: ['crouch_idle', 'walk_fwd', 'idle'],
+};
+
+/**
+ * Legacy 슬롯명 (5종) → 새 13종 매핑.
+ * 운영자가 예전 5슬롯 (`walk`, `run`, `jump`) 으로 등록한 데이터 호환.
+ */
+export const ANIM_SLOT_LEGACY_ALIAS: Record<string, AnimSlot> = {
+  walk: 'walk_fwd',
+  run:  'run_fwd',
+  jump: 'jump_loop',
+};
+
+/** 슬롯 + 등록된 슬롯 set → 실제 재생할 슬롯 (fallback 적용). null 이면 idle. */
+export function resolveSlot(want: AnimSlot, available: Set<AnimSlot>): AnimSlot | null {
+  if (available.has(want)) return want;
+  const chain = ANIM_SLOT_FALLBACK[want] ?? [];
+  for (const f of chain) if (available.has(f)) return f;
+  return available.has('idle') ? 'idle' : null;
+}

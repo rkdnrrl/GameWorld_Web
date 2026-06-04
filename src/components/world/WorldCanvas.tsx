@@ -1337,8 +1337,15 @@ export function Player({
   const mobCrouchPrev = useRef(_mob.crouchNonce);
   const mobPronePrev  = useRef(_mob.proneNonce);
   const mobCameraPrev = useRef(_mob.cameraNonce);
-  // 점프 상태 최소 유지 시간 (애니메이션 재생 보장)
+  // 점프 phase 머신 — kick-off (jump_start) → 공중 (jump_loop) → 착지 (jump_land)
+  // jumpHoldUntil = 점프 직후 최소 공중 유지 (모션 끊김 방지). 의미는 jump_start 와 동일.
   const jumpHoldUntil = useRef(0);
+  // jump_start phase 종료 시각 — 그 후엔 jump_loop 또는 fall 로 전환
+  const jumpStartUntil = useRef(0);
+  // jump_land phase 종료 시각 — 착지 직후 잠깐
+  const jumpLandUntil = useRef(0);
+  // 직전 frame 의 inAir 상태 — 착지 감지 (was-in-air && now-on-ground)
+  const wasInAirRef = useRef(false);
   // 3인칭 카메라 충돌(스프링암) — 벽에 막히면 당겨졌다가, 트이면 부드럽게 복귀하는 실효 비율(0~1)
   const camCollideRef = useRef(1);
   // ── 1인칭 grab (Unreal physics handle) ──
@@ -1679,8 +1686,11 @@ export function Player({
       if (jumpJustPressed && onGround && !isCrouch && !isProne) {
         // 점프력 = 맵 설정 (기본 7 m/s → 약 1.1m @ 중력 -22)
         body.current.setLinvel({ x: vel.x, y: jumpOverrideRef.current ?? jumpPower, z: vel.z }, true);
+        const _t = Date.now();
         // 애니메이션이 끊기지 않도록 최소 500ms 점프 상태 유지
-        jumpHoldUntil.current = Date.now() + 500;
+        jumpHoldUntil.current = _t + 500;
+        // jump_start phase — kick-off 모션 (200ms). 그 후 jump_loop / fall 로 전환.
+        jumpStartUntil.current = _t + 200;
       }
 
       // 캐릭터 회전 — 1인칭은 항상 카메라 방향(엎드림 포함), 3인칭은 이동 방향(엎드림 제외)
@@ -1694,19 +1704,54 @@ export function Player({
         }
       }
 
-      // 현재 애니메이션 상태 결정
+      // 현재 애니메이션 상태 결정 — 13슬롯 (idle, walk×4, run×2, jump×3, fall, crouch×2).
+      // 누락 슬롯은 HumanoidMesh 내부에서 fallback chain 으로 자동 대체.
       const moving      = len > 0;
-      const inJumpHold  = Date.now() < jumpHoldUntil.current;
+      const nowT        = Date.now();
+      const inJumpHold  = nowT < jumpHoldUntil.current;
+      const inAir       = !onGround || inJumpHold;
+      const inJumpStart = nowT < jumpStartUntil.current;
+
+      // 착지 감지 — 직전 frame inAir 였고 지금 onGround 면 jump_land phase 시작
+      if (wasInAirRef.current && onGround && !isCrouch && !isProne) {
+        jumpLandUntil.current = nowT + 200;
+      }
+      const inJumpLand = nowT < jumpLandUntil.current;
+      wasInAirRef.current = inAir;
+
+      // 이동 방향 — 키 우선, 모바일 조이스틱 fallback.
+      // 우선순위: fwd > bwd > left > right (대각선 키 입력은 fwd 우선).
+      type Dir = 'fwd' | 'bwd' | 'left' | 'right';
+      let dir: Dir = 'fwd';
+      if (forward)        dir = 'fwd';
+      else if (backward)  dir = 'bwd';
+      else if (left)      dir = 'left';
+      else if (right)     dir = 'right';
+      else if (_mob.moveTouch.active) {
+        const tx = _mob.moveTouch.x;
+        const ty = -_mob.moveTouch.y; // up=+ (코드 다른 곳과 동일 부호)
+        if (Math.abs(ty) >= Math.abs(tx)) dir = ty > 0 ? 'fwd' : 'bwd';
+        else                              dir = tx > 0 ? 'right' : 'left';
+      }
+
       let state: AnimState = 'idle';
-      if (!onGround || inJumpHold) {
-        // jumpHold 중에도 vel.y로 jump/fall 구분 (hold가 끝날 때까지 기다리면 fall 시간이 너무 짧음)
-        state = vel.y < -0.5 ? 'fall' : 'jump';
+      if (inJumpStart && inAir) {
+        state = 'jump_start';
+      } else if (inAir) {
+        state = vel.y < -0.5 ? 'fall' : 'jump_loop';
+      } else if (inJumpLand) {
+        state = 'jump_land';
       } else if (isProne) {
         state = moving ? 'prone_move' : 'prone';
       } else if (isCrouch) {
-        state = moving ? 'crouch_walk' : 'crouch';
+        state = moving ? 'crouch_walk' : 'crouch_idle';
       } else if (moving) {
-        state = sprint ? 'run' : 'walk';
+        if (sprint) {
+          // run 은 fwd/bwd 만 (좌우 strafing 은 fallback 으로 run_fwd → walk_fwd)
+          state = dir === 'bwd' ? 'run_bwd' : 'run_fwd';
+        } else {
+          state = `walk_${dir}`;
+        }
       }
       // 이모트 오버라이드: 활성화 중이면 다른 애니메이션 차단
       if (emoteSlotRef.current) {

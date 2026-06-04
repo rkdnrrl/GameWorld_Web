@@ -16,7 +16,7 @@ import type { HumanoidLoadResult } from './humanoidLoader';
 import { loadHumanoid, type HumanoidLoadOptions } from './humanoidLoader';
 import { createHumanoidLipSync, type HumanoidLipSync } from './humanoidLipSync';
 import { retargetClipsToHumanoid } from './humanoidAnimation';
-import type { HumanoidBoneName, HumanoidExpressionName, AnimSlot } from './humanoid';
+import { resolveSlot, type HumanoidBoneName, type HumanoidExpressionName, type AnimSlot } from './humanoid';
 
 export interface HumanoidCharacter {
   /** 렌더링 root (씬에 add 할 Object3D). */
@@ -103,9 +103,13 @@ export async function createHumanoidCharacter(
         actions.set(slot, action);
       }
     },
-    setSlot: (slot, fadeSec = 0.25) => {
-      const next = actions.get(slot);
-      if (!next || currentSlot === slot) return;
+    setSlot: (slot, fadeSec = 0.15) => {
+      // 누락 슬롯 fallback — 운영자가 일부만 등록해도 재생
+      const available = new Set(actions.keys());
+      const resolved = available.has(slot) ? slot : resolveSlot(slot, available);
+      if (!resolved) return;
+      const next = actions.get(resolved);
+      if (!next || currentSlot === resolved) return;
       const prev = currentSlot ? actions.get(currentSlot) : undefined;
       next.reset().play();
       if (prev && prev !== next) {
@@ -113,7 +117,7 @@ export async function createHumanoidCharacter(
       } else {
         next.weight = 1;
       }
-      currentSlot = slot;
+      currentSlot = resolved;
     },
     lipSync,
     setLookAtTarget: (target) => {

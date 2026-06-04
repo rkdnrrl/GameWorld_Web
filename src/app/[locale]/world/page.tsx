@@ -199,7 +199,21 @@ export default function WorldPage() {
   const [emotePanel, setEmotePanel] = useState(false);
   const [emoteLoopMap, setEmoteLoopMap] = useState<Record<string, boolean>>({}); // true=루프, false=한번만
   const [platformEmoteSlots, setPlatformEmoteSlots] = useState<string[]>([]);
-  const CORE_ANIM_SLOTS = useMemo(() => new Set(['idle', 'walk', 'run', 'jump', 'fall', 'crouch', 'crouch_walk', 'prone', 'prone_move']), []);
+  // CORE (코어) 슬롯 = 이동·점프·앉기·prone — 이모트 바에서 제외 (자동으로 캐릭터 컨트롤러가 사용).
+  // 13 표준 슬롯 + legacy 5 + prone 변형 모두 코어로 처리.
+  const CORE_ANIM_SLOTS = useMemo(() => new Set([
+    // 13 표준
+    'idle',
+    'walk_fwd', 'walk_bwd', 'walk_left', 'walk_right',
+    'run_fwd', 'run_bwd',
+    'jump_start', 'jump_loop', 'jump_land',
+    'fall',
+    'crouch_idle', 'crouch_walk',
+    // legacy 5 (운영자가 예전에 등록한 데이터 호환)
+    'walk', 'run', 'jump', 'crouch',
+    // prone 변형 (예비)
+    'prone', 'prone_move',
+  ]), []);
 
   // 운영자 등록 플랫폼 애니메이션 중 비코어 슬롯 → 이모트 바에 표시
   useEffect(() => {

@@ -2,11 +2,11 @@
 /**
  * 포맷 무관 humanoid 캐릭터 mesh — VRChat 식.
  *
- * 입력: 모델 url + 마스터 클립 url map (idle/walk/run/jump/fall) + animStateRef + lipSync analyser
+ * 입력: 모델 url + 마스터 클립 url map (13슬롯 — idle/walk_4/run_2/jump_3/fall/crouch_2) + animStateRef + lipSync analyser
  * 동작: createHumanoidCharacter 로 1줄 로드 → mixer + lipSync + lookAt 자동
  *
- * 기존 CharacterMesh 의 거대한 mapping/oneshot/trim 로직 폐기 — 5슬롯 단순화.
- * 운영자가 humanoid-normalized 클립 (VRMA 또는 정규화된 FBX) 1번 등록 → 모든 캐릭터 호환.
+ * 슬롯이 일부만 등록되어 있어도 fallback chain 으로 재생 (humanoid.ts ANIM_SLOT_FALLBACK).
+ * 운영자가 humanoid-normalized 클립 (VRMA 또는 정규화된 FBX) 등록 → 모든 캐릭터 호환.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -14,7 +14,8 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { createHumanoidCharacter, type HumanoidCharacter } from '@/lib/character/humanoidCharacter';
 import { loadAnimationSource, retargetWithSkeletonUtils, normalizeClipToHumanoidNames, retargetClipToHumanoid, type AnimationSource } from '@/lib/character/humanoidAnimation';
-import type { AnimSlot } from '@/lib/character/humanoid';
+import { ANIM_SLOTS, ANIM_SLOT_LEGACY_ALIAS, type AnimSlot } from '@/lib/character/humanoid';
+import { createHumanoidFootIK, type HumanoidFootIK } from '@/lib/character/humanoidFootIK';
 
 /** 슬롯별 raw 애니메이션 source 모듈 캐시 — 캐릭터별 retarget 위해 한 번만 로드. */
 const animSourceCache = new Map<string, Promise<AnimationSource>>();
@@ -28,7 +29,10 @@ function getAnimationSource(url: string, slot: string): Promise<AnimationSource>
 
 const API = (typeof window !== 'undefined' && (window as { __ALP_API__?: string }).__ALP_API__) || 'https://airliveplay.com';
 
-/** 운영자 등록 슬롯 클립 url — 모든 캐릭터 공용. 모듈 캐시 (첫 호출에 fetch, 이후 캐시). */
+/**
+ * 운영자 등록 슬롯 클립 url — 모든 캐릭터 공용. 모듈 캐시 (첫 호출에 fetch, 이후 캐시).
+ * 13슬롯 + legacy 5슬롯 (walk/run/jump) 호환.
+ */
 let clipUrlsPromise: Promise<Partial<Record<AnimSlot, string>>> | null = null;
 function getOperatorClipUrls(): Promise<Partial<Record<AnimSlot, string>>> {
   if (!clipUrlsPromise) {
@@ -37,9 +41,17 @@ function getOperatorClipUrls(): Promise<Partial<Record<AnimSlot, string>>> {
       .then((d: { slots?: Record<string, { modelUrl?: string; enabled?: boolean }> }) => {
         const slots = d.slots || {};
         const out: Partial<Record<AnimSlot, string>> = {};
-        for (const slot of ['idle','walk','run','jump','fall'] as AnimSlot[]) {
+        // 13 표준 슬롯
+        for (const slot of ANIM_SLOTS) {
           const s = slots[slot];
           if (s?.modelUrl && s.enabled !== false) out[slot] = s.modelUrl;
+        }
+        // legacy 5슬롯 호환 — `walk`/`run`/`jump` 등록되어 있고 새 슬롯 없으면 매핑
+        for (const [legacy, mapped] of Object.entries(ANIM_SLOT_LEGACY_ALIAS)) {
+          const s = slots[legacy];
+          if (s?.modelUrl && s.enabled !== false && !out[mapped]) {
+            out[mapped] = s.modelUrl;
+          }
         }
         return out;
       })
@@ -65,6 +77,8 @@ export interface HumanoidMeshProps {
   castShadow?: boolean;
   /** 카메라 시선 추적 (default true) */
   enableLookAt?: boolean;
+  /** Foot IK 활성 (default true) — 발이 ground 에 닿게 보정. */
+  enableFootIK?: boolean;
   /** 모델 높이 정규화 (1.8m 기준) */
   targetHeight?: number;
   /** Y 오프셋 (발 미세조정) */
@@ -89,13 +103,14 @@ async function getCharacter(url: string, manualBoneMap?: Partial<Record<string, 
 export function HumanoidMesh(props: HumanoidMeshProps) {
   const {
     url, manualBoneMap, clipUrls, animStateRef, getAnalyser,
-    hideHead = false, castShadow = true, enableLookAt = true,
+    hideHead = false, castShadow = true, enableLookAt = true, enableFootIK = true,
     targetHeight = 1.8, offsetY = 0, userScale = 1, onLoaded,
   } = props;
 
-  const { camera } = useThree();
+  const { camera, scene } = useThree();
   const groupRef = useRef<THREE.Group>(null);
   const [char, setChar] = useState<HumanoidCharacter | null>(null);
+  const footIKRef = useRef<HumanoidFootIK | null>(null);
 
   // 모델 로드 + 클립 로드 + 슬롯 등록 (한 번)
   useEffect(() => {
@@ -210,16 +225,28 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     char.setLookAtTarget(enableLookAt ? camera : null);
   }, [char, enableLookAt, camera]);
 
+  // Foot IK — 캐릭터 본 로드 후 IK 솔버 생성. enableFootIK 로 토글.
+  useEffect(() => {
+    if (!char) { footIKRef.current = null; return; }
+    footIKRef.current = createHumanoidFootIK(char.bones);
+    return () => { footIKRef.current = null; };
+  }, [char]);
+  useEffect(() => {
+    if (footIKRef.current) footIKRef.current.enabled = enableFootIK;
+  }, [enableFootIK]);
+
   // analyser 매 frame buffer (성능)
   const lipSyncBuf = useMemo(() => new Uint8Array(32), []);
 
   useFrame((_, dt) => {
     if (!char) return;
-    // 1) 슬롯 전환 — animStateRef 폴링
-    const state = (animStateRef.current ?? 'idle') as AnimSlot;
+    // 1) 슬롯 전환 — animStateRef 폴링.
+    //    legacy 5슬롯 (walk/run/jump) 들어오면 새 슬롯명으로 변환.
+    //    누락 슬롯은 setSlot 내부 fallback chain 으로 처리.
+    const rawState = animStateRef.current ?? 'idle';
+    const state = (ANIM_SLOT_LEGACY_ALIAS[rawState] ?? rawState) as AnimSlot;
     if (state && state !== char.currentSlot) {
-      // 슬롯이 등록되어 있을 때만 (clipUrls 안 준 슬롯은 skip → idle 유지)
-      if (char.actions.has(state as AnimSlot)) char.setSlot(state as AnimSlot);
+      char.setSlot(state);
     }
     // 2) lipSync — 진폭 평균 → 입 모양
     if (getAnalyser) {
@@ -234,6 +261,10 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     }
     // 3) mixer + vrm.update + lookAt
     char.update(dt);
+    // 4) Foot IK — animation 적용 후 발이 ground 에 닿게 보정 (떠/박힘 방지).
+    if (footIKRef.current?.enabled) {
+      try { footIKRef.current.update(scene); } catch { /* noop — IK 실패해도 캐릭터는 계속 */ }
+    }
   });
 
   // group 에 user 의 scale + offsetY 적용 (char.scene 은 base 정규화만, 누적 변경 X)
