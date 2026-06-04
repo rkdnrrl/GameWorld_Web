@@ -66,22 +66,21 @@ export async function createHumanoidCharacter(
   const loaded = await loadHumanoid(url, opts);
   const { root, bones, vrm, allBoneNames, allMorphTargets, diagnosis } = loaded;
 
-  // VRM spring bone — 위치 이동 시 흔들림 차단:
-  //   center = hips 강제 (모든 joint, 기존 center override).
-  //   three-vrm spring 은 center 의 local space 에서 물리 계산 → hips world 이동은 spring 에 영향 0.
-  //   제자리 회전·골격 회전은 정상 반영 (자연 흔들림).
+  // VRM spring bone — 위치 이동 흔들림 차단 + 제자리 자연스러움 유지:
+  //   center = vrm.scene (모든 joint, 강제 override).
+  //   three-vrm spring 은 center 의 local space 에서 inertia 계산 →
+  //     - 캐릭터 root world 이동: 모든 joint 가 함께 이동 → spring 입장에서는 0 (흔들림 차단) ✅
+  //     - hips 바운싱 (애니메이션 root motion) 은 vrm.scene 안에서 일어나므로 spring 에 정상 반영 → 머리카락 바운스 유지 ✅
+  //     - 골격 회전·bone hierarchy 변형 정상 반영 → 자연 흔들림 ✅
+  //   center = hips 로 하면 hips 바운싱까지 제거되어 제자리 흔들림이 부자연스러워짐.
   //   stiffness/dragForce 는 가슴처럼 단단 (1.5 / 0.8) — 잔진동 빠른 감쇠.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = (vrm as any)?.springBoneManager;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const hipsNode = (vrm as any)?.humanoid?.getRawBoneNode?.('hips')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    || (vrm as any)?.humanoid?.getNormalizedBoneNode?.('hips');
   if (sb?.joints) {
     try {
       for (const joint of sb.joints) {
         if (!joint) continue;
-        if (hipsNode) joint.center = hipsNode;  // 강제 override — 위치 이동 흔들림 차단
+        joint.center = root;  // 강제 override — 캐릭터 root 가 spring 의 "고정 좌표계"
         const s = joint.settings;
         if (s) {
           if (typeof s.stiffness === 'number') {
