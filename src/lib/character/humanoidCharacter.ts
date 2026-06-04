@@ -66,6 +66,22 @@ export async function createHumanoidCharacter(
   const loaded = await loadHumanoid(url, opts);
   const { root, bones, vrm, allBoneNames, allMorphTargets, diagnosis } = loaded;
 
+  // VRM spring bone 강화 — 캐릭터 빠른 이동 시 머리카락/치마/가슴 떨림 감소.
+  // stiffness 강화 → spring 빠르게 복원. dragForce 강화 → 감쇠 강 → oscillation 방지.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = (vrm as any)?.springBoneManager;
+  if (sb?.joints) {
+    try {
+      for (const joint of sb.joints) {
+        const s = joint?.settings;
+        if (!s) continue;
+        // 기존 값보다 더 강한 stiffness/dragForce 만 적용 (낮은 값은 강제 보강).
+        if (typeof s.stiffness === 'number') s.stiffness = Math.max(s.stiffness, 1.5);
+        if (typeof s.dragForce === 'number') s.dragForce = Math.max(s.dragForce, 0.6);
+      }
+    } catch { /* noop */ }
+  }
+
   // mixer root = vrm.scene (또는 root). HumanoidMesh 에서 VRMA clip 의 track name 을
   // raw bone 이름으로 rewrite → mixer 가 raw scene 안의 raw bone 직접 driving.
   // update 순서: vrm.update 먼저 (humanoid.update 의 normalized → raw mirror),
@@ -146,9 +162,9 @@ export async function createHumanoidCharacter(
         try { vrm.expressionManager?.update?.(); } catch { /* noop */ }
         try { vrm.nodeConstraintManager?.update?.(); } catch { /* noop */ }
         // spring bone — 작은 step 으로 여러 번 update (떨림/oscillation 방지).
-        // 60Hz 기준 step. dt 가 1/30 (30fps) 이면 2번, 1/15 면 4번 update.
+        // 1/120s step → 60Hz 게임에서 2 substep, 30Hz 에서 4 substep. 안정성 ↑.
         if (vrm.springBoneManager?.update) {
-          const SPRING_STEP = 1 / 60;
+          const SPRING_STEP = 1 / 120;
           let remaining = Math.min(dt, 0.1); // 큰 dt cap (탭 전환 등)
           try {
             while (remaining > 0) {
