@@ -138,10 +138,27 @@ export async function createHumanoidCharacter(
       headNode.scale.setScalar(visible ? 1 : 0.001);
     },
     update: (dt) => {
-      // 순서 중요 — VRM 의 humanoid.update 가 normalized → raw mirror 시 mixer 의 raw bone set 을
-      // 덮어쓰는 걸 방지. vrm.update 먼저 (mirror), mixer 가 마지막에 raw bone 직접 driving.
-      // bones map = raw bone 가리키므로 mixer 가 raw 에 회전 set → mesh 즉시 변형.
-      if (vrm?.update) { try { vrm.update(dt); } catch { /* noop */ } }
+      // VRM 부속 컴포넌트 개별 호출 — spring bone 만 substep 으로 떨림 방지.
+      // vrm.update(dt) 통합 호출 시 큰 dt 가 spring 진동 유발.
+      if (vrm) {
+        try { vrm.humanoid?.update?.(); } catch { /* noop */ }
+        try { vrm.lookAt?.update?.(dt); } catch { /* noop */ }
+        try { vrm.expressionManager?.update?.(); } catch { /* noop */ }
+        try { vrm.nodeConstraintManager?.update?.(); } catch { /* noop */ }
+        // spring bone — 작은 step 으로 여러 번 update (떨림/oscillation 방지).
+        // 60Hz 기준 step. dt 가 1/30 (30fps) 이면 2번, 1/15 면 4번 update.
+        if (vrm.springBoneManager?.update) {
+          const SPRING_STEP = 1 / 60;
+          let remaining = Math.min(dt, 0.1); // 큰 dt cap (탭 전환 등)
+          try {
+            while (remaining > 0) {
+              const step = Math.min(remaining, SPRING_STEP);
+              vrm.springBoneManager.update(step);
+              remaining -= step;
+            }
+          } catch { /* noop */ }
+        }
+      }
       mixer.update(dt);
       // VRM 없을 때 head bone 으로 lookAt fallback — 머리만 타깃 응시
       if (lookAtFallback && lookAtTarget && headNode) {
