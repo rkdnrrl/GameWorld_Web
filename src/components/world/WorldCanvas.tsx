@@ -1327,7 +1327,7 @@ export function Player({
   const portalTriggered = useRef(false);   // 같은 포탈 중복 발동 방지
   const lastPortalId    = useRef<string | null>(null);
   const { rapier, world: rWorld } = useRapier();
-  const { camera, gl } = useThree();
+  const { camera, gl, scene } = useThree();
 
   /* 직접 DOM 키 추적 — KeyboardControls 컨텍스트 문제 우회 */
   const keys = useRef(new Set<string>());
@@ -1513,28 +1513,48 @@ export function Player({
     };
     /** 1인칭 정조준 raycast 클릭 — 미디어 리모컨/스크립트 onClick 발동.
      *  PC onClick + 모바일 alp:fp-tap 둘 다에서 호출. hit 성공 시 true.
-     *  방향: camera 의 실제 forward 벡터 사용 (camera.getWorldDirection) — _mob.camH/camV 기반
-     *  계산은 모바일에서 lookTouch 활성화 전 stale 값일 수 있어 hit miss 발생함. */
+     *  방향: camera.getWorldDirection (실제 카메라 forward, _mob.camH/camV 와 무관).
+     *  2-pass: (1) rapier castRay (정확, collider 기반) → (2) THREE.Raycaster (rapier 매칭 실패 시 fallback). */
     const fireFirstPersonRayClick = (): boolean => {
       if (cameraModeRef.current !== 'first' || grabbedIdRef.current) return false;
+      const fwd = new THREE.Vector3();
+      camera.getWorldDirection(fwd);
+      const camPos = camera.position;
+
+      // Pass 1 — rapier castRay (기존 방식, scriptBodyRefs 매칭)
       try {
-        const camPos = camera.position;
-        const fwd = new THREE.Vector3();
-        camera.getWorldDirection(fwd);
         const ray = new rapier.Ray({ x: camPos.x, y: camPos.y, z: camPos.z }, { x: fwd.x, y: fwd.y, z: fwd.z });
-        const hit = rWorld.castRay(ray, 6.0, true, undefined, undefined, undefined, body.current ?? undefined);
+        const hit = rWorld.castRay(ray, 15.0, true, undefined, undefined, undefined, body.current ?? undefined);
         const hitBody = hit?.collider?.parent();
         if (hitBody && scriptBodyRefs) {
-          let clickedId: string | null = null;
           for (const [id, ref] of scriptBodyRefs.current) {
-            if (ref.body.current === hitBody) { clickedId = id; break; }
-          }
-          if (clickedId) {
-            onObjectClick?.(clickedId);
-            return true;
+            if (ref.body.current === hitBody) {
+              onObjectClick?.(id);
+              return true;
+            }
           }
         }
       } catch { /* Rapier 초기화 중 무시 */ }
+
+      // Pass 2 — THREE.Raycaster fallback. RigidBody 의 userData.objectId 를 부모 거슬러 찾음.
+      // rapier scriptBodyRefs 매칭 실패 케이스(예: 동적 마운트/언마운트 직후) 대비.
+      try {
+        const raycaster = new THREE.Raycaster();
+        raycaster.set(camPos, fwd);
+        const hits = raycaster.intersectObject(scene, true);
+        for (const h of hits) {
+          if (h.distance > 15) break;
+          let o: THREE.Object3D | null = h.object;
+          while (o) {
+            const oid = o.userData?.objectId as string | undefined;
+            if (oid) {
+              onObjectClick?.(oid);
+              return true;
+            }
+            o = o.parent;
+          }
+        }
+      } catch { /* noop */ }
       return false;
     };
     // 모바일 1인칭 가상 탭 버튼 → 같은 raycast 클릭 실행 (잡기/던지기 제외, 순수 클릭만)
