@@ -85,8 +85,8 @@ export interface HumanoidMeshProps {
   /** 카메라 시선 추적 (default true) */
   enableLookAt?: boolean;
   /**
-   * Foot IK 활성 (default false) — Two-Bone IK 솔버가 모델별 무릎 굽힘 축 가정 (1,0,0) 부정확해
-   * 다리 꺾임 발생. 명시적으로 활성화한 경우만 적용. 모델별 검증 후 켜는 게 안전.
+   * Foot IK 활성 (default true) — Hips Offset 방식. 다리 본 안 건드리고 hips 만 내림.
+   * 다리 꺾임 0%, 평지 80% 가림 (VRChat 도 같은 한계).
    */
   enableFootIK?: boolean;
   /** 모델 높이 정규화 (1.8m 기준) */
@@ -113,7 +113,7 @@ async function getCharacter(url: string, manualBoneMap?: Partial<Record<string, 
 export function HumanoidMesh(props: HumanoidMeshProps) {
   const {
     url, manualBoneMap, clipUrls, animStateRef, getAnalyser,
-    hideHead = false, castShadow = true, enableLookAt = true, enableFootIK = false,
+    hideHead = false, castShadow = true, enableLookAt = true, enableFootIK = true,
     targetHeight = 1.8, offsetY = 0, userScale = 1, onLoaded,
   } = props;
 
