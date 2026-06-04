@@ -21,8 +21,9 @@ function PreviewModel({ url, config }: { url: string; config: MaterialConfig }) 
 
   useEffect(() => {
     let cancelled = false;
-    import('three/examples/jsm/loaders/FBXLoader.js').then(({ FBXLoader }) => {
-      new FBXLoader().load(url, (fbx) => {
+    // 확장자 자동 분기 — FBX/GLB/GLTF/VRM/DAE/OBJ 모두 지원 (vrm 포함)
+    import('@/lib/world/modelLoader').then(({ loadStaticModel }) => {
+      loadStaticModel(url).then((fbx) => {
         if (cancelled) return;
         fbx.updateMatrixWorld(true);
         const box = new THREE.Box3().setFromObject(fbx);
@@ -37,7 +38,7 @@ function PreviewModel({ url, config }: { url: string; config: MaterialConfig }) 
           if (m.isMesh) { m.castShadow = true; originalMats.current.set(m, m.material); }
         });
         setObj(fbx);
-      });
+      }).catch(() => { /* 로드 실패 — 미리보기 비움 */ });
     });
     return () => { cancelled = true; };
   }, [url]);
