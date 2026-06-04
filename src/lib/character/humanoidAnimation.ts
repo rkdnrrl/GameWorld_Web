@@ -101,7 +101,11 @@ export function stripRootMotion(clip: THREE.AnimationClip): THREE.AnimationClip 
 
 /** 클립을 humanoid 표준 본 이름으로 직접 (캐릭터 매핑 전) 정규화.
  *  운영자가 등록하는 마스터 클립을 "humanoid normalized" 형태로 저장 →
- *  모든 캐릭터가 본인 매핑만 적용해서 사용 가능. */
+ *  모든 캐릭터가 본인 매핑만 적용해서 사용 가능.
+ *
+ *  Hips position 단위 보정 — Mixamo FBX 는 cm (값 수십~수백), VRM 은 m (1.0).
+ *  hips.position 의 절대값이 10 이상이면 cm 단위로 가정해 × 0.01 — VRM 캐릭터로
+ *  날아가는 버그 방지. (그 이하면 m 단위 그대로) */
 export function normalizeClipToHumanoidNames(clip: THREE.AnimationClip): THREE.AnimationClip {
   const tracks: THREE.KeyframeTrack[] = [];
   for (const track of clip.tracks) {
@@ -113,6 +117,19 @@ export function normalizeClipToHumanoidNames(clip: THREE.AnimationClip): THREE.A
     if (!humanoidName) continue;
     const cloned = track.clone();
     cloned.name = `${humanoidName}${suffix}`;
+
+    // Mixamo cm → m 자동 보정 — hips.position 만 검사 (다른 본의 position 은 거의 없음)
+    if (humanoidName === 'hips' && suffix === '.position' && cloned.values.length > 0) {
+      let maxAbs = 0;
+      for (let i = 0; i < cloned.values.length; i++) {
+        const v = Math.abs(cloned.values[i]);
+        if (v > maxAbs) maxAbs = v;
+      }
+      if (maxAbs > 10) {
+        // cm 단위 가정 — m 로 변환
+        for (let i = 0; i < cloned.values.length; i++) cloned.values[i] *= 0.01;
+      }
+    }
     tracks.push(cloned);
   }
   return new THREE.AnimationClip(clip.name, clip.duration, tracks, clip.blendMode);
