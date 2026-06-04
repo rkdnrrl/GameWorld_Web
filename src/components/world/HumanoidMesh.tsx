@@ -288,15 +288,12 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     char.setLookAtTarget(enableLookAt ? camera : null);
   }, [char, enableLookAt, camera]);
 
-  // Foot IK — 캐릭터 본 로드 후 IK 솔버 생성. enableFootIK 로 토글.
+  // Foot IK — enableFootIK=true 일 때만 솔버 생성. false 면 인스턴스 자체 없음 → useFrame skip.
   useEffect(() => {
-    if (!char) { footIKRef.current = null; return; }
+    if (!char || !enableFootIK) { footIKRef.current = null; return; }
     footIKRef.current = createHumanoidFootIK(char.bones);
     return () => { footIKRef.current = null; };
-  }, [char]);
-  useEffect(() => {
-    if (footIKRef.current) footIKRef.current.enabled = enableFootIK;
-  }, [enableFootIK]);
+  }, [char, enableFootIK]);
 
   // analyser 매 frame buffer (성능)
   const lipSyncBuf = useMemo(() => new Uint8Array(32), []);
