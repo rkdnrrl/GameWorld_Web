@@ -144,11 +144,13 @@ export async function loadHumanoid(url: string, opts: HumanoidLoadOptions = {}):
 
     const { boneByName, morphTargets } = collectBonesAndMorphs(vrm.scene);
 
-    // VRM humanoid API → normalized bone 우선 (Mixamo T-pose 호환)
+    // VRM humanoid API → raw bone 우선. mixer 가 raw bone (mesh 의 skin.bones) 직접 driving.
+    // normalized bone 은 vrm.humanoid 의 별도 hierarchy 라 mirror 가 매핑 누락하는 본 발생 (어깨/팔).
+    // raw bone 직접 set → vrm.humanoid.update 의 mirror 없이도 mesh 변형 즉시 반영.
     const bones: Partial<Record<HumanoidBoneName, THREE.Object3D>> = {};
     if (vrm.humanoid) {
       for (const name of HUMANOID_BONES) {
-        const node = vrm.humanoid.getNormalizedBoneNode?.(name) || vrm.humanoid.getRawBoneNode?.(name);
+        const node = vrm.humanoid.getRawBoneNode?.(name) || vrm.humanoid.getNormalizedBoneNode?.(name);
         if (node?.name) bones[name] = node;
       }
     }

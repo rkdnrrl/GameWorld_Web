@@ -138,12 +138,11 @@ export async function createHumanoidCharacter(
       headNode.scale.setScalar(visible ? 1 : 0.001);
     },
     update: (dt) => {
-      // 표준 순서: mixer → vrm.update.
-      // mixer 가 bones map 의 실제 본 (VRM normalized 또는 FBX raw) 회전 set.
-      // vrm.update 는 VRM 의 부속 (expression / springBone / lookAt) 만 처리.
-      // VRM 에서 normalized 본 driving 시 humanoid.update 의 mirror 가 raw 본까지 자동 적용.
-      mixer.update(dt);
+      // 순서 중요 — VRM 의 humanoid.update 가 normalized → raw mirror 시 mixer 의 raw bone set 을
+      // 덮어쓰는 걸 방지. vrm.update 먼저 (mirror), mixer 가 마지막에 raw bone 직접 driving.
+      // bones map = raw bone 가리키므로 mixer 가 raw 에 회전 set → mesh 즉시 변형.
       if (vrm?.update) { try { vrm.update(dt); } catch { /* noop */ } }
+      mixer.update(dt);
       // VRM 없을 때 head bone 으로 lookAt fallback — 머리만 타깃 응시
       if (lookAtFallback && lookAtTarget && headNode) {
         const tmp = new THREE.Vector3();
