@@ -284,6 +284,14 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
             }
             c.scene.position.y -= baseY;
             c.scene.userData.__baseScale = baseScale;
+            console.log('[norm]', {
+              isVrm: !!c.vrm,
+              boxMinY: box2.min.y.toFixed(3),
+              boxMaxY: box2.max.y.toFixed(3),
+              baseY: baseY.toFixed(3),
+              scenePosY: c.scene.position.y.toFixed(3),
+              baseScale: baseScale.toFixed(3),
+            });
           }
           c.scene.userData.__normalized = true;
         }
@@ -312,6 +320,33 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
       const m = c as THREE.Mesh;
       if (m.isMesh) m.castShadow = castShadow;
     });
+    // 진단 — 마운트 직후 발 vertex 의 world y 출력
+    setTimeout(() => {
+      try {
+        groupRef.current?.updateMatrixWorld(true);
+        const v = new THREE.Vector3();
+        let minY = Infinity;
+        char.scene.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (!(m.isMesh || (m as THREE.SkinnedMesh).isSkinnedMesh)) return;
+          const pos = m.geometry?.attributes?.position;
+          if (!pos) return;
+          m.updateMatrixWorld(true);
+          for (let i = 0; i < pos.count; i++) {
+            v.fromBufferAttribute(pos as THREE.BufferAttribute, i);
+            v.applyMatrix4(m.matrixWorld);
+            if (v.y < minY) minY = v.y;
+          }
+        });
+        const groupW = groupRef.current!.getWorldPosition(new THREE.Vector3());
+        const sceneW = char.scene.getWorldPosition(new THREE.Vector3());
+        console.log('[mount]', {
+          groupWorldY: groupW.y.toFixed(3),
+          sceneWorldY: sceneW.y.toFixed(3),
+          actualFootWorldY: isFinite(minY) ? minY.toFixed(3) : 'none',
+        });
+      } catch { /* noop */ }
+    }, 100);
     return () => {
       // unmount 시 scene 떼기 — 다른 인스턴스가 같은 캐시 char 받으면 재부착
       if (char.scene.parent) char.scene.parent.remove(char.scene);
