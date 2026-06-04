@@ -128,10 +128,15 @@ function canonicalBoneName(name: string): string | null {
   return ALIAS_TO_MIXAMO.get(cleanBoneName(name)) || null;
 }
 
-/** FBX 오브젝트에 뼈(Bone)가 하나라도 있으면 true */
+/** 뼈(Bone) 또는 SkinnedMesh.skeleton 이 하나라도 있으면 true.
+ *  VRM 일부 케이스는 본이 scene tree 밖에 있어 traverse 만으로는 못 잡음 → skeleton 도 검사. */
 export function hasSkeleton(root: THREE.Object3D): boolean {
   let found = false;
-  root.traverse(child => { if ((child as THREE.Bone).isBone) found = true; });
+  root.traverse(child => {
+    if ((child as THREE.Bone).isBone) found = true;
+    const sm = child as THREE.SkinnedMesh;
+    if (sm.isSkinnedMesh && sm.skeleton?.bones && sm.skeleton.bones.length > 0) found = true;
+  });
   return found;
 }
 
@@ -150,11 +155,13 @@ interface VrmHumanoidLike {
 export function findMixamoCompatibleBones(root: THREE.Object3D): Map<string, string> {
   const bones = new Map<string, string>();
 
-  // 1) VRM humanoid API 우선 — modelLoader 가 vrm.humanoid 를 userData 에 부착했으면 사용
+  // 1) VRM humanoid API 우선 — modelLoader 가 vrm.humanoid 를 userData 에 부착했으면 사용.
+  //    Normalized bone 우선 — Mixamo 클립(T-pose 기준) 과 호환되는 표준 rest pose.
+  //    raw bone 은 VRM 원본 회전이라 Mixamo 클립 적용 시 캐릭터가 비틀림 ("젖혀짐" 버그).
   const vrmHumanoid = root.userData?.vrmHumanoid as VrmHumanoidLike | undefined;
   if (vrmHumanoid) {
     for (const [vrmName, mixamoName] of Object.entries(VRM_TO_MIXAMO)) {
-      const node = vrmHumanoid.getRawBoneNode?.(vrmName) || vrmHumanoid.getNormalizedBoneNode?.(vrmName);
+      const node = vrmHumanoid.getNormalizedBoneNode?.(vrmName) || vrmHumanoid.getRawBoneNode?.(vrmName);
       if (node?.name && !bones.has(mixamoName)) bones.set(mixamoName, node.name);
     }
   }
