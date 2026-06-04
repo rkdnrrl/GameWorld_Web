@@ -16,7 +16,7 @@ import { createHumanoidCharacter, type HumanoidCharacter } from '@/lib/character
 import { loadAnimationSource, retargetWithSkeletonUtils, normalizeClipToHumanoidNames, retargetClipToHumanoid, type AnimationSource } from '@/lib/character/humanoidAnimation';
 import { ANIM_SLOTS, ANIM_SLOT_LEGACY_ALIAS, type AnimSlot } from '@/lib/character/humanoid';
 import { createHumanoidFootIK, type HumanoidFootIK } from '@/lib/character/humanoidFootIK';
-import { loadVRMA, vrmaToClip } from '@/lib/character/vrmAnimation';
+import { loadVRMA, vrmaToClip, vrmaToUniversalClip } from '@/lib/character/vrmAnimation';
 
 /** url 의 확장자가 .vrma 인지. query/hash 무시. */
 function isVrmaUrl(url: string): boolean {
@@ -151,15 +151,25 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
               // Fast path — VRMA + VRM 캐릭터: createVRMAnimationClip 가 normalized bone 이름으로
               // track 만듦. mixer 가 normalized bone 회전 set → vrm.update 가 raw bone 으로 mirror
               // (T-pose↔A-pose rest pose 보정 포함). 정통 three-vrm 패턴.
-              // VRM + VRMA — vrm-viewer.ownverse.world 와 동일 패턴.
-              // mixer = AnimationMixer(vrm.scene) + createVRMAnimationClip 결과 그대로 사용.
-              // update 순서: vrm.update → mixer.update (humanoidCharacter 에서 처리).
-              if (isVrmaUrl(clipUrl) && c.vrm) {
+              // VRMA path 분기:
+              //   VRM 캐릭터 → vrmaToClip (createVRMAnimationClip) — vrm.humanoid 의 rest pose 자동 보정
+              //   FBX/GLB 캐릭터 → vrmaToUniversalClip — bones map 통해 humanoid 이름 → 실제 본 이름 변환
+              if (isVrmaUrl(clipUrl)) {
                 try {
                   const vrma = await loadVRMA(clipUrl);
-                  retargeted = vrmaToClip(vrma, c.vrm, slot);
-                  if (retargeted && slot === 'idle') {
-                    console.log(`[humanoid] idle ${retargeted.tracks.length} tracks (vrm-viewer 패턴)`);
+                  if (c.vrm) {
+                    retargeted = vrmaToClip(vrma, c.vrm, slot);
+                    if (slot === 'idle') console.log(`[humanoid] idle ${retargeted.tracks.length} tracks (VRM path)`);
+                  } else {
+                    retargeted = vrmaToUniversalClip(vrma, c.bones, slot);
+                    if (slot === 'idle') {
+                      const sample = retargeted.tracks.slice(0, 3).map((t) => {
+                        const bn = t.name.split('.')[0];
+                        const found = c.scene.getObjectByName(bn);
+                        return `${t.name}${found ? '✓' : '✗'}`;
+                      });
+                      console.log(`[humanoid] idle ${retargeted.tracks.length} tracks (FBX universal), sample:`, sample);
+                    }
                   }
                 } catch (eVrma) {
                   console.warn(`[humanoid] ${slot} VRMA 실패 — generic retarget 시도`, eVrma);
