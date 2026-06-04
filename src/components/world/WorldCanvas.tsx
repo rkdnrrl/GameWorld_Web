@@ -1510,15 +1510,16 @@ export function Player({
       tryLockPointer();
     };
     /** 1인칭 정조준 raycast 클릭 — 미디어 리모컨/스크립트 onClick 발동.
-     *  PC onClick + 모바일 alp:fp-tap 둘 다에서 호출. hit 성공 시 true. */
+     *  PC onClick + 모바일 alp:fp-tap 둘 다에서 호출. hit 성공 시 true.
+     *  방향: camera 의 실제 forward 벡터 사용 (camera.getWorldDirection) — _mob.camH/camV 기반
+     *  계산은 모바일에서 lookTouch 활성화 전 stale 값일 수 있어 hit miss 발생함. */
     const fireFirstPersonRayClick = (): boolean => {
       if (cameraModeRef.current !== 'first' || grabbedIdRef.current) return false;
       try {
         const camPos = camera.position;
-        const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
-        const fy = -Math.sin(_mob.camV);
-        const fz = -Math.cos(_mob.camH) * Math.cos(_mob.camV);
-        const ray = new rapier.Ray({ x: camPos.x, y: camPos.y, z: camPos.z }, { x: fx, y: fy, z: fz });
+        const fwd = new THREE.Vector3();
+        camera.getWorldDirection(fwd);
+        const ray = new rapier.Ray({ x: camPos.x, y: camPos.y, z: camPos.z }, { x: fwd.x, y: fwd.y, z: fwd.z });
         const hit = rWorld.castRay(ray, 6.0, true, undefined, undefined, undefined, body.current ?? undefined);
         const hitBody = hit?.collider?.parent();
         if (hitBody && scriptBodyRefs) {
@@ -3032,14 +3033,31 @@ function MobileControls({ inputLocked, cameraMode }: { inputLocked: boolean; cam
 
       {/* 1인칭 탭 버튼 — 화면 중앙 크로스헤어 위치. 누르면 정조준 오브젝트(미디어 리모컨 등) 클릭 발동.
           PC 는 pointer lock + 좌클릭으로 처리되지만 모바일은 pointer lock 없으므로 가상 버튼 필요.
-          tabIndex=-1, 카메라 룩(전체 배경)과 분리되어 드래그/탭 혼동 없음. */}
+
+          ⚠ 모바일 함정 회피:
+          - touchAction: 'none' — 브라우저 기본 제스처(스크롤·줌·long-press 메뉴) 차단
+          - touchstart 추가 — iOS Safari 일부 환경에서 pointerdown 누락 케이스 보강
+          - zIndex 명시 — 카메라 룩 배경(div) 보다 확실히 위로
+          - stopPropagation 으로 카메라 룩 활성화 차단 */}
       {cameraMode === 'first' && (
         <button type="button"
           onPointerDown={e => {
             e.stopPropagation();
+            e.preventDefault();
             if (inputLocked) return;
             setTapFlash(true);
             window.setTimeout(() => setTapFlash(false), 150);
+            document.dispatchEvent(new CustomEvent('alp:fp-tap'));
+          }}
+          onTouchStart={e => {
+            // iOS Safari 보강 — pointerdown 안 오는 케이스 대비
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+          onClick={e => {
+            // 마우스 입력 / 일부 모바일 환경 — pointerdown 외에 click 도 받음
+            e.stopPropagation();
+            if (inputLocked) return;
             document.dispatchEvent(new CustomEvent('alp:fp-tap'));
           }}
           style={{
@@ -3050,10 +3068,14 @@ function MobileControls({ inputLocked, cameraMode }: { inputLocked: boolean; cam
             background: tapFlash ? 'rgba(99,102,241,0.45)' : 'rgba(10,15,30,0.18)',
             color: '#fff', fontSize: 28, fontWeight: 300, lineHeight: 1,
             pointerEvents: 'auto', cursor: 'pointer',
+            touchAction: 'none',
+            zIndex: 16777275,  // 카메라 룩 div(zIndex 없음) 위로
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: tapFlash ? '0 0 16px rgba(99,102,241,0.6)' : 'none',
             transition: 'background 0.08s, border-color 0.08s, box-shadow 0.08s',
             backdropFilter: 'blur(2px)',
+            WebkitTapHighlightColor: 'transparent',
+            userSelect: 'none',
           }}
           aria-label="tap"
         >＋</button>
