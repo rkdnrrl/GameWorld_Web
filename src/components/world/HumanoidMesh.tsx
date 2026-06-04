@@ -155,17 +155,24 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
                 try {
                   const vrma = await loadVRMA(clipUrl);
                   retargeted = vrmaToClip(vrma, c.vrm, slot);
-                  // 디버그 — 첫 3개 track name + scene/normRoot 발견 여부
-                  if (retargeted && retargeted.tracks.length > 0) {
+                  // 디버그 — 어깨/팔/다리 track 존재 여부 + 본 이름
+                  if (retargeted && retargeted.tracks.length > 0 && slot === 'idle') {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const normRoot = (c.vrm as any)?.humanoid?.normalizedHumanBonesRoot;
-                    const sample = retargeted.tracks.slice(0, 3).map((t) => {
-                      const boneName = t.name.split('.')[0];
-                      const inScene = !!c.scene.getObjectByName(boneName);
-                      const inNorm = !!normRoot?.getObjectByName?.(boneName);
-                      return `${t.name} scene=${inScene ? '✓' : '✗'} norm=${inNorm ? '✓' : '✗'}`;
-                    });
-                    console.log(`[humanoid] ${slot} ${retargeted.tracks.length}tracks | ${sample.join(' | ')}`);
+                    const v = c.vrm as any;
+                    const check = (h: string) => {
+                      const norm = v?.humanoid?.getNormalizedBoneNode?.(h);
+                      const raw = v?.humanoid?.getRawBoneNode?.(h);
+                      const trackName = norm?.name + '.quaternion';
+                      const hasTrack = retargeted!.tracks.some((t) => t.name === trackName);
+                      return `${h}: norm=${norm?.name || '✗'} raw=${raw?.name || '✗'} track=${hasTrack ? '✓' : '✗'}`;
+                    };
+                    console.log('[humanoid] idle 본 진단:\n  ' + [
+                      check('hips'), check('spine'),
+                      check('leftShoulder'), check('leftUpperArm'),
+                      check('leftLowerArm'), check('leftHand'),
+                      check('rightShoulder'), check('rightUpperArm'),
+                    ].join('\n  '));
+                    console.log(`[humanoid] idle tracks 전체 (${retargeted.tracks.length}):`, retargeted.tracks.map(t => t.name));
                   }
                 } catch (eVrma) {
                   console.warn(`[humanoid] ${slot} VRMA fast-path 실패 — generic retarget 시도`, eVrma);
