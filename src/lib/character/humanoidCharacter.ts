@@ -134,8 +134,17 @@ export async function createHumanoidCharacter(
     },
     update: (dt) => {
       mixer.update(dt);
-      // VRM 인스턴스 있으면 expressionManager + lookAt + springbone 자동 갱신
-      if (vrm?.update) { try { vrm.update(dt); } catch { /* noop */ } }
+      // VRM 인스턴스의 부속 컴포넌트만 개별 갱신.
+      // ⚠ vrm.humanoid.update() 는 호출 안 함 — normalized → raw mirror 가 mixer 가 set 한
+      // raw 본 회전을 매 frame 덮어쓰기 때문 (특히 어깨/팔 본).
+      // 우리 HumanoidMesh 가 clip 의 track name 을 이미 raw bone 이름으로 rewrite 했으므로
+      // mirror 자체가 불필요.
+      if (vrm) {
+        try { vrm.lookAt?.update?.(dt); } catch { /* noop */ }
+        try { vrm.expressionManager?.update?.(); } catch { /* noop */ }
+        try { vrm.springBoneManager?.update?.(dt); } catch { /* noop */ }
+        try { vrm.nodeConstraintManager?.update?.(); } catch { /* noop */ }
+      }
       // VRM 없을 때 head bone 으로 lookAt fallback — 머리만 타깃 응시
       if (lookAtFallback && lookAtTarget && headNode) {
         const tmp = new THREE.Vector3();
