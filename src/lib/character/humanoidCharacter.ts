@@ -67,10 +67,9 @@ export async function createHumanoidCharacter(
   const { root, bones, vrm, allBoneNames, allMorphTargets, diagnosis } = loaded;
 
   // VRM spring bone:
-  //   1. center = hips 설정 (null 인 joint 만) — 캐릭터 world 이동을 spring 계산에서 분리.
-  //      → 어떤 속도로 달려도 spring 의 base 가 안정 → 자연 흩날림 유지.
-  //      hips 자체의 회전 (idle/walk 모션) 만 spring 이 반응.
-  //   2. 가슴 (breast/bust) joint — stiffness/dragForce 강화. 팔 충돌 시 진동 방지.
+  //   1. center = hips (null 인 joint 만) — 캐릭터 world 이동을 spring 계산에서 분리.
+  //   2. dragForce 최소 0.5 보장 — 약한 spring 의 진동을 짧게 감쇠. stiffness 는 건드리지 않음.
+  //   3. 가슴 joint — 추가 강화 (팔 충돌 진동 방지).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = (vrm as any)?.springBoneManager;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -81,14 +80,16 @@ export async function createHumanoidCharacter(
     try {
       for (const joint of sb.joints) {
         if (!joint) continue;
-        // center 미설정 joint → hips 로 설정 (캐릭터 이동 무관 흔들림)
         if (joint.center == null && hipsNode) joint.center = hipsNode;
-        // 가슴 joint 만 추가 안정화
-        if (joint.bone && joint.settings) {
+        const s = joint.settings;
+        if (s && typeof s.dragForce === 'number' && s.dragForce < 0.5) {
+          s.dragForce = 0.5;  // 약한 감쇠만 보강 (모델 강한 값은 그대로)
+        }
+        if (joint.bone && s) {
           const name = (joint.bone.name || '').toLowerCase();
           if (name.includes('breast') || name.includes('bust') || name.includes('boob')) {
-            joint.settings.stiffness = Math.max(joint.settings.stiffness || 0, 1.5);
-            joint.settings.dragForce = Math.max(joint.settings.dragForce || 0, 0.8);
+            s.stiffness = Math.max(s.stiffness || 0, 1.5);
+            s.dragForce = Math.max(s.dragForce || 0, 0.8);
           }
         }
       }
