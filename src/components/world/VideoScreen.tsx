@@ -749,20 +749,16 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, he
     }
   };
 
-  // 1인칭 크로스헤어 클릭 — pointer lock 또는 firstPerson prop 일 때 화면 중앙 raycaster.
-  // R3F 의 onPointerDown 은 마우스 좌표 기반이라 lock 중엔 안 잡힘. 스튜디오 시뮬 1인칭은
-  // pointer lock 안 쓰지만 마우스가 안 보이므로 hover 위치로 잡혀도 안 됨 → firstPerson prop.
+  // 1인칭 크로스헤어 클릭 — pointer lock(PC) 또는 firstPerson prop(스튜디오 시뮬) 또는
+  // alp:fp-tap(모바일 1인칭 탭) 모두 화면 중앙 raycaster 로 처리. mesh hit 시 handleUv.
   // 주의: capture phase X / stopPropagation X — 다른 1인칭 처리(오브젝트 클릭 등) 와 공존.
   const meshRef = useRef<THREE.Mesh>(null);
   const { camera } = useThree();
   useEffect(() => {
     if (!interactive) return;
-    const onClick = (e: PointerEvent) => {
-      if (!document.pointerLockElement && !firstPerson) return;   // 일반 모드면 R3F 클릭이 처리
-      if (e.button !== 0) return;
+    const tryCrosshairHit = () => {
       if (!meshRef.current) return;
       // NDC (0,0) = 카메라 view 중앙 = 캔버스 영역 중앙.
-      // 호출부(WorldCanvas / StudioCanvas)는 크로스헤어를 캔버스 영역 중앙에 그려야 함 (viewport 중앙 X).
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
       const hits = raycaster.intersectObject(meshRef.current);
@@ -771,8 +767,19 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, he
         handleUv(hits[0].uv);
       }
     };
+    const onClick = (e: PointerEvent) => {
+      if (!document.pointerLockElement && !firstPerson) return;   // 일반 모드면 R3F 클릭이 처리
+      if (e.button !== 0) return;
+      tryCrosshairHit();
+    };
+    // 모바일 1인칭 탭 — WorldCanvas 가 dispatch. pointer lock 없는 환경 대응.
+    const onMobileTap = () => { tryCrosshairHit(); };
     window.addEventListener('pointerdown', onClick);
-    return () => window.removeEventListener('pointerdown', onClick);
+    document.addEventListener('alp:fp-tap', onMobileTap);
+    return () => {
+      window.removeEventListener('pointerdown', onClick);
+      document.removeEventListener('alp:fp-tap', onMobileTap);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interactive, firstPerson, camera, targetId]);
 
