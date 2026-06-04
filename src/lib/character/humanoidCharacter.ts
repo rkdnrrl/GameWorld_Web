@@ -66,22 +66,12 @@ export async function createHumanoidCharacter(
   const loaded = await loadHumanoid(url, opts);
   const { root, bones, vrm, allBoneNames, allMorphTargets, diagnosis } = loaded;
 
-  // VRM 캐릭터일 때 mixer 의 root 를 normalizedHumanBonesRoot 로 지정.
-  // createVRMAnimationClip 의 track name = normalized bone 이름이고, normalizedHumanBonesRoot
-  // 가 별도 hierarchy 라 vrm.scene 으로 traverse 시 찾지 못하는 경우 있음.
-  // 직접 normalizedHumanBonesRoot 를 mixer 의 root 로 지정 → traverse 안에서 정확 매칭.
-  // vrm.update(dt) 의 humanoid.update() 가 normalized → raw mirror 적용.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const normRoot = (vrm as any)?.humanoid?.normalizedHumanBonesRoot;
-  const mixerRoot: THREE.Object3D = normRoot ?? root;
-  if (normRoot) {
-    const sampleNames: string[] = [];
-    normRoot.traverse((o: THREE.Object3D) => { if (sampleNames.length < 8) sampleNames.push(o.name); });
-    console.log('[humanoid] mixer root = normalizedHumanBonesRoot. 본 샘플:', sampleNames);
-  } else if (vrm) {
-    console.warn('[humanoid] ⚠ VRM 인스턴스에 normalizedHumanBonesRoot 가 없음 — VRM 0.x 일 가능성');
-  }
-  const mixer = new THREE.AnimationMixer(mixerRoot);
+  // mixer root = vrm.scene (또는 root). HumanoidMesh 에서 VRMA clip 의 track name 을
+  // raw bone 이름으로 rewrite → mixer 가 raw scene 안의 raw bone 직접 driving.
+  // update 순서: vrm.update 먼저 (humanoid.update 의 normalized → raw mirror),
+  //             mixer.update 나중 (raw bone 회전을 clip 값으로 덮어씀).
+  // 이 흐름이 — vrm.humanoid mirror 가 mixer 의 회전을 덮어쓰는 문제 해결.
+  const mixer = new THREE.AnimationMixer(root);
   const actions = new Map<AnimSlot, THREE.AnimationAction>();
   let currentSlot: AnimSlot | null = null;
 
@@ -148,10 +138,11 @@ export async function createHumanoidCharacter(
       headNode.scale.setScalar(visible ? 1 : 0.001);
     },
     update: (dt) => {
-      mixer.update(dt);
-      // VRM 의 humanoid mirror 는 mixer 가 set 한 normalized bone 회전을 raw bone 으로 변환
-      // (T-pose↔A-pose rest-pose 보정 포함). 이게 없으면 모든 본이 raw rest pose (T-pose) 유지.
+      // 순서 중요: vrm.update 가 humanoid.update 호출 시 normalized → raw bone mirror.
+      // 그 mirror 가 mixer 의 raw bone 회전 set 을 덮어쓰는 걸 막기 위해 vrm.update 를 먼저.
+      // mixer.update 가 마지막에 raw bone 회전을 clip 값으로 덮어씀 → 최종 자세.
       if (vrm?.update) { try { vrm.update(dt); } catch { /* noop */ } }
+      mixer.update(dt);
       // VRM 없을 때 head bone 으로 lookAt fallback — 머리만 타깃 응시
       if (lookAtFallback && lookAtTarget && headNode) {
         const tmp = new THREE.Vector3();
