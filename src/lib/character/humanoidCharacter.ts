@@ -108,6 +108,15 @@ export async function createHumanoidCharacter(
   // 머리 본 — 1인칭 hideHead
   const headNode = bones.head ?? null;
 
+  // hips 본 + rest pose local Y 캡처 — 애니메이션이 캐릭터를 위로 띄우는 것 방지 (crouch 등).
+  // mixer 적용 후 hips.position.y > restHipsLocalY 면 clamp. 아래로는 (앉기·바운싱) 허용.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hipsBone: THREE.Object3D | null = bones.hips
+    || (vrm as any)?.humanoid?.getRawBoneNode?.('hips')
+    || (vrm as any)?.humanoid?.getNormalizedBoneNode?.('hips')
+    || null;
+  const restHipsLocalY = hipsBone ? hipsBone.position.y : 0;
+
   // lookAt 타깃 ref — vrm.lookAt 또는 없으면 head bone 회전 fallback
   let lookAtTarget: THREE.Object3D | null = null;
   const lookAtFallback = !vrm?.lookAt && !!headNode;
@@ -171,6 +180,11 @@ export async function createHumanoidCharacter(
         try { vrm.update(Math.min(dt, 0.05)); } catch { /* noop */ }
       }
       mixer.update(dt);
+      // hips Y clamp — 애니메이션이 rest pose 위로 hips 를 올리는 경우 차단 (crouch 등이 위로 뜨는 버그).
+      // 아래로 (앉기·바운싱) 는 영향 없음.
+      if (hipsBone && hipsBone.position.y > restHipsLocalY) {
+        hipsBone.position.y = restHipsLocalY;
+      }
       // VRM 없을 때 head bone 으로 lookAt fallback — 머리만 타깃 응시
       if (lookAtFallback && lookAtTarget && headNode) {
         const tmp = new THREE.Vector3();
