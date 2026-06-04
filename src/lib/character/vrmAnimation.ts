@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import type { VRM } from '@pixiv/three-vrm';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMAnimationLoaderPlugin, createVRMAnimationClip, type VRMAnimation } from '@pixiv/three-vrm-animation';
-import { ANIM_SLOTS, type AnimSlot } from './humanoid';
+import { ANIM_SLOTS, type AnimSlot, type HumanoidBoneName } from './humanoid';
 
 /** .vrma 파일 1개 로드 → VRMAnimation 인스턴스. */
 export async function loadVRMA(url: string): Promise<VRMAnimation> {
@@ -31,6 +31,47 @@ export function vrmaToClip(vrma: VRMAnimation, vrm: VRM, name?: string): THREE.A
   const clip = createVRMAnimationClip(vrma, vrm);
   if (name) clip.name = name;
   return clip;
+}
+
+/**
+ * Universal VRMA → AnimationClip — vrm 인스턴스 없이 humanoid bones map 만으로 retarget.
+ *
+ * VRChat 식 — 캐릭터 측 humanoid abstraction (bones map) 통과시켜
+ * VRM / Mixamo FBX / ReadyPlayerMe / 어떤 포맷이든 같은 모션 적용.
+ *
+ * VRMA 의 humanoidTracks (이미 humanoid bone 단위로 분리됨) 의 track name 을
+ * 캐릭터의 실제 본 이름으로 rename. mixer 가 raw scene 에서 직접 binding.
+ *
+ * @param vrma 로드된 VRMAnimation
+ * @param bones humanoid name → 실제 Object3D 매핑 (humanoidLoader 가 만든 것)
+ * @param name clip 이름
+ */
+export function vrmaToUniversalClip(
+  vrma: VRMAnimation,
+  bones: Partial<Record<HumanoidBoneName, THREE.Object3D>>,
+  name: string,
+): THREE.AnimationClip {
+  const tracks: THREE.KeyframeTrack[] = [];
+
+  // 회전 track — humanoid bone 별 quaternion
+  for (const [humanoidName, track] of vrma.humanoidTracks.rotation) {
+    const bone = bones[humanoidName as HumanoidBoneName];
+    if (!bone || !bone.name) continue;
+    const cloned = track.clone();
+    cloned.name = `${bone.name}.quaternion`;
+    tracks.push(cloned);
+  }
+
+  // hips position track — 유일한 translation
+  for (const [humanoidName, track] of vrma.humanoidTracks.translation) {
+    const bone = bones[humanoidName as HumanoidBoneName];
+    if (!bone || !bone.name) continue;
+    const cloned = track.clone();
+    cloned.name = `${bone.name}.position`;
+    tracks.push(cloned);
+  }
+
+  return new THREE.AnimationClip(name, vrma.duration, tracks);
 }
 
 /**

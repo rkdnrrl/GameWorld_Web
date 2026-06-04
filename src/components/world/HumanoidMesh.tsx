@@ -14,43 +14,14 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { createHumanoidCharacter, type HumanoidCharacter } from '@/lib/character/humanoidCharacter';
 import { loadAnimationSource, retargetWithSkeletonUtils, normalizeClipToHumanoidNames, retargetClipToHumanoid, type AnimationSource } from '@/lib/character/humanoidAnimation';
-import { ANIM_SLOTS, ANIM_SLOT_LEGACY_ALIAS, HUMANOID_BONES, type AnimSlot, type HumanoidBoneName } from '@/lib/character/humanoid';
+import { ANIM_SLOTS, ANIM_SLOT_LEGACY_ALIAS, type AnimSlot } from '@/lib/character/humanoid';
 import { createHumanoidFootIK, type HumanoidFootIK } from '@/lib/character/humanoidFootIK';
-import { loadVRMA, vrmaToClip } from '@/lib/character/vrmAnimation';
+import { loadVRMA, vrmaToUniversalClip } from '@/lib/character/vrmAnimation';
 
 /** url 의 확장자가 .vrma 인지. query/hash 무시. */
 function isVrmaUrl(url: string): boolean {
   const ext = (url.split('?')[0].split('#')[0].split('.').pop() || '').toLowerCase();
   return ext === 'vrma';
-}
-
-/**
- * createVRMAnimationClip 의 clip 은 track name = normalized bone name.
- * mixer 의 root = vrm.scene 일 때 normalized bone 못 찾는 경우가 있음.
- * track name 을 raw bone 이름으로 rewrite → mixer 가 raw bone 직접 driving.
- * update 순서가 vrm.update → mixer.update 면 mirror 가 mixer 의 set 을 덮어쓰지 못함.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function rewriteVrmaClipToRawBones(clip: THREE.AnimationClip, vrm: any): THREE.AnimationClip {
-  if (!vrm?.humanoid) return clip;
-  const normNameToHumanoid = new Map<string, HumanoidBoneName>();
-  for (const h of HUMANOID_BONES) {
-    const node = vrm.humanoid.getNormalizedBoneNode?.(h);
-    if (node?.name) normNameToHumanoid.set(node.name, h);
-  }
-  let rewrote = 0, skipped = 0;
-  for (const track of clip.tracks) {
-    const dotIdx = track.name.indexOf('.');
-    if (dotIdx < 0) continue;
-    const oldName = track.name.substring(0, dotIdx);
-    const prop = track.name.substring(dotIdx + 1);
-    const humanoidName = normNameToHumanoid.get(oldName);
-    if (!humanoidName) { skipped++; continue; }
-    const rawBone = vrm.humanoid.getRawBoneNode?.(humanoidName);
-    if (rawBone?.name) { track.name = `${rawBone.name}.${prop}`; rewrote++; }
-    else skipped++;
-  }
-  return clip;
 }
 
 /** 슬롯별 raw 애니메이션 source 모듈 캐시 — 캐릭터별 retarget 위해 한 번만 로드. */
@@ -180,22 +151,22 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
               // Fast path — VRMA + VRM 캐릭터: createVRMAnimationClip 가 normalized bone 이름으로
               // track 만듦. mixer 가 normalized bone 회전 set → vrm.update 가 raw bone 으로 mirror
               // (T-pose↔A-pose rest pose 보정 포함). 정통 three-vrm 패턴.
-              if (isVrmaUrl(clipUrl) && c.vrm) {
+              // VRMA universal path — VRChat 식. vrm.humanoidTracks 의 humanoid bone 별 track 을
+              // 캐릭터의 실제 본 이름 (bones map) 으로 rename. VRM/FBX/GLB 모든 포맷 작동.
+              if (isVrmaUrl(clipUrl)) {
                 try {
                   const vrma = await loadVRMA(clipUrl);
-                  const rawClip = vrmaToClip(vrma, c.vrm, slot);
-                  // track name 을 raw bone 이름으로 rewrite — mixer 가 vrm.scene 의 raw bone 직접 driving.
-                  retargeted = rewriteVrmaClipToRawBones(rawClip, c.vrm);
+                  retargeted = vrmaToUniversalClip(vrma, c.bones, slot);
                   if (retargeted && slot === 'idle') {
                     const sample = retargeted.tracks.slice(0, 3).map((t) => {
                       const bn = t.name.split('.')[0];
                       const found = c.scene.getObjectByName(bn);
                       return `${t.name}${found ? '✓' : '✗'}`;
                     });
-                    console.log(`[humanoid] idle ${retargeted.tracks.length} tracks (raw rewritten), sample:`, sample);
+                    console.log(`[humanoid] idle ${retargeted.tracks.length} tracks (universal), sample:`, sample);
                   }
                 } catch (eVrma) {
-                  console.warn(`[humanoid] ${slot} VRMA fast-path 실패 — generic retarget 시도`, eVrma);
+                  console.warn(`[humanoid] ${slot} VRMA universal 실패 — generic retarget 시도`, eVrma);
                 }
               }
 
