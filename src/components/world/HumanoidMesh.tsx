@@ -14,7 +14,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { createHumanoidCharacter, type HumanoidCharacter } from '@/lib/character/humanoidCharacter';
 import { loadAnimationSource, retargetWithSkeletonUtils, normalizeClipToHumanoidNames, retargetClipToHumanoid, type AnimationSource } from '@/lib/character/humanoidAnimation';
-import { ANIM_SLOTS, ANIM_SLOT_LEGACY_ALIAS, HUMANOID_BONES, type AnimSlot, type HumanoidBoneName } from '@/lib/character/humanoid';
+import { ANIM_SLOTS, ANIM_SLOT_LEGACY_ALIAS, type AnimSlot } from '@/lib/character/humanoid';
 import { createHumanoidFootIK, type HumanoidFootIK } from '@/lib/character/humanoidFootIK';
 import { loadVRMA, vrmaToClip } from '@/lib/character/vrmAnimation';
 
@@ -22,36 +22,6 @@ import { loadVRMA, vrmaToClip } from '@/lib/character/vrmAnimation';
 function isVrmaUrl(url: string): boolean {
   const ext = (url.split('?')[0].split('#')[0].split('.').pop() || '').toLowerCase();
   return ext === 'vrma';
-}
-
-/**
- * createVRMAnimationClip 이 만든 clip 은 track name 이 normalized bone 이름.
- * mixer 가 raw scene 에서 찾지 못해 일부 본 (어깨·팔 등 매핑 누락) 이 T-pose 로 남음.
- * track name 을 raw bone 이름으로 변환하면 mixer 가 raw scene 에서 직접 binding.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function rewriteVrmaClipToRawBones(clip: THREE.AnimationClip, vrm: any): THREE.AnimationClip {
-  if (!vrm?.humanoid) return clip;
-  // normalized bone name → humanoid bone name 역매핑
-  const normNameToHumanoid = new Map<string, HumanoidBoneName>();
-  for (const h of HUMANOID_BONES) {
-    const node = vrm.humanoid.getNormalizedBoneNode?.(h);
-    if (node?.name) normNameToHumanoid.set(node.name, h);
-  }
-  let rewrote = 0, skipped = 0;
-  for (const track of clip.tracks) {
-    const dotIdx = track.name.indexOf('.');
-    if (dotIdx < 0) continue;
-    const oldName = track.name.substring(0, dotIdx);
-    const prop = track.name.substring(dotIdx + 1);
-    const humanoidName = normNameToHumanoid.get(oldName);
-    if (!humanoidName) { skipped++; continue; }
-    const rawBone = vrm.humanoid.getRawBoneNode?.(humanoidName);
-    if (rawBone?.name) { track.name = `${rawBone.name}.${prop}`; rewrote++; }
-    else skipped++;
-  }
-  console.log(`[humanoid] VRMA track rewrite: ${rewrote} → raw, ${skipped} skipped`);
-  return clip;
 }
 
 /** 슬롯별 raw 애니메이션 source 모듈 캐시 — 캐릭터별 retarget 위해 한 번만 로드. */
@@ -178,16 +148,22 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
             try {
               let retargeted: THREE.AnimationClip | null = null;
 
-              // Fast path — VRMA + VRM 캐릭터: createVRMAnimationClip + raw bone rewrite.
-              // VRMA 는 mesh/bone 없는 glTF 라 SkeletonUtils 가 작동 안 함.
-              // createVRMAnimationClip 은 normalized bone name 으로 track 만드는데, 일부 본 (어깨·팔)
-              // 이 vrm.update 의 normalized→raw mirror 에서 누락되어 T-pose 남음.
-              // → track name 을 raw bone 이름으로 강제 변환 → mixer 가 raw scene 에서 직접 binding.
+              // Fast path — VRMA + VRM 캐릭터: createVRMAnimationClip 가 normalized bone 이름으로
+              // track 만듦. mixer 가 normalized bone 회전 set → vrm.update 가 raw bone 으로 mirror
+              // (T-pose↔A-pose rest pose 보정 포함). 정통 three-vrm 패턴.
               if (isVrmaUrl(clipUrl) && c.vrm) {
                 try {
                   const vrma = await loadVRMA(clipUrl);
-                  const rawClip = vrmaToClip(vrma, c.vrm, slot);
-                  retargeted = rewriteVrmaClipToRawBones(rawClip, c.vrm);
+                  retargeted = vrmaToClip(vrma, c.vrm, slot);
+                  // 디버그 — 첫 5개 track name + scene 안에서 발견되는지 확인
+                  if (retargeted && retargeted.tracks.length > 0) {
+                    const sample = retargeted.tracks.slice(0, 5).map((t) => {
+                      const boneName = t.name.split('.')[0];
+                      const found = c.scene.getObjectByName(boneName);
+                      return `${t.name}${found ? '✓' : '❌'}`;
+                    });
+                    console.log(`[humanoid] ${slot} VRMA clip ${retargeted.tracks.length} tracks, sample:`, sample);
+                  }
                 } catch (eVrma) {
                   console.warn(`[humanoid] ${slot} VRMA fast-path 실패 — generic retarget 시도`, eVrma);
                 }
