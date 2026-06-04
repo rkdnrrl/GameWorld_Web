@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import type { VRM } from '@pixiv/three-vrm';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMAnimationLoaderPlugin, createVRMAnimationClip, type VRMAnimation } from '@pixiv/three-vrm-animation';
-import { ANIM_SLOTS, type AnimSlot, type HumanoidBoneName } from './humanoid';
+import { ANIM_SLOTS, HUMANOID_BONES, detectHumanoidName, type AnimSlot, type HumanoidBoneName } from './humanoid';
 
 /** .vrma 파일 1개 로드 → VRMAnimation 인스턴스. */
 export async function loadVRMA(url: string): Promise<VRMAnimation> {
@@ -31,6 +31,62 @@ export function vrmaToClip(vrma: VRMAnimation, vrm: VRM, name?: string): THREE.A
   const clip = createVRMAnimationClip(vrma, vrm);
   if (name) clip.name = name;
   return clip;
+}
+
+/**
+ * FBX → VRM AnimationClip — OWNverse vrm-viewer 방식.
+ *
+ * Mixamo FBX (또는 다른 humanoid 표준 rig) 의 본 회전을 직접 VRM 의 normalized humanoid 본에 적용.
+ * vrm.humanoid 가 rest pose 보정 자동 처리. Mixamo T-pose ↔ VRM T-pose 호환.
+ *
+ * @param url .fbx 파일 URL
+ * @param vrm 캐릭터의 VRM 인스턴스
+ * @param name clip 이름
+ */
+export async function fbxToVrmClip(
+  url: string,
+  vrm: VRM,
+  name: string,
+): Promise<THREE.AnimationClip> {
+  const { FBXLoader } = await import('three/examples/jsm/loaders/FBXLoader.js');
+  const fbx = await new Promise<THREE.Object3D & { animations?: THREE.AnimationClip[] }>(
+    (resolve, reject) => new FBXLoader().load(url, resolve as never, undefined, reject)
+  );
+  const clip = fbx.animations?.[0];
+  if (!clip) throw new Error(`FBX 에 애니메이션 없음: ${url}`);
+
+  // humanoid name → normalized bone 이름 매핑 (캐릭터의 vrm 기준)
+  const humanoidToNormName = new Map<HumanoidBoneName, string>();
+  for (const h of HUMANOID_BONES) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const node = (vrm as any).humanoid?.getNormalizedBoneNode?.(h);
+    if (node?.name) humanoidToNormName.set(h, node.name);
+  }
+
+  const validTracks: THREE.KeyframeTrack[] = [];
+  for (const track of clip.tracks) {
+    const dotIdx = track.name.indexOf('.');
+    if (dotIdx < 0) continue;
+    const fbxBoneName = track.name.substring(0, dotIdx);
+    const prop = track.name.substring(dotIdx + 1);
+
+    // scale 트랙 제외 — VRMA spec 위반 + Mixamo 노이즈
+    if (prop.startsWith('scale')) continue;
+    // position 은 hips 만 — 나머지는 본 길이가 달라 어색 (VRMA spec 도 hips position 만 허용)
+    const humanoidName = detectHumanoidName(fbxBoneName);
+    if (!humanoidName) continue;
+    if (prop.startsWith('position') && humanoidName !== 'hips') continue;
+
+    const targetBoneName = humanoidToNormName.get(humanoidName);
+    if (!targetBoneName) continue;
+
+    const cloned = track.clone();
+    cloned.name = `${targetBoneName}.${prop}`;
+    validTracks.push(cloned);
+  }
+
+  if (validTracks.length === 0) throw new Error('FBX → VRM 매핑 결과 비어있음');
+  return new THREE.AnimationClip(name, clip.duration, validTracks);
 }
 
 /**

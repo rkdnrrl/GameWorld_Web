@@ -16,13 +16,13 @@ import { createHumanoidCharacter, type HumanoidCharacter } from '@/lib/character
 import { loadAnimationSource, retargetWithSkeletonUtils, normalizeClipToHumanoidNames, retargetClipToHumanoid, type AnimationSource } from '@/lib/character/humanoidAnimation';
 import { ANIM_SLOTS, ANIM_SLOT_LEGACY_ALIAS, type AnimSlot } from '@/lib/character/humanoid';
 import { createHumanoidFootIK, type HumanoidFootIK } from '@/lib/character/humanoidFootIK';
-import { loadVRMA, vrmaToClip, vrmaToUniversalClip } from '@/lib/character/vrmAnimation';
+import { loadVRMA, vrmaToClip, vrmaToUniversalClip, fbxToVrmClip } from '@/lib/character/vrmAnimation';
 
-/** url 의 확장자가 .vrma 인지. query/hash 무시. */
-function isVrmaUrl(url: string): boolean {
-  const ext = (url.split('?')[0].split('#')[0].split('.').pop() || '').toLowerCase();
-  return ext === 'vrma';
+function getExt(url: string): string {
+  return (url.split('?')[0].split('#')[0].split('.').pop() || '').toLowerCase();
 }
+function isVrmaUrl(url: string): boolean { return getExt(url) === 'vrma'; }
+function isFbxUrl(url: string): boolean { return getExt(url) === 'fbx'; }
 
 /** 슬롯별 raw 애니메이션 source 모듈 캐시 — 캐릭터별 retarget 위해 한 번만 로드. */
 const animSourceCache = new Map<string, Promise<AnimationSource>>();
@@ -151,10 +151,20 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
               // Fast path — VRMA + VRM 캐릭터: createVRMAnimationClip 가 normalized bone 이름으로
               // track 만듦. mixer 가 normalized bone 회전 set → vrm.update 가 raw bone 으로 mirror
               // (T-pose↔A-pose rest pose 보정 포함). 정통 three-vrm 패턴.
+              // FBX 모션 (Mixamo) + VRM 캐릭터 → 직접 Mixamo bone 매핑 (OWNverse vrm-viewer 방식).
+              // 운영자가 fbx 그대로 등록 — 클라가 VRM 으로 변환.
+              if (isFbxUrl(clipUrl) && c.vrm) {
+                try {
+                  retargeted = await fbxToVrmClip(clipUrl, c.vrm, slot);
+                  if (slot === 'idle') console.log(`[humanoid] idle ${retargeted.tracks.length} tracks (FBX→VRM)`);
+                } catch (eFbx) {
+                  console.warn(`[humanoid] ${slot} FBX→VRM 실패`, eFbx);
+                }
+              }
               // VRMA path 분기:
               //   VRM 캐릭터 → vrmaToClip (createVRMAnimationClip) — vrm.humanoid 의 rest pose 자동 보정
               //   FBX/GLB 캐릭터 → vrmaToUniversalClip — bones map 통해 humanoid 이름 → 실제 본 이름 변환
-              if (isVrmaUrl(clipUrl)) {
+              if (!retargeted && isVrmaUrl(clipUrl)) {
                 try {
                   const vrma = await loadVRMA(clipUrl);
                   if (c.vrm) {
