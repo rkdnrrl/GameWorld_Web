@@ -153,11 +153,11 @@ export async function fbxToVrmClip(
       // VRM 0.x: x, z 반전
       const values = Array.from(track.values).map((v, i) => isVrm0 && i % 2 === 0 ? -v : v);
       tracks.push(new THREE.QuaternionKeyframeTrack(`${vrmNode.name}.${propertyName}`, Array.from(track.times), values));
-    } else if (track instanceof THREE.VectorKeyframeTrack) {
-      // position track: scale + (VRM 0.x x/z 반전)
-      const values = Array.from(track.values).map((v, i) => (isVrm0 && i % 3 !== 1 ? -v : v) * hipsPositionScale);
-      tracks.push(new THREE.VectorKeyframeTrack(`${vrmNode.name}.${propertyName}`, Array.from(track.times), values));
     }
+    // VectorKeyframeTrack (hips position) 은 의도적으로 제외 — WorldCanvas 의 Rapier body 가
+    // 캐릭터 world 위치를 제어하므로 animation 의 hips position 적용 시 캐릭터가 ground 아래로
+    // 떨어짐. Y 회전은 quaternion track 으로 처리되어 모션 보존.
+    // (hipsPositionScale 계산은 향후 root-motion 옵션 위해 유지)
   }
 
   if (tracks.length === 0) throw new Error('Mixamo → VRM 매핑 결과 비어있음 (mixamorig 본 이름 확인 필요)');
