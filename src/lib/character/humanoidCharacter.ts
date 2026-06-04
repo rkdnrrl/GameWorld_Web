@@ -66,8 +66,24 @@ export async function createHumanoidCharacter(
   const loaded = await loadHumanoid(url, opts);
   const { root, bones, vrm, allBoneNames, allMorphTargets, diagnosis } = loaded;
 
-  // VRM spring bone — 손 안 댐. 모델 export 시 설정한 값 그대로 사용.
-  // vrm-viewer.ownverse.world 와 동일 패턴.
+  // VRM spring bone — center = hips 설정으로 캐릭터 world 이동을 spring 계산에서 분리.
+  // vrm-viewer 는 정지 캐릭터라 필요 X. ALP 는 캐릭터가 이동하므로 — mesh group 위치 변경이
+  // spring 의 base 를 흔들어 진동 유발. center 가 hips 면 spring 이 hips 기준 상대 좌표만 보고
+  // 캐릭터 world 이동은 무시 → 머리카락이 hips 따라 같이 이동 + 자연 흩날림 유지.
+  // stiffness/dragForce 는 모델 설정 그대로 (자연스러움 보존).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = (vrm as any)?.springBoneManager;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hipsNode = (vrm as any)?.humanoid?.getRawBoneNode?.('hips')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    || (vrm as any)?.humanoid?.getNormalizedBoneNode?.('hips');
+  if (sb?.joints && hipsNode) {
+    try {
+      for (const joint of sb.joints) {
+        if (joint && joint.center == null) joint.center = hipsNode;
+      }
+    } catch { /* noop */ }
+  }
 
   // mixer root = vrm.scene (또는 root). HumanoidMesh 에서 VRMA clip 의 track name 을
   // raw bone 이름으로 rewrite → mixer 가 raw scene 안의 raw bone 직접 driving.
