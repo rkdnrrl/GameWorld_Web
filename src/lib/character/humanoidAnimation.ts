@@ -15,6 +15,42 @@
 import * as THREE from 'three';
 import { detectHumanoidName, type HumanoidBoneName } from './humanoid';
 
+/**
+ * 어떤 포맷의 애니메이션 파일이든 → humanoid normalized clip 으로 로드.
+ *   .fbx / .glb / .gltf: 자체 anims[0] → normalizeClipToHumanoidNames
+ *   .vrma: VRMA 의 본 이름이 이미 humanoid 표준 → 그대로 사용 (raw GLTF animations 추출)
+ *
+ * 반환된 clip 은 본 이름이 humanoid 표준 (hips, spine, head, ...).
+ * 각 캐릭터는 retargetClipToHumanoid(clip, bones) 로 자기 본 이름에 매핑.
+ */
+export async function loadHumanoidClip(url: string, name: string): Promise<THREE.AnimationClip> {
+  const ext = (url.split('?')[0].split('#')[0].split('.').pop() || '').toLowerCase();
+  if (ext === 'fbx') {
+    const { FBXLoader } = await import('three/examples/jsm/loaders/FBXLoader.js');
+    const fbx = await new Promise<THREE.Object3D & { animations?: THREE.AnimationClip[] }>((resolve, reject) =>
+      new FBXLoader().load(url, resolve as never, undefined, reject)
+    );
+    const clip = fbx.animations?.[0];
+    if (!clip) throw new Error(`FBX 에 애니메이션 없음: ${url}`);
+    const normalized = normalizeClipToHumanoidNames(clip);
+    normalized.name = name;
+    return normalized;
+  }
+  if (ext === 'glb' || ext === 'gltf' || ext === 'vrma') {
+    const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+    // VRMA 도 GLTF 기반 — 일반 GLTFLoader 로 animations 추출 가능 (humanoid bone 이름 그대로)
+    const gltf = await new Promise<{ animations?: THREE.AnimationClip[] }>((resolve, reject) =>
+      new GLTFLoader().load(url, resolve as never, undefined, reject)
+    );
+    const clip = gltf.animations?.[0];
+    if (!clip) throw new Error(`GLB/VRMA 에 애니메이션 없음: ${url}`);
+    const normalized = normalizeClipToHumanoidNames(clip);
+    normalized.name = name;
+    return normalized;
+  }
+  throw new Error(`지원 안 함 확장자: ${ext}`);
+}
+
 /** 한 클립 → 특정 캐릭터의 humanoid bones map 에 맞게 본 이름 변환. */
 export function retargetClipToHumanoid(
   clip: THREE.AnimationClip,

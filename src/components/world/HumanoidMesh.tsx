@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { createHumanoidCharacter, type HumanoidCharacter } from '@/lib/character/humanoidCharacter';
-import { loadVRMA, vrmaToClip } from '@/lib/character/vrmAnimation';
+import { loadHumanoidClip } from '@/lib/character/humanoidAnimation';
 import type { AnimSlot } from '@/lib/character/humanoid';
 
 const API = (typeof window !== 'undefined' && (window as { __ALP_API__?: string }).__ALP_API__) || 'https://airliveplay.com';
@@ -94,18 +94,18 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
         const c = await getCharacter(url, manualBoneMap);
         if (cancelled) return;
         local = c;
-        // ── 클립 로드 ── prop clipUrls 우선, 없으면 운영자 등록 글로벌. VRM 인스턴스 필수 (vrma).
+        // ── 클립 로드 ── prop clipUrls 우선, 없으면 운영자 등록 글로벌. 포맷 무관 (.fbx/.glb/.vrma).
+        // loadHumanoidClip 이 humanoid 표준 본 이름으로 정규화 → c.setClips 가 캐릭터별 retarget.
         const effectiveClipUrls = clipUrls && Object.keys(clipUrls).length
           ? clipUrls
           : await getOperatorClipUrls();
         if (cancelled) return;
-        if (c.vrm && effectiveClipUrls) {
+        if (effectiveClipUrls) {
           const clipMap = new Map<AnimSlot, THREE.AnimationClip>();
           await Promise.all(Object.entries(effectiveClipUrls).map(async ([slot, clipUrl]) => {
             if (!clipUrl) return;
             try {
-              const vrma = await loadVRMA(clipUrl);
-              const clip = vrmaToClip(vrma, c.vrm, slot);
+              const clip = await loadHumanoidClip(clipUrl, slot);
               clipMap.set(slot as AnimSlot, clip);
             } catch (e) {
               console.warn(`[humanoid] ${slot} 클립 로드 실패`, e);
