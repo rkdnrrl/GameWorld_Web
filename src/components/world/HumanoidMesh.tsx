@@ -14,7 +14,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { createHumanoidCharacter, type HumanoidCharacter } from '@/lib/character/humanoidCharacter';
 import { loadAnimationSource, retargetWithSkeletonUtils, normalizeClipToHumanoidNames, retargetClipToHumanoid, type AnimationSource } from '@/lib/character/humanoidAnimation';
-import { ANIM_SLOTS, ANIM_SLOT_LEGACY_ALIAS, HUMANOID_BONES, type AnimSlot, type HumanoidBoneName } from '@/lib/character/humanoid';
+import { ANIM_SLOTS, ANIM_SLOT_LEGACY_ALIAS, type AnimSlot } from '@/lib/character/humanoid';
 import { createHumanoidFootIK, type HumanoidFootIK } from '@/lib/character/humanoidFootIK';
 import { loadVRMA, vrmaToClip } from '@/lib/character/vrmAnimation';
 
@@ -22,31 +22,6 @@ import { loadVRMA, vrmaToClip } from '@/lib/character/vrmAnimation';
 function isVrmaUrl(url: string): boolean {
   const ext = (url.split('?')[0].split('#')[0].split('.').pop() || '').toLowerCase();
   return ext === 'vrma';
-}
-
-/**
- * createVRMAnimationClip 의 track name (normalized bone) 을 raw bone 이름으로 rewrite.
- * mixer 가 raw bone 직접 driving — vrm.humanoid mirror 가 일부 본 누락하는 issue 우회.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function rewriteVrmaClipToRawBones(clip: THREE.AnimationClip, vrm: any): THREE.AnimationClip {
-  if (!vrm?.humanoid) return clip;
-  const normNameToHumanoid = new Map<string, HumanoidBoneName>();
-  for (const h of HUMANOID_BONES) {
-    const node = vrm.humanoid.getNormalizedBoneNode?.(h);
-    if (node?.name) normNameToHumanoid.set(node.name, h);
-  }
-  for (const track of clip.tracks) {
-    const dotIdx = track.name.indexOf('.');
-    if (dotIdx < 0) continue;
-    const oldName = track.name.substring(0, dotIdx);
-    const prop = track.name.substring(dotIdx + 1);
-    const humanoidName = normNameToHumanoid.get(oldName);
-    if (!humanoidName) continue;
-    const rawBone = vrm.humanoid.getRawBoneNode?.(humanoidName);
-    if (rawBone?.name) track.name = `${rawBone.name}.${prop}`;
-  }
-  return clip;
 }
 
 /** 슬롯별 raw 애니메이션 source 모듈 캐시 — 캐릭터별 retarget 위해 한 번만 로드. */
@@ -176,14 +151,15 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
               // Fast path — VRMA + VRM 캐릭터: createVRMAnimationClip 가 normalized bone 이름으로
               // track 만듦. mixer 가 normalized bone 회전 set → vrm.update 가 raw bone 으로 mirror
               // (T-pose↔A-pose rest pose 보정 포함). 정통 three-vrm 패턴.
-              // VRM + VRMA — 작동 검증된 fast-path. FBX 호환은 옵션 B 별도 추가 예정.
+              // VRM + VRMA — vrm-viewer.ownverse.world 와 동일 패턴.
+              // mixer = AnimationMixer(vrm.scene) + createVRMAnimationClip 결과 그대로 사용.
+              // update 순서: vrm.update → mixer.update (humanoidCharacter 에서 처리).
               if (isVrmaUrl(clipUrl) && c.vrm) {
                 try {
                   const vrma = await loadVRMA(clipUrl);
-                  const rawClip = vrmaToClip(vrma, c.vrm, slot);
-                  retargeted = rewriteVrmaClipToRawBones(rawClip, c.vrm);
+                  retargeted = vrmaToClip(vrma, c.vrm, slot);
                   if (retargeted && slot === 'idle') {
-                    console.log(`[humanoid] idle ${retargeted.tracks.length} tracks (raw rewritten)`);
+                    console.log(`[humanoid] idle ${retargeted.tracks.length} tracks (vrm-viewer 패턴)`);
                   }
                 } catch (eVrma) {
                   console.warn(`[humanoid] ${slot} VRMA 실패 — generic retarget 시도`, eVrma);
