@@ -66,18 +66,21 @@ export async function createHumanoidCharacter(
   const loaded = await loadHumanoid(url, opts);
   const { root, bones, vrm, allBoneNames, allMorphTargets, diagnosis } = loaded;
 
-  // VRM spring bone 강화 — 캐릭터 빠른 이동 시 머리카락/치마/가슴 떨림 감소.
-  // stiffness 강화 → spring 빠르게 복원. dragForce 강화 → 감쇠 강 → oscillation 방지.
+  // VRM spring bone — center bone (hips) 설정으로 캐릭터 이동을 spring 계산에서 분리.
+  // center 가 hips 면 캐릭터 전체 이동·회전은 머리카락도 같이 따라가서 떨림 없음.
+  // 머리카락의 흔들림은 hips 기준 상대 회전만 spring 처리 → 자연스럽게 흩날림.
+  // 모델이 명시적으로 center 설정한 joint 는 그대로 두고 (의도 존중), null 만 보강.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = (vrm as any)?.springBoneManager;
-  if (sb?.joints) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hipsNode = (vrm as any)?.humanoid?.getRawBoneNode?.('hips')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    || (vrm as any)?.humanoid?.getNormalizedBoneNode?.('hips');
+  if (sb?.joints && hipsNode) {
     try {
       for (const joint of sb.joints) {
-        const s = joint?.settings;
-        if (!s) continue;
-        // 기존 값보다 더 강한 stiffness/dragForce 만 적용 (낮은 값은 강제 보강).
-        if (typeof s.stiffness === 'number') s.stiffness = Math.max(s.stiffness, 1.5);
-        if (typeof s.dragForce === 'number') s.dragForce = Math.max(s.dragForce, 0.6);
+        if (!joint) continue;
+        if (joint.center == null) joint.center = hipsNode;
       }
     } catch { /* noop */ }
   }
