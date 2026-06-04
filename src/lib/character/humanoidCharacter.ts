@@ -66,7 +66,24 @@ export async function createHumanoidCharacter(
   const loaded = await loadHumanoid(url, opts);
   const { root, bones, vrm, allBoneNames, allMorphTargets, diagnosis } = loaded;
 
-  // VRM spring bone — 일체 손 안 댐. vrm-viewer 와 동일.
+  // VRM spring bone — 머리카락은 손 X (자연 흩날림 보존).
+  // 가슴 (breast/bust) joint 만 stiffness/dragForce 강화 — 팔이 가슴 collider 와 닿을 때
+  // 큰 진동 방지. 모든 spring 다 건드리지 않고 가슴만.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = (vrm as any)?.springBoneManager;
+  if (sb?.joints) {
+    try {
+      for (const joint of sb.joints) {
+        if (!joint?.bone || !joint?.settings) continue;
+        const name = (joint.bone.name || '').toLowerCase();
+        // VRoid 표준: Bust_L/R, Breast_L/R, J_Sec_L_Bust 등
+        if (name.includes('breast') || name.includes('bust') || name.includes('boob')) {
+          joint.settings.stiffness = Math.max(joint.settings.stiffness || 0, 1.5);
+          joint.settings.dragForce = Math.max(joint.settings.dragForce || 0, 0.8);
+        }
+      }
+    } catch { /* noop */ }
+  }
 
   // mixer root = vrm.scene (또는 root). HumanoidMesh 에서 VRMA clip 의 track name 을
   // raw bone 이름으로 rewrite → mixer 가 raw scene 안의 raw bone 직접 driving.
