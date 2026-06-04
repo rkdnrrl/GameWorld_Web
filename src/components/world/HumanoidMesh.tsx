@@ -240,18 +240,27 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
             const baseScale = targetHeight / maxDim;
             c.scene.scale.setScalar(baseScale);
             c.scene.updateMatrixWorld(true);
-            // mesh 만 정확하게 union — Box3.setFromObject 는 본도 포함해서 부정확할 수 있음.
-            // mesh.isSkinnedMesh / isMesh 만 따로 union → 진짜 mesh 의 발 vertex 가 min.y.
+            // mesh 의 vertex 를 world 좌표로 직접 traverse — 가장 정확.
+            // setFromObject 는 cached boundingBox + skinning 영향으로 부정확할 수 있음.
             const meshBox = new THREE.Box3();
             let hasMesh = false;
+            const v = new THREE.Vector3();
             c.scene.traverse((o) => {
               const m = o as THREE.Mesh;
-              if ((m as THREE.SkinnedMesh).isSkinnedMesh || m.isMesh) {
-                const sub = new THREE.Box3().setFromObject(m);
-                if (!sub.isEmpty()) { meshBox.union(sub); hasMesh = true; }
+              if (!(m.isMesh || (m as THREE.SkinnedMesh).isSkinnedMesh)) return;
+              const geo = m.geometry;
+              const pos = geo?.attributes?.position;
+              if (!pos) return;
+              m.updateMatrixWorld(true);
+              for (let i = 0; i < pos.count; i++) {
+                v.fromBufferAttribute(pos as THREE.BufferAttribute, i);
+                v.applyMatrix4(m.matrixWorld);
+                meshBox.expandByPoint(v);
               }
+              hasMesh = true;
             });
             const box2 = hasMesh ? meshBox : new THREE.Box3().setFromObject(c.scene);
+            console.log('[normalize]', { isVrm: !!c.vrm, hasMesh, boxMinY: box2.min.y.toFixed(3), boxMaxY: box2.max.y.toFixed(3) });
             let baseY: number;
             if (c.vrm) {
               // VRM 캐릭터 — 발 본 기준 + 머리카락 outlier 처리
