@@ -3252,9 +3252,11 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const effectiveDpr = useMemo(() => {
     if (typeof window === 'undefined') return graphics.dpr;
     const w = window.innerWidth || 1280, h = window.innerHeight || 720;
-    const MAX_PX = 2_600_000;               // 약 1080p+ 수준 백버퍼 예산
+    const MAX_PX = 1_600_000;               // 약 900p 수준 백버퍼 예산 (이전 2.6M → 1.6M 으로 축소)
     const budget = Math.sqrt(MAX_PX / (w * h));
-    return Math.max(1, Math.min(graphics.dpr, budget));
+    // DPR 강제 1.0 cap — 화려한 VRM 캐릭터의 view-dependent fragment 비용 큰 절감.
+    // 마우스 회전 시 fragment fill rate 가 fps drop 주범.
+    return Math.max(0.75, Math.min(graphics.dpr, budget, 1.0));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graphics.dpr]);
   // PerformanceMonitor 기반 동적 dpr factor — fps 떨어지면 자동으로 dpr 낮춤 (0.5~1.0).
