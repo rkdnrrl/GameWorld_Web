@@ -121,6 +121,8 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
   const groupRef = useRef<THREE.Group>(null);
   const [char, setChar] = useState<HumanoidCharacter | null>(null);
   const footIKRef = useRef<HumanoidFootIK | null>(null);
+  /** 발 본 ↔ parent 의 bind pose offset (모델별 sole 두께 자동). 첫 frame 에 캡처. */
+  const footBaselineRef = useRef<number | null>(null);
 
   // 모델 로드 + 클립 로드 + 슬롯 등록 (한 번)
   useEffect(() => {
@@ -380,9 +382,9 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     }
     // 3) mixer + vrm.update + lookAt
     char.update(dt);
-    // 4) Foot grounding — 발/toe 본 의 최저 world Y 를 parent group world Y (= ground) 로
-    //    느리게 (10%) 끌어내림. 달리기 airborne phase 의 짧은 발 lift 가 캐릭터 흔들림으로
-    //    보이는 것 방지 — threshold 5cm 이상 + 약한 smoothing. 시작 시 떠 있는 float 도 1초 내에 보정.
+    // 4) Foot grounding — 발 본 ↔ parent offset 을 bind pose baseline 으로 잡고 그 값에서 drift 만 보정.
+    //    Baseline = 모델별 sole 두께 (foot bone 는 ankle, sole 은 그보다 아래) 자동 처리.
+    //    smoothing 10% — 달리기 airborne 의 짧은 lift 도 살짝 보정되지만 진동은 미세 (0.5cm 이하).
     if (char.scene.parent) {
       const feet: THREE.Object3D[] = [];
       if (char.bones.leftFoot) feet.push(char.bones.leftFoot);
@@ -400,9 +402,14 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
         const parent = char.scene.parent;
         parent.getWorldPosition(wp);
         parent.getWorldScale(ws);
-        const drift = lowestY - wp.y;
+        const offsetFromParent = lowestY - wp.y;
+        // 첫 frame — 모델 고유 offset 캡처 (sole 두께 반영)
+        if (footBaselineRef.current === null) {
+          footBaselineRef.current = offsetFromParent;
+        }
+        const drift = offsetFromParent - footBaselineRef.current;
         const parentScaleY = ws.y || 1;
-        if (Math.abs(drift) > 0.05) {
+        if (Math.abs(drift) > 0.02) {
           char.scene.position.y -= (drift * 0.1) / parentScaleY;
         }
       }
