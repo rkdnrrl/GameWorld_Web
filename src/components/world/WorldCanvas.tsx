@@ -1377,12 +1377,13 @@ export function Player({
     }
   }, [cameraMode, inputLocked, gl]);
 
-  // 1인칭일 때 camera.near 줄임 — prone/crouch 등 카메라가 ground 가까워질 때
-  // 기본 0.3 으로는 ground 가 잘려서 땅이 뚫려 보임. 0.05 로 줄이면 ground 정상 표시.
-  // 머리 mesh 는 카메라가 head bone 안쪽이라 face-cull 로 자연스럽게 안 보임 (near 무관).
-  // 3인칭은 멀리 보는 거라 0.3 유지 (z-fighting 방지).
+  // 1인칭 camera.near — ground 안 잘리고 머리카락은 잘리는 sweet spot.
+  //   너무 작음(0.05): 머리카락이 카메라 앞에 들어와 보임 (prone 시 특히)
+  //   너무 큼  (0.3) : prone 자세에서 ground 가 잘려 땅이 뚫려 보임
+  //   0.1 정도면 prone 카메라 Y(~0.3m+) 위 ground 안전 + 머리카락 잘림.
+  // 3인칭은 0.3 유지 (z-fighting 방지).
   useEffect(() => {
-    camera.near = cameraMode === 'first' ? 0.05 : 0.3;
+    camera.near = cameraMode === 'first' ? 0.1 : 0.3;
     if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
       (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
     }
