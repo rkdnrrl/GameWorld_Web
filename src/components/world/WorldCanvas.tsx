@@ -3245,20 +3245,16 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // 같은 dpr 설정이라도 큰 창(PC)은 픽셀 수가 폭증해 fill-rate 렉 → 총 백버퍼 픽셀 예산으로 dpr 상한.
   // 모바일(작은 화면)은 예산 안이라 설정 dpr 그대로, PC 큰 창에서만 자동으로 낮아짐.
   const effectiveDpr = useMemo(() => {
-    if (typeof window === 'undefined') return graphics.dpr;
-    const w = window.innerWidth || 1280, h = window.innerHeight || 720;
-    // 사용자 확인: 작은 화면(858x858≈0.7M) OK / 큰 화면(2M+) drop → fragment fill rate 가 직접 원인.
-    // 백버퍼 예산 0.9M (약 720p) + DPR 0.65 cap → 큰 화면도 fragment 픽셀 수 작게 유지.
-    const MAX_PX = 900_000;
-    const budget = Math.sqrt(MAX_PX / (w * h));
-    return Math.max(0.5, Math.min(graphics.dpr, budget, 0.65));
+    // DPR cap 제거 — 사용자 graphics 설정 그대로 사용 (1920x1080 풀 해상도).
+    // #217 pointermove raycast 제거로 base fps 여유. fragment 비용 그대로 지불.
+    return graphics.dpr;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graphics.dpr]);
   // PerformanceMonitor 기반 동적 dpr factor — fps 떨어지면 자동으로 dpr 낮춤 (0.5~1.0).
   // effectiveDpr 위에 곱셈으로 적용 → 최대값은 effectiveDpr 유지, 약한 GPU 에서만 자동 낮아짐.
   // 최소 0.5 (이전 1.0 강제는 effectiveDpr cap 무력화시킴 — fragment fill rate fps drop 원인).
   const [dprFactor, setDprFactor] = useState(1);
-  const adaptiveDpr = Math.max(0.5, effectiveDpr * dprFactor);
+  const adaptiveDpr = effectiveDpr * dprFactor;
   const ss = sceneSettings ?? {};
   const ambientIntensity = typeof ss.lightAmbient === 'number' ? ss.lightAmbient : 0.04;
   const dirIntensity     = typeof ss.lightDir     === 'number' ? ss.lightDir     : 0.0;
