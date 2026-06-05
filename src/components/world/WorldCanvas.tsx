@@ -1694,12 +1694,13 @@ export function Player({
         jumpStartUntil.current = _t + 200;
       }
 
-      // 캐릭터 회전 — 1인칭은 항상 카메라 방향(엎드림 포함), 3인칭은 이동 방향(엎드림 제외)
+      // 캐릭터 회전 — 1인칭은 항상 카메라 방향, 3인칭은 이동 방향 (엎드림/앉기 포함).
       if (mesh.current) {
         if (cameraMode === 'first') {
           // FP: 캐릭터 몸이 항상 카메라 보는 방향과 일치 (즉시 동기). 엎드린 상태에서도 같이 돎.
           mesh.current.rotation.y = _mob.camH + Math.PI;
-        } else if (!isProne && len > 0) {
+        } else if (len > 0) {
+          // TP: 이동 방향으로 회전. 엎드려 기어갈 때도 동일 (이전엔 isProne 제외였음).
           const target = Math.atan2(mx, mz);
           mesh.current.rotation.y = lerpAngle(mesh.current.rotation.y, target, Math.min(1, 12 * dt));
         }
