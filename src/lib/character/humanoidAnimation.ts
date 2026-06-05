@@ -113,6 +113,15 @@ export async function retargetWithSkeletonUtils(
   if (!retargeted || !retargeted.tracks?.length) {
     throw new Error('SkeletonUtils.retargetClip 결과가 비어있음');
   }
+  // 트랙 이름 rewrite — `bones[mixamorigLeftFoot].quaternion` 같은 skeleton-binding 형식을
+  // 직접 본 이름 형식으로 변환 (`mixamorigLeftFoot.quaternion`). mixer root 가 scene 이라
+  // skeleton.bones[] 접근 불가 → binding 실패. scene 트리에서 본 객체 직접 찾도록.
+  for (const t of retargeted.tracks) {
+    const m = t.name.match(/^\.?bones\[([^\]]+)\]\.(.+)$/);
+    if (m) {
+      t.name = `${m[1]}.${m[2]}`;
+    }
+  }
   return retargeted;
 }
 
