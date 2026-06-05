@@ -401,16 +401,18 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
       } catch { /* noop */ }
       if (compileCancelled) return;
       setCompileReady(true);
-      // Progressive reveal — 50ms 간격. 20 mesh 캐릭터 약 1초 완료.
+      // Progressive reveal — 매 frame 2 mesh. 20 mesh 캐릭터 약 160ms 완료.
       let idx = 0;
+      const PER_FRAME = 2;
       const revealNext = () => {
         if (compileCancelled) return;
-        if (idx >= progressiveMeshes.length) return;
-        progressiveMeshes[idx].visible = true;
-        idx++;
-        setTimeout(revealNext, 50);
+        for (let n = 0; n < PER_FRAME && idx < progressiveMeshes.length; n++) {
+          progressiveMeshes[idx].visible = true;
+          idx++;
+        }
+        if (idx < progressiveMeshes.length) requestAnimationFrame(revealNext);
       };
-      setTimeout(revealNext, 30);
+      requestAnimationFrame(revealNext);
     })();
     // castShadow 초기 설정 — 거리 기반 토글이 매 frame 동기화하므로 여기는 base 값만
     shadowOnRef.current = castShadow;
