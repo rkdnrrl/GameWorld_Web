@@ -1307,15 +1307,6 @@ export function Player({
   const headBoneRef = useRef<THREE.Object3D | null>(null);
   /** 1인칭 카메라 head bone 위치 조회용 재사용 Vec3 */
   const _tmpHeadVec = useMemo(() => new THREE.Vector3(), []);
-  /** One Euro Filter state — 1인칭 카메라 떨림 제거. 작은 변화(bobbing)는 강한 smoothing,
-   *  큰 변화(자세 변화/점프)는 빠른 응답. Casiez et al. 2012. */
-  const oneEuroRef = useRef({
-    x: { hat: 0, dHat: 0, init: false },
-    y: { hat: 0, dHat: 0, init: false },
-    z: { hat: 0, dHat: 0, init: false },
-  });
-  /** animState 변경 감지 — 자세/이동 모드 전환 시 filter 초기화 (즉시 새 위치, 첫 frame 머리 보임 방지). */
-  const lastAnimStateRef = useRef<string>('idle');
   const portalTriggered = useRef(false);   // 같은 포탈 중복 발동 방지
   const lastPortalId    = useRef<string | null>(null);
   const { rapier, world: rWorld } = useRapier();
@@ -1848,51 +1839,23 @@ export function Player({
     // 자유시점 모드 — 외부 카메라(WasdFly/Orbit)가 카메라 소유. Player 는 캐릭터 물리만 처리.
     if (!cameraControlEnabled) { /* skip camera positioning */ }
     else if (cameraMode === 'first') {
-      // 1인칭 카메라 — head bone + One Euro Filter (bobbing 흡수, 자세 변화 즉시).
-      // animState 변경 시 filter 초기화 → run/jump 첫 frame 에 머리 안 보임.
-      const currentAnimState = String(animStateRef.current ?? 'idle');
-      if (currentAnimState !== lastAnimStateRef.current) {
-        lastAnimStateRef.current = currentAnimState;
-        oneEuroRef.current.x.init = false;
-        oneEuroRef.current.y.init = false;
-        oneEuroRef.current.z.init = false;
-      }
-      let rawX: number, rawY: number, rawZ: number;
+      // 1인칭 카메라 — head bone 위치 즉시 (filter 없음, 본인 몸과 sync).
+      // filter 적용 시 카메라가 본인 mesh 와 phase shift → 본인 몸 잔상.
+      // filter 없으면 head bone bobbing 그대로 받지만 본인 몸과 완전 동기 → 잔상 없음.
+      let camX: number, camY: number, camZ: number;
       const headBone = headBoneRef.current;
       if (headBone) {
         headBone.updateMatrixWorld(true);
         const headPos = headBone.getWorldPosition(_tmpHeadVec);
         const rotY = mesh.current?.rotation.y ?? 0;
-        // forward offset 0.25 — 본인 몸/머리 mesh 가 카메라 뒤로 충분히 멀리 (잔상 방지)
-        rawX = headPos.x + Math.sin(rotY) * 0.25;
-        rawY = headPos.y + 0.05;
-        rawZ = headPos.z + Math.cos(rotY) * 0.25;
+        camX = headPos.x + Math.sin(rotY) * 0.15;
+        camY = headPos.y + 0.05;
+        camZ = headPos.z + Math.cos(rotY) * 0.15;
       } else {
         const modelScale = Number((character?.appearance as Record<string, unknown> | undefined)?.modelScale) || 1.0;
-        rawX = p.x; rawZ = p.z;
-        rawY = (p.y - 0.63) + 1.5 * modelScale * postureScale;
+        camX = p.x; camZ = p.z;
+        camY = (p.y - 0.63) + 1.5 * modelScale * postureScale;
       }
-      // One Euro Filter — 각 축마다 적용
-      const oneEuro = (st: { hat: number; dHat: number; init: boolean }, x: number, deltaT: number): number => {
-        if (!st.init) { st.init = true; st.hat = x; return x; }
-        if (deltaT <= 0) return st.hat;
-        // 미분값 (속도) 측정
-        const dx = (x - st.hat) / deltaT;
-        // 미분의 low-pass (cutoff 1Hz) → 노이즈 제거된 속도
-        const tauD = 1 / (2 * Math.PI * 1.0);
-        const aD = deltaT / (tauD + deltaT);
-        st.dHat = st.dHat + aD * (dx - st.dHat);
-        // adaptive cutoff: 속도 빠르면 cutoff ↑ (즉시 응답), 느리면 cutoff ↓ (smoothing)
-        // minCutoff=0.8Hz, beta=0.3 (자세변화 같은 큰 속도 시 즉시 반응)
-        const cutoff = 0.8 + 0.3 * Math.abs(st.dHat);
-        const tau = 1 / (2 * Math.PI * cutoff);
-        const a = deltaT / (tau + deltaT);
-        st.hat = st.hat + a * (x - st.hat);
-        return st.hat;
-      };
-      const camX = oneEuro(oneEuroRef.current.x, rawX, dt);
-      const camY = oneEuro(oneEuroRef.current.y, rawY, dt);
-      const camZ = oneEuro(oneEuroRef.current.z, rawZ, dt);
       camera.position.set(camX, camY, camZ);
       const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
       // FPS 관례: 마우스 아래 = 시점 아래로. camV 는 3인칭 기준 (마우스 아래 = camV ↑ = 카메라 위)
