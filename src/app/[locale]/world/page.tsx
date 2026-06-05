@@ -104,6 +104,8 @@ export default function WorldPage() {
     if (returnToSettings) { setReturnToSettings(false); setSettingsOpen(true); }
   };
   const [mapModalOpen, setMapModalOpen] = useState(false);
+  /** 맵 picker 에서 현재 미리보기 중인 월드 id (실제 이동은 우측 패널 "이동" 버튼 클릭 시) */
+  const [focusedWorldId, setFocusedWorldId] = useState<string | null>(null);
   const [charModalOpen, setCharModalOpen] = useState(false);
   // 캐릭터 관리 (편집/생성) 모달 — iframe 으로 /character 페이지 임베드
   const [charManagerOpen, setCharManagerOpen] = useState(false);
@@ -1053,7 +1055,7 @@ export default function WorldPage() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ width: 'min(1100px, 96vw)', maxHeight: '90vh', overflow: 'hidden', borderRadius: 14, border: `1px solid ${portalPickMode ? 'rgba(34,211,238,0.4)' : 'rgba(255,255,255,0.16)'}`, background: 'linear-gradient(180deg, rgba(14,23,46,0.97) 0%, rgba(8,14,30,0.97) 100%)', color: '#fff' }}
+            style={{ width: 'min(1400px, 96vw)', height: 'min(85vh, 800px)', overflow: 'hidden', borderRadius: 14, border: `1px solid ${portalPickMode ? 'rgba(34,211,238,0.4)' : 'rgba(255,255,255,0.16)'}`, background: 'linear-gradient(180deg, rgba(14,23,46,0.97) 0%, rgba(8,14,30,0.97) 100%)', color: '#fff', display: 'flex', flexDirection: 'column' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
               <div style={{ fontSize: 18, fontWeight: 800 }}>{portalPickMode ? `🌀 ${t('portalPickTitle')}` : t('moveMap')}</div>
@@ -1086,7 +1088,7 @@ export default function WorldPage() {
               ))}
             </div>
 
-            <div style={{ padding: 16, overflowY: 'auto', maxHeight: 'calc(90vh - 140px)' }}>
+            <div style={{ padding: 16, overflowY: 'auto', flex: 1, minHeight: 0 }}>
               {/* 홈 탭 — 단일 카드 */}
               {mapTab === 'home' && (
                 <button
@@ -1160,10 +1162,10 @@ export default function WorldPage() {
 
                   {/* 결과 카운트 */}
                   {filteredWorlds.length > 0 && (
-                    <div style={{ fontSize: 11, opacity: 0.45, marginBottom: 10 }}>{filteredWorlds.length}개 월드</div>
+                    <div style={{ fontSize: 11, opacity: 0.45, marginBottom: 10 }}>{filteredWorlds.length}개 월드 · 카드 클릭 = 미리보기, 우측 &lsquo;이동&rsquo; 버튼 = 실제 이동 (더블클릭 = 바로 이동)</div>
                   )}
 
-                  {/* 그리드 */}
+                  {/* 그리드 — split: 좌측 카드 리스트 / 우측 미리보기 */}
                   {filteredWorlds.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '64px 24px' }}>
                       <div style={{ fontSize: 56, marginBottom: 12, opacity: 0.3 }}>🌐</div>
@@ -1176,10 +1178,27 @@ export default function WorldPage() {
                         </button>
                       )}
                     </div>
-                  ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 12 }}>
+                  ) : (() => {
+                    // 미리보기 대상 — focused 우선, 없으면 currentMap, 없으면 첫번째
+                    const focused = filteredWorlds.find(w => w.id === focusedWorldId)
+                      || filteredWorlds.find(w => w.id === worldIdParam)
+                      || filteredWorlds[0];
+                    const focusedHash = focused ? (focused.name || focused.id).split('').reduce((a, c) => a + c.charCodeAt(0), 0) : 0;
+                    const focusedGradients = [
+                      'linear-gradient(135deg,#6366f1,#ec4899)','linear-gradient(135deg,#06b6d4,#3b82f6)',
+                      'linear-gradient(135deg,#10b981,#06b6d4)','linear-gradient(135deg,#f59e0b,#ef4444)',
+                      'linear-gradient(135deg,#8b5cf6,#3b82f6)','linear-gradient(135deg,#14b8a6,#84cc16)',
+                      'linear-gradient(135deg,#ec4899,#f59e0b)','linear-gradient(135deg,#3b82f6,#1d4ed8)',
+                    ];
+                    const focusedBg = focused?.thumbnailUrl ? `url(${focused.thumbnailUrl}) center/cover` : focusedGradients[focusedHash % focusedGradients.length];
+                    const focusedIsCurrent = focused && worldIdParam === focused.id;
+                    return (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: 16 }}>
+                      {/* 좌측 — 작은 카드 그리드 */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8, alignContent: 'start' }}>
                       {filteredWorlds.map((w) => {
                         const isCurrent = worldIdParam === w.id;
+                        const isFocused = focused && w.id === focused.id;
                         // 월드명 hash 로 빈 썸네일 그라데이션 다양화 (단조로움 방지)
                         const hash = (w.name || w.id).split('').reduce((a, c) => a + c.charCodeAt(0), 0);
                         const gradients = [
@@ -1196,80 +1215,106 @@ export default function WorldPage() {
                         return (
                           <button
                             key={`${mapTab}-${w.id}`}
-                            onClick={() => !isCurrent && handleWorldPick(w)}
-                            disabled={isCurrent}
-                            className="alp-world-card"
+                            onClick={() => setFocusedWorldId(w.id)}
+                            onDoubleClick={() => !isCurrent && handleWorldPick(w)}
                             style={{
                               display: 'flex', flexDirection: 'column', textAlign: 'left',
                               background: 'rgba(255,255,255,0.04)',
-                              border: `1.5px solid ${isCurrent ? 'rgba(16,185,129,0.6)' : 'rgba(255,255,255,0.08)'}`,
-                              borderRadius: 12, overflow: 'hidden', padding: 0,
-                              cursor: isCurrent ? 'default' : 'pointer', color: '#fff',
-                              transition: 'transform .15s, border-color .15s, box-shadow .15s',
+                              border: `2px solid ${isFocused ? (portalPickMode ? '#22d3ee' : '#818cf8') : isCurrent ? 'rgba(16,185,129,0.5)' : 'rgba(255,255,255,0.06)'}`,
+                              borderRadius: 9, overflow: 'hidden', padding: 0,
+                              cursor: 'pointer', color: '#fff',
+                              transition: 'transform .12s, border-color .12s',
                             }}
                             onMouseEnter={(e) => {
-                              if (isCurrent) return;
-                              e.currentTarget.style.borderColor = portalPickMode ? 'rgba(34,211,238,0.6)' : 'rgba(129,140,248,0.6)';
-                              e.currentTarget.style.transform = 'translateY(-3px)';
-                              e.currentTarget.style.boxShadow = '0 8px 24px rgba(99,102,241,0.25)';
-                              const ov = e.currentTarget.querySelector('.alp-world-overlay') as HTMLElement | null;
-                              if (ov) ov.style.opacity = '1';
+                              if (!isFocused) e.currentTarget.style.borderColor = 'rgba(129,140,248,0.4)';
+                              e.currentTarget.style.transform = 'translateY(-1px)';
                             }}
                             onMouseLeave={(e) => {
-                              if (isCurrent) return;
-                              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+                              if (!isFocused) e.currentTarget.style.borderColor = isCurrent ? 'rgba(16,185,129,0.5)' : 'rgba(255,255,255,0.06)';
                               e.currentTarget.style.transform = 'translateY(0)';
-                              e.currentTarget.style.boxShadow = 'none';
-                              const ov = e.currentTarget.querySelector('.alp-world-overlay') as HTMLElement | null;
-                              if (ov) ov.style.opacity = '0';
                             }}
                           >
                             {/* 썸네일 */}
                             <div style={{ width: '100%', aspectRatio: '16/9', position: 'relative', background: w.thumbnailUrl ? `url(${w.thumbnailUrl}) center/cover` : fallbackBg }}>
-                              {!w.thumbnailUrl && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48, opacity: 0.85, filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.3))' }}>🌍</div>}
-                              {/* 호버 시 이동 오버레이 */}
-                              {!isCurrent && (
-                                <div className="alp-world-overlay" style={{ position: 'absolute', inset: 0, background: portalPickMode ? 'rgba(6,182,212,0.55)' : 'rgba(99,102,241,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity .15s', backdropFilter: 'blur(2px)' }}>
-                                  <span style={{ fontSize: 14, fontWeight: 800, color: '#fff', background: 'rgba(0,0,0,0.35)', padding: '8px 16px', borderRadius: 999 }}>
-                                    {portalPickMode ? `🌀 ${t('portalHere')}` : `▶ ${t('moveMap')}`}
-                                  </span>
-                                </div>
-                              )}
-                              {/* 현재 맵 배지 */}
+                              {!w.thumbnailUrl && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, opacity: 0.7 }}>🌍</div>}
                               {isCurrent && (
-                                <span style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(16,185,129,0.95)', color: '#fff', fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: 4, boxShadow: '0 2px 8px rgba(16,185,129,0.4)' }}>
-                                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff', boxShadow: '0 0 6px #fff' }} /> 현재 위치
-                                </span>
+                                <span style={{ position: 'absolute', top: 4, left: 4, background: 'rgba(16,185,129,0.95)', color: '#fff', fontSize: 8, fontWeight: 800, padding: '2px 6px', borderRadius: 999 }}>● 현재</span>
                               )}
-                              {/* 플레이 카운트 */}
                               {(w.playCount ?? 0) > 0 && (
-                                <span style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', color: '#fff', fontSize: 10, padding: '3px 8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}>
+                                <span style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: 9, padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
                                   ▶ {(w.playCount ?? 0).toLocaleString()}
                                 </span>
                               )}
                             </div>
-                            {/* 정보 */}
-                            <div style={{ padding: '10px 11px 11px', display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-                              <div style={{ fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{w.name}</div>
+                            {/* 이름 */}
+                            <div style={{ padding: '7px 9px 8px', minWidth: 0 }}>
+                              <div style={{ fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{w.name}</div>
                               {w.ownerName && (
-                                <div style={{ fontSize: 10, opacity: 0.55, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tw('by')} <span style={{ color: 'rgba(255,255,255,0.75)' }}>{w.ownerName}</span></div>
-                              )}
-                              {!!(w.tags && w.tags.length > 0) && (
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 'auto', paddingTop: 4 }}>
-                                  {w.tags.slice(0, 3).map((tag) => (
-                                    <span key={`${w.id}-${tag}`}
-                                      onClick={(ev) => { ev.stopPropagation(); setSelectedTag(tag); }}
-                                      style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', color: '#a5b4fc', borderRadius: 999, padding: '1px 7px', fontSize: 9, cursor: 'pointer' }}
-                                    >#{tag}</span>
-                                  ))}
-                                </div>
+                                <div style={{ fontSize: 9, opacity: 0.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>{w.ownerName}</div>
                               )}
                             </div>
                           </button>
                         );
                       })}
+                      </div>
+
+                      {/* 우측 — 미리보기 패널 */}
+                      {focused && (
+                        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignSelf: 'start', position: 'sticky', top: 0 }}>
+                          {/* 큰 썸네일 */}
+                          <div style={{ width: '100%', aspectRatio: '16/9', position: 'relative', background: focusedBg }}>
+                            {!focused.thumbnailUrl && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64, opacity: 0.85, filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.4))' }}>🌍</div>}
+                            {focusedIsCurrent && (
+                              <span style={{ position: 'absolute', top: 10, left: 10, background: 'rgba(16,185,129,0.95)', color: '#fff', fontSize: 11, fontWeight: 800, padding: '5px 12px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: 5, boxShadow: '0 2px 10px rgba(16,185,129,0.4)' }}>
+                                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#fff', boxShadow: '0 0 8px #fff' }} /> 현재 위치
+                              </span>
+                            )}
+                          </div>
+                          {/* 정보 + CTA */}
+                          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <div>
+                              <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4, lineHeight: 1.3 }}>{focused.name}</div>
+                              {focused.ownerName && (
+                                <div style={{ fontSize: 12, opacity: 0.65 }}>{tw('by')} <span style={{ color: '#fff' }}>{focused.ownerName}</span></div>
+                              )}
+                            </div>
+                            {(focused.playCount ?? 0) > 0 && (
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, opacity: 0.7, background: 'rgba(255,255,255,0.05)', padding: '4px 10px', borderRadius: 999, alignSelf: 'flex-start' }}>
+                                ▶ {(focused.playCount ?? 0).toLocaleString()}회 방문
+                              </div>
+                            )}
+                            {!!(focused.tags && focused.tags.length > 0) && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                {focused.tags.map((tag) => (
+                                  <button key={`f-${tag}`}
+                                    onClick={(ev) => { ev.stopPropagation(); setSelectedTag(tag); }}
+                                    style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc', borderRadius: 999, padding: '3px 10px', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}
+                                  >#{tag}</button>
+                                ))}
+                              </div>
+                            )}
+                            <button
+                              onClick={() => handleWorldPick(focused)}
+                              disabled={focusedIsCurrent}
+                              style={{
+                                marginTop: 6,
+                                width: '100%', padding: '12px 0',
+                                background: focusedIsCurrent ? 'rgba(255,255,255,0.06)'
+                                  : (portalPickMode ? 'linear-gradient(135deg,#06b6d4,#3b82f6)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)'),
+                                color: focusedIsCurrent ? 'rgba(255,255,255,0.45)' : '#fff',
+                                border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 800,
+                                cursor: focusedIsCurrent ? 'default' : 'pointer',
+                                boxShadow: focusedIsCurrent ? 'none' : '0 4px 14px rgba(99,102,241,0.35)',
+                              }}
+                            >
+                              {focusedIsCurrent ? '✓ 현재 맵' : (portalPickMode ? `🌀 ${t('portalHere')}` : `▶ ${t('moveMap')}`)}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
+                    );
+                  })()}
                 </>
               )}
             </div>
