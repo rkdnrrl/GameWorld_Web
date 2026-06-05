@@ -490,16 +490,7 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
       const distSq = cam.distanceToSquared(meshPos);
       const visible = distSq < 120 * 120;
       if (groupRef.current.visible !== visible) groupRef.current.visible = visible;
-      // 본인 1인칭(hideHead=true) — 캐릭터 안 보이는데 char.update (vrm spring/expression/mixer) 매 frame
-      // 도는 게 화려한 VRM 일수록 큰 비용. 본인은 자기 안 보니 skip → 큰 fps 절감.
-      // (다른 사람이 보는 본인 캐릭터는 별도 RemotePlayer 인스턴스라 영향 없음.)
-      if (hideHead) {
-        // shadow 도 본인 1인칭에선 자기 그림자 안 보이니 off
-        if (shadowOnRef.current) {
-          shadowOnRef.current = false;
-          char.scene.traverse((c) => { const m = c as THREE.Mesh; if (m.isMesh) m.castShadow = false; });
-        }
-      } else if (visible) {
+      if (visible) {
         // 거리 기반 lookAt 토글 — 10m 안만 head bone 카메라 향하기.
         // 카메라 회전 시 head matrix 매 frame 재계산. 멀리는 시선 추적 안 보여도 무방.
         const wantLookAt = enableLookAt && distSq < 10 * 10;
@@ -522,7 +513,7 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
           char.update(dt * skipFrames);  // 누락 frame 만큼 dt 보정
         }
       }
-    } else if (!hideHead) {
+    } else {
       char.update(dt);
     }
     // 3.5) 1인칭에서 머리만 안 보이게 — VRM 의 firstPerson layer 시스템이 자동 처리.
