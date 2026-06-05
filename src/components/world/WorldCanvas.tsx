@@ -3261,8 +3261,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   }, [graphics.dpr]);
   // PerformanceMonitor 기반 동적 dpr factor — fps 떨어지면 자동으로 dpr 낮춤 (0.5~1.0).
   // effectiveDpr 위에 곱셈으로 적용 → 최대값은 effectiveDpr 유지, 약한 GPU 에서만 자동 낮아짐.
+  // 최소 0.5 (이전 1.0 강제는 effectiveDpr cap 무력화시킴 — fragment fill rate fps drop 원인).
   const [dprFactor, setDprFactor] = useState(1);
-  const adaptiveDpr = Math.max(1, effectiveDpr * dprFactor);
+  const adaptiveDpr = Math.max(0.5, effectiveDpr * dprFactor);
   const ss = sceneSettings ?? {};
   const ambientIntensity = typeof ss.lightAmbient === 'number' ? ss.lightAmbient : 0.04;
   const dirIntensity     = typeof ss.lightDir     === 'number' ? ss.lightDir     : 0.0;
