@@ -1377,6 +1377,17 @@ export function Player({
     }
   }, [cameraMode, inputLocked, gl]);
 
+  // 1인칭일 때 camera.near 줄임 — prone/crouch 등 카메라가 ground 가까워질 때
+  // 기본 0.3 으로는 ground 가 잘려서 땅이 뚫려 보임. 0.05 로 줄이면 ground 정상 표시.
+  // 머리 mesh 는 카메라가 head bone 안쪽이라 face-cull 로 자연스럽게 안 보임 (near 무관).
+  // 3인칭은 멀리 보는 거라 0.3 유지 (z-fighting 방지).
+  useEffect(() => {
+    camera.near = cameraMode === 'first' ? 0.05 : 0.3;
+    if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
+      (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+    }
+  }, [cameraMode, camera]);
+
   // 3인칭 전환 시 grab 자동 해제
   useEffect(() => {
     if (cameraMode !== 'first' && grabbedIdRef.current) {
@@ -1577,28 +1588,8 @@ export function Player({
         grabDistRef.current = Math.max(1.2, Math.min(6.0, grabDistRef.current - e.deltaY * 0.004));
         return;
       }
-      // VRChat 식 자동 모드 전환:
-      //  3인칭 + 줌-인이 최소 거리(2.5m) 미만 시도 → 1인칭 진입 (머리 자동 숨김)
-      //  1인칭 + 줌-아웃 → 3인칭 복귀 (거리 2.5m 으로 리셋)
-      // 머리가 화면에 들어오는 어색한 거리(1.1~2.5m) 구간을 없앰.
-      if (cameraModeRef.current === 'first') {
-        if (e.deltaY > 0) {
-          // 줌-아웃 → 3인칭 진입
-          _mob.camDist = 2.5;
-          onToggleCameraMode();
-        }
-        // 줌-인은 이미 1인칭이라 효과 없음 (FOV 조정 등은 별도 작업)
-        return;
-      }
-      // 3인칭
-      const nextDist = _mob.camDist + e.deltaY * 0.01;
-      if (nextDist < 2.5 && e.deltaY < 0) {
-        // 줌-인 끝 → 1인칭 진입
-        _mob.camDist = 2.5;  // 나중에 3인칭 복귀 시 자연스러운 거리
-        onToggleCameraMode();
-        return;
-      }
-      _mob.camDist = Math.max(2.5, Math.min(14, nextDist));
+      // 3인칭 거리 — 자동 1인칭 전환 없음. 1인칭은 V 키 수동 토글로만.
+      _mob.camDist = Math.max(1.1, Math.min(14, _mob.camDist + e.deltaY * 0.01));
     };
 
     window.addEventListener('keydown', onKeyDown);
