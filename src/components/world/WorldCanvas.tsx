@@ -1839,15 +1839,33 @@ export function Player({
     // 자유시점 모드 — 외부 카메라(WasdFly/Orbit)가 카메라 소유. Player 는 캐릭터 물리만 처리.
     if (!cameraControlEnabled) { /* skip camera positioning */ }
     else if (cameraMode === 'first') {
-      // 1인칭 카메라 — VRChat / Cyberpunk 식. head bone (animation 영향) 안 사용.
-      // 캐릭터 root (Rapier kinematic body, 떨림 없음) + posture 기반 머리 높이 + forward 0.12m.
-      // bobbing 없음 + 회전 즉시 응답 + 점프 즉시 따라감.
-      const modelScale = Number((character?.appearance as Record<string, unknown> | undefined)?.modelScale) || 1.0;
-      const rotY = mesh.current?.rotation.y ?? 0;
-      const camX = p.x + Math.sin(rotY) * 0.12;
-      const camY = (p.y - 0.63) + 1.8 * modelScale * 0.94 * postureScale;
-      const camZ = p.z + Math.cos(rotY) * 0.12;
-      camera.position.set(camX, camY, camZ);
+      // 1인칭 카메라 — head bone 위치 (앉기/엎드리기 시 정확한 머리 위치).
+      // 떨림 fix: walk bobbing 만 EMA smoothing. 자세 변화 (crouch/prone/jump) 는 임계 초과 시 즉시.
+      let camX: number, camY: number, camZ: number;
+      const headBone = headBoneRef.current;
+      if (headBone) {
+        headBone.updateMatrixWorld(true);
+        const headPos = headBone.getWorldPosition(_tmpHeadVec);
+        const rotY = mesh.current?.rotation.y ?? 0;
+        camX = headPos.x + Math.sin(rotY) * 0.12;
+        camY = headPos.y + 0.05;
+        camZ = headPos.z + Math.cos(rotY) * 0.12;
+      } else {
+        const modelScale = Number((character?.appearance as Record<string, unknown> | undefined)?.modelScale) || 1.0;
+        camX = p.x; camZ = p.z;
+        camY = (p.y - 0.63) + 1.8 * modelScale * 0.94 * postureScale;
+      }
+      // XZ 즉시 (회전 응답). Y 만 처리:
+      //   delta > 0.15m: 자세 변화/점프 — 즉시 따라감 (정확한 머리 위치)
+      //   delta < 0.15m: walk bobbing/breathing — EMA 강하게 흡수
+      camera.position.x = camX;
+      camera.position.z = camZ;
+      const dy = camY - camera.position.y;
+      if (Math.abs(dy) > 0.15) {
+        camera.position.y = camY;          // 자세 변화 즉시
+      } else {
+        camera.position.y += dy * 0.15;    // 작은 bobbing 흡수
+      }
       const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
       // FPS 관례: 마우스 아래 = 시점 아래로. camV 는 3인칭 기준 (마우스 아래 = camV ↑ = 카메라 위)
       // 이라서 1인칭에선 부호 반전.
