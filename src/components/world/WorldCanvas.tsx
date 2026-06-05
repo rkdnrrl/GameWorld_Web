@@ -1048,10 +1048,10 @@ function FollowingSunLight({ intensity, castShadow, shadowMapSize, shadowFar }: 
       intensity={intensity}
       castShadow={castShadow}
       shadow-mapSize={shadowMapSize}
-      shadow-camera-left={-60}
-      shadow-camera-right={60}
-      shadow-camera-top={60}
-      shadow-camera-bottom={-60}
+      shadow-camera-left={-25}
+      shadow-camera-right={25}
+      shadow-camera-top={25}
+      shadow-camera-bottom={-25}
       shadow-camera-near={0.5}
       shadow-camera-far={shadowFar}
     />
