@@ -510,7 +510,9 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
         const skipFrames = distSq < 10 * 10 ? 1 : distSq < 30 * 30 ? 2 : distSq < 60 * 60 ? 4 : 8;
         lodFrameCounterRef.current = (lodFrameCounterRef.current + 1) % skipFrames;
         if (lodFrameCounterRef.current === 0) {
-          char.update(dt * skipFrames);  // 누락 frame 만큼 dt 보정
+          // 본인 1인칭(hideHead=true) — 본인 캐릭터 안 보이니 vrm.update (spring/expression/lookAt) skip.
+          // mixer 는 돌려 애니메이션 동기화 (sendMove animState 갱신).
+          char.update(dt * skipFrames, hideHead);
         }
       }
     } else {

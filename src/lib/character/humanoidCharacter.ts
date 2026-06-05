@@ -53,7 +53,8 @@ export interface HumanoidCharacter {
   /** 1인칭 머리 숨김. */
   setHeadVisible: (visible: boolean) => void;
   /** 매 frame 호출 — mixer + vrm.update + lookAt 갱신. */
-  update: (dt: number) => void;
+  /** dt 진행 + (옵션) skipVrm=true 면 vrm.update(spring/expression/lookAt) skip, mixer 만. */
+  update: (dt: number, skipVrm?: boolean) => void;
   /** 자원 정리. */
   dispose: () => void;
 }
@@ -173,9 +174,10 @@ export async function createHumanoidCharacter(
       if (!headNode) return;
       headNode.scale.setScalar(visible ? 1 : 0.001);
     },
-    update: (dt) => {
-      // vrm-viewer 와 동일: vrm.update(dt) 통합 호출 → mixer.update(dt). dt 만 cap (큰 dt 시 진동).
-      if (vrm?.update) {
+    update: (dt, skipVrm = false) => {
+      // vrm.update = spring bone + expression + lookAt 통합. skipVrm 면 mixer 만 돌림 — 본인
+      // 1인칭에서 본인 vrm.update 의 비용 큰데 안 보이는 데 spring 시뮬레이션 의미 없어 skip.
+      if (!skipVrm && vrm?.update) {
         try { vrm.update(Math.min(dt, 0.05)); } catch { /* noop */ }
       }
       mixer.update(dt);
@@ -184,8 +186,6 @@ export async function createHumanoidCharacter(
       if (hipsBone && hipsBone.position.y > restHipsLocalY) {
         hipsBone.position.y = restHipsLocalY;
       }
-      // lookAtTarget 는 vrm.lookAt 만 사용 (setLookAtTarget 에서 vrm.lookAt.target 설정).
-      // non-VRM 은 lookAtTarget 변수 보관만 하고 적용 안 함.
       void lookAtTarget;
     },
     dispose: () => {
