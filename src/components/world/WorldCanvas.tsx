@@ -1839,20 +1839,24 @@ export function Player({
     // 자유시점 모드 — 외부 카메라(WasdFly/Orbit)가 카메라 소유. Player 는 캐릭터 물리만 처리.
     if (!cameraControlEnabled) { /* skip camera positioning */ }
     else if (cameraMode === 'first') {
-      // 1인칭 카메라 — animState 기반 명시적 머리 높이. animation bobbing 영향 0.
-      // animState 별 root 기준 머리 offset (height): stand 1.7, crouch 1.05, prone 0.35.
-      // root 자체 떨림 없음 + lookup table 안 떨림 → 카메라 떨림 0.
+      // 1인칭 카메라 — animState 기반 명시적 눈 높이 (animation bobbing 영향 0).
+      // 자세 변화는 부드러운 transition (~150ms) 으로 잔상 방지.
       const modelScale = Number((character?.appearance as Record<string, unknown> | undefined)?.modelScale) || 1.0;
       const rotY = mesh.current?.rotation.y ?? 0;
       const state = animStateRef.current ?? 'idle';
-      let headOffset: number;
-      if (typeof state === 'string' && state.startsWith('prone')) headOffset = 0.35;
-      else if (typeof state === 'string' && state.startsWith('crouch')) headOffset = 1.05;
-      else headOffset = 1.7;  // stand, walk, run, jump, fall, idle 등
-      const camX = p.x + Math.sin(rotY) * 0.12;
-      const camY = (p.y - 0.63) + headOffset * modelScale;
-      const camZ = p.z + Math.cos(rotY) * 0.12;
-      camera.position.set(camX, camY, camZ);
+      // 눈 높이 (이마): stand 시 캐릭터 머리 mesh 가 카메라 뒤로 가도록 약간 낮춤.
+      let eyeOffset: number;
+      if (typeof state === 'string' && state.startsWith('prone')) eyeOffset = 0.4;
+      else if (typeof state === 'string' && state.startsWith('crouch')) eyeOffset = 1.0;
+      else eyeOffset = 1.5;  // stand/walk/run/jump/fall/idle — 머리 mesh 1.6m+ 보다 낮게
+      const camX = p.x + Math.sin(rotY) * 0.15;     // forward 0.12 → 0.15 (머리 mesh 가 카메라 뒤로)
+      const targetCamY = (p.y - 0.63) + eyeOffset * modelScale;
+      const camZ = p.z + Math.cos(rotY) * 0.15;
+      // 자세 변화 transition — dt * 10 ≈ 100ms (잔상 없는 빠른 부드러움)
+      camera.position.x = camX;
+      camera.position.z = camZ;
+      camera.position.y += (targetCamY - camera.position.y) * Math.min(1, dt * 10);
+      const camY = camera.position.y;  // lookAt 에 사용
       const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
       // FPS 관례: 마우스 아래 = 시점 아래로. camV 는 3인칭 기준 (마우스 아래 = camV ↑ = 카메라 위)
       // 이라서 1인칭에선 부호 반전.
