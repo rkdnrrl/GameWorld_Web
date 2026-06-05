@@ -136,8 +136,12 @@ export function retargetClipToHumanoid(
       continue;
     }
 
-    // hips position 제외 (회전은 유지)
-    if (humanoidName === 'hips' && suffix === '.position') continue;
+    // Crouch/sit 외에는 hips position 제외 (다른 캐릭터 키에서 떠오름 방지)
+    if (humanoidName === 'hips' && suffix === '.position') {
+      const slot = clip.name || '';
+      const keep = slot.startsWith('crouch') || slot.startsWith('sit') || slot.startsWith('lay') || slot.startsWith('sleep');
+      if (!keep) continue;
+    }
 
     // 2) 캐릭터의 그 humanoid 본 객체 → 실제 Three.js 이름 추출
     const targetBone = bones[humanoidName];

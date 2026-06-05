@@ -26,17 +26,26 @@ export async function loadVRMA(url: string): Promise<VRMAnimation> {
   return list[0];
 }
 
+/** 슬롯이 hips position 을 유지해야 하는 종류인지 (crouch, sit, lay 등 — 일부러 캐릭터 몸을 낮추는 애니).
+ *  그 외 (idle/walk/run/jump) 는 strip — author 캐릭터 키 차이로 떠오르는 것 방지. */
+function shouldKeepHipsPosition(slot: string | undefined): boolean {
+  if (!slot) return false;
+  return slot.startsWith('crouch') || slot.startsWith('sit') || slot.startsWith('lay') || slot.startsWith('sleep');
+}
+
 /** VRMA → 특정 VRM 인스턴스용 AnimationClip.
- *  hips position track 제거 — VRMA 의 hips Y 는 author 캐릭터 기준 절대값이라 다른 캐릭터 적용 시
- *  rest pose 차이로 위로 떠오르거나 아래로 가라앉음. 회전만 적용 → Rapier body 가 world 위치 제어. */
+ *  Crouch/sit 외에는 hips position track 제거 — VRMA 의 hips Y 가 author 캐릭터 기준 절대값이라
+ *  다른 캐릭터 적용 시 위로 떠오름. */
 export function vrmaToClip(vrma: VRMAnimation, vrm: VRM, name?: string): THREE.AnimationClip {
   const clip = createVRMAnimationClip(vrma, vrm);
   if (name) clip.name = name;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const hipsBone = (vrm as any).humanoid?.getNormalizedBoneNode?.('hips');
-  if (hipsBone?.name) {
-    const target = `${hipsBone.name}.position`;
-    clip.tracks = clip.tracks.filter((t) => t.name !== target);
+  if (!shouldKeepHipsPosition(name)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const hipsBone = (vrm as any).humanoid?.getNormalizedBoneNode?.('hips');
+    if (hipsBone?.name) {
+      const target = `${hipsBone.name}.position`;
+      clip.tracks = clip.tracks.filter((t) => t.name !== target);
+    }
   }
   return clip;
 }
@@ -161,11 +170,15 @@ export async function fbxToVrmClip(
       // VRM 0.x: x, z 반전
       const values = Array.from(track.values).map((v, i) => isVrm0 && i % 2 === 0 ? -v : v);
       tracks.push(new THREE.QuaternionKeyframeTrack(`${vrmNode.name}.${propertyName}`, Array.from(track.times), values));
+    } else if (track instanceof THREE.VectorKeyframeTrack && vrmBoneName === 'hips' && shouldKeepHipsPosition(name)) {
+      // hips position — crouch/sit 슬롯만 보존 (다리 굽힘과 함께 몸 낮춤). hipsPositionScale 로
+      // Mixamo 캐릭터 키 → VRM 캐릭터 키 비율 변환. VRM 0.x x/z 반전.
+      const values = Array.from(track.values).map((v, i) => {
+        const scaled = v * hipsPositionScale;
+        return isVrm0 && i % 3 !== 1 ? -scaled : scaled;
+      });
+      tracks.push(new THREE.VectorKeyframeTrack(`${vrmNode.name}.${propertyName}`, Array.from(track.times), values));
     }
-    // VectorKeyframeTrack (hips position) 은 의도적으로 제외 — WorldCanvas 의 Rapier body 가
-    // 캐릭터 world 위치를 제어하므로 animation 의 hips position 적용 시 캐릭터가 ground 아래로
-    // 떨어짐. Y 회전은 quaternion track 으로 처리되어 모션 보존.
-    // (hipsPositionScale 계산은 향후 root-motion 옵션 위해 유지)
   }
 
   if (tracks.length === 0) throw new Error('Mixamo → VRM 매핑 결과 비어있음 (mixamorig 본 이름 확인 필요)');
@@ -201,9 +214,16 @@ export function vrmaToUniversalClip(
     tracks.push(cloned);
   }
 
-  // hips position track 제외 — VRMA 의 hips Y 는 author 캐릭터 기준 절대값이라
-  // 다른 캐릭터 적용 시 캐릭터가 위로 떠오르거나 아래로 가라앉음.
-  // 회전만 적용 → Rapier body 가 world 위치 제어.
+  // Crouch/sit 외에는 hips position 제외 (다른 캐릭터 키에서 떠오름 방지)
+  if (shouldKeepHipsPosition(name)) {
+    for (const [humanoidName, track] of vrma.humanoidTracks.translation) {
+      const bone = bones[humanoidName as HumanoidBoneName];
+      if (!bone || !bone.name) continue;
+      const cloned = track.clone();
+      cloned.name = `${bone.name}.position`;
+      tracks.push(cloned);
+    }
+  }
 
   return new THREE.AnimationClip(name, vrma.duration, tracks);
 }
