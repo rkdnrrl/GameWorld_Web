@@ -24,6 +24,15 @@ function getExt(url: string): string {
 function isVrmaUrl(url: string): boolean { return getExt(url) === 'vrma'; }
 function isFbxUrl(url: string): boolean { return getExt(url) === 'fbx'; }
 
+/**
+ * 메인 스레드 yield — 무거운 동기 작업(retarget / 정점 순회) 사이에 끼워서
+ * 다른 캐릭터의 useFrame 이 멈추지 않게 한다. setTimeout(0) 은 매크로태스크라
+ * frame rAF 와 같은 큐에서 처리되어 다른 작업이 끼어들 수 있음.
+ */
+function yieldToMain(): Promise<void> {
+  return new Promise<void>(resolve => setTimeout(resolve, 0));
+}
+
 /** 슬롯별 raw 애니메이션 source 모듈 캐시 — 캐릭터별 retarget 위해 한 번만 로드. */
 const animSourceCache = new Map<string, Promise<AnimationSource>>();
 function getAnimationSource(url: string, slot: string): Promise<AnimationSource> {
@@ -149,23 +158,33 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
             const baseScale = targetHeight / maxDim;
             c.scene.scale.setScalar(baseScale);
             c.scene.updateMatrixWorld(true);
-            const meshBox = new THREE.Box3();
-            let hasMesh = false;
-            const v = new THREE.Vector3();
+            // 정점 순회로 정확한 발 위치 측정 — mesh 마다 별도 task 로 yield 끼움.
+            // VRM 캐릭터는 보통 1-2개 SkinnedMesh (정점 1만-3만개) → mesh 하나당 5-20ms.
+            // 각 mesh 사이 yield → 다른 캐릭터 useFrame 이 frame 사이 끼어들 수 있음.
+            const meshes: THREE.Mesh[] = [];
             c.scene.traverse((o) => {
               const m = o as THREE.Mesh;
               if (!(m.isMesh || (m as THREE.SkinnedMesh).isSkinnedMesh)) return;
               const geo = m.geometry;
               const pos = geo?.attributes?.position;
               if (!pos) return;
+              meshes.push(m);
+            });
+            const meshBox = new THREE.Box3();
+            let hasMesh = false;
+            const v = new THREE.Vector3();
+            for (const m of meshes) {
+              await yieldToMain();
+              if (cancelled) return;
               m.updateMatrixWorld(true);
+              const pos = m.geometry.attributes.position as THREE.BufferAttribute;
               for (let i = 0; i < pos.count; i++) {
-                v.fromBufferAttribute(pos as THREE.BufferAttribute, i);
+                v.fromBufferAttribute(pos, i);
                 v.applyMatrix4(m.matrixWorld);
                 meshBox.expandByPoint(v);
               }
               hasMesh = true;
-            });
+            }
             const box2 = hasMesh ? meshBox : new THREE.Box3().setFromObject(c.scene);
             const baseY: number = box2.min.y;
             c.scene.position.y -= baseY;
@@ -200,8 +219,15 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
             );
           }
           const clipMap = new Map<AnimSlot, THREE.AnimationClip>();
-          await Promise.all(Object.entries(effectiveClipUrls).map(async ([slot, clipUrl]) => {
+          // Promise.all 의 모든 슬롯이 동시에 마이크로태스크 큐 점령 → 다른 캐릭터 useFrame 굶주림.
+          // 슬롯 인덱스에 비례한 setTimeout 으로 시작 시점 분산 (10ms 간격) → 메인 스레드에 frame
+          // 처리 시간 양보. 13개 슬롯이면 ~130ms 분산되어 첫 frame 부터 다른 캐릭터 움직임 유지됨.
+          const entries = Object.entries(effectiveClipUrls);
+          await Promise.all(entries.map(async ([slot, clipUrl], idx) => {
             if (!clipUrl) return;
+            // 시작 시점을 슬롯 인덱스만큼 늦춤 — 동시 retarget 폭주 방지
+            await new Promise<void>(r => setTimeout(r, idx * 10));
+            if (cancelled) return;
             try {
               let retargeted: THREE.AnimationClip | null = null;
 
@@ -245,6 +271,8 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
 
               if (!retargeted) {
                 const src = await getAnimationSource(clipUrl, slot);
+                await yieldToMain();  // retarget 동기 작업 전 다른 frame 양보
+                if (cancelled) return;
                 // Pass 1 — SkeletonUtils.retargetClip (rest pose 보정, 정확)
                 try {
                   retargeted = await retargetWithSkeletonUtils(src.root, src.clip, c.bones);
