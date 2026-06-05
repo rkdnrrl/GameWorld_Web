@@ -26,7 +26,6 @@ export default function OperatorIndexPage() {
         { href: "/operator/asset-reports", emoji: "⚠️", label: "에셋 신고 검토", desc: "공개 에셋에 대한 신고를 검토·처리합니다." },
         { href: "/operator/home-hub", emoji: "🏠", label: "홈허브 맵 설정", desc: "유저가 /world 진입 시 처음 보이는 월드를 지정합니다." },
         { href: "/operator/script-components", emoji: "🧩", label: "공식 컴포넌트", desc: "스튜디오에서 모든 유저가 쓸 수 있는 공식 스크립트 컴포넌트를 관리합니다." },
-        { href: "/operator/redemption-codes", emoji: "🎁", label: "후원자 코드", desc: "텀블벅 등 외부 결제 후원자에게 발송할 1회용 코드를 일괄 발급·관리합니다." },
       ],
     },
   ];
