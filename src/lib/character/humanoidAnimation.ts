@@ -114,7 +114,10 @@ export async function loadHumanoidClip(url: string, name: string): Promise<THREE
   throw new Error(`지원 안 함 확장자: ${ext}`);
 }
 
-/** 한 클립 → 특정 캐릭터의 humanoid bones map 에 맞게 본 이름 변환. */
+/** 한 클립 → 특정 캐릭터의 humanoid bones map 에 맞게 본 이름 변환.
+ *  hips position track 은 제외 — animation author 의 캐릭터 키와 우리 캐릭터 키 차이로
+ *  캐릭터가 위로 뜨거나 가라앉음. Rapier body 가 world 위치 제어하므로 회전만 적용해도 충분.
+ *  VRMA path (vrmaToClip / vrmaToUniversalClip) 와 일관성 유지. */
 export function retargetClipToHumanoid(
   clip: THREE.AnimationClip,
   bones: Partial<Record<HumanoidBoneName, THREE.Object3D>>,
@@ -132,6 +135,9 @@ export function retargetClipToHumanoid(
       // 손가락 본 등 매칭 못 한 트랙은 skip (캐릭터에 없을 가능성)
       continue;
     }
+
+    // hips position 제외 (회전은 유지)
+    if (humanoidName === 'hips' && suffix === '.position') continue;
 
     // 2) 캐릭터의 그 humanoid 본 객체 → 실제 Three.js 이름 추출
     const targetBone = bones[humanoidName];
