@@ -26,26 +26,9 @@ export async function loadVRMA(url: string): Promise<VRMAnimation> {
   return list[0];
 }
 
-/** 슬롯이 hips position 을 유지해야 하는 종류인지 (crouch, sit, lay 등 — 일부러 캐릭터 몸을 낮추는 애니).
- *  그 외 (idle/walk/run/jump) 는 strip — author 캐릭터 키 차이로 떠오르는 것 방지. */
-function shouldKeepHipsPosition(slot: string | undefined): boolean {
-  if (!slot) return false;
-  return slot.startsWith('crouch') || slot.startsWith('sit') || slot.startsWith('lay') || slot.startsWith('sleep');
-}
-
-/** 슬롯별 고정 crouch 깊이 (m). 애니메이션 hips Y 무시하고 hips 를 이만큼만 낮춤.
- *  애니메이션이 hips 를 위아래로 흔드는 oscillation 차단. 다리 회전은 animation 그대로. */
-const CROUCH_HIPS_DEPTH: Record<string, number> = {
-  crouch_idle: 0.30,
-  crouch_walk: 0.25,
-  sit: 0.50,
-  lay: 0.85,
-  sleep: 0.85,
-};
-
 /** VRMA → 특정 VRM 인스턴스용 AnimationClip.
- *  비-crouch: hips position track 제거 (떠오름 방지).
- *  Crouch/sit: hips Y 를 고정 깊이로 강제 (oscillation 없음, 자세 일관). */
+ *  hips position track 무조건 strip — animation Y 가 author 캐릭터 절대값이라 mismatch 로 sink/float.
+ *  Crouch 슬롯의 hips lowering 은 HumanoidMesh 에서 calibrateCrouchHipsTrack 으로 자동 측정 후 주입. */
 export function vrmaToClip(vrma: VRMAnimation, vrm: VRM, name?: string): THREE.AnimationClip {
   const clip = createVRMAnimationClip(vrma, vrm);
   if (name) clip.name = name;
@@ -53,23 +36,7 @@ export function vrmaToClip(vrma: VRMAnimation, vrm: VRM, name?: string): THREE.A
   const hipsBone = (vrm as any).humanoid?.getNormalizedBoneNode?.('hips');
   if (hipsBone?.name) {
     const target = `${hipsBone.name}.position`;
-    const depth = CROUCH_HIPS_DEPTH[name || ''];
-    if (depth === undefined) {
-      // 비-crouch — strip
-      clip.tracks = clip.tracks.filter((t) => t.name !== target);
-    } else {
-      // crouch — 모든 frame hips Y 를 고정 깊이로 set (animation Y 무시)
-      const charBindY = hipsBone.position.y;
-      const constantY = charBindY - depth;
-      const hipsTrack = clip.tracks.find((t) => t.name === target);
-      if (hipsTrack instanceof THREE.VectorKeyframeTrack) {
-        for (let i = 0; i < hipsTrack.values.length; i += 3) {
-          hipsTrack.values[i] = 0;
-          hipsTrack.values[i + 1] = constantY;
-          hipsTrack.values[i + 2] = 0;
-        }
-      }
-    }
+    clip.tracks = clip.tracks.filter((t) => t.name !== target);
   }
   return clip;
 }
@@ -194,16 +161,9 @@ export async function fbxToVrmClip(
       // VRM 0.x: x, z 반전
       const values = Array.from(track.values).map((v, i) => isVrm0 && i % 2 === 0 ? -v : v);
       tracks.push(new THREE.QuaternionKeyframeTrack(`${vrmNode.name}.${propertyName}`, Array.from(track.times), values));
-    } else if (track instanceof THREE.VectorKeyframeTrack && vrmBoneName === 'hips') {
-      // hips position — crouch 만 고정 깊이로 강제. 다른 슬롯은 strip (떠오름 방지).
-      const depth = CROUCH_HIPS_DEPTH[name];
-      if (depth !== undefined) {
-        void hipsPositionScale;
-        const constantY = vrmNode.position.y - depth;
-        const values = new Array(track.values.length).fill(0).map((_, i) => i % 3 === 1 ? constantY : 0);
-        tracks.push(new THREE.VectorKeyframeTrack(`${vrmNode.name}.${propertyName}`, Array.from(track.times), values));
-      }
     }
+    // hips position 무조건 strip — crouch lowering 은 HumanoidMesh 에서 calibrateCrouchHipsTrack 으로 주입.
+    void hipsPositionScale;
   }
 
   if (tracks.length === 0) throw new Error('Mixamo → VRM 매핑 결과 비어있음 (mixamorig 본 이름 확인 필요)');
@@ -239,25 +199,8 @@ export function vrmaToUniversalClip(
     tracks.push(cloned);
   }
 
-  // Crouch/sit 외에는 hips position 제외. crouch 는 고정 깊이로 강제 (oscillation 차단).
-  const depth = CROUCH_HIPS_DEPTH[name || ''];
-  if (depth !== undefined) {
-    for (const [humanoidName, track] of vrma.humanoidTracks.translation) {
-      const bone = bones[humanoidName as HumanoidBoneName];
-      if (!bone || !bone.name) continue;
-      const cloned = track.clone() as THREE.VectorKeyframeTrack;
-      cloned.name = `${bone.name}.position`;
-      if (humanoidName === 'hips') {
-        const constantY = bone.position.y - depth;
-        for (let i = 0; i < cloned.values.length; i += 3) {
-          cloned.values[i] = 0;
-          cloned.values[i + 1] = constantY;
-          cloned.values[i + 2] = 0;
-        }
-      }
-      tracks.push(cloned);
-    }
-  }
+  // hips position 무조건 strip — crouch lowering 은 HumanoidMesh 에서 calibrate 로 주입.
+  void name;
 
   return new THREE.AnimationClip(name, vrma.duration, tracks);
 }

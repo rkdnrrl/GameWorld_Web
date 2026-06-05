@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { createHumanoidCharacter, type HumanoidCharacter } from '@/lib/character/humanoidCharacter';
-import { loadAnimationSource, retargetWithSkeletonUtils, normalizeClipToHumanoidNames, retargetClipToHumanoid, type AnimationSource } from '@/lib/character/humanoidAnimation';
+import { loadAnimationSource, retargetWithSkeletonUtils, normalizeClipToHumanoidNames, retargetClipToHumanoid, calibrateCrouchHipsTrack, type AnimationSource } from '@/lib/character/humanoidAnimation';
 import { ANIM_SLOTS, ANIM_SLOT_LEGACY_ALIAS, type AnimSlot } from '@/lib/character/humanoid';
 import { createHumanoidFootIK, type HumanoidFootIK } from '@/lib/character/humanoidFootIK';
 import { loadVRMA, vrmaToClip, vrmaToUniversalClip, fbxToVrmClip } from '@/lib/character/vrmAnimation';
@@ -131,8 +131,43 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
         const c = await getCharacter(url, manualBoneMap);
         if (cancelled) return;
         local = c;
-        // ── 클립 로드 ── source root + raw clip → SkeletonUtils.retargetClip 으로 캐릭터별
-        // rest-pose 보정 retarget (본 좌표축 차이 자동 보정).
+        // ── 1) 모델 크기 정규화 먼저 ── crouch calibration 시 bind 발 = scene local Y 0 이어야
+        // 정확한 lift 측정 가능.
+        if (!c.scene.userData.__normalized) {
+          c.scene.updateMatrixWorld(true);
+          const box = new THREE.Box3().setFromObject(c.scene);
+          const size = box.getSize(new THREE.Vector3());
+          const maxDim = Math.max(size.x, size.y, size.z);
+          if (maxDim > 0) {
+            const baseScale = targetHeight / maxDim;
+            c.scene.scale.setScalar(baseScale);
+            c.scene.updateMatrixWorld(true);
+            const meshBox = new THREE.Box3();
+            let hasMesh = false;
+            const v = new THREE.Vector3();
+            c.scene.traverse((o) => {
+              const m = o as THREE.Mesh;
+              if (!(m.isMesh || (m as THREE.SkinnedMesh).isSkinnedMesh)) return;
+              const geo = m.geometry;
+              const pos = geo?.attributes?.position;
+              if (!pos) return;
+              m.updateMatrixWorld(true);
+              for (let i = 0; i < pos.count; i++) {
+                v.fromBufferAttribute(pos as THREE.BufferAttribute, i);
+                v.applyMatrix4(m.matrixWorld);
+                meshBox.expandByPoint(v);
+              }
+              hasMesh = true;
+            });
+            const box2 = hasMesh ? meshBox : new THREE.Box3().setFromObject(c.scene);
+            const baseY: number = box2.min.y;
+            c.scene.position.y -= baseY;
+            c.scene.userData.__baseScale = baseScale;
+            console.log('[norm]', { isVrm: !!c.vrm, boxMinY: box2.min.y.toFixed(3), boxMaxY: box2.max.y.toFixed(3), baseY: baseY.toFixed(3), scenePosY: c.scene.position.y.toFixed(3) });
+          }
+          c.scene.userData.__normalized = true;
+        }
+        // ── 2) 클립 로드 ──
         const effectiveClipUrls = clipUrls && Object.keys(clipUrls).length
           ? clipUrls
           : await getOperatorClipUrls();
@@ -203,6 +238,20 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
               }
               if (retargeted && retargeted.tracks.length > 0) {
                 retargeted.name = slot;
+                // Crouch 슬롯이면 자동 calibration — 다리 회전 시뮬레이션해서 발 lift 측정 후
+                // hips Y track 을 정확한 깊이로 주입. 캐릭터+clip 마다 자동 계산.
+                if (slot.startsWith('crouch') || slot.startsWith('sit') || slot.startsWith('lay') || slot.startsWith('sleep')) {
+                  try {
+                    const calibrated = calibrateCrouchHipsTrack(retargeted, c.bones, c.scene);
+                    if (calibrated) {
+                      calibrated.name = slot;
+                      retargeted = calibrated;
+                      console.log(`[humanoid] ${slot} crouch calibrated`);
+                    }
+                  } catch (eCal) {
+                    console.warn(`[humanoid] ${slot} calibration 실패`, eCal);
+                  }
+                }
                 clipMap.set(slot as AnimSlot, retargeted);
               } else {
                 console.warn(`[humanoid] ${slot} retarget 결과 비어있음 — skip`);
@@ -228,54 +277,6 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
             if (firstSlot) c.setSlot(firstSlot);
             console.log(`[humanoid] 슬롯 ${clipMap.size}개 등록: ${[...clipMap.keys()].join(', ')} → 시작: ${firstSlot}`);
           }
-        }
-        // 모델 크기 정규화 — 캐릭터당 1회만 (캐시 char 가 여러 마운트에서 공유될 때 누적 변경 방지).
-        // 발 본 위치 기준 — mesh box.min.y 가 머리카락/옷 등 떨어진 vertex 일 수 있어 부정확.
-        if (!c.scene.userData.__normalized) {
-          c.scene.updateMatrixWorld(true);
-          const box = new THREE.Box3().setFromObject(c.scene);
-          const size = box.getSize(new THREE.Vector3());
-          const maxDim = Math.max(size.x, size.y, size.z);
-          if (maxDim > 0) {
-            const baseScale = targetHeight / maxDim;
-            c.scene.scale.setScalar(baseScale);
-            c.scene.updateMatrixWorld(true);
-            // mesh 의 vertex 를 world 좌표로 직접 traverse — 가장 정확.
-            // setFromObject 는 cached boundingBox + skinning 영향으로 부정확할 수 있음.
-            const meshBox = new THREE.Box3();
-            let hasMesh = false;
-            const v = new THREE.Vector3();
-            c.scene.traverse((o) => {
-              const m = o as THREE.Mesh;
-              if (!(m.isMesh || (m as THREE.SkinnedMesh).isSkinnedMesh)) return;
-              const geo = m.geometry;
-              const pos = geo?.attributes?.position;
-              if (!pos) return;
-              m.updateMatrixWorld(true);
-              for (let i = 0; i < pos.count; i++) {
-                v.fromBufferAttribute(pos as THREE.BufferAttribute, i);
-                v.applyMatrix4(m.matrixWorld);
-                meshBox.expandByPoint(v);
-              }
-              hasMesh = true;
-            });
-            const box2 = hasMesh ? meshBox : new THREE.Box3().setFromObject(c.scene);
-            console.log('[normalize]', { isVrm: !!c.vrm, hasMesh, boxMinY: box2.min.y.toFixed(3), boxMaxY: box2.max.y.toFixed(3) });
-            // VRM/FBX 통일 — 실제 mesh 최저점(boots/feet 의 sole) 기준. 발 본 추정은
-            // 부츠가 길거나 platform shoes 인 경우 부정확 (캐릭터 위로 뜸).
-            const baseY: number = box2.min.y;
-            c.scene.position.y -= baseY;
-            c.scene.userData.__baseScale = baseScale;
-            console.log('[norm]', {
-              isVrm: !!c.vrm,
-              boxMinY: box2.min.y.toFixed(3),
-              boxMaxY: box2.max.y.toFixed(3),
-              baseY: baseY.toFixed(3),
-              scenePosY: c.scene.position.y.toFixed(3),
-              baseScale: baseScale.toFixed(3),
-            });
-          }
-          c.scene.userData.__normalized = true;
         }
         // userScale 은 group 에 적용 (scene 누적 변경 X)
         setChar(c);

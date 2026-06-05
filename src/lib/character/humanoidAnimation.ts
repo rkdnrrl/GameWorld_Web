@@ -140,25 +140,9 @@ export function retargetClipToHumanoid(
     const targetBone = bones[humanoidName];
     if (!targetBone) continue;  // 그 본이 캐릭터에 매핑 안 됨 → 트랙 무시
 
-    // Hips position 특수 처리 — crouch 는 고정 깊이로 강제, 그 외 슬롯은 strip.
-    if (humanoidName === 'hips' && suffix === '.position') {
-      const slot = clip.name || '';
-      const CROUCH_DEPTHS: Record<string, number> = {
-        crouch_idle: 0.30, crouch_walk: 0.25, sit: 0.50, lay: 0.85, sleep: 0.85,
-      };
-      const depth = CROUCH_DEPTHS[slot];
-      if (depth === undefined) continue;  // 비-crouch
-      const cloned = track.clone();
-      const constantY = targetBone.position.y - depth;
-      for (let i = 0; i < cloned.values.length; i += 3) {
-        cloned.values[i] = 0;
-        cloned.values[i + 1] = constantY;
-        cloned.values[i + 2] = 0;
-      }
-      cloned.name = `${targetBone.name}${suffix}`;
-      tracks.push(cloned);
-      continue;
-    }
+    // Hips position 항상 strip — crouch 슬롯은 calibrateCrouchHipsTrack 으로 따로 처리.
+    // 일반 슬롯은 hips 위치 mismatch 로 떠오름 방지 위해 제거.
+    if (humanoidName === 'hips' && suffix === '.position') continue;
 
     const cloned = track.clone();
     cloned.name = `${targetBone.name}${suffix}`;
@@ -173,6 +157,96 @@ export function retargetClipsToHumanoid(
   bones: Partial<Record<HumanoidBoneName, THREE.Object3D>>,
 ): THREE.AnimationClip[] {
   return clips.map((c) => retargetClipToHumanoid(c, bones));
+}
+
+/**
+ * Crouch 자동 calibration — clip 의 다리 회전을 캐릭터에 t=0 시점으로 임시 적용해서
+ * 발 본이 bind 대비 얼마나 떴는지(lift) 측정. 그 lift = 정확히 hips 가 내려가야 할 양.
+ *
+ * 결과를 clip 의 hips position track 에 모든 frame Y = (bindHipsY - lift) 로 강제.
+ * → 캐릭터 + clip 조합마다 자동 계산된 depth 로 발이 항상 ground 에 정확히 붙음.
+ *
+ * 가정: scene 은 mount 전 (parent 없음) — getWorldPosition 이 scene-local 좌표 반환.
+ *       이미 normalize 되어 bind pose 발이 scene local Y = 0.
+ *
+ * @param clip 캐릭터 본 이름으로 retarget 된 crouch clip
+ * @param bones 캐릭터의 humanoid bones map
+ * @param scene 캐릭터 root scene (parent 없는 상태)
+ * @returns 수정된 clip (hips position track 추가/대체). null = 측정 실패 (다리 본 없음 등)
+ */
+export function calibrateCrouchHipsTrack(
+  clip: THREE.AnimationClip,
+  bones: Partial<Record<HumanoidBoneName, THREE.Object3D>>,
+  scene: THREE.Object3D,
+): THREE.AnimationClip | null {
+  const hips = bones.hips;
+  const lFoot = bones.leftFoot;
+  const rFoot = bones.rightFoot;
+  if (!hips || !lFoot || !rFoot) return null;
+  if (!hips.name) return null;
+
+  // 1) Bone state 저장 (모든 본 — clip 이 어떤 본 건드릴지 모르니까)
+  const saved = new Map<THREE.Object3D, { q: THREE.Quaternion; p: THREE.Vector3 }>();
+  scene.traverse((o) => {
+    saved.set(o, { q: o.quaternion.clone(), p: o.position.clone() });
+  });
+
+  // 2) bind pose 발 world Y 측정
+  scene.updateMatrixWorld(true);
+  const tmp = new THREE.Vector3();
+  const bindFootY = Math.min(
+    lFoot.getWorldPosition(tmp).y,
+    rFoot.getWorldPosition(new THREE.Vector3()).y,
+  );
+
+  // 3) clip 의 t=0 frame 모든 track 을 본에 적용 (hips position track 은 건너뜀)
+  const hipsPosTrackName = `${hips.name}.position`;
+  for (const track of clip.tracks) {
+    if (track.name === hipsPosTrackName) continue;  // hips position 무시 — depth 측정 위해 hips 는 bind 유지
+    const dot = track.name.lastIndexOf('.');
+    if (dot < 0) continue;
+    const boneName = track.name.slice(0, dot);
+    const prop = track.name.slice(dot + 1);
+    const bone = scene.getObjectByName(boneName);
+    if (!bone) continue;
+    if (prop === 'quaternion' && track.values.length >= 4) {
+      bone.quaternion.set(track.values[0], track.values[1], track.values[2], track.values[3]);
+    } else if (prop === 'position' && track.values.length >= 3) {
+      bone.position.set(track.values[0], track.values[1], track.values[2]);
+    }
+  }
+
+  // 4) 회전 적용 후 발 world Y 측정
+  scene.updateMatrixWorld(true);
+  const liftedFootY = Math.min(
+    lFoot.getWorldPosition(tmp).y,
+    rFoot.getWorldPosition(new THREE.Vector3()).y,
+  );
+
+  // 5) Bone state 복원
+  for (const [obj, s] of saved) {
+    obj.quaternion.copy(s.q);
+    obj.position.copy(s.p);
+  }
+  scene.updateMatrixWorld(true);
+
+  // 6) depth = lift 양 (회전 후 발이 bind 대비 얼마나 올라갔는지)
+  const depth = liftedFootY - bindFootY;
+  if (!isFinite(depth)) return null;
+  // 음수 depth (회전 후 발이 더 내려감) 는 보정 안 함 — 그냥 그대로 두면 ground 아래로 빠짐.
+  // 0 에 가까우면 보정 불필요.
+  if (depth < 0.01) return clip;  // 1cm 미만 lift → 그대로 clip 반환
+
+  // 7) clip 의 hips position track 을 constant Y = bindHipsY - depth 로 추가/대체
+  const bindHipsY = saved.get(hips)!.p.y;
+  const constantY = bindHipsY - depth;
+  // 기존 hips position track 제거
+  const newTracks = clip.tracks.filter((t) => t.name !== hipsPosTrackName);
+  // 새 track 추가 — 2 frame (start, end) 면 충분 (constant)
+  const times = new Float32Array([0, clip.duration || 1]);
+  const values = new Float32Array([0, constantY, 0, 0, constantY, 0]);
+  newTracks.push(new THREE.VectorKeyframeTrack(hipsPosTrackName, Array.from(times), Array.from(values)));
+  return new THREE.AnimationClip(clip.name, clip.duration, newTracks, clip.blendMode);
 }
 
 /** AnimationClip 의 root motion (hips.position) 제거 — 캐릭터가 제자리에서 움직이게.
