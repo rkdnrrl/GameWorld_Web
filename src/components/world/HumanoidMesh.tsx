@@ -121,8 +121,12 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
   const groupRef = useRef<THREE.Group>(null);
   const [char, setChar] = useState<HumanoidCharacter | null>(null);
   const footIKRef = useRef<HumanoidFootIK | null>(null);
-  /** 발 본 ↔ parent 의 bind pose offset (모델별 sole 두께 자동). 첫 frame 에 캡처. */
+  /** 발 본 ↔ parent 의 bind pose offset (모델별 sole 두께 자동). settle 후 캡처. */
   const footBaselineRef = useRef<number | null>(null);
+  /** 캐릭터 mount 후 frame 카운터 — settle 대기용. */
+  const charFrameRef = useRef(0);
+  /** 캐릭터 인스턴스 추적 — 바뀌면 baseline reset. */
+  const lastCharRef = useRef<HumanoidCharacter | null>(null);
 
   // 모델 로드 + 클립 로드 + 슬롯 등록 (한 번)
   useEffect(() => {
@@ -382,10 +386,17 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     }
     // 3) mixer + vrm.update + lookAt
     char.update(dt);
-    // 4) Foot grounding — 발 본 ↔ parent offset 을 bind pose baseline 으로 잡고 그 값에서 drift 만 보정.
-    //    Baseline = 모델별 sole 두께 (foot bone 는 ankle, sole 은 그보다 아래) 자동 처리.
-    //    smoothing 10% — 달리기 airborne 의 짧은 lift 도 살짝 보정되지만 진동은 미세 (0.5cm 이하).
-    if (char.scene.parent) {
+    // 4) Foot grounding — bind pose baseline + per-frame drift 보정.
+    //    Char 바뀌면 baseline reset. Mount 후 30 frame (0.5s) 대기 — Rapier body 가 ground 로
+    //    settle 되고 애니메이션이 첫 cycle 안정될 때까지. 그 후 첫 valid frame 의 offset 을
+    //    baseline 으로 잡고 매 frame 그 값에서 drift 만 보정.
+    if (char !== lastCharRef.current) {
+      lastCharRef.current = char;
+      footBaselineRef.current = null;
+      charFrameRef.current = 0;
+    }
+    charFrameRef.current++;
+    if (char.scene.parent && charFrameRef.current > 30) {
       const feet: THREE.Object3D[] = [];
       if (char.bones.leftFoot) feet.push(char.bones.leftFoot);
       if (char.bones.rightFoot) feet.push(char.bones.rightFoot);
@@ -403,7 +414,6 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
         parent.getWorldPosition(wp);
         parent.getWorldScale(ws);
         const offsetFromParent = lowestY - wp.y;
-        // 첫 frame — 모델 고유 offset 캡처 (sole 두께 반영)
         if (footBaselineRef.current === null) {
           footBaselineRef.current = offsetFromParent;
         }
