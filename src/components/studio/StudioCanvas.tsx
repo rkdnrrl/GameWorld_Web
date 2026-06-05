@@ -4086,21 +4086,25 @@ export default function StudioCanvas() {
 
   // 우클릭(RMB) 누름 상태 — 누른 동안만 WASD/QE 카메라 비행(유니티식). 평소엔 W/E/R = 도구 단축키.
   const rmbHeldRef = useRef(false);
+  // Alt 누름 — 기즈모 mouseDown 시점에 체크해 Alt+드래그 = 복제 후 원본 끌고가기 (Maya 식 효과)
+  const altHeldRef = useRef(false);
 
   useEffect(() => {
     const dn = (e: KeyboardEvent) => {
       if (e.key === 'Shift') shiftHeldRef.current = true;
       if (e.key === 'Control' || e.key === 'Meta') ctrlHeldRef.current = true;
+      if (e.key === 'Alt') altHeldRef.current = true;
     };
     const up = (e: KeyboardEvent) => {
       if (e.key === 'Shift') shiftHeldRef.current = false;
       if (e.key === 'Control' || e.key === 'Meta') ctrlHeldRef.current = false;
+      if (e.key === 'Alt') altHeldRef.current = false;
     };
     const mdn = (e: MouseEvent) => { if (e.button === 2) rmbHeldRef.current = true; };
     const mup = (e: MouseEvent) => { if (e.button === 2) rmbHeldRef.current = false; };
     // 자가 보정 — 네이티브 컨텍스트 메뉴 등으로 mouseup 을 놓쳐도 buttons 비트로 RMB 상태 복구
     const mmv = (e: MouseEvent) => { rmbHeldRef.current = (e.buttons & 2) === 2; };
-    const blur = () => { shiftHeldRef.current = false; ctrlHeldRef.current = false; rmbHeldRef.current = false; };
+    const blur = () => { shiftHeldRef.current = false; ctrlHeldRef.current = false; rmbHeldRef.current = false; altHeldRef.current = false; };
     window.addEventListener('keydown', dn);
     window.addEventListener('keyup', up);
     window.addEventListener('mousedown', mdn);
@@ -5447,6 +5451,10 @@ export default function StudioCanvas() {
   }
 
   function onTransformDragStart() {
+    // Alt + 기즈모 드래그 (Maya 식): 같은 자리에 복제본 만들고 selectedId 유지 →
+    // 사용자는 원본을 그대로 끌고감, 복제본이 원래 자리에 남음. 시각적 결과는 "복제 후 이동".
+    // 주의: TransformControls 가 이미 원본을 grab 한 상태에서 새 오브젝트 추가만 함 (target swap X) → drag 끊김 없음.
+    if (altHeldRef.current) duplicateInPlace();
     // 드래그 시작 시 모든 선택 오브젝트의 transform 스냅샷
     const map = new Map<string, {p:[number,number,number];r:[number,number,number];s:[number,number,number]}>();
     const ids = multiSelectedIds.size > 0 ? [...multiSelectedIds] : selectedId ? [selectedId] : [];
@@ -5455,6 +5463,32 @@ export default function StudioCanvas() {
       if (obj) map.set(oid, { p: [...obj.position] as [number,number,number], r: [...obj.rotation] as [number,number,number], s: [...obj.scale] as [number,number,number] });
     }
     dragStartRef.current = map;
+  }
+
+  /** 같은 자리에 복제 — Alt+기즈모 드래그 전용 (selectedId 유지). 자손까지 함께 복제. */
+  function duplicateInPlace() {
+    const { sel, multi } = selRef.current;
+    const baseIds = multi.size > 0 ? [...multi] : sel ? [sel] : [];
+    if (baseIds.length === 0) return;
+    const cur = objectsRef.current;
+    const copySet = new Set<string>(baseIds);
+    for (const id of baseIds) for (const d of collectDescendants(id, cur)) copySet.add(d);
+    const idMap = new Map<string, string>();
+    let seq = 0;
+    for (const id of copySet) idMap.set(id, `obj_${Date.now()}_${(seq++).toString(36)}_${Math.random().toString(36).slice(2, 5)}`);
+    const copies: MapObject[] = [];
+    for (const o of cur) {
+      if (!copySet.has(o.id)) continue;
+      const c = clone(o);
+      c.id = idMap.get(o.id)!;
+      c.label = makeLabel(o.kind);
+      if (o.parentId && copySet.has(o.parentId)) c.parentId = idMap.get(o.parentId);
+      else c.parentId = o.parentId;  // 최상위 — 부모는 원본과 동일. 위치 오프셋 0 (제자리).
+      copies.push(c);
+    }
+    if (copies.length === 0) return;
+    setObjects(prev => { const next = [...prev, ...copies]; pushHistory(next); return next; });
+    // selectedId 는 변경 안 함 — 원본 그대로 (기즈모는 원본을 끌고감, 복제본은 제자리).
   }
 
   /** 오브젝트의 world matrix 계산 (조상을 재귀적으로 곱함) */
@@ -7831,7 +7865,7 @@ export default function StudioCanvas() {
           {[
             ['W', tCanvas("shortcut_move")], ['E', tCanvas("shortcut_rotate")], ['R', tCanvas("shortcut_scale")],
             ['우클릭+WASD', tCanvas("shortcut_camera")], ['우클릭+QE', tCanvas("shortcut_up_down")], ['Shift', tCanvas("shortcut_accel")],
-            ['F', tCanvas("shortcut_focus")], ['Ctrl+D', tCanvas("shortcut_duplicate")], ['Ctrl+Z', tCanvas("shortcut_undo")], ['Del', tCanvas("btn_delete")],
+            ['F', tCanvas("shortcut_focus")], ['Ctrl+D', tCanvas("shortcut_duplicate")], ['Alt+드래그', tCanvas("shortcut_alt_drag")], ['Ctrl+Z', tCanvas("shortcut_undo")], ['Del', tCanvas("btn_delete")],
           ].map(([key, desc]) => (
             <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(0,0,0,0.5)', borderRadius: 6, padding: '3px 7px', backdropFilter: 'blur(6px)' }}>
               <kbd style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 3, padding: '1px 5px', fontSize: 10, fontFamily: 'monospace', color: '#e2e8f0', fontWeight: 700 }}>{key}</kbd>

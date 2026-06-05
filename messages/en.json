@@ -1253,6 +1253,7 @@
       "shortcut_accel": "Accelerate",
       "shortcut_focus": "Focus",
       "shortcut_duplicate": "Duplicate",
+      "shortcut_alt_drag": "Duplicate & Move",
       "shortcut_undo": "Undo",
       "title_video_picker": "Pick Video Screen",
       "tooltip_drag_height": "Drag to resize height",

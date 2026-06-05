@@ -1253,6 +1253,7 @@
       "shortcut_accel": "加速",
       "shortcut_focus": "フォーカス",
       "shortcut_duplicate": "複製",
+      "shortcut_alt_drag": "複製して移動",
       "shortcut_undo": "元に戻す",
       "title_video_picker": "ビデオスクリーン選択",
       "tooltip_drag_height": "ドラッグで高さ調整",

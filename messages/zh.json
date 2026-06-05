@@ -1253,6 +1253,7 @@
       "shortcut_accel": "加速",
       "shortcut_focus": "聚焦",
       "shortcut_duplicate": "复制",
+      "shortcut_alt_drag": "复制并移动",
       "shortcut_undo": "撤销",
       "title_video_picker": "选择视频屏幕",
       "tooltip_drag_height": "拖动调整高度",

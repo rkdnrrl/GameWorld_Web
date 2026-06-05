@@ -1253,6 +1253,7 @@
       "shortcut_accel": "가속",
       "shortcut_focus": "포커스",
       "shortcut_duplicate": "복제",
+      "shortcut_alt_drag": "복제 후 이동",
       "shortcut_undo": "실행취소",
       "title_video_picker": "비디오 스크린 선택",
       "tooltip_drag_height": "드래그로 높이 조절",
