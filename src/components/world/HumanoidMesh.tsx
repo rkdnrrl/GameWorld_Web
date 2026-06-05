@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { createHumanoidCharacter, type HumanoidCharacter } from '@/lib/character/humanoidCharacter';
-import { loadAnimationSource, retargetWithSkeletonUtils, normalizeClipToHumanoidNames, retargetClipToHumanoid, measureCrouchDepth, type AnimationSource } from '@/lib/character/humanoidAnimation';
+import { loadAnimationSource, retargetWithSkeletonUtils, normalizeClipToHumanoidNames, retargetClipToHumanoid, type AnimationSource } from '@/lib/character/humanoidAnimation';
 import { ANIM_SLOTS, ANIM_SLOT_LEGACY_ALIAS, type AnimSlot } from '@/lib/character/humanoid';
 import { createHumanoidFootIK, type HumanoidFootIK } from '@/lib/character/humanoidFootIK';
 import { loadVRMA, vrmaToClip, vrmaToUniversalClip, fbxToVrmClip } from '@/lib/character/vrmAnimation';
@@ -121,9 +121,7 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
   const groupRef = useRef<THREE.Group>(null);
   const [char, setChar] = useState<HumanoidCharacter | null>(null);
   const footIKRef = useRef<HumanoidFootIK | null>(null);
-  /** 현재 적용된 crouch scene Y offset (음수 = scene 이 내려감). 슬롯 변경 시 diff 계산. */
-  const appliedCrouchOffsetRef = useRef(0);
-  /** 캐릭터 인스턴스 추적 — 바뀌면 offset reset. */
+  /** 캐릭터 인스턴스 추적 — 바뀌면 reset. */
   const lastCharForCrouchRef = useRef<HumanoidCharacter | null>(null);
 
   // 모델 로드 + 클립 로드 + 슬롯 등록 (한 번)
@@ -135,9 +133,10 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
         const c = await getCharacter(url, manualBoneMap);
         if (cancelled) return;
         local = c;
-        // ── 1) 모델 크기 정규화 먼저 ── crouch calibration 시 bind 발 = scene local Y 0 이어야
+        // ── 1) 모델 크기 정규화 먼저 ── crouch grounding 시 bind 발 = scene local Y 0 이어야
         // 정확한 lift 측정 가능.
-        if (!c.scene.userData.__normalized) {
+        const normalizeNeeded = !c.scene.userData.__normalized;
+        if (normalizeNeeded) {
           c.scene.updateMatrixWorld(true);
           const box = new THREE.Box3().setFromObject(c.scene);
           const size = box.getSize(new THREE.Vector3());
@@ -170,6 +169,18 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
             console.log('[norm]', { isVrm: !!c.vrm, boxMinY: box2.min.y.toFixed(3), boxMaxY: box2.max.y.toFixed(3), baseY: baseY.toFixed(3), scenePosY: c.scene.position.y.toFixed(3) });
           }
           c.scene.userData.__normalized = true;
+        }
+        // ── bind 발 위치 캡처 (crouch per-frame grounding 용) ──
+        // bone 회전 무관하게 다리 길이만 반영된 reference 값. scene.position.y 영향 받지 않음
+        // (foot.world - scene.world = scene local 좌표).
+        if (c.scene.userData.__bindFootInSceneLocalY === undefined) {
+          c.scene.updateMatrixWorld(true);
+          const tmp = new THREE.Vector3();
+          const sceneW = c.scene.getWorldPosition(tmp).y;
+          const lY = c.bones.leftFoot?.getWorldPosition(new THREE.Vector3()).y ?? sceneW;
+          const rY = c.bones.rightFoot?.getWorldPosition(new THREE.Vector3()).y ?? sceneW;
+          c.scene.userData.__bindFootInSceneLocalY = Math.min(lY, rY) - sceneW;
+          c.scene.userData.__sceneBindY = c.scene.position.y;
         }
         // ── 2) 클립 로드 ──
         const effectiveClipUrls = clipUrls && Object.keys(clipUrls).length
@@ -242,21 +253,7 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
               }
               if (retargeted && retargeted.tracks.length > 0) {
                 retargeted.name = slot;
-                // Crouch 슬롯이면 depth 측정해서 char.scene.userData 에 저장.
-                // useFrame 에서 슬롯 active 시 scene.position.y -= depth 로 grounding.
-                if (slot.startsWith('crouch') || slot.startsWith('prone') || slot.startsWith('sit') || slot.startsWith('lay') || slot.startsWith('sleep')) {
-                  try {
-                    const depth = measureCrouchDepth(retargeted, c.bones, c.scene);
-                    if (depth !== null) {
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      const userData = c.scene.userData as any;
-                      if (!userData.crouchDepths) userData.crouchDepths = {};
-                      userData.crouchDepths[slot] = depth;
-                    }
-                  } catch (eCal) {
-                    console.warn(`[humanoid] ${slot} depth 측정 실패`, eCal);
-                  }
-                }
+                // Crouch/prone grounding 은 useFrame 에서 per-frame 처리 (static depth 측정 불필요).
                 clipMap.set(slot as AnimSlot, retargeted);
               } else {
                 console.warn(`[humanoid] ${slot} retarget 결과 비어있음 — skip`);
@@ -386,21 +383,31 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     }
     // 3) mixer + vrm.update + lookAt
     char.update(dt);
-    // 4) Crouch grounding — 현재 슬롯이 crouch 면 scene.position.y -= depth.
-    //    char.scene.userData.crouchDepths[slot] 에 캐릭터+clip 별 사전 측정된 깊이 저장됨.
-    //    슬롯 변경 시 diff 만 적용 (누적 X).
+    // 4) Crouch grounding — per-frame 발 lift 측정해서 scene.y 즉시 보정.
+    //    Static offset 은 평균 lift 만 잡아서 frame 별 변화로 발이 위아래 흔들림.
+    //    매 frame "발 본의 scene-local Y - bind 시 발 본의 scene-local Y" = lift 측정,
+    //    scene.position.y = sceneBindY - lift 로 set → 발 world Y 가 bind 값으로 고정.
+    //    crouch 의 미세 breathing 도 발은 정지, 몸만 호흡.
     if (char !== lastCharForCrouchRef.current) {
       lastCharForCrouchRef.current = char;
-      appliedCrouchOffsetRef.current = 0;
     }
     const slotName = char.currentSlot || '';
+    const isGroundingSlot = slotName.startsWith('crouch') || slotName.startsWith('prone') || slotName.startsWith('sit') || slotName.startsWith('lay') || slotName.startsWith('sleep');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const depths = (char.scene.userData as any).crouchDepths as Record<string, number> | undefined;
-    const targetOffset = (depths && depths[slotName]) || 0;
-    if (targetOffset !== appliedCrouchOffsetRef.current) {
-      const diff = targetOffset - appliedCrouchOffsetRef.current;
-      char.scene.position.y -= diff;  // depth 만큼 scene 내림 (양수 depth → scene Y 감소)
-      appliedCrouchOffsetRef.current = targetOffset;
+    const ud = char.scene.userData as any;
+    const sceneBindY = ud.__sceneBindY as number | undefined;
+    const bindFootLocal = ud.__bindFootInSceneLocalY as number | undefined;
+    if (isGroundingSlot && sceneBindY !== undefined && bindFootLocal !== undefined && char.bones.leftFoot && char.bones.rightFoot) {
+      const tmp = new THREE.Vector3();
+      const sceneW = char.scene.getWorldPosition(tmp).y;
+      const lY = char.bones.leftFoot.getWorldPosition(new THREE.Vector3()).y;
+      const rY = char.bones.rightFoot.getWorldPosition(new THREE.Vector3()).y;
+      const currentFootLocal = Math.min(lY, rY) - sceneW;
+      const lift = currentFootLocal - bindFootLocal;
+      char.scene.position.y = sceneBindY - lift;
+    } else if (sceneBindY !== undefined && char.scene.position.y !== sceneBindY) {
+      // 비-grounding 슬롯: scene.y 를 bind 로 복원
+      char.scene.position.y = sceneBindY;
     }
     // 5) Foot IK (옵션) — Two-Bone IK 솔버. enableFootIK=true 일 때만.
     //    Auto grounding 보정 (1회/매-frame 둘 다) 시도했으나 캐릭터/애니마다 발 lift 패턴이
