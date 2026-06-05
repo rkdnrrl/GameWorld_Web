@@ -516,10 +516,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       if (_cullVec.distanceToSquared(cam) > SKIN_UPDATE_DIST2) skipMixer = true;
     }
     if (!skipMixer) mixer.current.update(dt);
-    // 머리 가리기 — mixer 가 매 프레임 본 transform 을 덮어쓰므로 update 후에 강제 적용
-    if (headBone.current) {
-      headBone.current.scale.setScalar(hideHead ? 0.0001 : 1);
-    }
+    // 머리 mesh 는 카메라 위치 자체가 head bone 안쪽이라 자연 face-cull. scale 0 처리 안 함.
     // 발 위치 자동 보정 — smooth (30%) 추적 + parent scale 보정 (drift world units → local units).
     if (footBones.current.length && obj && !skipMixer) {
       const root = obj as THREE.Object3D;
@@ -1380,28 +1377,6 @@ export function Player({
     }
   }, [cameraMode, inputLocked, gl]);
 
-  // 1인칭 머리 컬링 — 두 가지 동시 적용으로 모든 캐릭터 포맷 커버:
-  //   1) VRM firstPerson layer mask (vrm.firstPerson.setup() 호출된 경우)
-  //      머리 mesh → layer 10 (thirdPersonOnly). 1인칭은 layer 10 disable.
-  //   2) camera.near 키움 (0.1 → 0.35) — VRM 이 아니어도 머리 mesh 가 near plane 안에 들어가
-  //      자동 컬링. crouch/prone 등 어떤 자세든 머리는 카메라 아주 가까이라 안전.
-  //      0.35m 면 본인 손/팔 (~0.4m+) 은 여전히 보임 (Dying Light 식 1인칭 몸).
-  useEffect(() => {
-    const FIRST_PERSON_ONLY_LAYER = 9;
-    const THIRD_PERSON_ONLY_LAYER = 10;
-    camera.layers.enable(0);
-    camera.layers.enable(FIRST_PERSON_ONLY_LAYER);
-    if (cameraMode === 'first') {
-      camera.layers.disable(THIRD_PERSON_ONLY_LAYER);
-      camera.near = 0.35;
-    } else {
-      camera.layers.enable(THIRD_PERSON_ONLY_LAYER);
-      camera.near = 0.1;
-    }
-    if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
-      (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
-    }
-  }, [cameraMode, camera]);
   // 3인칭 전환 시 grab 자동 해제
   useEffect(() => {
     if (cameraMode !== 'first' && grabbedIdRef.current) {
@@ -1872,25 +1847,34 @@ export function Player({
     // 자유시점 모드 — 외부 카메라(WasdFly/Orbit)가 카메라 소유. Player 는 캐릭터 물리만 처리.
     if (!cameraControlEnabled) { /* skip camera positioning */ }
     else if (cameraMode === 'first') {
-      // 1인칭: 캐릭터 head bone 의 실제 world Y 따라감 — 달리기·앉기·엎드리기·점프 시
-      // 머리가 진짜로 들썩이는 느낌. head bone 없으면 (캐릭터 로드 전 또는 BlockMesh) 옛 추정식 fallback.
-      let eyeY: number;
+      // 1인칭: 카메라를 head bone 의 정확한 world position (XYZ) + 캐릭터 forward 살짝 앞으로 이동.
+      // 이전엔 (p.x, headY, p.z) 로 root XZ + head Y 만 썼는데, crouch/prone 등 자세에서
+      // head 가 root XZ 와 다른 위치에 있어 머리 mesh 가 카메라 앞에 보였음.
+      // head bone world position 그대로 + forward 0.12m → 카메라가 정확히 눈 위치, 머리는 카메라 뒤.
+      let camX: number, camY: number, camZ: number;
       const headBone = headBoneRef.current;
       if (headBone) {
         headBone.updateMatrixWorld(true);
-        // 머리 본 위치 + 약간 위 (이마/눈 위치). 머리 본은 보통 정수리·머리 중심.
-        eyeY = headBone.getWorldPosition(_tmpHeadVec).y + 0.08;
+        const headPos = headBone.getWorldPosition(_tmpHeadVec);
+        // 캐릭터 forward (rotY 기반) 로 살짝 이동 — head bone 은 머리 중심, 눈은 그보다 앞.
+        const rotY = mesh.current?.rotation.y ?? 0;
+        const fwdX = Math.sin(rotY) * 0.12;
+        const fwdZ = Math.cos(rotY) * 0.12;
+        camX = headPos.x + fwdX;
+        camY = headPos.y + 0.05;
+        camZ = headPos.z + fwdZ;
       } else {
         const modelScale = Number((character?.appearance as Record<string, unknown> | undefined)?.modelScale) || 1.0;
-        eyeY = (p.y - 0.63) + 1.8 * modelScale * 0.94 * postureScale;
+        camX = p.x; camZ = p.z;
+        camY = (p.y - 0.63) + 1.8 * modelScale * 0.94 * postureScale;
       }
-      camera.position.set(p.x, eyeY, p.z);
+      camera.position.set(camX, camY, camZ);
       const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
       // FPS 관례: 마우스 아래 = 시점 아래로. camV 는 3인칭 기준 (마우스 아래 = camV ↑ = 카메라 위)
       // 이라서 1인칭에선 부호 반전.
       const fy = -Math.sin(_mob.camV);
       const fz = -Math.cos(_mob.camH) * Math.cos(_mob.camV);
-      camera.lookAt(p.x + fx * 10, eyeY + fy * 10, p.z + fz * 10);
+      camera.lookAt(camX + fx * 10, camY + fy * 10, camZ + fz * 10);
     } else {
       // 3인칭: 캐릭터 뒤에서 거리 + 각도. 자세별로 카메라 높이 + 시선 높이도 낮춤.
       const dist = _mob.camDist;

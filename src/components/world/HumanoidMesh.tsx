@@ -372,12 +372,6 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     // 이미 부착되어 있으면 skip
     if (char.scene.parent === groupRef.current) return;
     groupRef.current.add(char.scene);
-    // VRM firstPerson 분류 — 머리(눈/얼굴/머리카락) 를 layer 10 (thirdPersonOnly) 로,
-    // 몸/손/다리 등은 layer 0 (양쪽 모두) 로 자동 분류. WorldCanvas 의 카메라가
-    // 1인칭일 때 layer 10 disable → 머리만 안 보임 (몸은 보임, Dying Light 식).
-    if (char.vrm?.firstPerson) {
-      try { char.vrm.firstPerson.setup(); } catch (e) { console.warn('[humanoid] VRM firstPerson setup 실패', e); }
-    }
     // 셰이더 비동기 컴파일 — 끝나기 전엔 mesh 숨김 (LoadingEffect 가 그 자리 차지).
     // KHR_parallel_shader_compile 지원되면 백그라운드 컴파일 → frame 안 멈춤.
     // 미지원이어도 동기 컴파일 한 번 끝내고 visible → "갑자기 멈춤" 대신 LoadingEffect 가 자연스럽게 교체됨.
