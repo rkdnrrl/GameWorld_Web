@@ -298,6 +298,53 @@ export function useGameSocket({ worldId, sessionId = 'main', playerId, username,
     };
   }, [connect]);
 
+  // 호스트 자격 추적 — 창 hidden/잠수 시 'active=false' 전송 → DO 가 호스트 박탈.
+  // 다시 visible 또는 입력 시 'active=true'.
+  useEffect(() => {
+    if (!enabled) return;
+    const IDLE_TIMEOUT = 60_000;  // 1분 무입력 → 잠수
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastActive: boolean | null = null;
+    const send = (active: boolean) => {
+      if (lastActive === active) return;
+      lastActive = active;
+      if (ws.current?.readyState === WebSocket.OPEN) {
+        ws.current.send(JSON.stringify({ type: 'active', active }));
+      }
+    };
+    const setIdleTimer = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => send(false), IDLE_TIMEOUT);
+    };
+    const onUserInput = () => {
+      if (document.hidden) return;  // 창 hidden 이면 input 무시
+      send(true);
+      setIdleTimer();
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        send(false);
+        if (idleTimer) clearTimeout(idleTimer);
+      } else {
+        send(true);
+        setIdleTimer();
+      }
+    };
+    // 초기 — visible + active
+    if (!document.hidden) { send(true); setIdleTimer(); }
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('keydown', onUserInput, { passive: true });
+    window.addEventListener('mousemove', onUserInput, { passive: true });
+    window.addEventListener('pointerdown', onUserInput, { passive: true });
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('keydown', onUserInput);
+      window.removeEventListener('mousemove', onUserInput);
+      window.removeEventListener('pointerdown', onUserInput);
+      if (idleTimer) clearTimeout(idleTimer);
+    };
+  }, [enabled]);
+
   const sendMove = useCallback((pos: { x: number; y: number; z: number; rotY: number; animState?: AnimState; vx?: number; vy?: number; vz?: number }) => {
     if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type: 'move', ...pos }));

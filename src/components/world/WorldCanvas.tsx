@@ -1380,7 +1380,7 @@ export function Player({
   // 1인칭 camera.near = 0.15 — 머리/머리카락 컬링 + ground 안 잘림.
   // 3인칭 = 0.01 — 사실상 컬링 없음 (사용자 요청). 가까운 오브젝트 모두 보임.
   useEffect(() => {
-    camera.near = cameraMode === 'first' ? 0.15 : 0.01;
+    camera.near = cameraMode === 'first' ? 0.2 : 0.01;
     if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
       (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
     }
