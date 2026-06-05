@@ -382,15 +382,16 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     (async () => {
       try {
         // R3F 의 gl 은 THREE.WebGLRenderer — r152+ 에 compileAsync 존재.
-        // 1) scene 전체 컴파일: 다른 캐릭터/오브젝트 셰이더도 미리 컴파일 → 캐싱 → 다음 등장 시 hitching ↓
-        // 2) char.scene 도 명시 컴파일: 막 추가된 mesh 확실히 처리
         const glAny = gl as unknown as { compileAsync?: (obj: THREE.Object3D, cam: THREE.Camera) => Promise<unknown> };
+        const glCtx = (gl as unknown as { getContext?: () => WebGL2RenderingContext | WebGLRenderingContext }).getContext?.();
+        const hasParallel = !!glCtx?.getExtension?.('KHR_parallel_shader_compile');
+        if (!hasParallel) {
+          console.warn('[humanoid] KHR_parallel_shader_compile 미지원 — shader 동기 컴파일 (hitching 가능). 브라우저 GPU 드라이버 업데이트 권장.');
+        }
         if (typeof glAny.compileAsync === 'function') {
           await glAny.compileAsync(char.scene, camera);
-          await glAny.compileAsync(scene, camera);  // scene 전체 — 다른 mesh 도 미리 컴파일
         } else {
           gl.compile(char.scene, camera);
-          gl.compile(scene, camera);
         }
       } catch { /* 실패해도 첫 frame 에 동기 컴파일됨 — 그대로 진행 */ }
       if (compileCancelled) return;
