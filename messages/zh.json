@@ -1755,7 +1755,16 @@
     "fov": "第一人称视野 (FOV)",
     "fovFirstOnly": "仅在第一人称视角下生效",
     "graphics": "图形",
-    "escToToggle": "开关"
+    "escToToggle": "开关",
+    "spawnAsset": "添加资源",
+    "spawnAssetTitle": "向世界添加资源",
+    "spawnTab_model": "模型",
+    "spawnTab_image": "图片",
+    "spawnTab_video": "视频",
+    "spawnTab_audio": "音频",
+    "searchAssets": "搜索…",
+    "noAssetsForKind": "没有此类资源。请到资源页面上传。",
+    "spawnInFrontHint": "选定后会在角色前方2.5米生成。会话结束即消失。"
   },
   "Character": {
     "title": "🎮 创建角色",

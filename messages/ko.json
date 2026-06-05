@@ -1755,7 +1755,16 @@
     "fov": "1인칭 시야각 (FOV)",
     "fovFirstOnly": "1인칭 시점에서만 적용됩니다",
     "graphics": "그래픽",
-    "escToToggle": "로 열기/닫기"
+    "escToToggle": "로 열기/닫기",
+    "spawnAsset": "에셋 추가",
+    "spawnAssetTitle": "월드에 에셋 추가",
+    "spawnTab_model": "모델",
+    "spawnTab_image": "이미지",
+    "spawnTab_video": "비디오",
+    "spawnTab_audio": "오디오",
+    "searchAssets": "검색…",
+    "noAssetsForKind": "이 종류의 에셋이 없습니다. 에셋 페이지에서 업로드하세요.",
+    "spawnInFrontHint": "선택하면 캐릭터 앞 2.5m 에 생성됩니다. 세션이 종료되면 사라집니다."
   },
   "Character": {
     "myCharacters": "내 캐릭터",

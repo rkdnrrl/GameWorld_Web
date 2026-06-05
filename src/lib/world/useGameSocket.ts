@@ -55,7 +55,7 @@ export interface ObjectStateUpdate {
   grabbedBy?: string | null;
 }
 
-/** world.spawn() 으로 만들어진 런타임 오브젝트 — 멀티 동기화용 */
+/** world.spawn() 또는 유저 in-world spawn 으로 만들어진 런타임 오브젝트 — 멀티 동기화용 */
 export interface RuntimeObjectSpec {
   id: string;
   kind: string;
@@ -67,6 +67,14 @@ export interface RuntimeObjectSpec {
   physics?: 'none' | 'fixed' | 'dynamic';
   material?: string;
   materialColor?: string;
+  // 유저 spawn — 이미지(plane+textureAlbedo), 비디오(plane+videoUrl), 오디오(sound+soundUrl)
+  textureAlbedo?: string;
+  videoUrl?: string;
+  soundUrl?: string;
+  soundVolume?: number;
+  soundLoop?: boolean;
+  soundAutoplay?: boolean;
+  soundRadius?: number;
 }
 
 interface Options {

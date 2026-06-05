@@ -11,6 +11,8 @@ import { session } from '@/lib/api';
 const WorldCanvas = dynamic(() => import('@/components/world/WorldCanvas'), { ssr: false });
 const GraphicsPanel = dynamic(() => import('@/components/world/GraphicsPanel'), { ssr: false });
 const SessionPicker = dynamic(() => import('@/components/world/SessionPicker'), { ssr: false });
+const WorldSpawnModal = dynamic(() => import('@/components/world/WorldSpawnModal').then(m => m.WorldSpawnModal), { ssr: false });
+import type { SpawnPayload } from '@/components/world/WorldSpawnModal';
 
 interface MapObject {
   id: string;
@@ -109,6 +111,8 @@ export default function WorldPage() {
   const [charModalOpen, setCharModalOpen] = useState(false);
   // 캐릭터 관리 (편집/생성) 모달 — iframe 으로 /character 페이지 임베드
   const [charManagerOpen, setCharManagerOpen] = useState(false);
+  // 월드 안에서 내 에셋 spawn — DO 메모리만, 세션 동안 유지
+  const [spawnModalOpen, setSpawnModalOpen] = useState(false);
   const closeCharManager = () => {
     setCharManagerOpen(false);
     if (returnToSettings) { setReturnToSettings(false); setSettingsOpen(true); }
@@ -454,6 +458,44 @@ export default function WorldPage() {
       setSceneFromHost(prev => prev ? prev : (objects as MapObject[]));
     },
   });
+
+  // 내 에셋을 카메라 forward 2.5m 앞에 spawn → 본인 화면 + 다른 클라 broadcast.
+  // DO 메모리만 (rt_ id) — DO 살아있는 한 유지, 호스트 교체 무관. 모두가 나가면 reap 되며 사라짐.
+  const handleSpawnFromAsset = useCallback((payload: SpawnPayload, _name: string) => {
+    if (!userId) return;
+    const pose = posesRef.current?.get(userId);
+    const x = pose?.x ?? 0;
+    const y = pose?.y ?? 1;
+    const z = pose?.z ?? 0;
+    const rotY = pose?.rotY ?? 0;
+    // ALP convention: forward = (sin(rotY), cos(rotY)) — WorldCanvas L3174 참고
+    const fx = Math.sin(rotY);
+    const fz = Math.cos(rotY);
+    const DIST = 2.5;
+    // 이미지/비디오 평면은 본인 쪽을 향해야 함 → rotY + π
+    const objRotY = payload.worldKind === 'plane' ? rotY + Math.PI : rotY;
+    // 평면 위치는 눈높이 (1.5m), 모델/사운드는 발 높이
+    const posY = payload.worldKind === 'plane' ? y + 1.5 : y;
+    const spec: RuntimeSpec = {
+      id: `rt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      kind: payload.worldKind,
+      assetUrl: payload.assetUrl,
+      textureAlbedo: payload.textureAlbedo,
+      videoUrl: payload.videoUrl,
+      soundUrl: payload.soundUrl,
+      soundVolume: payload.soundUrl ? 0.7 : undefined,
+      soundLoop: payload.soundUrl ? true : undefined,
+      soundAutoplay: payload.soundUrl ? true : undefined,
+      soundRadius: payload.soundUrl ? 10 : undefined,
+      position: [x + fx * DIST, posY, z + fz * DIST],
+      rotation: [0, objRotY, 0],
+      scale: payload.defaultScale,
+      color: '#ffffff',
+      physics: 'none',
+    };
+    sendObjSpawn?.(spec);          // DO 가 받아서 다른 클라에 broadcast + runtimeObjects Map 에 저장
+    objSpawnRef.current?.(spec);   // 본인 화면 즉시 표시 (DO 의 _broadcast 는 sender 제외)
+  }, [userId, posesRef, sendObjSpawn]);
 
   // WorldCanvas 에 넘길 customObjects.
   // 호스트 스냅샷은 "라이브 위치(transform)"용 — videoUrl/재질/스크립트 같은 정적 콘텐츠는
@@ -934,6 +976,10 @@ export default function WorldPage() {
                       <button onClick={() => router.push('/assets')} style={actionBtn}>
                         📦 {th('inventory')}
                       </button>
+                      <button onClick={() => { setSettingsOpen(false); setReturnToSettings(true); setSpawnModalOpen(true); }}
+                        style={{ ...actionBtn, border: '1px solid rgba(168,85,247,0.4)', background: 'rgba(168,85,247,0.12)' }}>
+                        🎨 {t('spawnAsset')}
+                      </button>
                       <button onClick={() => router.push('/worlds')}
                         style={{ ...actionBtn, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.12)' }}>
                         🛠 {th('develop')}
@@ -954,6 +1000,12 @@ export default function WorldPage() {
           </div>
         );
       })()}
+
+      <WorldSpawnModal
+        open={spawnModalOpen}
+        onClose={() => { setSpawnModalOpen(false); if (returnToSettings) { setReturnToSettings(false); setSettingsOpen(true); } }}
+        onSpawn={handleSpawnFromAsset}
+      />
 
       {charManagerOpen && (
         <div

@@ -3642,7 +3642,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     objSpawnRef.current = (spec) => {
       setRuntimeObjects(prev => {
         if (prev.find(o => o.id === spec.id)) return prev; // 이미 있음
-        // RuntimeObjectSpec → UserMapObject (kind 좁히기)
+        // RuntimeObjectSpec → UserMapObject (kind 좁히기). 미디어 필드 (이미지/비디오/오디오) 전달.
         const obj: UserMapObject = {
           id: spec.id,
           kind: (spec.kind as UserMapObject['kind']) || 'cube',
@@ -3654,6 +3654,13 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           physics: spec.physics,
           material: spec.material as UserMapObject['material'],
           materialColor: spec.materialColor,
+          textureAlbedo: spec.textureAlbedo,
+          videoUrl: spec.videoUrl,
+          soundUrl: spec.soundUrl,
+          soundVolume: spec.soundVolume,
+          soundLoop: spec.soundLoop,
+          soundAutoplay: spec.soundAutoplay,
+          soundRadius: spec.soundRadius,
         };
         return [...prev, obj];
       });

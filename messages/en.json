@@ -1755,7 +1755,16 @@
     "fov": "First-person FOV",
     "fovFirstOnly": "Applies in first-person view only",
     "graphics": "Graphics",
-    "escToToggle": "to toggle"
+    "escToToggle": "to toggle",
+    "spawnAsset": "Add Asset",
+    "spawnAssetTitle": "Add Asset to World",
+    "spawnTab_model": "Model",
+    "spawnTab_image": "Image",
+    "spawnTab_video": "Video",
+    "spawnTab_audio": "Audio",
+    "searchAssets": "Search…",
+    "noAssetsForKind": "No assets of this type. Upload some on the Assets page.",
+    "spawnInFrontHint": "Spawns 2.5m in front of your character. Disappears when the session ends."
   },
   "Character": {
     "title": "🎮 Create Character",
