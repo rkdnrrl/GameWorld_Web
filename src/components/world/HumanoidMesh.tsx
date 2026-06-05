@@ -498,8 +498,8 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
           lookAtOnRef.current = wantLookAt;
           char.setLookAtTarget(wantLookAt ? camera : null);
         }
-        // 거리 기반 castShadow 토글 — 15m 이내만 그림자. 그 이상은 무시 안전.
-        const wantShadow = castShadow && distSq < 15 * 15;
+        // 거리 기반 castShadow 토글 — 40m 이내 그림자. 멀리도 어느 정도 보임.
+        const wantShadow = castShadow && distSq < 40 * 40;
         if (wantShadow !== shadowOnRef.current) {
           shadowOnRef.current = wantShadow;
           char.scene.traverse((c) => {

@@ -1049,10 +1049,10 @@ function FollowingSunLight({ intensity, castShadow, shadowMapSize, shadowFar }: 
       intensity={intensity}
       castShadow={castShadow}
       shadow-mapSize={shadowMapSize}
-      shadow-camera-left={-25}
-      shadow-camera-right={25}
-      shadow-camera-top={25}
-      shadow-camera-bottom={-25}
+      shadow-camera-left={-60}
+      shadow-camera-right={60}
+      shadow-camera-top={60}
+      shadow-camera-bottom={-60}
       shadow-camera-near={0.5}
       shadow-camera-far={shadowFar}
     />
@@ -1093,9 +1093,7 @@ function GraphicsApplier({ shadowSize, shadowFilter, shadowRadius }: {
       const isPoint = light.isPointLight;
       const isSpot  = light.isSpotLight;
       if (!(isDir || isPoint || isSpot) || !light.shadow) return;
-      // shadow size 강제 cap 512 — fps 우선
-      const cappedSize = Math.min(shadowSize || 512, 512);
-      light.shadow.mapSize.set(cappedSize, cappedSize);
+      light.shadow.mapSize.set(shadowSize || 1024, shadowSize || 1024);
       light.shadow.radius = shadowRadius;
       // 그림자 아티팩트 (peter-panning, acne) 감소
       light.shadow.bias       = -0.0005;
@@ -3227,10 +3225,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     return () => { if (portalApiRef) portalApiRef.current = null; };
   }, [portalApiRef]);
   const shadowsEnabled = graphics.shadowSize > 0;
-  // shadow map size 강제 cap — 사용자 설정이 2048/4096 이면 fps drop 심함.
-  // 512 로 캡 → 그림자 약간 흐려지지만 shadow render 비용 1/4 ~ 1/16 절감.
-  const cappedShadowSize = Math.min(graphics.shadowSize || 512, 512);
-  const shadowMapSize: [number, number] = [cappedShadowSize, cappedShadowSize];
+  // graphics 설정 그대로 (보통 1024~2048) — #217 후 fps 여유로 cap 불필요.
+  const shadowMapSize: [number, number] = [graphics.shadowSize || 1024, graphics.shadowSize || 1024];
   // 같은 dpr 설정이라도 큰 창(PC)은 픽셀 수가 폭증해 fill-rate 렉 → 총 백버퍼 픽셀 예산으로 dpr 상한.
   // 모바일(작은 화면)은 예산 안이라 설정 dpr 그대로, PC 큰 창에서만 자동으로 낮아짐.
   const effectiveDpr = useMemo(() => {
