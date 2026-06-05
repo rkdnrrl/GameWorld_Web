@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import type { VRM } from '@pixiv/three-vrm';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMAnimationLoaderPlugin, createVRMAnimationClip, type VRMAnimation } from '@pixiv/three-vrm-animation';
-import { ANIM_SLOTS, type AnimSlot, type HumanoidBoneName } from './humanoid';
+import { type AnimSlot, type HumanoidBoneName } from './humanoid';
 
 /** .vrma 파일 1개 로드 → VRMAnimation 인스턴스. */
 export async function loadVRMA(url: string): Promise<VRMAnimation> {
@@ -204,13 +204,6 @@ export function vrmaToUniversalClip(
 
   return new THREE.AnimationClip(name, vrma.duration, tracks);
 }
-
-/**
- * 표준 캐릭터 애니메이션 슬롯 — humanoid.ts 의 13슬롯 재사용.
- * 이전 이름 (CharacterAnimSlot) 은 alias 로 유지 (코드 호환).
- */
-export type CharacterAnimSlot = AnimSlot;
-export const CHARACTER_ANIM_SLOTS: readonly AnimSlot[] = ANIM_SLOTS;
 
 /** 슬롯별 VRMA URL 매핑 → 각 슬롯의 AnimationClip 생성.
  *  URL 누락된 슬롯은 skip — setSlot 내부 fallback chain 으로 자동 대체. */

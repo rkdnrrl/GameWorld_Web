@@ -128,18 +128,6 @@ function canonicalBoneName(name: string): string | null {
   return ALIAS_TO_MIXAMO.get(cleanBoneName(name)) || null;
 }
 
-/** 뼈(Bone) 또는 SkinnedMesh.skeleton 이 하나라도 있으면 true.
- *  VRM 일부 케이스는 본이 scene tree 밖에 있어 traverse 만으로는 못 잡음 → skeleton 도 검사. */
-export function hasSkeleton(root: THREE.Object3D): boolean {
-  let found = false;
-  root.traverse(child => {
-    if ((child as THREE.Bone).isBone) found = true;
-    const sm = child as THREE.SkinnedMesh;
-    if (sm.isSkinnedMesh && sm.skeleton?.bones && sm.skeleton.bones.length > 0) found = true;
-  });
-  return found;
-}
-
 /** VRM humanoid 인스턴스의 최소 인터페이스 (modelLoader 가 scene.userData.vrmHumanoid 에 저장). */
 interface VrmHumanoidLike {
   getRawBoneNode?: (name: string) => { name: string } | null | undefined;
@@ -173,22 +161,6 @@ export function findMixamoCompatibleBones(root: THREE.Object3D): Map<string, str
     if (canonical && !bones.has(canonical)) bones.set(canonical, child.name);
   });
   return bones;
-}
-
-/**
- * 매칭 진단 결과 — UI 에 "32 중 28 매칭" 같은 피드백 표시용.
- * 사용자가 캐릭터 등록 시 어떤 본이 빠졌는지 알 수 있게.
- */
-export interface BoneMatchReport {
-  total: number;
-  matched: number;
-  missing: string[];
-}
-export function diagnoseMatching(root: THREE.Object3D): BoneMatchReport {
-  const matched = findMixamoCompatibleBones(root);
-  const allMixamoNames = Object.keys(MIXAMO_ALIASES);
-  const missing = allMixamoNames.filter(n => !matched.has(n));
-  return { total: allMixamoNames.length, matched: matched.size, missing };
 }
 
 export function retargetClipsToModel(
