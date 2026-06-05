@@ -6,8 +6,8 @@
  * 각 part 는 root group 하위 — local 위치/회전 그대로 적용.
  * 펄스 애니메이션 + 반투명 + emissive 로 "여기 생성됩니다" 느낌.
  */
-import { useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useMemo, useRef } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { PlacementGhost } from '@/lib/world/placementGhost';
 
@@ -18,18 +18,26 @@ export function PlacementGhostMesh({ ghost, localPoseRef }: {
   localPoseRef: React.MutableRefObject<{ x: number; y: number; z: number; rotY: number }> | undefined;
 }) {
   const rootRef = useRef<THREE.Group>(null);
+  const { camera } = useThree();
+  const _fwd = useMemo(() => new THREE.Vector3(), []);
 
   useFrame(({ clock }) => {
     const g = rootRef.current;
     if (!g) return;
+    // 카메라 forward (수평만) 기반 — 캐릭터 rotY 가 아니라 카메라가 바라보는 방향을 따라가서
+    // 마우스만 움직여도 즉시 ghost 위치 갱신됨 (1인칭/3인칭 모두). VRChat/FPS 식.
+    _fwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
+    _fwd.y = 0;
+    if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, -1);
+    else _fwd.normalize();
+    const yaw = Math.atan2(_fwd.x, _fwd.z) + Math.PI;  // forward yaw (ALP: forward = (sin, cos))
+    // 위치: 캐릭터 발 높이 유지 + 카메라 forward 2.5m. 캐릭터 pose 가 없으면 카메라 위치 사용 (fallback).
     const p = localPoseRef?.current;
-    if (!p) return;
-    // 캐릭터 forward 2.5m
-    const fx = Math.sin(p.rotY);
-    const fz = Math.cos(p.rotY);
-    g.position.set(p.x + fx * DIST, p.y, p.z + fz * DIST);
-    // root 회전 — plane (이미지/비디오) 은 본인쪽 향함
-    g.rotation.y = ghost.faceCamera ? p.rotY + Math.PI : p.rotY;
+    const baseX = p?.x ?? camera.position.x;
+    const baseY = p?.y ?? camera.position.y - 1.6;
+    const baseZ = p?.z ?? camera.position.z;
+    g.position.set(baseX + _fwd.x * DIST, baseY, baseZ + _fwd.z * DIST);
+    g.rotation.y = ghost.faceCamera ? yaw + Math.PI : yaw;
     // 펄스 — 1.0 ~ 1.08 scale 진동 (시각적 신호)
     const pulse = 1.0 + Math.sin(clock.elapsedTime * 4) * 0.04;
     g.scale.setScalar(pulse);
