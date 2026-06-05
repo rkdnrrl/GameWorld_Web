@@ -1566,7 +1566,28 @@ export function Player({
         grabDistRef.current = Math.max(1.2, Math.min(6.0, grabDistRef.current - e.deltaY * 0.004));
         return;
       }
-      _mob.camDist = Math.max(1.1, Math.min(14, _mob.camDist + e.deltaY * 0.01));
+      // VRChat 식 자동 모드 전환:
+      //  3인칭 + 줌-인이 최소 거리(2.5m) 미만 시도 → 1인칭 진입 (머리 자동 숨김)
+      //  1인칭 + 줌-아웃 → 3인칭 복귀 (거리 2.5m 으로 리셋)
+      // 머리가 화면에 들어오는 어색한 거리(1.1~2.5m) 구간을 없앰.
+      if (cameraModeRef.current === 'first') {
+        if (e.deltaY > 0) {
+          // 줌-아웃 → 3인칭 진입
+          _mob.camDist = 2.5;
+          onToggleCameraMode();
+        }
+        // 줌-인은 이미 1인칭이라 효과 없음 (FOV 조정 등은 별도 작업)
+        return;
+      }
+      // 3인칭
+      const nextDist = _mob.camDist + e.deltaY * 0.01;
+      if (nextDist < 2.5 && e.deltaY < 0) {
+        // 줌-인 끝 → 1인칭 진입
+        _mob.camDist = 2.5;  // 나중에 3인칭 복귀 시 자연스러운 거리
+        onToggleCameraMode();
+        return;
+      }
+      _mob.camDist = Math.max(2.5, Math.min(14, nextDist));
     };
 
     window.addEventListener('keydown', onKeyDown);
