@@ -137,39 +137,21 @@ export async function loadHumanoid(url: string, opts: HumanoidLoadOptions = {}):
 
     // VRM 0.x → 1.0 좌표계 정렬 (1.0 모델에선 noop)
     try { vrmMod.VRMUtils.rotateVRM0(vrm); } catch { /* noop */ }
-    // MToon → MeshStandardMaterial 교체 — MToon 의 view-dependent fragment shader (rim, matcap,
-    // toon shading) 가 카메라 회전 시 매 픽셀 재계산으로 fps drop 의 주범. PBR 룩으로 변경.
-    // 시각: toon 룩이 standard PBR 룩이 되지만 fps 폭증.
-    const convertMToon = (mat: THREE.Material): THREE.Material => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mtoon = mat as any;
-      const isMToon = mtoon && (mtoon.isMToonMaterial || mtoon.type === 'ShaderMaterial' && mtoon.outlineWidthFactor !== undefined);
-      if (!isMToon) return mat;
-      const std = new THREE.MeshStandardMaterial({
-        map: mtoon.map ?? null,
-        color: mtoon.color ? mtoon.color.clone() : new THREE.Color(0xffffff),
-        normalMap: mtoon.normalMap ?? null,
-        emissive: mtoon.emissive ? mtoon.emissive.clone() : new THREE.Color(0x000000),
-        emissiveMap: mtoon.emissiveMap ?? null,
-        roughness: 0.7,
-        metalness: 0.0,
-        transparent: !!mtoon.transparent,
-        alphaTest: mtoon.alphaTest ?? 0,
-        side: mtoon.side ?? THREE.FrontSide,
-        skinning: true,
-        morphTargets: true,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any);
-      return std;
-    };
+    // transparent → alphaTest 변환: VRM 의 hair/eyelash 등 transparent mesh 가 카메라 변화 시
+    // 매 frame depth sort 비용 발생. alphaTest 면 opaque queue 에서 처리 → sort 비용 0.
+    // 시각: alpha 부드러움 → binary cutoff (가장자리 약간 거칠), fps 향상.
     vrm.scene.traverse((c: THREE.Object3D) => {
       const m = c as THREE.Mesh;
       if (!m.isMesh) return;
       m.castShadow = true;
-      if (Array.isArray(m.material)) {
-        m.material = m.material.map(convertMToon);
-      } else if (m.material) {
-        m.material = convertMToon(m.material);
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      for (const mat of mats) {
+        if (mat && mat.transparent) {
+          mat.transparent = false;
+          mat.alphaTest = 0.5;
+          mat.depthWrite = true;
+          mat.needsUpdate = true;
+        }
       }
     });
 
