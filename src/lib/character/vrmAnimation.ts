@@ -34,17 +34,34 @@ function shouldKeepHipsPosition(slot: string | undefined): boolean {
 }
 
 /** VRMA → 특정 VRM 인스턴스용 AnimationClip.
- *  Crouch/sit 외에는 hips position track 제거 — VRMA 의 hips Y 가 author 캐릭터 기준 절대값이라
- *  다른 캐릭터 적용 시 위로 떠오름. */
+ *  비-crouch: hips position track 제거 (떠오름 방지).
+ *  Crouch/sit: hips Y 를 delta-from-max 변환 — animation MAX hips Y 를 VRM bind hips Y 로
+ *    맞추고 delta 만 적용. raw 절대값 그대로 적용 시 mismatch 로 sink + 오실레이션 발생. */
 export function vrmaToClip(vrma: VRMAnimation, vrm: VRM, name?: string): THREE.AnimationClip {
   const clip = createVRMAnimationClip(vrma, vrm);
   if (name) clip.name = name;
-  if (!shouldKeepHipsPosition(name)) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const hipsBone = (vrm as any).humanoid?.getNormalizedBoneNode?.('hips');
-    if (hipsBone?.name) {
-      const target = `${hipsBone.name}.position`;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hipsBone = (vrm as any).humanoid?.getNormalizedBoneNode?.('hips');
+  if (hipsBone?.name) {
+    const target = `${hipsBone.name}.position`;
+    if (!shouldKeepHipsPosition(name)) {
       clip.tracks = clip.tracks.filter((t) => t.name !== target);
+    } else {
+      // delta-from-max 변환
+      const hipsTrack = clip.tracks.find((t) => t.name === target);
+      if (hipsTrack instanceof THREE.VectorKeyframeTrack) {
+        let animMaxY = -Infinity;
+        for (let i = 1; i < hipsTrack.values.length; i += 3) {
+          if (hipsTrack.values[i] > animMaxY) animMaxY = hipsTrack.values[i];
+        }
+        const charBindY = hipsBone.position.y;
+        const deltaBase = charBindY - animMaxY;
+        for (let i = 0; i < hipsTrack.values.length; i += 3) {
+          hipsTrack.values[i] = 0;                              // X
+          hipsTrack.values[i + 1] = hipsTrack.values[i + 1] + deltaBase;  // Y
+          hipsTrack.values[i + 2] = 0;                          // Z
+        }
+      }
     }
   }
   return clip;
@@ -224,13 +241,26 @@ export function vrmaToUniversalClip(
     tracks.push(cloned);
   }
 
-  // Crouch/sit 외에는 hips position 제외 (다른 캐릭터 키에서 떠오름 방지)
+  // Crouch/sit 외에는 hips position 제외. crouch 만 delta-from-max 변환으로 보존.
   if (shouldKeepHipsPosition(name)) {
     for (const [humanoidName, track] of vrma.humanoidTracks.translation) {
       const bone = bones[humanoidName as HumanoidBoneName];
       if (!bone || !bone.name) continue;
-      const cloned = track.clone();
+      const cloned = track.clone() as THREE.VectorKeyframeTrack;
       cloned.name = `${bone.name}.position`;
+      if (humanoidName === 'hips') {
+        let animMaxY = -Infinity;
+        for (let i = 1; i < cloned.values.length; i += 3) {
+          if (cloned.values[i] > animMaxY) animMaxY = cloned.values[i];
+        }
+        const charBindY = bone.position.y;
+        const deltaBase = charBindY - animMaxY;
+        for (let i = 0; i < cloned.values.length; i += 3) {
+          cloned.values[i] = 0;
+          cloned.values[i + 1] = cloned.values[i + 1] + deltaBase;
+          cloned.values[i + 2] = 0;
+        }
+      }
       tracks.push(cloned);
     }
   }
