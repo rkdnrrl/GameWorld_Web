@@ -1860,7 +1860,15 @@ export function Player({
         camX = p.x; camZ = p.z;
         camY = (p.y - 0.63) + 1.8 * modelScale * 0.94 * postureScale;
       }
-      camera.position.set(camX, camY, camZ);
+      // head bone 의 idle/walk bobbing 이 카메라에 즉시 전달되면 모든 오브젝트가 떨려 보임.
+      // lerp 로 카메라 위치를 부드럽게 추적 → high-freq bobbing 흡수, 거시적 이동은 그대로.
+      // dt * 15 = 약 15Hz 추적 (~67ms time constant), 떨림 흡수 + 카메라 지연 인지 어려움.
+      const lerpAlpha = Math.min(1, dt * 15);
+      camera.position.x += (camX - camera.position.x) * lerpAlpha;
+      camera.position.y += (camY - camera.position.y) * lerpAlpha;
+      camera.position.z += (camZ - camera.position.z) * lerpAlpha;
+      // lookAt 계산은 lerp 된 카메라 위치 기준 (camera 변수 그대로)
+      camX = camera.position.x; camY = camera.position.y; camZ = camera.position.z;
       const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
       // FPS 관례: 마우스 아래 = 시점 아래로. camV 는 3인칭 기준 (마우스 아래 = camV ↑ = 카메라 위)
       // 이라서 1인칭에선 부호 반전.
