@@ -174,6 +174,8 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
   const lodFrameCounterRef = useRef(0);
   /** LOD 거리 측정 재사용 Vector3. */
   const _tmpVec = useMemo(() => new THREE.Vector3(), []);
+  /** 현재 적용된 그림자 캐스트 상태 — 거리 구간 변경 시만 traverse 호출 (매 frame traverse 방지). */
+  const shadowOnRef = useRef<boolean>(true);
 
   // 모델 로드 + 클립 로드 + 슬롯 등록 (한 번)
   useEffect(() => {
@@ -389,7 +391,8 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
       char.scene.visible = true;
       setCompileReady(true);
     })();
-    // castShadow 토글
+    // castShadow 초기 설정 — 거리 기반 토글이 매 frame 동기화하므로 여기는 base 값만
+    shadowOnRef.current = castShadow;
     char.scene.traverse((c) => {
       const m = c as THREE.Mesh;
       if (m.isMesh) m.castShadow = castShadow;
@@ -472,20 +475,31 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
         char.lipSync.set(avg);
       }
     }
-    // 3) mixer + vrm.update + lookAt — 카메라 거리별 LOD
-    //    가까움 (<30m): 매 frame 풀 update
-    //    중간 (30~80m): 2 frame 마다 update (30Hz → 15Hz)
-    //    먼 거리 (80~150m): 4 frame 마다
-    //    초원거리 (>150m): mesh 통째로 visible=false
-    //    100명+ 환경에서 mixer.update 비용 큰 절감.
+    // 3) mixer + vrm.update + lookAt + 그림자 — 카메라 거리별 LOD (공격적)
+    //    < 15m: 매 frame 풀 update + 그림자 on (가까이서 볼 때만 그림자 비용 지불)
+    //    < 35m: 2 frame skip (30Hz) + 그림자 off
+    //    < 70m: 4 frame skip (15Hz)
+    //    <120m: 8 frame skip (~7Hz) — 멀리서 어색하지 않을 정도
+    //    >120m: mesh visible=false (shadow pass 도 skip)
+    //    그림자 토글: shadow map pass 가 main render 의 50-80% → 가까울 때만 켜면 매우 큰 절감.
     if (groupRef.current) {
       const cam = camera.position;
       const meshPos = groupRef.current.getWorldPosition(_tmpVec);
       const distSq = cam.distanceToSquared(meshPos);
-      const visible = distSq < 150 * 150;
+      const visible = distSq < 120 * 120;
       if (groupRef.current.visible !== visible) groupRef.current.visible = visible;
       if (visible) {
-        const skipFrames = distSq < 30 * 30 ? 1 : distSq < 80 * 80 ? 2 : 4;
+        // 거리 기반 castShadow 토글 — 25m 이내만 그림자. 그 이상은 픽셀 1-2 수준이라 무시 안전.
+        // traverse 비용 회피: 상태 바뀔 때만 실행.
+        const wantShadow = castShadow && distSq < 25 * 25;
+        if (wantShadow !== shadowOnRef.current) {
+          shadowOnRef.current = wantShadow;
+          char.scene.traverse((c) => {
+            const m = c as THREE.Mesh;
+            if (m.isMesh) m.castShadow = wantShadow;
+          });
+        }
+        const skipFrames = distSq < 15 * 15 ? 1 : distSq < 35 * 35 ? 2 : distSq < 70 * 70 ? 4 : 8;
         lodFrameCounterRef.current = (lodFrameCounterRef.current + 1) % skipFrames;
         if (lodFrameCounterRef.current === 0) {
           char.update(dt * skipFrames);  // 누락 frame 만큼 dt 보정
