@@ -1066,6 +1066,61 @@ export const api = {
     }>("/api/assets/usage", { headers: authHeaders(token) });
   },
 
+  /** 후원자 코드 사용 (텀블벅 등 외부 결제 보상 redemption) */
+  redeemCode(token: string, code: string) {
+    return request<{
+      tier: 'bronze' | 'silver' | 'gold' | 'legend';
+      upgraded: boolean;
+      profile: { id: string; username: string; supporterTier: string; supporterSince: string };
+    }>("/api/redemption/redeem", {
+      method: 'POST',
+      headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+  },
+
+  /** 운영자: 후원자 코드 일괄 생성 */
+  operatorGenerateRedemptionCodes(token: string, payload: {
+    tier: 'bronze' | 'silver' | 'gold' | 'legend';
+    count: number;
+    batchLabel?: string;
+    expiresAt?: string;
+  }) {
+    return request<{ created: number; codes: Array<{ id: string; code: string; tier: string; batchLabel: string | null; expiresAt: string | null; createdAt: string }> }>(
+      "/api/operator/redemption-codes",
+      {
+        method: 'POST',
+        headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+
+  /** 운영자: 후원자 코드 목록 */
+  operatorListRedemptionCodes(token: string, filter?: { tier?: string; batchLabel?: string; status?: 'unused' | 'used' | 'revoked' }) {
+    const sp = new URLSearchParams();
+    if (filter?.tier)       sp.set('tier', filter.tier);
+    if (filter?.batchLabel) sp.set('batchLabel', filter.batchLabel);
+    if (filter?.status)     sp.set('status', filter.status);
+    const q = sp.toString();
+    return request<{
+      codes: Array<{ id: string; code: string; tier: string; batchLabel: string | null; usedByUserId: string | null; usedAt: string | null; expiresAt: string | null; revoked: boolean; createdAt: string }>;
+      unusedByTier: Array<{ tier: string; _count: { _all: number } }>;
+    }>(`/api/operator/redemption-codes${q ? '?' + q : ''}`, { headers: authHeaders(token) });
+  },
+
+  /** 운영자: 코드 무효화/복구 */
+  operatorRevokeRedemptionCode(token: string, id: string, revoked: boolean) {
+    return request<{ code: { id: string; revoked: boolean } }>(
+      `/api/operator/redemption-codes/${id}`,
+      {
+        method: 'PATCH',
+        headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ revoked }),
+      },
+    );
+  },
+
   getCharacterAnimations() {
     return request<{
       slots: Partial<Record<CharacterAnimationSlot["slot"], CharacterAnimationSlot>>;
