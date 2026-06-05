@@ -1839,34 +1839,15 @@ export function Player({
     // 자유시점 모드 — 외부 카메라(WasdFly/Orbit)가 카메라 소유. Player 는 캐릭터 물리만 처리.
     if (!cameraControlEnabled) { /* skip camera positioning */ }
     else if (cameraMode === 'first') {
-      // 1인칭: 카메라를 head bone 의 정확한 world position (XYZ) + 캐릭터 forward 살짝 앞으로 이동.
-      // 이전엔 (p.x, headY, p.z) 로 root XZ + head Y 만 썼는데, crouch/prone 등 자세에서
-      // head 가 root XZ 와 다른 위치에 있어 머리 mesh 가 카메라 앞에 보였음.
-      // head bone world position 그대로 + forward 0.12m → 카메라가 정확히 눈 위치, 머리는 카메라 뒤.
-      let camX: number, camY: number, camZ: number;
-      const headBone = headBoneRef.current;
-      if (headBone) {
-        headBone.updateMatrixWorld(true);
-        const headPos = headBone.getWorldPosition(_tmpHeadVec);
-        // 캐릭터 forward (rotY 기반) 로 살짝 이동 — head bone 은 머리 중심, 눈은 그보다 앞.
-        const rotY = mesh.current?.rotation.y ?? 0;
-        const fwdX = Math.sin(rotY) * 0.12;
-        const fwdZ = Math.cos(rotY) * 0.12;
-        camX = headPos.x + fwdX;
-        camY = headPos.y + 0.05;
-        camZ = headPos.z + fwdZ;
-      } else {
-        const modelScale = Number((character?.appearance as Record<string, unknown> | undefined)?.modelScale) || 1.0;
-        camX = p.x; camZ = p.z;
-        camY = (p.y - 0.63) + 1.8 * modelScale * 0.94 * postureScale;
-      }
-      // bobbing 은 주로 Y 축 (breathing, walk bobbing). Y 만 lerp 로 부드럽게.
-      // X/Z 는 캐릭터 회전 즉시 응답 위해 그대로 set → 머리가 카메라에 안 들어옴.
-      const lerpAlphaY = Math.min(1, dt * 18);  // ~55ms time constant, bobbing 흡수
-      camera.position.x = camX;
-      camera.position.y += (camY - camera.position.y) * lerpAlphaY;
-      camera.position.z = camZ;
-      camY = camera.position.y;
+      // 1인칭 카메라 — 캐릭터 root 위치 + posture 기반 높이 + forward 0.12m.
+      // head bone 직접 사용 시 walk bobbing/breathing 의 micro motion 이 카메라에 전달되어
+      // 화면 떨림. root 는 안정적이므로 떨림 없음. posture (crouch/prone) 변화는 postureScale 로 반영.
+      const modelScale = Number((character?.appearance as Record<string, unknown> | undefined)?.modelScale) || 1.0;
+      const rotY = mesh.current?.rotation.y ?? 0;
+      const camX = p.x + Math.sin(rotY) * 0.12;
+      const camY = (p.y - 0.63) + 1.8 * modelScale * 0.94 * postureScale;
+      const camZ = p.z + Math.cos(rotY) * 0.12;
+      camera.position.set(camX, camY, camZ);
       const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
       // FPS 관례: 마우스 아래 = 시점 아래로. camV 는 3인칭 기준 (마우스 아래 = camV ↑ = 카메라 위)
       // 이라서 1인칭에선 부호 반전.
