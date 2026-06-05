@@ -159,9 +159,14 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     targetHeight = 1.8, offsetY = 0, userScale = 1, onLoaded,
   } = props;
 
-  const { camera, scene } = useThree();
+  const { gl, camera, scene } = useThree();
   const groupRef = useRef<THREE.Group>(null);
   const [char, setChar] = useState<HumanoidCharacter | null>(null);
+  /** 셰이더 비동기 컴파일 완료 여부. char 도착 후 compileAsync 끝나면 true → LoadingEffect 사라짐.
+   *  첫 frame 동기 컴파일로 인한 50-200ms 멈춤 방지 (KHR_parallel_shader_compile 지원 시 백그라운드). */
+  const [compileReady, setCompileReady] = useState(false);
+  // char 가 바뀌면 (url 변경 등) compileReady reset → LoadingEffect 다시 표시
+  useEffect(() => { if (!char) setCompileReady(false); }, [char]);
   const footIKRef = useRef<HumanoidFootIK | null>(null);
   /** 캐릭터 인스턴스 추적 — 바뀌면 reset. */
   const lastCharForCrouchRef = useRef<HumanoidCharacter | null>(null);
@@ -365,6 +370,25 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     // 이미 부착되어 있으면 skip
     if (char.scene.parent === groupRef.current) return;
     groupRef.current.add(char.scene);
+    // 셰이더 비동기 컴파일 — 끝나기 전엔 mesh 숨김 (LoadingEffect 가 그 자리 차지).
+    // KHR_parallel_shader_compile 지원되면 백그라운드 컴파일 → frame 안 멈춤.
+    // 미지원이어도 동기 컴파일 한 번 끝내고 visible → "갑자기 멈춤" 대신 LoadingEffect 가 자연스럽게 교체됨.
+    char.scene.visible = false;
+    let compileCancelled = false;
+    (async () => {
+      try {
+        // R3F 의 gl 은 THREE.WebGLRenderer — r152+ 에 compileAsync 존재
+        const glAny = gl as unknown as { compileAsync?: (obj: THREE.Object3D, cam: THREE.Camera) => Promise<unknown> };
+        if (typeof glAny.compileAsync === 'function') {
+          await glAny.compileAsync(char.scene, camera);
+        } else {
+          gl.compile(char.scene, camera);
+        }
+      } catch { /* 실패해도 첫 frame 에 동기 컴파일됨 — 그대로 진행 */ }
+      if (compileCancelled) return;
+      char.scene.visible = true;
+      setCompileReady(true);
+    })();
     // castShadow 토글
     char.scene.traverse((c) => {
       const m = c as THREE.Mesh;
@@ -398,10 +422,12 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
       } catch { /* noop */ }
     }, 100);
     return () => {
+      // 셰이더 컴파일 in-flight 중에 unmount 되면 setState 무시
+      compileCancelled = true;
       // unmount 시 scene 떼기 — 다른 인스턴스가 같은 캐시 char 받으면 재부착
       if (char.scene.parent) char.scene.parent.remove(char.scene);
     };
-  }, [char, castShadow]);
+  }, [char, castShadow, gl, camera]);
 
   // 머리 숨김 (1인칭)
   useEffect(() => {
@@ -508,7 +534,7 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
   // char.scene 은 별도 useEffect 에서 group.add() 로 직접 부착되므로 JSX children 과 공존 OK.
   return (
     <group ref={groupRef} position={[0, offsetY, 0]} scale={userScale}>
-      {!char && <LoadingEffect targetHeight={targetHeight} />}
+      {!compileReady && <LoadingEffect targetHeight={targetHeight} />}
     </group>
   );
 }
