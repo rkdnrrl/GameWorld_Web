@@ -49,78 +49,31 @@ export async function loadAnimationSource(url: string, name?: string): Promise<A
   throw new Error(`지원 안 함 확장자: ${ext}`);
 }
 
-/** SkeletonUtils.retargetClip 으로 source → target 본 매핑 + rest pose 보정.
- *  three.js 의 표준 retargeter.
+/** FBX/GLB 애니메이션 → target 캐릭터 본 이름 매핑.
  *
- *  @param source source root (FBX/GLB 의 root — SkinnedMesh + skeleton 포함)
- *  @param clip source clip (raw)
+ *  이전엔 SkeletonUtils.retargetClip 사용했지만 출력 트랙 이름이 `bones[xxx].quaternion`
+ *  형식 (skeleton binding) 이라 우리 mixer (scene root) 와 호환 안 됨 → 트랙 binding 실패
+ *  또는 잘못된 본 driving. 단순 본 이름 rename 으로 대체:
+ *    1. source 트랙 이름 → humanoid 표준 (alias 검색)
+ *    2. humanoid → target 본 객체 → 트랙 이름을 그 본 이름으로 rewrite
+ *
+ *  Mixamo 캐릭터 + Mixamo 애니메이션처럼 rest pose 가 동일한 케이스는 완벽 동작.
+ *  rest pose 가 다른 경우 (T-pose vs A-pose) 는 fbxToVrmClip 경로 (VRM 한정) 가 처리.
+ *
+ *  @param source 사용 안 함 (호환성 유지 — 옛 시그니처)
+ *  @param clip source clip (raw 본 이름)
  *  @param targetBones 캐릭터의 humanoid → 실제 본 매핑
- *  @returns target 본 이름 기준 retargeted clip
  */
 export async function retargetWithSkeletonUtils(
   source: THREE.Object3D,
   clip: THREE.AnimationClip,
   targetBones: Partial<Record<HumanoidBoneName, THREE.Object3D>>,
 ): Promise<THREE.AnimationClip> {
-  // SkinnedMesh 검색 — Mixamo "With Skin" 옵션이면 있음. "Without Skin" 이면 본만.
-  let sourceSkinned: THREE.SkinnedMesh | null = null;
-  source.traverse((o) => {
-    const sm = o as THREE.SkinnedMesh;
-    if (sm.isSkinnedMesh && sm.skeleton?.bones?.length && !sourceSkinned) sourceSkinned = sm;
-  });
-  // SkinnedMesh 없으면 본 hierarchy 만으로 임시 wrapper 생성 (Mixamo "Without Skin" 대응)
-  if (!sourceSkinned) {
-    const bones: THREE.Bone[] = [];
-    source.traverse((o) => { if ((o as THREE.Bone).isBone) bones.push(o as THREE.Bone); });
-    if (bones.length === 0) throw new Error('source 에 본 자체가 없음');
-    const skeleton = new THREE.Skeleton(bones);
-    const tempMesh = new THREE.SkinnedMesh();
-    tempMesh.bind(skeleton);
-    source.add(tempMesh);
-    sourceSkinned = tempMesh;
-  }
-
-  // target 도 SkinnedMesh 찾기 — bones map 의 hips 부모 거슬러 올라가 scene 또는 그 위
-  const hipsBone = targetBones.hips;
-  if (!hipsBone) throw new Error('target 에 hips 본 없음');
-  let targetRoot: THREE.Object3D = hipsBone;
-  let i = 0;
-  // 최상위 (R3F Scene 직전) 까지 거슬러 올라감 — 안전하게 10단계 제한
-  while (targetRoot.parent && i < 10) { targetRoot = targetRoot.parent; i++; }
-  let targetSkinned: THREE.SkinnedMesh | null = null;
-  targetRoot.traverse((o) => {
-    const sm = o as THREE.SkinnedMesh;
-    if (sm.isSkinnedMesh && sm.skeleton?.bones?.length && !targetSkinned) targetSkinned = sm;
-  });
-  if (!targetSkinned) throw new Error('target 에 SkinnedMesh 없음');
-
-  const { retargetClip } = await import('three/examples/jsm/utils/SkeletonUtils.js');
-  // source 의 본 이름 → humanoid 표준 → target 의 그 humanoid 본 이름
-  const getBoneName = (bone: THREE.Bone): string => {
-    const humanoid = detectHumanoidName(bone.name);
-    if (!humanoid) return bone.name;
-    const targetBone = targetBones[humanoid];
-    return targetBone?.name ?? bone.name;
-  };
-
-  // SkeletonUtils.retargetClip 는 target/source 가 SkinnedMesh 또는 Skeleton 가진 Object3D
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const retargeted = (retargetClip as any)(targetSkinned, sourceSkinned, clip, {
-    fps: 30,
-    useFirstFramePosition: true,
-    getBoneName,
-  });
-  if (!retargeted || !retargeted.tracks?.length) {
-    throw new Error('SkeletonUtils.retargetClip 결과가 비어있음');
-  }
-  // 트랙 이름 rewrite — `bones[mixamorigLeftFoot].quaternion` 같은 skeleton-binding 형식을
-  // 직접 본 이름 형식으로 변환 (`mixamorigLeftFoot.quaternion`). mixer root 가 scene 이라
-  // skeleton.bones[] 접근 불가 → binding 실패. scene 트리에서 본 객체 직접 찾도록.
-  for (const t of retargeted.tracks) {
-    const m = t.name.match(/^\.?bones\[([^\]]+)\]\.(.+)$/);
-    if (m) {
-      t.name = `${m[1]}.${m[2]}`;
-    }
+  void source;
+  const normalized = normalizeClipToHumanoidNames(clip);
+  const retargeted = retargetClipToHumanoid(normalized, targetBones);
+  if (!retargeted.tracks.length) {
+    throw new Error('단순 본 이름 매핑 결과가 비어있음 (humanoid alias 미매칭)');
   }
   return retargeted;
 }
