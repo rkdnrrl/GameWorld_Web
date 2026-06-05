@@ -137,6 +137,9 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
   const masterGainNodeRef = useRef<GainNode | null>(null);
   // 내 마이크 amplitude analyser (lip-sync 용). applyMicProcessing 안에서 생성.
   const myAnalyserRef     = useRef<AnalyserNode | null>(null);
+  // VAD (Voice Activity Detection) — 마이크 track 자체 reference + RAF id
+  const micTrackRef       = useRef<MediaStreamTrack | null>(null);
+  const vadRafRef         = useRef<number | null>(null);
   const [micGain,    setMicGainState]    = useState<number>(() => loadPersistedGain(LS_MIC_GAIN, 1));
   const [masterGain, setMasterGainState] = useState<number>(() => loadPersistedGain(LS_MASTER_GAIN, 1));
   const [peerGains,  setPeerGains]       = useState<Record<string, number>>(() => loadPersistedPeerGains());
@@ -184,6 +187,54 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
   }, []);
 
   /** Cloudflare Calls 세션 시작. micStream 없으면 listen-only (recvonly transceiver 만). */
+  /**
+   * VAD (Voice Activity Detection) — 마이크 amplitude 감지해서 침묵 시 track 비활성화.
+   * Opus DTX(usedtx=1) 와 함께: 침묵 동안 인코더 ~0 bandwidth + Cloudflare Calls 청구 최소화.
+   * - 임계값: amplitude > 0.015 = 말함
+   * - hangover 800ms: 말 그친 직후 끊기지 않게 충분한 여유 (단어 사이 자연스러움)
+   * - track.enabled = false 면 silence 프레임만 전송 (Opus DTX 가 압축 처리)
+   * - UX 영향 0: 사용자는 마이크 ON 상태 그대로, 인코더만 효율 모드
+   */
+  const startVadLoop = useCallback(() => {
+    if (vadRafRef.current !== null) return;  // 이미 동작 중
+    const analyser = myAnalyserRef.current;
+    if (!analyser) return;
+    const buf = new Uint8Array(analyser.fftSize);
+    let lastVoiceAt = performance.now();
+    const SPEAK_THRESHOLD = 0.015;  // 0~1 정규화 RMS
+    const HANGOVER_MS = 800;
+    const tick = () => {
+      const track = micTrackRef.current;
+      if (!track) { vadRafRef.current = null; return; }
+      analyser.getByteTimeDomainData(buf);
+      // RMS 계산
+      let sumSq = 0;
+      for (let i = 0; i < buf.length; i++) {
+        const v = (buf[i] - 128) / 128;
+        sumSq += v * v;
+      }
+      const rms = Math.sqrt(sumSq / buf.length);
+      const now = performance.now();
+      if (rms > SPEAK_THRESHOLD) lastVoiceAt = now;
+      const shouldEnable = (now - lastVoiceAt) < HANGOVER_MS;
+      if (track.enabled !== shouldEnable) {
+        track.enabled = shouldEnable;
+      }
+      vadRafRef.current = requestAnimationFrame(tick);
+    };
+    vadRafRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  const stopVadLoop = useCallback(() => {
+    if (vadRafRef.current !== null) {
+      cancelAnimationFrame(vadRafRef.current);
+      vadRafRef.current = null;
+    }
+    // track 재활성화 (다음 session 시작 시 즉시 publish 보장)
+    if (micTrackRef.current) micTrackRef.current.enabled = true;
+    micTrackRef.current = null;
+  }, []);
+
   const startSession = useCallback(async (micStream: MediaStream | null) => {
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.cloudflare.com:3478' }],
@@ -201,6 +252,8 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
       myAnalyserRef.current = processed?.analyser || null;
       if (!micTrack) throw new Error('no mic track');
       transceiver = pc.addTransceiver(micTrack, { direction: 'sendonly' });
+      micTrackRef.current = micTrack;
+      startVadLoop();
 
       // 비트레이트 끌어올리기 (기본 32kbps → 96kbps HD)
       try {
@@ -258,7 +311,7 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
       myTrackNameRef.current = pushed.tracks?.[0]?.trackName || `mic-${myId}`;
     }
     return r.sessionId;
-  }, [apiCall, myId]);
+  }, [apiCall, myId, startVadLoop]);
 
   /** mid → panner 매핑 시도 (remotes 정보 도착 후) */
   const tryApplyPannerByMid = useCallback((mid: string | null | undefined) => {
@@ -416,6 +469,7 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
   useEffect(() => {
     if (!enabled) {
       // off
+      stopVadLoop();
       micStreamRef.current?.getTracks().forEach(t => t.stop());
       micStreamRef.current = null;
       try { pcRef.current?.close(); } catch {}
@@ -706,7 +760,7 @@ function waitIceGathering(pc: RTCPeerConnection, timeoutMs: number): Promise<voi
  * - maxaveragebitrate: 평균 비트레이트 (Opus 권장: 32~128kbps)
  * - stereo: 모노 유지 (PannerNode HRTF 호환)
  * - useinbandfec: 패킷 손실 복원
- * - usedtx: 침묵 압축 비활성 (음질 우선)
+ * - usedtx=1: 침묵 시 Opus 자동 압축 → 무성 구간 대역폭 ~95% 절감 (Cloudflare Calls 비용 절감)
  */
 function enhanceOpusSdp(sdp: string): string {
   // m=audio ... opus 의 PT(payload type) 찾기
@@ -720,7 +774,7 @@ function enhanceOpusSdp(sdp: string): string {
 
   const fmtpPrefix = `a=fmtp:${pt} `;
   const fmtpIdx = lines.findIndex(l => l.startsWith(fmtpPrefix));
-  const newOptions = 'stereo=0;sprop-stereo=0;maxaveragebitrate=96000;useinbandfec=1;usedtx=0';
+  const newOptions = 'stereo=0;sprop-stereo=0;maxaveragebitrate=96000;useinbandfec=1;usedtx=1';
   if (fmtpIdx === -1) {
     // fmtp 라인 없으면 rtpmap 다음에 추가
     lines.splice(opusLineIdx + 1, 0, fmtpPrefix + newOptions);

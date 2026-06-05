@@ -123,6 +123,10 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
   const footIKRef = useRef<HumanoidFootIK | null>(null);
   /** 캐릭터 인스턴스 추적 — 바뀌면 reset. */
   const lastCharForCrouchRef = useRef<HumanoidCharacter | null>(null);
+  /** LOD frame counter — 거리별 mixer.update skip 용. */
+  const lodFrameCounterRef = useRef(0);
+  /** LOD 거리 측정 재사용 Vector3. */
+  const _tmpVec = useMemo(() => new THREE.Vector3(), []);
 
   // 모델 로드 + 클립 로드 + 슬롯 등록 (한 번)
   useEffect(() => {
@@ -381,8 +385,28 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
         char.lipSync.set(avg);
       }
     }
-    // 3) mixer + vrm.update + lookAt
-    char.update(dt);
+    // 3) mixer + vrm.update + lookAt — 카메라 거리별 LOD
+    //    가까움 (<30m): 매 frame 풀 update
+    //    중간 (30~80m): 2 frame 마다 update (30Hz → 15Hz)
+    //    먼 거리 (80~150m): 4 frame 마다
+    //    초원거리 (>150m): mesh 통째로 visible=false
+    //    100명+ 환경에서 mixer.update 비용 큰 절감.
+    if (groupRef.current) {
+      const cam = camera.position;
+      const meshPos = groupRef.current.getWorldPosition(_tmpVec);
+      const distSq = cam.distanceToSquared(meshPos);
+      const visible = distSq < 150 * 150;
+      if (groupRef.current.visible !== visible) groupRef.current.visible = visible;
+      if (visible) {
+        const skipFrames = distSq < 30 * 30 ? 1 : distSq < 80 * 80 ? 2 : 4;
+        lodFrameCounterRef.current = (lodFrameCounterRef.current + 1) % skipFrames;
+        if (lodFrameCounterRef.current === 0) {
+          char.update(dt * skipFrames);  // 누락 frame 만큼 dt 보정
+        }
+      }
+    } else {
+      char.update(dt);
+    }
     // 4) Crouch grounding — per-frame 발 lift 측정해서 scene.y 즉시 보정.
     //    Static offset 은 평균 lift 만 잡아서 frame 별 변화로 발이 위아래 흔들림.
     //    매 frame "발 본의 scene-local Y - bind 시 발 본의 scene-local Y" = lift 측정,
