@@ -2072,16 +2072,27 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick,
   const bodyRef = useRef<any>(null);
   const meshRef = useRef<THREE.Group>(null);
   const animStateRef = useRef<AnimState>('idle');
+  // 이름표 거리 cutoff — Billboard + Text(troika SDF) 가 카메라 회전 시 매 frame 갱신.
+  // 30m 밖이면 visibility off → 카메라 회전 시 비용 큰 절감.
+  const nameTagRef = useRef<THREE.Group>(null);
 
   // 매 프레임: kinematic body를 네트워크 위치 + 속도 기반으로 이동
   // - kinematic은 다른 body에 의해 밀려나지 않음 → "공중에 뜨는" 현상 없음
   // - 위치 예측 (extrapolation) → 네트워크 지연 100ms 시각적으로 사라짐 → 박스 push 즉각적
-  useFrame((_, dt) => {
+  useFrame((state, dt) => {
     const pose = posesRef.current?.get(player.id);
     if (!pose) return;
     animStateRef.current = pose.animState ?? 'idle';
     const body = bodyRef.current;
     if (!body) return;
+    // 이름표 거리 cutoff — 30m 밖이면 visibility off. 카메라 회전 시 Billboard quaternion +
+    // Text(troika SDF) 갱신 비용이 큰데, 멀리는 어차피 안 읽힘.
+    if (nameTagRef.current) {
+      const cam = state.camera.position;
+      const ddx = cam.x - pose.x, ddy = cam.y - pose.y, ddz = cam.z - pose.z;
+      const nearEnough = (ddx*ddx + ddy*ddy + ddz*ddz) < 30 * 30;
+      if (nameTagRef.current.visible !== nearEnough) nameTagRef.current.visible = nearEnough;
+    }
 
     const vx = pose.vx ?? 0;
     const vy = pose.vy ?? 0;
@@ -2155,18 +2166,21 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick,
             런타임 emoteLoopMap 은 client-local 이라 sync 못 함 — 캐릭터 등록 시 영구 매핑만 따름. */}
         <CharacterMesh appearance={appearance} animStateRef={animStateRef} castShadow={castShadow ?? false} emoteOneShotOverride={Array.isArray(appearance.animOneShot) ? (appearance.animOneShot as unknown[]).map(String) : []} getAnalyser={getAnalyser} />
       </group>
-      {/* Billboard: 캐릭터 group 의 회전과 무관하게 항상 카메라 정면 향함 — 어느 방향에서 봐도 읽힘. */}
-      <Billboard position={[0, 1.8, 0]} follow={true} lockX={false} lockY={false} lockZ={false}>
-        <Text
-          fontSize={0.22}
-          color="white"
-          anchorX="center"
-          outlineWidth={0.03}
-          outlineColor="#000"
-        >
-          {player.username}
-        </Text>
-      </Billboard>
+      {/* Billboard: 캐릭터 group 의 회전과 무관하게 항상 카메라 정면 향함 — 어느 방향에서 봐도 읽힘.
+          group 으로 감싸 거리 cutoff 적용 — 30m 밖이면 visible=false (useFrame 에서 매 frame 토글). */}
+      <group ref={nameTagRef}>
+        <Billboard position={[0, 1.8, 0]} follow={true} lockX={false} lockY={false} lockZ={false}>
+          <Text
+            fontSize={0.22}
+            color="white"
+            anchorX="center"
+            outlineWidth={0.03}
+            outlineColor="#000"
+          >
+            {player.username}
+          </Text>
+        </Billboard>
+      </group>
       {bubble && (
         <Html position={[0, 2.12, 0]} center>
           <div

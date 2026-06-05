@@ -500,9 +500,9 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
           char.scene.traverse((c) => { const m = c as THREE.Mesh; if (m.isMesh) m.castShadow = false; });
         }
       } else if (visible) {
-        // 거리 기반 lookAt 토글 — 20m 안만 head bone 카메라 향하기.
-        // 정면 시점에서 head matrix 재계산 비용이 큼. 멀리는 시선 추적 안 보여도 무방.
-        const wantLookAt = enableLookAt && distSq < 20 * 20;
+        // 거리 기반 lookAt 토글 — 10m 안만 head bone 카메라 향하기.
+        // 카메라 회전 시 head matrix 매 frame 재계산. 멀리는 시선 추적 안 보여도 무방.
+        const wantLookAt = enableLookAt && distSq < 10 * 10;
         if (wantLookAt !== lookAtOnRef.current) {
           lookAtOnRef.current = wantLookAt;
           char.setLookAtTarget(wantLookAt ? camera : null);
