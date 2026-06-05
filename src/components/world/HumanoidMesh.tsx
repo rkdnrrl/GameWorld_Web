@@ -261,27 +261,9 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
             });
             const box2 = hasMesh ? meshBox : new THREE.Box3().setFromObject(c.scene);
             console.log('[normalize]', { isVrm: !!c.vrm, hasMesh, boxMinY: box2.min.y.toFixed(3), boxMaxY: box2.max.y.toFixed(3) });
-            let baseY: number;
-            if (c.vrm) {
-              // VRM 캐릭터 — 발 본 기준 + 머리카락 outlier 처리
-              const leftFoot = c.bones.leftFoot;
-              const rightFoot = c.bones.rightFoot;
-              if (leftFoot && rightFoot) {
-                const tmp = new THREE.Vector3();
-                const footBoneY = Math.min(leftFoot.getWorldPosition(tmp).y, rightFoot.getWorldPosition(tmp).y);
-                const FOOT_SOLE_MAX = 0.15;
-                if (footBoneY - box2.min.y > FOOT_SOLE_MAX) {
-                  baseY = footBoneY - 0.07;
-                } else {
-                  baseY = Math.min(footBoneY, box2.min.y);
-                }
-              } else {
-                baseY = box2.min.y;
-              }
-            } else {
-              // FBX/GLB — mesh box 가 가장 신뢰성 높음
-              baseY = box2.min.y;
-            }
+            // VRM/FBX 통일 — 실제 mesh 최저점(boots/feet 의 sole) 기준. 발 본 추정은
+            // 부츠가 길거나 platform shoes 인 경우 부정확 (캐릭터 위로 뜸).
+            const baseY: number = box2.min.y;
             c.scene.position.y -= baseY;
             c.scene.userData.__baseScale = baseScale;
             console.log('[norm]', {
