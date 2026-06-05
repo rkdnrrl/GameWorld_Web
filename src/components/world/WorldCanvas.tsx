@@ -1314,6 +1314,8 @@ export function Player({
     y: { hat: 0, dHat: 0, init: false },
     z: { hat: 0, dHat: 0, init: false },
   });
+  /** animState 변경 감지 — 자세/이동 모드 전환 시 filter 초기화 (즉시 새 위치, 첫 frame 머리 보임 방지). */
+  const lastAnimStateRef = useRef<string>('idle');
   const portalTriggered = useRef(false);   // 같은 포탈 중복 발동 방지
   const lastPortalId    = useRef<string | null>(null);
   const { rapier, world: rWorld } = useRapier();
@@ -1846,19 +1848,25 @@ export function Player({
     // 자유시점 모드 — 외부 카메라(WasdFly/Orbit)가 카메라 소유. Player 는 캐릭터 물리만 처리.
     if (!cameraControlEnabled) { /* skip camera positioning */ }
     else if (cameraMode === 'first') {
-      // 1인칭 카메라 — head bone 위치 추적 + One Euro Filter 로 떨림 제거.
-      // 수학적 원리: adaptive low-pass filter. 작은 변화(bobbing 1-3cm)는 강하게 smoothing,
-      // 큰 변화(자세 변화, 점프)는 미분값이 크므로 cutoff 자동 상승 → 즉시 응답.
-      // Casiez, Roussel, Vogel "1€ Filter" CHI 2012.
+      // 1인칭 카메라 — head bone + One Euro Filter (bobbing 흡수, 자세 변화 즉시).
+      // animState 변경 시 filter 초기화 → run/jump 첫 frame 에 머리 안 보임.
+      const currentAnimState = String(animStateRef.current ?? 'idle');
+      if (currentAnimState !== lastAnimStateRef.current) {
+        lastAnimStateRef.current = currentAnimState;
+        oneEuroRef.current.x.init = false;
+        oneEuroRef.current.y.init = false;
+        oneEuroRef.current.z.init = false;
+      }
       let rawX: number, rawY: number, rawZ: number;
       const headBone = headBoneRef.current;
       if (headBone) {
         headBone.updateMatrixWorld(true);
         const headPos = headBone.getWorldPosition(_tmpHeadVec);
         const rotY = mesh.current?.rotation.y ?? 0;
-        rawX = headPos.x + Math.sin(rotY) * 0.15;
+        // forward offset 0.25 — 본인 몸/머리 mesh 가 카메라 뒤로 충분히 멀리 (잔상 방지)
+        rawX = headPos.x + Math.sin(rotY) * 0.25;
         rawY = headPos.y + 0.05;
-        rawZ = headPos.z + Math.cos(rotY) * 0.15;
+        rawZ = headPos.z + Math.cos(rotY) * 0.25;
       } else {
         const modelScale = Number((character?.appearance as Record<string, unknown> | undefined)?.modelScale) || 1.0;
         rawX = p.x; rawZ = p.z;
