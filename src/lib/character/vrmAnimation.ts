@@ -26,10 +26,18 @@ export async function loadVRMA(url: string): Promise<VRMAnimation> {
   return list[0];
 }
 
-/** VRMA → 특정 VRM 인스턴스용 AnimationClip. */
+/** VRMA → 특정 VRM 인스턴스용 AnimationClip.
+ *  hips position track 제거 — VRMA 의 hips Y 는 author 캐릭터 기준 절대값이라 다른 캐릭터 적용 시
+ *  rest pose 차이로 위로 떠오르거나 아래로 가라앉음. 회전만 적용 → Rapier body 가 world 위치 제어. */
 export function vrmaToClip(vrma: VRMAnimation, vrm: VRM, name?: string): THREE.AnimationClip {
   const clip = createVRMAnimationClip(vrma, vrm);
   if (name) clip.name = name;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hipsBone = (vrm as any).humanoid?.getNormalizedBoneNode?.('hips');
+  if (hipsBone?.name) {
+    const target = `${hipsBone.name}.position`;
+    clip.tracks = clip.tracks.filter((t) => t.name !== target);
+  }
   return clip;
 }
 
@@ -193,14 +201,9 @@ export function vrmaToUniversalClip(
     tracks.push(cloned);
   }
 
-  // hips position track — 유일한 translation
-  for (const [humanoidName, track] of vrma.humanoidTracks.translation) {
-    const bone = bones[humanoidName as HumanoidBoneName];
-    if (!bone || !bone.name) continue;
-    const cloned = track.clone();
-    cloned.name = `${bone.name}.position`;
-    tracks.push(cloned);
-  }
+  // hips position track 제외 — VRMA 의 hips Y 는 author 캐릭터 기준 절대값이라
+  // 다른 캐릭터 적용 시 캐릭터가 위로 떠오르거나 아래로 가라앉음.
+  // 회전만 적용 → Rapier body 가 world 위치 제어.
 
   return new THREE.AnimationClip(name, vrma.duration, tracks);
 }
