@@ -377,26 +377,40 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     // 셰이더 비동기 컴파일 — 끝나기 전엔 mesh 숨김 (LoadingEffect 가 그 자리 차지).
     // KHR_parallel_shader_compile 지원되면 백그라운드 컴파일 → frame 안 멈춤.
     // 미지원이어도 동기 컴파일 한 번 끝내고 visible → "갑자기 멈춤" 대신 LoadingEffect 가 자연스럽게 교체됨.
-    char.scene.visible = false;
+    // Progressive mesh reveal — char.scene 은 visible, 안의 mesh 들은 invisible 로 시작.
+    // 각 mesh 의 첫 frame GPU 비용 (shader instance, texture upload, skinning init) 을
+    // 시차 표시로 분산. 한 mesh = 한 frame 의 작은 hitch (인지 어려움).
+    const progressiveMeshes: THREE.Object3D[] = [];
+    char.scene.traverse((c) => {
+      const m = c as THREE.Mesh;
+      if (m.isMesh) {
+        m.visible = false;
+        progressiveMeshes.push(m);
+      }
+    });
+    char.scene.visible = true;
     let compileCancelled = false;
     (async () => {
       try {
-        // R3F 의 gl 은 THREE.WebGLRenderer — r152+ 에 compileAsync 존재.
         const glAny = gl as unknown as { compileAsync?: (obj: THREE.Object3D, cam: THREE.Camera) => Promise<unknown> };
-        const glCtx = (gl as unknown as { getContext?: () => WebGL2RenderingContext | WebGLRenderingContext }).getContext?.();
-        const hasParallel = !!glCtx?.getExtension?.('KHR_parallel_shader_compile');
-        if (!hasParallel) {
-          console.warn('[humanoid] KHR_parallel_shader_compile 미지원 — shader 동기 컴파일 (hitching 가능). 브라우저 GPU 드라이버 업데이트 권장.');
-        }
         if (typeof glAny.compileAsync === 'function') {
           await glAny.compileAsync(char.scene, camera);
         } else {
           gl.compile(char.scene, camera);
         }
-      } catch { /* 실패해도 첫 frame 에 동기 컴파일됨 — 그대로 진행 */ }
+      } catch { /* noop */ }
       if (compileCancelled) return;
-      char.scene.visible = true;
       setCompileReady(true);
+      // Progressive reveal — 1 mesh per frame (16ms 간격). 큰 캐릭터(20+ mesh) 도 ~300ms 이내 완료.
+      let idx = 0;
+      const revealNext = () => {
+        if (compileCancelled) return;
+        if (idx >= progressiveMeshes.length) return;
+        progressiveMeshes[idx].visible = true;
+        idx++;
+        requestAnimationFrame(revealNext);
+      };
+      requestAnimationFrame(revealNext);
     })();
     // castShadow 초기 설정 — 거리 기반 토글이 매 frame 동기화하므로 여기는 base 값만
     shadowOnRef.current = castShadow;
