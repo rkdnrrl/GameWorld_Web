@@ -142,7 +142,7 @@ export default function LauncherPage() {
             <LauncherCard href="/character"     icon="🧑" title={t('cardCharacter')}     desc={t('cardCharacterDesc')} />
             <LauncherCard href="/studio"        icon="🛠️" title={t('cardStudio')}        desc={t('cardStudioDesc')} />
             <LauncherCard href="/announcements" icon="📢" title={t('cardAnnouncements')} desc={t('cardAnnouncementsDesc')} />
-            <LauncherCard href="/inventory"     icon="🎒" title={t('cardInventory')}     desc={t('cardInventoryDesc')} />
+            <LauncherCard href="/assets"        icon="📦" title={t('cardInventory')}     desc={t('cardInventoryDesc')} />
           </section>
         ) : null}
 

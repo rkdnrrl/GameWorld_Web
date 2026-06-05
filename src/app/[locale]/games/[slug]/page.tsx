@@ -122,7 +122,7 @@ export default async function GameDetailPage({
             {game.ownerNickname && (
               <p className="mb-3 text-sm text-gray-500">
                 {t("creator")}:{" "}
-                <Link href={`/developer/${encodeURIComponent(game.ownerNickname)}`}
+                <Link href={`/users/${encodeURIComponent(game.ownerNickname)}`}
                   className="font-medium text-blue-600 hover:underline">
                   {game.ownerNickname}
                 </Link>

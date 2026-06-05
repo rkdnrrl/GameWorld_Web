@@ -206,7 +206,7 @@ export default function DevelopProfilePage() {
         <div className="mb-2 flex items-center justify-between">
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">{t("previewTitle")}</p>
           <Link
-            href={`/developer/${encodeURIComponent(profile?.nickname ?? nickname)}`}
+            href={`/users/${encodeURIComponent(profile?.nickname ?? nickname)}`}
             className="text-xs text-blue-600 hover:underline"
           >
             {t("viewPublic")}

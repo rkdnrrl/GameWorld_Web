@@ -138,7 +138,7 @@ export default function Header() {
             <Link href="/community" className="shrink-0 whitespace-nowrap hover:text-blue-600">
               {t("community")}
             </Link>
-            <Link href="/donate" className="shrink-0 whitespace-nowrap hover:text-blue-600">
+            <Link href="/support" className="shrink-0 whitespace-nowrap hover:text-blue-600">
               {t("donate")}
             </Link>
             {loggedIn && (

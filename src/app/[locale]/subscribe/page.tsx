@@ -47,7 +47,7 @@ export default function SubscribePage() {
             {t("comingSoon")}
           </p>
           <Link
-            href="/donate"
+            href="/support"
             className="inline-block rounded bg-emerald-600 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-500"
           >
             {t("donateInstead")}
