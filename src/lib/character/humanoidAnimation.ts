@@ -136,16 +136,31 @@ export function retargetClipToHumanoid(
       continue;
     }
 
-    // Crouch/sit 외에는 hips position 제외 (다른 캐릭터 키에서 떠오름 방지)
-    if (humanoidName === 'hips' && suffix === '.position') {
-      const slot = clip.name || '';
-      const keep = slot.startsWith('crouch') || slot.startsWith('sit') || slot.startsWith('lay') || slot.startsWith('sleep');
-      if (!keep) continue;
-    }
-
     // 2) 캐릭터의 그 humanoid 본 객체 → 실제 Three.js 이름 추출
     const targetBone = bones[humanoidName];
     if (!targetBone) continue;  // 그 본이 캐릭터에 매핑 안 됨 → 트랙 무시
+
+    // Hips position 특수 처리
+    if (humanoidName === 'hips' && suffix === '.position') {
+      const slot = clip.name || '';
+      const keep = slot.startsWith('crouch') || slot.startsWith('sit') || slot.startsWith('lay') || slot.startsWith('sleep');
+      if (!keep) continue;  // 비-crouch: hips 위치 무시 (떠오름 방지)
+      // Crouch — delta 기반 변환. animation 첫 frame hips Y 를 캐릭터 bind hips Y 로 맞추고
+      // 그 값으로부터의 변화만 적용 → 캐릭터 키 무관하게 자연스러운 앉기.
+      // X/Z 는 0 으로 (캐릭터 이동은 Rapier body 가 처리)
+      const cloned = track.clone();
+      const animFirstY = cloned.values[1] ?? 0;
+      const charBindY = targetBone.position.y;
+      const deltaBase = charBindY - animFirstY;
+      for (let i = 0; i < cloned.values.length; i += 3) {
+        cloned.values[i] = 0;                            // X
+        cloned.values[i + 1] = cloned.values[i + 1] + deltaBase;  // Y (delta + bind)
+        cloned.values[i + 2] = 0;                        // Z
+      }
+      cloned.name = `${targetBone.name}${suffix}`;
+      tracks.push(cloned);
+      continue;
+    }
 
     const cloned = track.clone();
     cloned.name = `${targetBone.name}${suffix}`;
