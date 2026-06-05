@@ -488,10 +488,18 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
       const distSq = cam.distanceToSquared(meshPos);
       const visible = distSq < 120 * 120;
       if (groupRef.current.visible !== visible) groupRef.current.visible = visible;
-      if (visible) {
-        // 거리 기반 castShadow 토글 — 25m 이내만 그림자. 그 이상은 픽셀 1-2 수준이라 무시 안전.
-        // traverse 비용 회피: 상태 바뀔 때만 실행.
-        const wantShadow = castShadow && distSq < 25 * 25;
+      // 본인 1인칭(hideHead=true) — 캐릭터 안 보이는데 char.update (vrm spring/expression/mixer) 매 frame
+      // 도는 게 화려한 VRM 일수록 큰 비용. 본인은 자기 안 보니 skip → 큰 fps 절감.
+      // (다른 사람이 보는 본인 캐릭터는 별도 RemotePlayer 인스턴스라 영향 없음.)
+      if (hideHead) {
+        // shadow 도 본인 1인칭에선 자기 그림자 안 보이니 off
+        if (shadowOnRef.current) {
+          shadowOnRef.current = false;
+          char.scene.traverse((c) => { const m = c as THREE.Mesh; if (m.isMesh) m.castShadow = false; });
+        }
+      } else if (visible) {
+        // 거리 기반 castShadow 토글 — 15m 이내만 그림자. 그 이상은 무시 안전.
+        const wantShadow = castShadow && distSq < 15 * 15;
         if (wantShadow !== shadowOnRef.current) {
           shadowOnRef.current = wantShadow;
           char.scene.traverse((c) => {
@@ -499,13 +507,13 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
             if (m.isMesh) m.castShadow = wantShadow;
           });
         }
-        const skipFrames = distSq < 15 * 15 ? 1 : distSq < 35 * 35 ? 2 : distSq < 70 * 70 ? 4 : 8;
+        const skipFrames = distSq < 10 * 10 ? 1 : distSq < 30 * 30 ? 2 : distSq < 60 * 60 ? 4 : 8;
         lodFrameCounterRef.current = (lodFrameCounterRef.current + 1) % skipFrames;
         if (lodFrameCounterRef.current === 0) {
           char.update(dt * skipFrames);  // 누락 frame 만큼 dt 보정
         }
       }
-    } else {
+    } else if (!hideHead) {
       char.update(dt);
     }
     // 3.5) 1인칭에서 머리만 안 보이게 — VRM 의 firstPerson layer 시스템이 자동 처리.
