@@ -1158,58 +1158,114 @@ export default function WorldPage() {
                     </div>
                   )}
 
+                  {/* 결과 카운트 */}
+                  {filteredWorlds.length > 0 && (
+                    <div style={{ fontSize: 11, opacity: 0.45, marginBottom: 10 }}>{filteredWorlds.length}개 월드</div>
+                  )}
+
                   {/* 그리드 */}
                   {filteredWorlds.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: 48, opacity: 0.4, fontSize: 13 }}>
-                      {mapSearch || selectedTag ? tw('noMatches') : (mapTab === 'mine' ? tw('noMineLoggedIn') : tw('noPublic'))}
+                    <div style={{ textAlign: 'center', padding: '64px 24px' }}>
+                      <div style={{ fontSize: 56, marginBottom: 12, opacity: 0.3 }}>🌐</div>
+                      <div style={{ fontSize: 14, opacity: 0.7, marginBottom: 6 }}>
+                        {mapSearch || selectedTag ? tw('noMatches') : (mapTab === 'mine' ? tw('noMineLoggedIn') : tw('noPublic'))}
+                      </div>
+                      {(mapSearch || selectedTag) && (
+                        <button onClick={() => { setMapSearch(''); setSelectedTag(''); }} style={{ marginTop: 10, background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc', borderRadius: 8, padding: '6px 14px', fontSize: 12, cursor: 'pointer' }}>
+                          필터 초기화
+                        </button>
+                      )}
                     </div>
                   ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 12 }}>
                       {filteredWorlds.map((w) => {
                         const isCurrent = worldIdParam === w.id;
+                        // 월드명 hash 로 빈 썸네일 그라데이션 다양화 (단조로움 방지)
+                        const hash = (w.name || w.id).split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+                        const gradients = [
+                          'linear-gradient(135deg,#6366f1,#ec4899)',
+                          'linear-gradient(135deg,#06b6d4,#3b82f6)',
+                          'linear-gradient(135deg,#10b981,#06b6d4)',
+                          'linear-gradient(135deg,#f59e0b,#ef4444)',
+                          'linear-gradient(135deg,#8b5cf6,#3b82f6)',
+                          'linear-gradient(135deg,#14b8a6,#84cc16)',
+                          'linear-gradient(135deg,#ec4899,#f59e0b)',
+                          'linear-gradient(135deg,#3b82f6,#1d4ed8)',
+                        ];
+                        const fallbackBg = gradients[hash % gradients.length];
                         return (
-                          <div key={`${mapTab}-${w.id}`}
-                            style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${isCurrent ? 'rgba(16,185,129,0.5)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 12, overflow: 'hidden', transition: 'transform .15s, border-color .15s' }}
-                            onMouseEnter={(e) => { if (!isCurrent) e.currentTarget.style.borderColor = 'rgba(129,140,248,0.4)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                            onMouseLeave={(e) => { if (!isCurrent) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                          <button
+                            key={`${mapTab}-${w.id}`}
+                            onClick={() => !isCurrent && handleWorldPick(w)}
+                            disabled={isCurrent}
+                            className="alp-world-card"
+                            style={{
+                              display: 'flex', flexDirection: 'column', textAlign: 'left',
+                              background: 'rgba(255,255,255,0.04)',
+                              border: `1.5px solid ${isCurrent ? 'rgba(16,185,129,0.6)' : 'rgba(255,255,255,0.08)'}`,
+                              borderRadius: 12, overflow: 'hidden', padding: 0,
+                              cursor: isCurrent ? 'default' : 'pointer', color: '#fff',
+                              transition: 'transform .15s, border-color .15s, box-shadow .15s',
+                            }}
+                            onMouseEnter={(e) => {
+                              if (isCurrent) return;
+                              e.currentTarget.style.borderColor = portalPickMode ? 'rgba(34,211,238,0.6)' : 'rgba(129,140,248,0.6)';
+                              e.currentTarget.style.transform = 'translateY(-3px)';
+                              e.currentTarget.style.boxShadow = '0 8px 24px rgba(99,102,241,0.25)';
+                              const ov = e.currentTarget.querySelector('.alp-world-overlay') as HTMLElement | null;
+                              if (ov) ov.style.opacity = '1';
+                            }}
+                            onMouseLeave={(e) => {
+                              if (isCurrent) return;
+                              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+                              e.currentTarget.style.transform = 'translateY(0)';
+                              e.currentTarget.style.boxShadow = 'none';
+                              const ov = e.currentTarget.querySelector('.alp-world-overlay') as HTMLElement | null;
+                              if (ov) ov.style.opacity = '0';
+                            }}
                           >
-                            <button
-                              onClick={() => handleWorldPick(w)}
-                              style={{ display: 'block', width: '100%', aspectRatio: '16/9', position: 'relative', background: w.thumbnailUrl ? `url(${w.thumbnailUrl}) center/cover` : 'linear-gradient(135deg,#334155,#111827)', border: 'none', padding: 0, cursor: 'pointer' }}
-                            >
-                              {!w.thumbnailUrl && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, opacity: 0.5 }}>🌍</div>}
-                              {isCurrent && (
-                                <span style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(16,185,129,0.9)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 4 }}>{tw('badgePublic')} · 현재</span>
+                            {/* 썸네일 */}
+                            <div style={{ width: '100%', aspectRatio: '16/9', position: 'relative', background: w.thumbnailUrl ? `url(${w.thumbnailUrl}) center/cover` : fallbackBg }}>
+                              {!w.thumbnailUrl && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48, opacity: 0.85, filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.3))' }}>🌍</div>}
+                              {/* 호버 시 이동 오버레이 */}
+                              {!isCurrent && (
+                                <div className="alp-world-overlay" style={{ position: 'absolute', inset: 0, background: portalPickMode ? 'rgba(6,182,212,0.55)' : 'rgba(99,102,241,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity .15s', backdropFilter: 'blur(2px)' }}>
+                                  <span style={{ fontSize: 14, fontWeight: 800, color: '#fff', background: 'rgba(0,0,0,0.35)', padding: '8px 16px', borderRadius: 999 }}>
+                                    {portalPickMode ? `🌀 ${t('portalHere')}` : `▶ ${t('moveMap')}`}
+                                  </span>
+                                </div>
                               )}
+                              {/* 현재 맵 배지 */}
+                              {isCurrent && (
+                                <span style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(16,185,129,0.95)', color: '#fff', fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: 4, boxShadow: '0 2px 8px rgba(16,185,129,0.4)' }}>
+                                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff', boxShadow: '0 0 6px #fff' }} /> 현재 위치
+                                </span>
+                              )}
+                              {/* 플레이 카운트 */}
                               {(w.playCount ?? 0) > 0 && (
-                                <span style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 10, padding: '3px 8px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}>
+                                <span style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', color: '#fff', fontSize: 10, padding: '3px 8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}>
                                   ▶ {(w.playCount ?? 0).toLocaleString()}
                                 </span>
                               )}
-                            </button>
-                            <div style={{ padding: '11px 12px' }}>
-                              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{w.name}</div>
+                            </div>
+                            {/* 정보 */}
+                            <div style={{ padding: '10px 11px 11px', display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                              <div style={{ fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{w.name}</div>
                               {w.ownerName && (
-                                <div style={{ fontSize: 11, opacity: 0.55, marginBottom: 6 }}>{tw('by')} <span style={{ color: 'rgba(255,255,255,0.7)' }}>{w.ownerName}</span></div>
+                                <div style={{ fontSize: 10, opacity: 0.55, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tw('by')} <span style={{ color: 'rgba(255,255,255,0.75)' }}>{w.ownerName}</span></div>
                               )}
                               {!!(w.tags && w.tags.length > 0) && (
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 'auto', paddingTop: 4 }}>
                                   {w.tags.slice(0, 3).map((tag) => (
-                                    <button key={`${w.id}-${tag}`} onClick={() => setSelectedTag(tag)}
-                                      style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', color: '#a5b4fc', borderRadius: 999, padding: '2px 8px', fontSize: 10, cursor: 'pointer' }}
-                                    >#{tag}</button>
+                                    <span key={`${w.id}-${tag}`}
+                                      onClick={(ev) => { ev.stopPropagation(); setSelectedTag(tag); }}
+                                      style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', color: '#a5b4fc', borderRadius: 999, padding: '1px 7px', fontSize: 9, cursor: 'pointer' }}
+                                    >#{tag}</span>
                                   ))}
                                 </div>
                               )}
-                              <button
-                                onClick={() => handleWorldPick(w)}
-                                disabled={isCurrent}
-                                style={{ width: '100%', padding: '7px 0', borderRadius: 7, border: 'none', cursor: isCurrent ? 'default' : 'pointer', fontSize: 12, fontWeight: 700, background: isCurrent ? 'rgba(255,255,255,0.08)' : (portalPickMode ? 'linear-gradient(135deg,#06b6d4,#3b82f6)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)'), color: isCurrent ? 'rgba(255,255,255,0.5)' : '#fff' }}
-                              >
-                                {isCurrent ? '✓ 현재 맵' : (portalPickMode ? `🌀 ${t('portalHere')}` : `▶ ${t('moveMap')}`)}
-                              </button>
                             </div>
-                          </div>
+                          </button>
                         );
                       })}
                     </div>
