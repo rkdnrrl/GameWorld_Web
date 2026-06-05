@@ -4840,10 +4840,12 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         camera={{ fov: 60, near: 0.3, far: graphics.farClip, position: [0, 8, 12] }}
         dpr={adaptiveDpr}
         gl={{
-          alpha: true,
+          // alpha:false — frame 간 alpha 누적 잔상(motion blur 같은 효과) 방지. 투명 캔버스 필요 없음.
+          alpha: false,
           antialias: true,
           powerPreference: 'high-performance',
           stencil: false,
+          preserveDrawingBuffer: false,
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 0.7,
         }}
