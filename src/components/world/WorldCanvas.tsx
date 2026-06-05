@@ -622,13 +622,15 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
  * 새 appearance v2: { modelUrl, scale, offsetY, manualBoneMap }
  * 운영자 등록 마스터 클립 url 은 GLOBAL_CLIP_URLS 에서 받음 (T9 에서 운영자 API 정리 예정).
  */
-function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneShotOverride, hideHead = false, getAnalyser }: {
+function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneShotOverride, hideHead = false, getAnalyser, headBoneRef }: {
   appearance: Record<string, unknown>;
   animStateRef?: React.RefObject<AnimState>;
   castShadow?: boolean;
   emoteOneShotOverride?: string[];
   hideHead?: boolean;
   getAnalyser?: () => AnalyserNode | undefined;
+  /** 본인 player 1인칭 카메라용 — humanoid char 로드 시 head bone 채워줌 */
+  headBoneRef?: React.MutableRefObject<THREE.Object3D | null>;
 }) {
   const modelUrl     = appearance.modelUrl as string | undefined;
   const userScale    = Number(appearance.scale ?? appearance.modelScale ?? 1.0) || 1.0;
@@ -647,6 +649,7 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneSh
         castShadow={castShadow}
         userScale={userScale}
         offsetY={offsetY}
+        onLoaded={headBoneRef ? (char) => { headBoneRef.current = char.bones.head ?? null; } : undefined}
       />
     );
   }
@@ -1299,6 +1302,10 @@ export function Player({
   const speedMulRef     = useRef(1);            // world.setSpeed — 이동 속도 배수
   const jumpOverrideRef = useRef<number | null>(null);  // world.setJump — 점프력 덮어쓰기 (null=맵 기본)
   const mesh      = useRef<THREE.Group>(null);
+  /** humanoid char 로드 후 head bone — 1인칭 카메라 Y 추적용 */
+  const headBoneRef = useRef<THREE.Object3D | null>(null);
+  /** 1인칭 카메라 head bone 위치 조회용 재사용 Vec3 */
+  const _tmpHeadVec = useMemo(() => new THREE.Vector3(), []);
   const portalTriggered = useRef(false);   // 같은 포탈 중복 발동 방지
   const lastPortalId    = useRef<string | null>(null);
   const { rapier, world: rWorld } = useRapier();
@@ -1807,11 +1814,18 @@ export function Player({
     // 자유시점 모드 — 외부 카메라(WasdFly/Orbit)가 카메라 소유. Player 는 캐릭터 물리만 처리.
     if (!cameraControlEnabled) { /* skip camera positioning */ }
     else if (cameraMode === 'first') {
-      // 1인칭: 캐릭터 눈 위치에 카메라.
-      // 캐릭터는 autoNormalize 로 1.8m × modelScale 로 정규화됨, 발은 캡슐 바닥(p.y - 0.63)에 위치.
-      // 눈높이 = 발 + 모델키 × 0.94 × postureScale (자세별 낮춤)
-      const modelScale = Number((character?.appearance as Record<string, unknown> | undefined)?.modelScale) || 1.0;
-      const eyeY = (p.y - 0.63) + 1.8 * modelScale * 0.94 * postureScale;
+      // 1인칭: 캐릭터 head bone 의 실제 world Y 따라감 — 달리기·앉기·엎드리기·점프 시
+      // 머리가 진짜로 들썩이는 느낌. head bone 없으면 (캐릭터 로드 전 또는 BlockMesh) 옛 추정식 fallback.
+      let eyeY: number;
+      const headBone = headBoneRef.current;
+      if (headBone) {
+        headBone.updateMatrixWorld(true);
+        // 머리 본 위치 + 약간 위 (이마/눈 위치). 머리 본은 보통 정수리·머리 중심.
+        eyeY = headBone.getWorldPosition(_tmpHeadVec).y + 0.08;
+      } else {
+        const modelScale = Number((character?.appearance as Record<string, unknown> | undefined)?.modelScale) || 1.0;
+        eyeY = (p.y - 0.63) + 1.8 * modelScale * 0.94 * postureScale;
+      }
       camera.position.set(p.x, eyeY, p.z);
       const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
       // FPS 관례: 마우스 아래 = 시점 아래로. camV 는 3인칭 기준 (마우스 아래 = camV ↑ = 카메라 위)
@@ -1982,7 +1996,7 @@ export function Player({
       {/* 1인칭에서도 본인 메쉬 표시 — 아래 보면 다리/몸 보임.
           머리는 hideHead 로 본 스케일 0 / 블록 머리 미렌더 처리 */}
       <group ref={mesh} position={[0, PLAYER_MESH_Y, 0]}>
-        <CharacterMesh appearance={appearance} animStateRef={animStateRef} emoteOneShotOverride={emoteOneShotOverride} hideHead={hideHeadOverride ?? (cameraMode === 'first')} getAnalyser={getAnalyser} />
+        <CharacterMesh appearance={appearance} animStateRef={animStateRef} emoteOneShotOverride={emoteOneShotOverride} hideHead={hideHeadOverride ?? (cameraMode === 'first')} getAnalyser={getAnalyser} headBoneRef={headBoneRef} />
       </group>
       {bubble && (
         <Html position={[0, 1.95, 0]} center>
