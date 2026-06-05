@@ -175,21 +175,12 @@ export function normalizeClipToHumanoidNames(clip: THREE.AnimationClip): THREE.A
     const suffix = track.name.slice(dotIdx);
     const humanoidName = detectHumanoidName(trackBoneName);
     if (!humanoidName) continue;
+    // hips.position 트랙 제거 — animation 의 root motion (bobbing) 차단.
+    // bobbing 이 카메라에 전달되어 1인칭 시야 떨림 원인. character controller 가
+    // 위치 결정하므로 hip translation 트랙 무시해도 캐릭터 이동 정상.
+    if (humanoidName === 'hips' && suffix === '.position') continue;
     const cloned = track.clone();
     cloned.name = `${humanoidName}${suffix}`;
-
-    // Mixamo cm → m 자동 보정 — hips.position 만 검사 (다른 본의 position 은 거의 없음)
-    if (humanoidName === 'hips' && suffix === '.position' && cloned.values.length > 0) {
-      let maxAbs = 0;
-      for (let i = 0; i < cloned.values.length; i++) {
-        const v = Math.abs(cloned.values[i]);
-        if (v > maxAbs) maxAbs = v;
-      }
-      if (maxAbs > 10) {
-        // cm 단위 가정 — m 로 변환
-        for (let i = 0; i < cloned.values.length; i++) cloned.values[i] *= 0.01;
-      }
-    }
     tracks.push(cloned);
   }
   return new THREE.AnimationClip(clip.name, clip.duration, tracks, clip.blendMode);
