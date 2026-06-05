@@ -101,8 +101,8 @@ interface Options {
   onObjDestroy?: (objectId: string) => void;
   /** 호스트가 등록한 씬 전체 스냅샷 (입장 시 한 번 수신) */
   onSceneSnapshot?: (objects: unknown[]) => void;
-  /** DO 가 spawn 거부 — 소유자당 5개 제한 초과 등 */
-  onObjSpawnRejected?: (reason: string) => void;
+  /** DO 가 spawn 거부 — 소유자당 5개 제한 초과 등. id 는 거부된 spec.id (롤백 용) */
+  onObjSpawnRejected?: (reason: string, id?: string) => void;
 }
 
 export function useGameSocket({ worldId, sessionId = 'main', playerId, username, character, enabled, onScriptEvent, onObjectStates, onObjectOwnership, onObjSpawn, onObjDestroy, onSceneSnapshot, onObjSpawnRejected }: Options) {
@@ -231,8 +231,8 @@ export function useGameSocket({ worldId, sessionId = 'main', playerId, username,
         if (o.objectId) onObjDestroyRef.current?.(o.objectId);
       }
       else if (msg.type === 'obj_spawn_rejected') {
-        const o = msg as unknown as { reason?: string };
-        onObjSpawnRejectedRef.current?.(o.reason || 'unknown');
+        const o = msg as unknown as { reason?: string; id?: string };
+        onObjSpawnRejectedRef.current?.(o.reason || 'unknown', o.id);
       }
       else if (msg.type === 'runtime_objects') {
         // 신규 입장 시 일괄 — 각 spec을 onObjSpawn으로 전달

@@ -128,6 +128,29 @@ export default function WorldPage() {
   const [mySpawned, setMySpawned] = useState<Map<string, { name: string; childIds: string[] }>>(new Map());
   const [myObjsModalOpen, setMyObjsModalOpen] = useState(false);
   const SPAWN_LIMIT = 5;
+  // 재입장 복원용 — DO 의 obj_owner 와 obj_spawn 은 순서 보장 안 됨 → 둘 다 ref 에 모아 join.
+  const ownerByIdRef = useRef<Map<string, string>>(new Map());
+  const specByIdRef = useRef<Map<string, { label?: string; parentId?: string }>>(new Map());
+  // mySpawned 의 ref 사본 — 콜백 클로저가 stale 한 state 안 보도록.
+  const mySpawnedRef = useRef<Map<string, { name: string; childIds: string[] }>>(new Map());
+  useEffect(() => { mySpawnedRef.current = mySpawned; }, [mySpawned]);
+  // 월드/세션 바뀌면 ref 들 초기화 — 옛 세션 잔재가 새 세션 카운트로 흘러가지 않도록.
+  // 새 세션의 obj_owner + runtime_objects 메시지로 다시 복원됨.
+  // (effectiveSessionId 는 아래에서 선언되므로 별도 useEffect 로 분리 — 본 effect 는 worldSocketKey 만)
+  useEffect(() => {
+    ownerByIdRef.current = new Map();
+    specByIdRef.current = new Map();
+    setMySpawned(new Map());
+  }, [worldSocketKey]);
+
+  /** ownership + spec 둘 다 확인된 후 mySpawned 에 root 1개로 추가 (parentId 있으면 skip = 자식) */
+  const addMineIfNeeded = useCallback((id: string, spec: { label?: string; parentId?: string }) => {
+    if (mySpawnedRef.current.has(id)) return;
+    if (spec.parentId) return;  // 자식은 root 카운트 X
+    const name = spec.label || '이름 없음';
+    // childIds 는 onObjSpawn 에서 자식이 도착할 때 채워짐
+    setMySpawned(prev => { const next = new Map(prev); next.set(id, { name, childIds: [] }); return next; });
+  }, []);
   const closeCharManager = () => {
     setCharManagerOpen(false);
     if (returnToSettings) { setReturnToSettings(false); setSettingsOpen(true); }
@@ -458,9 +481,39 @@ export default function WorldPage() {
     },
     onObjectOwnership: (objectId, ownerId) => {
       objectOwnerRef.current?.(objectId, ownerId);
+      // mySpawned 복원/갱신 — 양쪽 ref 가 다 있으면 add. ownership 잃으면 remove.
+      if (ownerId) ownerByIdRef.current.set(objectId, ownerId);
+      else ownerByIdRef.current.delete(objectId);
+      if (ownerId === userId) {
+        const s = specByIdRef.current.get(objectId);
+        if (s) addMineIfNeeded(objectId, s);
+      } else if (mySpawnedRef.current.has(objectId)) {
+        mySpawnedRef.current.delete(objectId);
+        setMySpawned(prev => { const next = new Map(prev); next.delete(objectId); return next; });
+      }
     },
     onObjSpawn: (spec) => {
       objSpawnRef.current?.(spec);
+      // ref 에 spec 정보 저장 → ownership 매칭 시 mySpawned 에 추가
+      specByIdRef.current.set(spec.id, { label: spec.label, parentId: spec.parentId });
+      if (ownerByIdRef.current.get(spec.id) === userId) {
+        addMineIfNeeded(spec.id, { label: spec.label, parentId: spec.parentId });
+      }
+      // 자식 spec — 부모가 mySpawned 에 있으면 childIds 갱신
+      if (spec.parentId && mySpawnedRef.current.has(spec.parentId)) {
+        const parent = mySpawnedRef.current.get(spec.parentId)!;
+        if (!parent.childIds.includes(spec.id)) {
+          parent.childIds.push(spec.id);
+          setMySpawned(prev => {
+            const next = new Map(prev);
+            const cur = next.get(spec.parentId!);
+            if (cur && !cur.childIds.includes(spec.id)) {
+              next.set(spec.parentId!, { ...cur, childIds: [...cur.childIds, spec.id] });
+            }
+            return next;
+          });
+        }
+      }
     },
     onObjDestroy: (objectId) => {
       objDestroyRef.current?.(objectId);
@@ -483,11 +536,15 @@ export default function WorldPage() {
         const next = new Map(prev); next.delete(objectId); return next;
       });
     },
-    onObjSpawnRejected: (reason) => {
-      // 서버가 거부 (5개 초과 등). 클라 mySpawned 에 optimistic 으로 넣어둔 항목 정리 필요.
-      // 다만 어느 id 가 거부됐는지 모르므로 — 가장 최근 단건만 롤백 (보수적).
-      // 실용적으론 alert 만으로 충분 — 다음 spawn 시 클라 한도 체크가 정확해짐.
-      console.warn('[world] obj_spawn rejected by server:', reason);
+    onObjSpawnRejected: (reason, id) => {
+      // optimistic 으로 넣어둔 mySpawned 항목 롤백 + 본인 화면에서도 제거
+      console.warn('[world] obj_spawn rejected by server:', reason, id);
+      if (id) {
+        setMySpawned(prev => { const next = new Map(prev); next.delete(id); return next; });
+        objDestroyRef.current?.(id);  // WorldCanvas 의 runtimeObjects 에서 제거
+        specByIdRef.current.delete(id);
+        ownerByIdRef.current.delete(id);
+      }
       if (reason === 'limit') alert(t('spawnLimitReached', { limit: SPAWN_LIMIT }));
     },
     onSceneSnapshot: (objects) => {
@@ -533,6 +590,7 @@ export default function WorldPage() {
       scale: payload.defaultScale,
       color: '#ffffff',
       physics: 'none',
+      label: name,  // 재입장 시 mySpawned 복원에 사용
     };
     sendObjSpawn?.(spec);          // DO 가 받아서 다른 클라에 broadcast + runtimeObjects Map 에 저장
     objSpawnRef.current?.(spec);   // 본인 화면 즉시 표시 (DO 의 _broadcast 는 sender 제외)
@@ -573,7 +631,7 @@ export default function WorldPage() {
     prefab.tree.forEach((_, i) => { if (i > 0) childIds.push(`rt_${stamp}_${i}`); });
     setMySpawned(prev => { const next = new Map(prev); next.set(rootId, { name, childIds }); return next; });
 
-    // 각 오브젝트 spawn — Studio instantiatePrefab 과 같은 룰
+    // 각 오브젝트 spawn — Studio instantiatePrefab 과 같은 룰. root 에만 label 부여 (재입장 복원용).
     prefab.tree.forEach((raw, i) => {
       const o = raw as Record<string, unknown> & {
         id?: string;
@@ -599,6 +657,7 @@ export default function WorldPage() {
         scale:    o.scale || [1, 1, 1],
         color:    o.color || '#ffffff',
         physics:  o.physics || 'none',
+        label:    isRoot ? name : undefined,  // root 에만 — 재입장 시 mySpawned 복원용
       } as RuntimeSpec;
       sendObjSpawn?.(spec);
       objSpawnRef.current?.(spec);
