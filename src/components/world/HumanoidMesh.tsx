@@ -380,7 +380,34 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     }
     // 3) mixer + vrm.update + lookAt
     char.update(dt);
-    // 4) Foot IK — animation 적용 후 발이 ground 에 닿게 보정 (떠/박힘 방지).
+    // 4) Foot grounding — 발/toe 본 의 최저 world Y 를 parent group world Y (= ground) 로
+    //    부드럽게 (30%) 끌어내림. 애니메이션이 hips 를 들어올리거나 다른 캐릭터로 author 되어
+    //    발이 떠도 매 frame 보정. bind pose 추정만으로는 못 잡는 케이스 해결.
+    if (char.scene.parent) {
+      const feet: THREE.Object3D[] = [];
+      if (char.bones.leftFoot) feet.push(char.bones.leftFoot);
+      if (char.bones.rightFoot) feet.push(char.bones.rightFoot);
+      if (char.bones.leftToes) feet.push(char.bones.leftToes);
+      if (char.bones.rightToes) feet.push(char.bones.rightToes);
+      if (feet.length) {
+        const wp = new THREE.Vector3();
+        const ws = new THREE.Vector3();
+        let lowestY = Infinity;
+        for (const b of feet) {
+          b.getWorldPosition(wp);
+          if (wp.y < lowestY) lowestY = wp.y;
+        }
+        const parent = char.scene.parent;
+        parent.getWorldPosition(wp);
+        parent.getWorldScale(ws);
+        const drift = lowestY - wp.y;
+        const parentScaleY = ws.y || 1;
+        if (Math.abs(drift) > 0.02) {
+          char.scene.position.y -= (drift * 0.3) / parentScaleY;
+        }
+      }
+    }
+    // 5) Foot IK (옵션) — Two-Bone IK 솔버. enableFootIK=true 일 때만.
     if (footIKRef.current?.enabled) {
       try { footIKRef.current.update(scene); } catch { /* noop — IK 실패해도 캐릭터는 계속 */ }
     }
