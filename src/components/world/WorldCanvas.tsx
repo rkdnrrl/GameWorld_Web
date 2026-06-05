@@ -1366,6 +1366,19 @@ export function Player({
   // onKeyDown 내부에서 cameraMode prop을 stale 없이 읽기 위한 ref
   const cameraModeRef = useRef(cameraMode);
   useEffect(() => { cameraModeRef.current = cameraMode; }, [cameraMode]);
+  // 1인칭 진입 시 마우스 커서 자동 숨김(pointer lock), 3인칭 진입 시 해제.
+  // 자동 모드 전환(줌-인) + V 키 + 어디서 모드 바뀌든 일관 처리.
+  useEffect(() => {
+    if (inputLocked) return;  // 입력창/모달 활성 시 lock 안 함
+    if (cameraMode === 'first') {
+      if (document.pointerLockElement !== gl.domElement) {
+        const r = gl.domElement.requestPointerLock() as unknown;
+        if (r && typeof (r as Promise<void>).catch === 'function') (r as Promise<void>).catch(() => {});
+      }
+    } else {
+      if (document.pointerLockElement === gl.domElement) document.exitPointerLock();
+    }
+  }, [cameraMode, inputLocked, gl]);
   // 3인칭 전환 시 grab 자동 해제
   useEffect(() => {
     if (cameraMode !== 'first' && grabbedIdRef.current) {
