@@ -24,20 +24,15 @@ export function PlacementGhostMesh({ ghost, localPoseRef }: {
   useFrame(({ clock }) => {
     const g = rootRef.current;
     if (!g) return;
-    // 카메라 forward (수평만) 기반 — 캐릭터 rotY 가 아니라 카메라가 바라보는 방향을 따라가서
-    // 마우스만 움직여도 즉시 ghost 위치 갱신됨 (1인칭/3인칭 모두). VRChat/FPS 식.
+    // 카메라 시선 3D forward — pitch 포함. 카메라가 위/아래 봐도 ghost 가 따라감 (크로스헤어 위치).
     _fwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
-    _fwd.y = 0;
     if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, -1);
     else _fwd.normalize();
-    const yaw = Math.atan2(_fwd.x, _fwd.z) + Math.PI;  // forward yaw (ALP: forward = (sin, cos))
-    // 위치: 캐릭터 발 높이 유지 + 카메라 forward 2.5m. 캐릭터 pose 가 없으면 카메라 위치 사용 (fallback).
-    const p = localPoseRef?.current;
-    const baseX = p?.x ?? camera.position.x;
-    const baseY = p?.y ?? camera.position.y - 1.6;
-    const baseZ = p?.z ?? camera.position.z;
-    g.position.set(baseX + _fwd.x * DIST, baseY, baseZ + _fwd.z * DIST);
-    g.rotation.y = ghost.faceCamera ? yaw + Math.PI : yaw;
+    // 위치: 카메라 위치 + 시선 방향 2.5m (크로스헤어 정확히).
+    g.position.copy(camera.position).addScaledVector(_fwd, DIST);
+    // 회전은 yaw 만 (수평 방향) — 오브젝트가 뒤집어지지 않도록 pitch 무시.
+    const fy = _fwd.x === 0 && _fwd.z === 0 ? 0 : Math.atan2(_fwd.x, _fwd.z) + Math.PI;
+    g.rotation.y = ghost.faceCamera ? fy + Math.PI : fy;
     // 펄스 — 1.0 ~ 1.08 scale 진동 (시각적 신호)
     const pulse = 1.0 + Math.sin(clock.elapsedTime * 4) * 0.04;
     g.scale.setScalar(pulse);
