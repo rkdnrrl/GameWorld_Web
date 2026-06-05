@@ -409,7 +409,7 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
         }
         const drift = offsetFromParent - footBaselineRef.current;
         const parentScaleY = ws.y || 1;
-        if (Math.abs(drift) > 0.02) {
+        if (Math.abs(drift) > 0.005) {
           char.scene.position.y -= (drift * 0.1) / parentScaleY;
         }
       }
