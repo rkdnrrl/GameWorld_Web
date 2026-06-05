@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import "../globals.css";
 import BackendConnectionBanner from "@/components/BackendConnectionBanner";
+import FloatingLanguageSwitcher from "@/components/FloatingLanguageSwitcher";
 import Header from "@/components/Header";
 import OnboardingModal from "@/components/OnboardingModal";
 import PostHogInit from "@/components/PostHogInit";
@@ -55,6 +56,7 @@ export default async function LocaleLayout({
           <main className="flex w-full min-w-0 max-w-full flex-1 flex-col overflow-x-hidden">
             {children}
           </main>
+          <FloatingLanguageSwitcher />
         </NextIntlClientProvider>
       </body>
     </html>
