@@ -176,6 +176,8 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
   const _tmpVec = useMemo(() => new THREE.Vector3(), []);
   /** 현재 적용된 그림자 캐스트 상태 — 거리 구간 변경 시만 traverse 호출 (매 frame traverse 방지). */
   const shadowOnRef = useRef<boolean>(true);
+  /** lookAt 거리 cutoff 상태 — 멀리는 vrm.lookAt 비활성화 (head bone matrix 재계산 비용 절감). */
+  const lookAtOnRef = useRef<boolean>(true);
 
   // 모델 로드 + 클립 로드 + 슬롯 등록 (한 번)
   useEffect(() => {
@@ -498,6 +500,13 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
           char.scene.traverse((c) => { const m = c as THREE.Mesh; if (m.isMesh) m.castShadow = false; });
         }
       } else if (visible) {
+        // 거리 기반 lookAt 토글 — 20m 안만 head bone 카메라 향하기.
+        // 정면 시점에서 head matrix 재계산 비용이 큼. 멀리는 시선 추적 안 보여도 무방.
+        const wantLookAt = enableLookAt && distSq < 20 * 20;
+        if (wantLookAt !== lookAtOnRef.current) {
+          lookAtOnRef.current = wantLookAt;
+          char.setLookAtTarget(wantLookAt ? camera : null);
+        }
         // 거리 기반 castShadow 토글 — 15m 이내만 그림자. 그 이상은 무시 안전.
         const wantShadow = castShadow && distSq < 15 * 15;
         if (wantShadow !== shadowOnRef.current) {

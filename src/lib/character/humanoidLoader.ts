@@ -137,9 +137,12 @@ export async function loadHumanoid(url: string, opts: HumanoidLoadOptions = {}):
 
     // VRM 0.x → 1.0 좌표계 정렬 (1.0 모델에선 noop)
     try { vrmMod.VRMUtils.rotateVRM0(vrm); } catch { /* noop */ }
+    // frustumCulled=true (기본값) — 화면 밖 mesh 안 그리게 → 정면 시점 fps 큰 절감.
+    // 단 SkinnedMesh 의 boundingSphere 가 bind pose 기준이라 큰 회전/이동 시
+    // 부정확할 수 있음. 그 경우 mesh.frustumCulled = false 로 개별 예외.
     vrm.scene.traverse((c: THREE.Object3D) => {
       const m = c as THREE.Mesh;
-      if (m.isMesh) { m.frustumCulled = false; m.castShadow = true; }
+      if (m.isMesh) { m.castShadow = true; }
     });
 
     const { boneByName, morphTargets } = collectBonesAndMorphs(vrm.scene);
