@@ -140,26 +140,20 @@ export function retargetClipToHumanoid(
     const targetBone = bones[humanoidName];
     if (!targetBone) continue;  // 그 본이 캐릭터에 매핑 안 됨 → 트랙 무시
 
-    // Hips position 특수 처리
+    // Hips position 특수 처리 — crouch 는 고정 깊이로 강제, 그 외 슬롯은 strip.
     if (humanoidName === 'hips' && suffix === '.position') {
       const slot = clip.name || '';
-      const keep = slot.startsWith('crouch') || slot.startsWith('sit') || slot.startsWith('lay') || slot.startsWith('sleep');
-      if (!keep) continue;  // 비-crouch: hips 위치 무시 (떠오름 방지)
-      // Crouch — delta 기반 변환. animation 의 **MAX** hips Y (= 가장 standing 에 가까운 frame)
-      // 를 캐릭터 bind hips Y 로 맞추고 그 값으로부터의 변화만 적용. 첫 frame 기준이면
-      // 첫 frame 이 crouch/transition 일 때 부정확. MAX 는 항상 안정적.
-      // X/Z 는 0 (캐릭터 이동은 Rapier body 가 처리).
+      const CROUCH_DEPTHS: Record<string, number> = {
+        crouch_idle: 0.30, crouch_walk: 0.25, sit: 0.50, lay: 0.85, sleep: 0.85,
+      };
+      const depth = CROUCH_DEPTHS[slot];
+      if (depth === undefined) continue;  // 비-crouch
       const cloned = track.clone();
-      let animMaxY = -Infinity;
-      for (let i = 1; i < cloned.values.length; i += 3) {
-        if (cloned.values[i] > animMaxY) animMaxY = cloned.values[i];
-      }
-      const charBindY = targetBone.position.y;
-      const deltaBase = charBindY - animMaxY;
+      const constantY = targetBone.position.y - depth;
       for (let i = 0; i < cloned.values.length; i += 3) {
-        cloned.values[i] = 0;                            // X
-        cloned.values[i + 1] = cloned.values[i + 1] + deltaBase;  // Y (delta + bind)
-        cloned.values[i + 2] = 0;                        // Z
+        cloned.values[i] = 0;
+        cloned.values[i + 1] = constantY;
+        cloned.values[i + 2] = 0;
       }
       cloned.name = `${targetBone.name}${suffix}`;
       tracks.push(cloned);

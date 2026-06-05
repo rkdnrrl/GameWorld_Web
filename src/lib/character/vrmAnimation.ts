@@ -33,10 +33,19 @@ function shouldKeepHipsPosition(slot: string | undefined): boolean {
   return slot.startsWith('crouch') || slot.startsWith('sit') || slot.startsWith('lay') || slot.startsWith('sleep');
 }
 
+/** 슬롯별 고정 crouch 깊이 (m). 애니메이션 hips Y 무시하고 hips 를 이만큼만 낮춤.
+ *  애니메이션이 hips 를 위아래로 흔드는 oscillation 차단. 다리 회전은 animation 그대로. */
+const CROUCH_HIPS_DEPTH: Record<string, number> = {
+  crouch_idle: 0.30,
+  crouch_walk: 0.25,
+  sit: 0.50,
+  lay: 0.85,
+  sleep: 0.85,
+};
+
 /** VRMA → 특정 VRM 인스턴스용 AnimationClip.
  *  비-crouch: hips position track 제거 (떠오름 방지).
- *  Crouch/sit: hips Y 를 delta-from-max 변환 — animation MAX hips Y 를 VRM bind hips Y 로
- *    맞추고 delta 만 적용. raw 절대값 그대로 적용 시 mismatch 로 sink + 오실레이션 발생. */
+ *  Crouch/sit: hips Y 를 고정 깊이로 강제 (oscillation 없음, 자세 일관). */
 export function vrmaToClip(vrma: VRMAnimation, vrm: VRM, name?: string): THREE.AnimationClip {
   const clip = createVRMAnimationClip(vrma, vrm);
   if (name) clip.name = name;
@@ -44,22 +53,20 @@ export function vrmaToClip(vrma: VRMAnimation, vrm: VRM, name?: string): THREE.A
   const hipsBone = (vrm as any).humanoid?.getNormalizedBoneNode?.('hips');
   if (hipsBone?.name) {
     const target = `${hipsBone.name}.position`;
-    if (!shouldKeepHipsPosition(name)) {
+    const depth = CROUCH_HIPS_DEPTH[name || ''];
+    if (depth === undefined) {
+      // 비-crouch — strip
       clip.tracks = clip.tracks.filter((t) => t.name !== target);
     } else {
-      // delta-from-max 변환
+      // crouch — 모든 frame hips Y 를 고정 깊이로 set (animation Y 무시)
+      const charBindY = hipsBone.position.y;
+      const constantY = charBindY - depth;
       const hipsTrack = clip.tracks.find((t) => t.name === target);
       if (hipsTrack instanceof THREE.VectorKeyframeTrack) {
-        let animMaxY = -Infinity;
-        for (let i = 1; i < hipsTrack.values.length; i += 3) {
-          if (hipsTrack.values[i] > animMaxY) animMaxY = hipsTrack.values[i];
-        }
-        const charBindY = hipsBone.position.y;
-        const deltaBase = charBindY - animMaxY;
         for (let i = 0; i < hipsTrack.values.length; i += 3) {
-          hipsTrack.values[i] = 0;                              // X
-          hipsTrack.values[i + 1] = hipsTrack.values[i + 1] + deltaBase;  // Y
-          hipsTrack.values[i + 2] = 0;                          // Z
+          hipsTrack.values[i] = 0;
+          hipsTrack.values[i + 1] = constantY;
+          hipsTrack.values[i + 2] = 0;
         }
       }
     }
@@ -187,24 +194,15 @@ export async function fbxToVrmClip(
       // VRM 0.x: x, z 반전
       const values = Array.from(track.values).map((v, i) => isVrm0 && i % 2 === 0 ? -v : v);
       tracks.push(new THREE.QuaternionKeyframeTrack(`${vrmNode.name}.${propertyName}`, Array.from(track.times), values));
-    } else if (track instanceof THREE.VectorKeyframeTrack && vrmBoneName === 'hips' && shouldKeepHipsPosition(name)) {
-      // hips position — crouch/sit 슬롯만 보존 (다리 굽힘과 함께 몸 낮춤).
-      // delta 기반 변환 — animation MAX hips Y (가장 standing 에 가까운 frame) 를
-      // VRM bind hips Y 로 맞추고 그 값으로부터 delta 만 적용. 첫 frame 기준이면
-      // crouch animation 의 첫 pose 따라 정확도 천차만별 (sink/float).
-      // hipsPositionScale 무시 (delta 면 비율 차이도 자동 흡수).
-      void hipsPositionScale;  // 비-crouch 슬롯에서는 strip 되므로 미사용
-      let animMaxY = -Infinity;
-      for (let i = 1; i < track.values.length; i += 3) {
-        if (track.values[i] > animMaxY) animMaxY = track.values[i];
+    } else if (track instanceof THREE.VectorKeyframeTrack && vrmBoneName === 'hips') {
+      // hips position — crouch 만 고정 깊이로 강제. 다른 슬롯은 strip (떠오름 방지).
+      const depth = CROUCH_HIPS_DEPTH[name];
+      if (depth !== undefined) {
+        void hipsPositionScale;
+        const constantY = vrmNode.position.y - depth;
+        const values = new Array(track.values.length).fill(0).map((_, i) => i % 3 === 1 ? constantY : 0);
+        tracks.push(new THREE.VectorKeyframeTrack(`${vrmNode.name}.${propertyName}`, Array.from(track.times), values));
       }
-      const charBindY = vrmNode.position.y;
-      const deltaBase = charBindY - animMaxY;
-      const values = Array.from(track.values).map((v, i) => {
-        if (i % 3 === 1) return v + deltaBase;  // Y (delta)
-        return 0;                                // X, Z
-      });
-      tracks.push(new THREE.VectorKeyframeTrack(`${vrmNode.name}.${propertyName}`, Array.from(track.times), values));
     }
   }
 
@@ -241,23 +239,19 @@ export function vrmaToUniversalClip(
     tracks.push(cloned);
   }
 
-  // Crouch/sit 외에는 hips position 제외. crouch 만 delta-from-max 변환으로 보존.
-  if (shouldKeepHipsPosition(name)) {
+  // Crouch/sit 외에는 hips position 제외. crouch 는 고정 깊이로 강제 (oscillation 차단).
+  const depth = CROUCH_HIPS_DEPTH[name || ''];
+  if (depth !== undefined) {
     for (const [humanoidName, track] of vrma.humanoidTracks.translation) {
       const bone = bones[humanoidName as HumanoidBoneName];
       if (!bone || !bone.name) continue;
       const cloned = track.clone() as THREE.VectorKeyframeTrack;
       cloned.name = `${bone.name}.position`;
       if (humanoidName === 'hips') {
-        let animMaxY = -Infinity;
-        for (let i = 1; i < cloned.values.length; i += 3) {
-          if (cloned.values[i] > animMaxY) animMaxY = cloned.values[i];
-        }
-        const charBindY = bone.position.y;
-        const deltaBase = charBindY - animMaxY;
+        const constantY = bone.position.y - depth;
         for (let i = 0; i < cloned.values.length; i += 3) {
           cloned.values[i] = 0;
-          cloned.values[i + 1] = cloned.values[i + 1] + deltaBase;
+          cloned.values[i + 1] = constantY;
           cloned.values[i + 2] = 0;
         }
       }
