@@ -494,6 +494,10 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     } else {
       char.update(dt);
     }
+    // 3.5) 1인칭 머리 숨김 강제 — mixer.update 가 head bone scale 트랙을 매 frame 1.0 으로
+    //      덮어쓰므로 (특히 crouch/prone 클립), update 직후에 다시 scale 0 처리.
+    //      hideHead=true 일 때만 (1인칭) — 비용 미미.
+    if (hideHead) char.setHeadVisible(false);
     // 4) Crouch grounding — per-frame 발 lift 측정해서 scene.y 즉시 보정.
     //    Static offset 은 평균 lift 만 잡아서 frame 별 변화로 발이 위아래 흔들림.
     //    매 frame "발 본의 scene-local Y - bind 시 발 본의 scene-local Y" = lift 측정,
