@@ -244,7 +244,7 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
                 retargeted.name = slot;
                 // Crouch 슬롯이면 depth 측정해서 char.scene.userData 에 저장.
                 // useFrame 에서 슬롯 active 시 scene.position.y -= depth 로 grounding.
-                if (slot.startsWith('crouch') || slot.startsWith('sit') || slot.startsWith('lay') || slot.startsWith('sleep')) {
+                if (slot.startsWith('crouch') || slot.startsWith('prone') || slot.startsWith('sit') || slot.startsWith('lay') || slot.startsWith('sleep')) {
                   try {
                     const depth = measureCrouchDepth(retargeted, c.bones, c.scene);
                     if (depth !== null) {

@@ -1743,7 +1743,7 @@ export function Player({
       } else if (inJumpLand) {
         state = 'jump_land';
       } else if (isProne) {
-        state = moving ? 'prone_move' : 'prone';
+        state = moving ? 'prone_move' : 'prone_idle';
       } else if (isCrouch) {
         state = moving ? 'crouch_walk' : 'crouch_idle';
       } else if (moving) {

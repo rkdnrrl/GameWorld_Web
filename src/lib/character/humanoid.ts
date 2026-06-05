@@ -157,7 +157,8 @@ export type AnimSlot =
   | 'run_fwd' | 'run_bwd'
   | 'jump_start' | 'jump_loop' | 'jump_land'
   | 'fall'
-  | 'crouch_idle' | 'crouch_walk';
+  | 'crouch_idle' | 'crouch_walk'
+  | 'prone_idle' | 'prone_move';
 
 export const ANIM_SLOTS: readonly AnimSlot[] = [
   'idle',
@@ -166,6 +167,7 @@ export const ANIM_SLOTS: readonly AnimSlot[] = [
   'jump_start', 'jump_loop', 'jump_land',
   'fall',
   'crouch_idle', 'crouch_walk',
+  'prone_idle', 'prone_move',
 ];
 
 /** 카테고리 그룹 — 운영자 UI 용. */
@@ -174,6 +176,7 @@ export const ANIM_SLOT_GROUPS: ReadonlyArray<{ key: string; slots: readonly Anim
   { key: 'locomotion', slots: ['walk_fwd', 'walk_bwd', 'walk_left', 'walk_right', 'run_fwd', 'run_bwd'] },
   { key: 'jump',       slots: ['jump_start', 'jump_loop', 'jump_land', 'fall'] },
   { key: 'crouch',     slots: ['crouch_idle', 'crouch_walk'] },
+  { key: 'prone',      slots: ['prone_idle', 'prone_move'] },
 ];
 
 /**
@@ -192,6 +195,8 @@ export const ANIM_SLOT_FALLBACK: Partial<Record<AnimSlot, AnimSlot[]>> = {
   fall:        ['jump_loop', 'idle'],
   crouch_idle: ['idle'],
   crouch_walk: ['crouch_idle', 'walk_fwd', 'idle'],
+  prone_idle:  ['crouch_idle', 'idle'],
+  prone_move:  ['prone_idle', 'crouch_walk', 'idle'],
 };
 
 /**
