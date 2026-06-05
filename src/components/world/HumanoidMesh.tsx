@@ -121,6 +121,10 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
   const groupRef = useRef<THREE.Group>(null);
   const [char, setChar] = useState<HumanoidCharacter | null>(null);
   const footIKRef = useRef<HumanoidFootIK | null>(null);
+  /** Mount 후 frame 카운터 — 1회 grounding 보정 trigger 용. */
+  const frameCountRef = useRef(0);
+  /** 캐릭터 인스턴스 추적 — 바뀌면 frameCount reset. */
+  const lastCharForGroundRef = useRef<HumanoidCharacter | null>(null);
 
   // 모델 로드 + 클립 로드 + 슬롯 등록 (한 번)
   useEffect(() => {
@@ -380,11 +384,41 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     }
     // 3) mixer + vrm.update + lookAt
     char.update(dt);
-    // 4) Foot IK (옵션) — Two-Bone IK 솔버. enableFootIK=true 일 때만.
-    //    Runtime foot grounding (이전에 있던 per-frame baseline-drift 보정) 은 fundamentally
-    //    안 됨 — 애니메이션 phase 마다 발 위치 변하니까 baseline 어디 잡든 누적 sink/float.
-    //    Bind pose normalization (mount 시 box2.min.y 기준) + 애니메이션 hips position strip
-    //    만으로 충분. 차이 있으면 운영자 페이지의 offsetY 슬라이더로 캐릭터별 조정.
+    // 4) 1회 grounding 보정 — mount 후 30 frame (~0.5s) 시점에 발 본 위치 측정해서
+    //    bind pose 와 차이만큼 scene 한번만 내림. 매 frame 보정 아니라 oscillation 없음.
+    //    애니메이션이 첫 frame 부터 발을 약간 들고 시작하는 경우 (대부분) 처리.
+    if (char !== lastCharForGroundRef.current) {
+      lastCharForGroundRef.current = char;
+      frameCountRef.current = 0;
+    }
+    frameCountRef.current++;
+    if (frameCountRef.current === 30 && char.scene.parent && !char.scene.userData.__groundedOnce) {
+      const feet: THREE.Object3D[] = [];
+      if (char.bones.leftFoot) feet.push(char.bones.leftFoot);
+      if (char.bones.rightFoot) feet.push(char.bones.rightFoot);
+      if (char.bones.leftToes) feet.push(char.bones.leftToes);
+      if (char.bones.rightToes) feet.push(char.bones.rightToes);
+      if (feet.length) {
+        const wp = new THREE.Vector3();
+        const ws = new THREE.Vector3();
+        let lowestY = Infinity;
+        for (const b of feet) {
+          b.getWorldPosition(wp);
+          if (wp.y < lowestY) lowestY = wp.y;
+        }
+        const parent = char.scene.parent;
+        parent.getWorldPosition(wp);
+        parent.getWorldScale(ws);
+        const lift = lowestY - wp.y;  // 발 본이 parent 위로 떠있는 양
+        // 발 본은 ankle, sole 은 그 아래 ~5cm. 그 두께만큼 여유 두고 보정 (lift > 5cm 만)
+        if (lift > 0.05) {
+          const parentScaleY = ws.y || 1;
+          char.scene.position.y -= (lift - 0.03) / parentScaleY;  // 3cm sole 두께 여유
+        }
+        char.scene.userData.__groundedOnce = true;  // 1회만 — 캐릭터 인스턴스에 mark
+      }
+    }
+    // 5) Foot IK (옵션) — Two-Bone IK 솔버. enableFootIK=true 일 때만.
     if (footIKRef.current?.enabled) {
       try { footIKRef.current.update(scene); } catch { /* noop — IK 실패해도 캐릭터는 계속 */ }
     }
