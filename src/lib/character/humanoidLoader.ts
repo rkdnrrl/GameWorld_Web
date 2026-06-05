@@ -137,24 +137,39 @@ export async function loadHumanoid(url: string, opts: HumanoidLoadOptions = {}):
 
     // VRM 0.x → 1.0 좌표계 정렬 (1.0 모델에선 noop)
     try { vrmMod.VRMUtils.rotateVRM0(vrm); } catch { /* noop */ }
-    // frustumCulled=true (기본값) — 화면 밖 mesh 안 그리게 → 정면 시점 fps 큰 절감.
-    // MToon outline 끄기 — outline pass 가 view direction 의존이라 카메라 회전 시 큰 비용.
-    // VRM 의 toon 표현이 좀 약해지지만 fps 우선.
+    // MToon → MeshStandardMaterial 교체 — MToon 의 view-dependent fragment shader (rim, matcap,
+    // toon shading) 가 카메라 회전 시 매 픽셀 재계산으로 fps drop 의 주범. PBR 룩으로 변경.
+    // 시각: toon 룩이 standard PBR 룩이 되지만 fps 폭증.
+    const convertMToon = (mat: THREE.Material): THREE.Material => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mtoon = mat as any;
+      const isMToon = mtoon && (mtoon.isMToonMaterial || mtoon.type === 'ShaderMaterial' && mtoon.outlineWidthFactor !== undefined);
+      if (!isMToon) return mat;
+      const std = new THREE.MeshStandardMaterial({
+        map: mtoon.map ?? null,
+        color: mtoon.color ? mtoon.color.clone() : new THREE.Color(0xffffff),
+        normalMap: mtoon.normalMap ?? null,
+        emissive: mtoon.emissive ? mtoon.emissive.clone() : new THREE.Color(0x000000),
+        emissiveMap: mtoon.emissiveMap ?? null,
+        roughness: 0.7,
+        metalness: 0.0,
+        transparent: !!mtoon.transparent,
+        alphaTest: mtoon.alphaTest ?? 0,
+        side: mtoon.side ?? THREE.FrontSide,
+        skinning: true,
+        morphTargets: true,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
+      return std;
+    };
     vrm.scene.traverse((c: THREE.Object3D) => {
       const m = c as THREE.Mesh;
-      if (m.isMesh) {
-        m.castShadow = true;
-        // MToon 셰이더는 mat.userData.outlineWidthMode 등 outline 옵션 노출.
-        // outlineWidth = 0 으로 outline pass 비활성화 (draw call ↓ + fragment 비용 ↓).
-        const mats = Array.isArray(m.material) ? m.material : [m.material];
-        for (const mat of mats) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const mtoon = mat as any;
-          if (mtoon && (mtoon.isMToonMaterial || mtoon.type === 'ShaderMaterial' && mtoon.outlineWidthFactor !== undefined)) {
-            if (typeof mtoon.outlineWidthFactor === 'number') mtoon.outlineWidthFactor = 0;
-            if (typeof mtoon.outlineWidthMode === 'string') mtoon.outlineWidthMode = 'none';
-          }
-        }
+      if (!m.isMesh) return;
+      m.castShadow = true;
+      if (Array.isArray(m.material)) {
+        m.material = m.material.map(convertMToon);
+      } else if (m.material) {
+        m.material = convertMToon(m.material);
       }
     });
 
