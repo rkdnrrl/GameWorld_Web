@@ -2164,13 +2164,8 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick,
           e.stopPropagation();
           onPlayerClick(player);
         } : undefined}
-        onPointerOver={onPlayerClick ? (e) => {
-          e.stopPropagation();
-          document.body.style.cursor = 'pointer';
-        } : undefined}
-        onPointerOut={onPlayerClick ? () => {
-          document.body.style.cursor = 'default';
-        } : undefined}
+        // onPointerOver/Out 제거 — R3F 가 매 pointermove 마다 모든 SkinnedMesh raycast 트리거 →
+        // 마우스 회전 시 80ms long task (DevTools Performance 진단). 커서 hover 효과 포기.
       >
         {/* RemotePlayer 도 본인 emote 의 oneshot 매핑(appearance.animOneShot) 적용 → 무한 loop 방지.
             런타임 emoteLoopMap 은 client-local 이라 sync 못 함 — 캐릭터 등록 시 영구 매핑만 따름. */}
