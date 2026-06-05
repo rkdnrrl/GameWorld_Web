@@ -117,9 +117,8 @@ export async function createHumanoidCharacter(
     || null;
   const restHipsLocalY = hipsBone ? hipsBone.position.y : 0;
 
-  // lookAt 타깃 ref — vrm.lookAt 또는 없으면 head bone 회전 fallback
+  // lookAt — VRM 의 vrm.lookAt 만 지원. non-VRM 은 head bone 강제 회전이 어색해서 비활성.
   let lookAtTarget: THREE.Object3D | null = null;
-  const lookAtFallback = !vrm?.lookAt && !!headNode;
 
   const character: HumanoidCharacter = {
     scene: root,
@@ -185,12 +184,9 @@ export async function createHumanoidCharacter(
       if (hipsBone && hipsBone.position.y > restHipsLocalY) {
         hipsBone.position.y = restHipsLocalY;
       }
-      // VRM 없을 때 head bone 으로 lookAt fallback — 머리만 타깃 응시
-      if (lookAtFallback && lookAtTarget && headNode) {
-        const tmp = new THREE.Vector3();
-        lookAtTarget.getWorldPosition(tmp);
-        headNode.lookAt(tmp);
-      }
+      // lookAtTarget 는 vrm.lookAt 만 사용 (setLookAtTarget 에서 vrm.lookAt.target 설정).
+      // non-VRM 은 lookAtTarget 변수 보관만 하고 적용 안 함.
+      void lookAtTarget;
     },
     dispose: () => {
       mixer.stopAllAction();
