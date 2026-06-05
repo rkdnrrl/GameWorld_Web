@@ -1034,12 +1034,20 @@ function FollowingSunLight({ intensity, castShadow, shadowMapSize, shadowFar }: 
   shadowFar: number;
 }) {
   const ref = useRef<THREE.DirectionalLight>(null);
+  const shadowFrameRef = useRef(0);
   useFrame((state) => {
     if (!ref.current) return;
     const cam = state.camera.position;
     ref.current.position.set(cam.x + 20, cam.y + 30, cam.z + 10);
     ref.current.target.position.copy(cam);
     ref.current.target.updateMatrixWorld();
+    // Shadow map throttle — 매 frame 새로 그리는 비용 큼. 3 frame 마다만 재렌더.
+    // 캐릭터 이동/카메라 변화가 큰 한 frame 지연되어 보이지만 시각적 거의 차이 없음.
+    if (ref.current.castShadow) {
+      shadowFrameRef.current = (shadowFrameRef.current + 1) % 3;
+      ref.current.shadow.autoUpdate = false;
+      ref.current.shadow.needsUpdate = shadowFrameRef.current === 0;
+    }
   });
   return (
     <directionalLight
