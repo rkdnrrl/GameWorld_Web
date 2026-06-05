@@ -186,14 +186,9 @@ export default function CharacterPage() {
     setDiagnosis(null);
   };
 
-  // iframe 모드 감지 — 단독 진입은 /world 로 리다이렉트
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (window.self === window.top) {
-      // 단독 페이지 진입 — /world 로 (월드에서 모달로 띄우는 게 표준 경로)
-      router.replace('/world');
-    }
-  }, [router]);
+  // 단독 진입도 허용 — 신규 유저는 캐릭터가 없어서 /world 가 여기로 보냄.
+  // 옛 코드는 무조건 /world 로 되돌렸는데, 그 결과 신규 유저 무한 리다이렉트 루프 발생했음.
+  // iframe 모드면 저장 후 postMessage 로 닫고, 단독 모드면 저장 후 /world 로 router.replace (handleSave 참조).
 
   // ── 렌더 ──
   return (
