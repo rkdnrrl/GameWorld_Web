@@ -1380,18 +1380,27 @@ export function Player({
     }
   }, [cameraMode, inputLocked, gl]);
 
-  // VRM firstPerson layer mask — 1인칭에 본인 머리 cull (Repo/Dying Light/Cyberpunk 식).
-  //   - vrm.firstPerson.setup() 가 머리를 layer 10 (thirdPersonOnly) 으로 분류.
-  //   - 1인칭: layer 10 disable → 머리 안 보임, 몸/손/다리 그대로 보임
-  //   - 3인칭: 전부 enable → 머리까지 모두 보임
-  // 본인 카메라(R3F PerspectiveCamera) 한 군데만 toggle — 다른 인스턴스 영향 없음.
+  // 1인칭 머리 컬링 — 두 가지 동시 적용으로 모든 캐릭터 포맷 커버:
+  //   1) VRM firstPerson layer mask (vrm.firstPerson.setup() 호출된 경우)
+  //      머리 mesh → layer 10 (thirdPersonOnly). 1인칭은 layer 10 disable.
+  //   2) camera.near 키움 (0.1 → 0.35) — VRM 이 아니어도 머리 mesh 가 near plane 안에 들어가
+  //      자동 컬링. crouch/prone 등 어떤 자세든 머리는 카메라 아주 가까이라 안전.
+  //      0.35m 면 본인 손/팔 (~0.4m+) 은 여전히 보임 (Dying Light 식 1인칭 몸).
   useEffect(() => {
     const FIRST_PERSON_ONLY_LAYER = 9;
     const THIRD_PERSON_ONLY_LAYER = 10;
     camera.layers.enable(0);
     camera.layers.enable(FIRST_PERSON_ONLY_LAYER);
-    if (cameraMode === 'first') camera.layers.disable(THIRD_PERSON_ONLY_LAYER);
-    else camera.layers.enable(THIRD_PERSON_ONLY_LAYER);
+    if (cameraMode === 'first') {
+      camera.layers.disable(THIRD_PERSON_ONLY_LAYER);
+      camera.near = 0.35;
+    } else {
+      camera.layers.enable(THIRD_PERSON_ONLY_LAYER);
+      camera.near = 0.1;
+    }
+    if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
+      (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+    }
   }, [cameraMode, camera]);
   // 3인칭 전환 시 grab 자동 해제
   useEffect(() => {

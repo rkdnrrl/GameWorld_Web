@@ -33,6 +33,38 @@ function yieldToMain(): Promise<void> {
   return new Promise<void>(resolve => setTimeout(resolve, 0));
 }
 
+/**
+ * 캐릭터 로딩 중 시각화 — 시안색 펄스 링 + 회전 wireframe 실린더.
+ * char 부착 + compileAsync 끝나면 부모가 unmount → 즉시 사라짐.
+ * 보라색은 PlacementOverlay 와 겹쳐서 시안색으로 구분.
+ */
+function LoadingEffect({ targetHeight }: { targetHeight: number }) {
+  const cylRef = useRef<THREE.Mesh>(null);
+  const ringRef = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    const t = clock.getElapsedTime();
+    if (cylRef.current) cylRef.current.rotation.y = t * 1.5;
+    if (ringRef.current) {
+      const s = 1 + Math.sin(t * 3) * 0.15;
+      ringRef.current.scale.set(s, 1, s);
+      const mat = ringRef.current.material as THREE.MeshBasicMaterial;
+      mat.opacity = 0.45 + Math.sin(t * 3) * 0.25;
+    }
+  });
+  return (
+    <group>
+      <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+        <ringGeometry args={[0.35, 0.48, 32]} />
+        <meshBasicMaterial color="#22d3ee" transparent opacity={0.6} side={THREE.DoubleSide} depthWrite={false} />
+      </mesh>
+      <mesh ref={cylRef} position={[0, targetHeight / 2, 0]}>
+        <cylinderGeometry args={[0.3, 0.3, targetHeight, 8, 1, true]} />
+        <meshBasicMaterial color="#06b6d4" wireframe transparent opacity={0.35} depthWrite={false} />
+      </mesh>
+    </group>
+  );
+}
+
 
 /** 슬롯별 raw 애니메이션 source 모듈 캐시 — 캐릭터별 retarget 위해 한 번만 로드. */
 const animSourceCache = new Map<string, Promise<AnimationSource>>();
@@ -524,6 +556,8 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
   // char 가 로드되기 전에는 LoadingEffect 표시 → char 도착 즉시 React 가 unmount.
   // char.scene 은 별도 useEffect 에서 group.add() 로 직접 부착되므로 JSX children 과 공존 OK.
   return (
-    <group ref={groupRef} position={[0, offsetY, 0]} scale={userScale} />
+    <group ref={groupRef} position={[0, offsetY, 0]} scale={userScale}>
+      {!compileReady && <LoadingEffect targetHeight={targetHeight} />}
+    </group>
   );
 }
