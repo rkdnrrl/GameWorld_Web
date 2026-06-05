@@ -1839,14 +1839,21 @@ export function Player({
     // 자유시점 모드 — 외부 카메라(WasdFly/Orbit)가 카메라 소유. Player 는 캐릭터 물리만 처리.
     if (!cameraControlEnabled) { /* skip camera positioning */ }
     else if (cameraMode === 'first') {
-      // 1인칭 카메라 — 캐릭터 root 위치 + posture 기반 높이 + forward 0.12m.
-      // head bone 직접 사용 시 walk bobbing/breathing 의 micro motion 이 카메라에 전달되어
-      // 화면 떨림. root 는 안정적이므로 떨림 없음. posture (crouch/prone) 변화는 postureScale 로 반영.
-      const modelScale = Number((character?.appearance as Record<string, unknown> | undefined)?.modelScale) || 1.0;
-      const rotY = mesh.current?.rotation.y ?? 0;
-      const camX = p.x + Math.sin(rotY) * 0.12;
-      const camY = (p.y - 0.63) + 1.8 * modelScale * 0.94 * postureScale;
-      const camZ = p.z + Math.cos(rotY) * 0.12;
+      // 1인칭: 카메라를 head bone world position + 캐릭터 forward 0.12m 으로.
+      let camX: number, camY: number, camZ: number;
+      const headBone = headBoneRef.current;
+      if (headBone) {
+        headBone.updateMatrixWorld(true);
+        const headPos = headBone.getWorldPosition(_tmpHeadVec);
+        const rotY = mesh.current?.rotation.y ?? 0;
+        camX = headPos.x + Math.sin(rotY) * 0.12;
+        camY = headPos.y + 0.05;
+        camZ = headPos.z + Math.cos(rotY) * 0.12;
+      } else {
+        const modelScale = Number((character?.appearance as Record<string, unknown> | undefined)?.modelScale) || 1.0;
+        camX = p.x; camZ = p.z;
+        camY = (p.y - 0.63) + 1.8 * modelScale * 0.94 * postureScale;
+      }
       camera.position.set(camX, camY, camZ);
       const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
       // FPS 관례: 마우스 아래 = 시점 아래로. camV 는 3인칭 기준 (마우스 아래 = camV ↑ = 카메라 위)
