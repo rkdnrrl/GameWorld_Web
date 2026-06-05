@@ -9,6 +9,9 @@
  *   ui.bar(id, value, max, opts?)          opts: {x,y(0~1), size(높이), color, bg}
  *   ui.clear(id) / ui.clearAll()
  *   world.playSound(url, opts?)            opts: {volume(0~1), loop}
+ *   api.startFetch(url, key) → boolean     외부 HTTPS GET. credentials:omit · 분당 30회 제한
+ *   api.getResult(key) → null | { ok, data?, error? }   polling 으로 결과 받기
+ *   api.clearResult(key) / api.isPending(key)
  *
  * 호스트(WorldCanvas / 스튜디오 SimScene)가 createGameRuntime() 로 스토어를 만들어
  * api 를 각 스크립트 init() 에 넘기고, <GameHud runtime={...}/> 가 hud 를 화면에 그린다.

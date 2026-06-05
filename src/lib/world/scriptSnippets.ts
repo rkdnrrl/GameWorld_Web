@@ -161,7 +161,38 @@ function onUpdate(dt) {
   }
 }`,
   },
+
+  // ── API ──
+  {
+    id: 'api-weather', category: 'API', title: '외부 API 호출 (날씨)',
+    desc: 'api.startFetch → onUpdate 안 polling. HTTPS·credentials:omit·분당 30회 제한.',
+    code: `// 시작 시 API 요청 → 매 프레임 결과 체크
+var weatherText = null;
+
+function onStart() {
+  api.startFetch("https://wttr.in/Seoul?format=3", "weather");
+}
+
+function onUpdate(dt) {
+  if (weatherText) return;
+  var r = api.getResult("weather");
+  if (!r) return;
+  if (r.ok) {
+    weatherText = String(r.data);
+    print("날씨:", weatherText);
+  } else {
+    print("API 실패:", r.error);
+    weatherText = "fail";
+  }
+}
+
+function onClick(clickerId) {
+  api.clearResult("weather");
+  weatherText = null;
+  api.startFetch("https://wttr.in/Seoul?format=3", "weather");
+}`,
+  },
 ];
 
 /** 카테고리 순서 (UI 그룹 정렬용). */
-export const SNIPPET_CATEGORIES: string[] = ['움직임', '수집·점수', '위험·리스폰', 'UI·HUD', '상호작용', '생성'];
+export const SNIPPET_CATEGORIES: string[] = ['움직임', '수집·점수', '위험·리스폰', 'UI·HUD', '상호작용', '생성', 'API'];

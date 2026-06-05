@@ -1076,8 +1076,69 @@ export class JsScript {
 
       const console_ = { log: print };
 
+      // ── api: 외부 HTTP API 호출 (보안 — credentials:omit, HTTPS only, rate limit) ─
+      // 인터프리터가 동기 실행이므로 polling 패턴: startFetch → onUpdate 안에서 getResult.
+      const apiResults  = new Map<string, { ok: boolean; data?: unknown; error?: string }>();
+      const apiPending  = new Set<string>();
+      const apiCallTimes: number[] = [];
+      const API_RATE_LIMIT = 30;         // 분당 최대 요청 수
+      const API_WINDOW_MS = 60_000;
+      const checkApiRate = (): boolean => {
+        const now = Date.now();
+        const cutoff = now - API_WINDOW_MS;
+        while (apiCallTimes.length && apiCallTimes[0] < cutoff) apiCallTimes.shift();
+        if (apiCallTimes.length >= API_RATE_LIMIT) return false;
+        apiCallTimes.push(now);
+        return true;
+      };
+      const apiErr = (msg: string) => {
+        this.errors.push(`[api] ${msg}`);
+        // eslint-disable-next-line no-console
+        console.warn(`[js:${obj.id.slice(0, 8)}] api error:`, msg);
+      };
+      const api = {
+        /** 외부 GET 요청 시작. JSON 또는 text 자동 파싱. 결과는 getResult(key) 로 polling.
+         *  url: https:// 만. key: 결과 구분용 임의 문자열. 반환: true=요청 보냄, false=차단됨. */
+        startFetch: (url: unknown, key: unknown): boolean => {
+          const u = String(url || '');
+          const k = String(key || '');
+          if (!k) { apiErr('startFetch: key 필요'); return false; }
+          if (!u.startsWith('https://')) { apiErr(`startFetch: HTTPS URL 만 허용 (${u.slice(0, 60)})`); return false; }
+          if (u.length > 1000)            { apiErr('startFetch: URL 너무 김 (1000자 초과)'); return false; }
+          if (apiPending.has(k))          { return false; }                                // 중복 요청 무시
+          if (!checkApiRate())            { apiErr(`startFetch: rate limit (분당 ${API_RATE_LIMIT}회)`); return false; }
+          apiPending.add(k);
+          apiResults.delete(k);
+          // eslint-disable-next-line no-console
+          console.log(`[js:${obj.id.slice(0, 8)}] api.startFetch ${k} → ${u}`);
+          // credentials:omit → ALP 쿠키·세션 전송 안 됨 (다른 사용자 데이터 유출 방지)
+          // mode:cors → CORS 헤더 없는 서버는 자동 차단됨 (브라우저)
+          fetch(u, { credentials: 'omit', mode: 'cors', cache: 'no-store' })
+            .then(async (r) => {
+              if (!r.ok) throw new Error(`HTTP ${r.status}`);
+              const ct = (r.headers.get('content-type') || '').toLowerCase();
+              if (ct.includes('json')) return await r.json();
+              const text = await r.text();
+              if (text.length > 200_000) throw new Error('응답 200KB 초과');
+              return text;
+            })
+            .then((data) => { apiResults.set(k, { ok: true, data }); apiPending.delete(k); })
+            .catch((err) => {
+              apiResults.set(k, { ok: false, error: String((err as Error).message || err) });
+              apiPending.delete(k);
+            });
+          return true;
+        },
+        /** 결과 조회. 아직 안 끝났으면 null. 끝났으면 { ok, data?, error? }. */
+        getResult: (key: unknown): unknown => apiResults.get(String(key || '')) ?? null,
+        /** 결과 캐시 삭제. 재요청 전에 호출. */
+        clearResult: (key: unknown): void => { apiResults.delete(String(key || '')); },
+        /** 진행 중인지. true 면 결과 안 옴. */
+        isPending: (key: unknown): boolean => apiPending.has(String(key || '')),
+      };
+
       this.interp = new Interpreter({
-        self, world, net, game, ui, data,
+        self, world, net, game, ui, data, api,
         Math: MathLib,
         console: console_,
         print,
