@@ -171,11 +171,21 @@ export async function fbxToVrmClip(
       const values = Array.from(track.values).map((v, i) => isVrm0 && i % 2 === 0 ? -v : v);
       tracks.push(new THREE.QuaternionKeyframeTrack(`${vrmNode.name}.${propertyName}`, Array.from(track.times), values));
     } else if (track instanceof THREE.VectorKeyframeTrack && vrmBoneName === 'hips' && shouldKeepHipsPosition(name)) {
-      // hips position — crouch/sit 슬롯만 보존 (다리 굽힘과 함께 몸 낮춤). hipsPositionScale 로
-      // Mixamo 캐릭터 키 → VRM 캐릭터 키 비율 변환. VRM 0.x x/z 반전.
+      // hips position — crouch/sit 슬롯만 보존 (다리 굽힘과 함께 몸 낮춤).
+      // delta 기반 변환 — animation MAX hips Y (가장 standing 에 가까운 frame) 를
+      // VRM bind hips Y 로 맞추고 그 값으로부터 delta 만 적용. 첫 frame 기준이면
+      // crouch animation 의 첫 pose 따라 정확도 천차만별 (sink/float).
+      // hipsPositionScale 무시 (delta 면 비율 차이도 자동 흡수).
+      void hipsPositionScale;  // 비-crouch 슬롯에서는 strip 되므로 미사용
+      let animMaxY = -Infinity;
+      for (let i = 1; i < track.values.length; i += 3) {
+        if (track.values[i] > animMaxY) animMaxY = track.values[i];
+      }
+      const charBindY = vrmNode.position.y;
+      const deltaBase = charBindY - animMaxY;
       const values = Array.from(track.values).map((v, i) => {
-        const scaled = v * hipsPositionScale;
-        return isVrm0 && i % 3 !== 1 ? -scaled : scaled;
+        if (i % 3 === 1) return v + deltaBase;  // Y (delta)
+        return 0;                                // X, Z
       });
       tracks.push(new THREE.VectorKeyframeTrack(`${vrmNode.name}.${propertyName}`, Array.from(track.times), values));
     }

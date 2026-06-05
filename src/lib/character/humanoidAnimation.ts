@@ -145,13 +145,17 @@ export function retargetClipToHumanoid(
       const slot = clip.name || '';
       const keep = slot.startsWith('crouch') || slot.startsWith('sit') || slot.startsWith('lay') || slot.startsWith('sleep');
       if (!keep) continue;  // 비-crouch: hips 위치 무시 (떠오름 방지)
-      // Crouch — delta 기반 변환. animation 첫 frame hips Y 를 캐릭터 bind hips Y 로 맞추고
-      // 그 값으로부터의 변화만 적용 → 캐릭터 키 무관하게 자연스러운 앉기.
-      // X/Z 는 0 으로 (캐릭터 이동은 Rapier body 가 처리)
+      // Crouch — delta 기반 변환. animation 의 **MAX** hips Y (= 가장 standing 에 가까운 frame)
+      // 를 캐릭터 bind hips Y 로 맞추고 그 값으로부터의 변화만 적용. 첫 frame 기준이면
+      // 첫 frame 이 crouch/transition 일 때 부정확. MAX 는 항상 안정적.
+      // X/Z 는 0 (캐릭터 이동은 Rapier body 가 처리).
       const cloned = track.clone();
-      const animFirstY = cloned.values[1] ?? 0;
+      let animMaxY = -Infinity;
+      for (let i = 1; i < cloned.values.length; i += 3) {
+        if (cloned.values[i] > animMaxY) animMaxY = cloned.values[i];
+      }
       const charBindY = targetBone.position.y;
-      const deltaBase = charBindY - animFirstY;
+      const deltaBase = charBindY - animMaxY;
       for (let i = 0; i < cloned.values.length; i += 3) {
         cloned.values[i] = 0;                            // X
         cloned.values[i + 1] = cloned.values[i + 1] + deltaBase;  // Y (delta + bind)
