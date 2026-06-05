@@ -38,6 +38,8 @@ import { Player, type PlayerControl } from '@/components/world/WorldCanvas';
 
 const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광', spawn: '스폰 포인트', empty: '빈 오브젝트' };
 const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲', pointlight: '💡', spotlight: '🔦', dirlight: '☀', spawn: '🎯', empty: '🔵' };
+/** 레이어 0~9 색상 — 유니티 식 (0=Default, 1~9 사용자 레이어). 트리 배지 + 패널 색칠 공용. */
+const LAYER_COLORS: Record<number, string> = { 0: '#475569', 1: '#ef4444', 2: '#f97316', 3: '#eab308', 4: '#22c55e', 5: '#14b8a6', 6: '#3b82f6', 7: '#8b5cf6', 8: '#ec4899', 9: '#64748b' };
 
 /* ── 머티리얼 프리셋 (WorldCanvas와 동일) ── */
 const MAT_PRESETS: Record<string, { metalness: number; roughness: number; opacity?: number; transparent?: boolean; defaultColor: string; emissive?: string; emissiveIntensity?: number }> = {
@@ -149,6 +151,8 @@ interface MapObject {
   label?: string;
   locked?: boolean;
   hidden?: boolean;
+  /** 유니티 식 레이어 (0-9). 미설정 시 0(Default). 레이어별로 트리/렌더 표시·숨김 가능. */
+  layer?: number;
   parentId?: string | null;
   kind: ObjectKind;
   assetUrl?: string;
@@ -2012,6 +2016,13 @@ function SceneListNode({ obj, allObjects, depth, selectedId, multiSelectedIds, e
             title={tCanvas("tooltip_node_rename_parent")}
             style={{ flex: 1, fontSize: 11, fontWeight: isSel ? 700 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isSel ? '#a5b4fc' : '#e2e8f0' }}>
             {obj.label || `${KIND_LABELS[obj.kind] ?? obj.kind} ${i + 1}`}
+          </span>
+        )}
+        {/* 레이어 배지 — Default(0) 는 생략, 1~9 만 색상 표시 */}
+        {(obj.layer ?? 0) > 0 && (
+          <span title={`Layer ${obj.layer}`}
+            style={{ flexShrink: 0, minWidth: 14, height: 14, padding: '0 4px', borderRadius: 7, background: LAYER_COLORS[obj.layer as number] ?? '#475569', color: '#fff', fontSize: 9, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+            {obj.layer}
           </span>
         )}
         {/* 아이콘 버튼들 — 부모를 hide/lock 하면 자손도 다같이 (cascade) */}
@@ -4030,6 +4041,12 @@ export default function StudioCanvas() {
   const [matPanelOpen, setMatPanelOpen] = useState(false);
   const [studioMode, setStudioMode] = useState<'settings' | 'scene'>('settings');
   const [multiSelectedIds, setMultiSelectedIds] = useState<Set<string>>(new Set());
+  // 가시 레이어 집합 (0-9). 기본: 전부 보임. 레이어 패널에서 토글.
+  const [visibleLayers, setVisibleLayers] = useState<Set<number>>(() => new Set([0,1,2,3,4,5,6,7,8,9]));
+  const toggleLayer = useCallback((n: number) => {
+    setVisibleLayers(prev => { const s = new Set(prev); if (s.has(n)) s.delete(n); else s.add(n); return s; });
+  }, []);
+  const isLayerVisible = useCallback((layer?: number) => visibleLayers.has(layer ?? 0), [visibleLayers]);
   // 트리 노드 접힘 상태 (collapsed 에 든 id = 접힘). 자식이 선택되면 조상을 자동 펼침.
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
   const toggleCollapse = useCallback((id: string) => {
@@ -4391,6 +4408,19 @@ export default function StudioCanvas() {
           multiSelectedIds.forEach(id => targets.add(id));
           if (targets.size === 0) return;
           setObjects(prev => prev.map(o => targets.has(o.id) ? { ...o, hidden: !o.hidden } : o));
+          return;
+        }
+        // Ctrl+0~9 — 선택된 객체를 그 레이어로 할당 (유니티 식)
+        if (/^[0-9]$/.test(e.key)) {
+          const tag = (e.target as HTMLElement)?.tagName;
+          if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+          e.preventDefault();
+          const targets = new Set<string>();
+          if (selectedId) targets.add(selectedId);
+          multiSelectedIds.forEach(id => targets.add(id));
+          if (targets.size === 0) return;
+          const nv = parseInt(e.key, 10);
+          setObjects(prev => prev.map(o => targets.has(o.id) ? { ...o, layer: nv } : o));
           return;
         }
         // Ctrl+I — 선택 반전
@@ -6316,6 +6346,22 @@ export default function StudioCanvas() {
       {/* ── 추가 버튼 (좌측 하단 고정) ── 자기 컨텐츠 크기 유지, 넘치면 자체 스크롤.
           씬 트리 보장은 위 minHeight: 180 으로 처리됨. */}
       <div style={{ flexShrink: 0, borderTop: (!isMobile && leftTab !== 'scene') ? 'none' : '1px solid rgba(255,255,255,0.08)', padding: '8px 10px 10px', maxHeight: '65vh', overflowY: 'auto' }}>
+        {/* ── 레이어 가시성 토글 (유니티 식) — 씬 탭에서만 표시 ── */}
+        <div style={{ display: (!isMobile && leftTab !== 'scene') ? 'none' : 'block', marginBottom: 8 }}>
+          <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.6, color: 'rgba(255,255,255,0.38)', textTransform: 'uppercase', margin: '0 0 6px 2px' }}>{tCanvas("section_layers")}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 3 }}>
+            {[0,1,2,3,4,5,6,7,8,9].map(n => {
+              const on = visibleLayers.has(n);
+              return (
+                <button key={n} type="button" onClick={() => toggleLayer(n)}
+                  title={`Ctrl+${n} — ${tCanvas("tooltip_layer_assign")}`}
+                  style={{ background: on ? LAYER_COLORS[n] : 'rgba(255,255,255,0.05)', border: `1px solid ${on ? LAYER_COLORS[n] : 'rgba(255,255,255,0.1)'}`, borderRadius: 5, color: on ? '#fff' : 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: 700, padding: '4px 0', cursor: 'pointer', opacity: on ? 1 : 0.5 }}>
+                  {n}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         {/* '추가' 그룹 — 씬 탭에서만 (도형/스폰/빈/조명, 일관 스타일) */}
         <div style={{ display: (!isMobile && leftTab !== 'scene') ? 'none' : 'block' }}>
         <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.6, color: 'rgba(255,255,255,0.38)', textTransform: 'uppercase', margin: '0 0 6px 2px' }}>{tCanvas("section_add")}</div>
@@ -6970,6 +7016,20 @@ export default function StudioCanvas() {
 
               {/* ── 변환 탭 ── */}
               {inspTab === 'transform' && <>
+              {/* 레이어 (유니티 식) — Ctrl+0~9 단축키와 동일 효과 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
+                <span style={{ flexShrink: 0 }}>{tCanvas("inspector_layer")}</span>
+                <span title={`Layer ${selected.layer ?? 0}`} style={{ flexShrink: 0, minWidth: 16, height: 16, padding: '0 5px', borderRadius: 8, background: LAYER_COLORS[selected.layer ?? 0] ?? '#475569', color: '#fff', fontSize: 9, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{selected.layer ?? 0}</span>
+                <select value={selected.layer ?? 0}
+                  onChange={e => {
+                    const nv = parseInt(e.target.value, 10);
+                    const targets = new Set<string>([selected.id, ...multiSelectedIds]);
+                    setObjects(prev => prev.map(o => targets.has(o.id) ? { ...o, layer: nv } : o));
+                  }}
+                  style={{ flex: 1, background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 5, color: '#fff', fontSize: 11, padding: '3px 5px', cursor: 'pointer' }}>
+                  {[0,1,2,3,4,5,6,7,8,9].map(n => <option key={n} value={n}>{n === 0 ? `${n} (Default)` : `${n}`}</option>)}
+                </select>
+              </div>
               {/* 위치/회전/스케일 모드 */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3, marginBottom: 6 }}>
                 {(['translate','rotate','scale'] as const).map(m => (
@@ -7490,7 +7550,7 @@ export default function StudioCanvas() {
             /* ── 편집 모드 ── */
             <>
               {/* 모든 오브젝트를 평탄 렌더 — 각자 월드 TRS 로. 부모 비균등 스케일에 의한 자식 전단 방지 */}
-              {objects.filter(o => !o.hidden).map(obj => {
+              {objects.filter(o => !o.hidden && isLayerVisible(o.layer)).map(obj => {
                 const w = worldTRSFor(obj);
                 return (
                   <SceneNode key={obj.id} obj={obj}
