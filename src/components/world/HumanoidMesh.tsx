@@ -401,18 +401,16 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
       } catch { /* noop */ }
       if (compileCancelled) return;
       setCompileReady(true);
-      // Progressive reveal — 100ms 간격으로 1 mesh 씩. 각 mesh 의 첫 render 비용
-      // (texture upload + skinning init + uniform setup) 을 충분히 분산 → 다른 플레이어
-      // 입장 시 fps drop 분산. 큰 캐릭터(20 mesh) 도 2초 내 완료.
+      // Progressive reveal — 50ms 간격. 20 mesh 캐릭터 약 1초 완료.
       let idx = 0;
       const revealNext = () => {
         if (compileCancelled) return;
         if (idx >= progressiveMeshes.length) return;
         progressiveMeshes[idx].visible = true;
         idx++;
-        setTimeout(revealNext, 100);  // 100ms 간격 — frame 마다 부담 분산
+        setTimeout(revealNext, 50);
       };
-      setTimeout(revealNext, 50);
+      setTimeout(revealNext, 30);
     })();
     // castShadow 초기 설정 — 거리 기반 토글이 매 frame 동기화하므로 여기는 base 값만
     shadowOnRef.current = castShadow;
