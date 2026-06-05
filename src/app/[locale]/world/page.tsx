@@ -10,6 +10,7 @@ import { session } from '@/lib/api';
 import { WorldSpawnModal, type SpawnPayload, type PrefabSpawnPayload } from '@/components/world/WorldSpawnModal';
 import { PlacementOverlay } from '@/components/world/PlacementOverlay';
 import { MyObjectsModal } from '@/components/world/MyObjectsModal';
+import { UserApiKeysModal } from '@/components/world/UserApiKeysModal';
 import { ghostFromSpawnPayload, ghostFromPrefab, type PlacementGhost } from '@/lib/world/placementGhost';
 
 const WorldCanvas = dynamic(() => import('@/components/world/WorldCanvas'), { ssr: false });
@@ -127,7 +128,14 @@ export default function WorldPage() {
   // Map<rootId, { name, childIds[] }>. 자식 cascade 삭제는 DO 가 처리하지만 클라도 추적해서 UI 갱신.
   const [mySpawned, setMySpawned] = useState<Map<string, { name: string; childIds: string[] }>>(new Map());
   const [myObjsModalOpen, setMyObjsModalOpen] = useState(false);
+  const [apiKeysModalOpen, setApiKeysModalOpen] = useState(false);
   const SPAWN_LIMIT = 5;
+
+  // 진입 시 본인 API 키 서버 sync — 다른 디바이스에서 추가/변경된 키 가져옴
+  useEffect(() => {
+    if (!userId) return;
+    import('@/lib/world/userApiKeys').then((m) => m.syncFromServer()).catch(() => { /* noop */ });
+  }, [userId]);
   // 재입장 복원용 — DO 의 obj_owner 와 obj_spawn 은 순서 보장 안 됨 → 둘 다 ref 에 모아 join.
   const ownerByIdRef = useRef<Map<string, string>>(new Map());
   const specByIdRef = useRef<Map<string, { label?: string; parentId?: string }>>(new Map());
@@ -1152,6 +1160,10 @@ export default function WorldPage() {
                         style={{ ...actionBtn, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.12)' }}>
                         🗂 {t('myObjectsManage')}
                       </button>
+                      <button onClick={() => { setSettingsOpen(false); setReturnToSettings(true); setApiKeysModalOpen(true); }}
+                        style={{ ...actionBtn, border: '1px solid rgba(251,191,36,0.4)', background: 'rgba(251,191,36,0.08)' }}>
+                        🔑 {t('apiKeysTitle')}
+                      </button>
                       <button onClick={() => router.push('/worlds')}
                         style={{ ...actionBtn, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.12)' }}>
                         🛠 {th('develop')}
@@ -1235,6 +1247,12 @@ export default function WorldPage() {
         countLabel={t('myObjectsUsage')}
         deleteLabel={t('myObjectsDelete')}
         closeLabel={tc('close')}
+      />
+
+      {/* 내 API 키 관리 모달 (OpenAI, Anthropic 등) */}
+      <UserApiKeysModal
+        open={apiKeysModalOpen}
+        onClose={() => { setApiKeysModalOpen(false); if (returnToSettings) { setReturnToSettings(false); setSettingsOpen(true); } }}
       />
 
       {charManagerOpen && (

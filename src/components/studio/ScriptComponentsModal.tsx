@@ -9,6 +9,7 @@ import { useTranslations } from 'next-intl';
 import { api, session, type ScriptComponent, type ScriptComponentPropDef } from '@/lib/api';
 import PropsSchemaEditor, { normalizePropsSchema } from './PropsSchemaEditor';
 import { SCRIPT_SNIPPETS, SNIPPET_CATEGORIES } from '@/lib/world/scriptSnippets';
+import { ScriptApiGuideModal } from './ScriptApiGuideModal';
 
 interface Props {
   open: boolean;
@@ -57,6 +58,7 @@ export default function ScriptComponentsModal({ open, onClose, components, onCha
   const [propsSchema, setPropsSchema] = useState<ScriptComponentPropDef[]>([]);
   const [saving, setSaving]           = useState(false);
   const [snippetsOpen, setSnippetsOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   // 예제 스니펫 삽입 — 코드가 비었거나 기본 템플릿이면 교체, 아니면 끝에 덧붙임(유저가 합침).
   function insertSnippet(snippetCode: string) {
@@ -216,12 +218,18 @@ export default function ScriptComponentsModal({ open, onClose, components, onCha
             {/* Props 스키마 편집기 */}
             <PropsSchemaEditor schema={propsSchema} onChange={setPropsSchema} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.7 }}>
-              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
                 {t('label_code')}
-                <button type="button" onClick={() => setSnippetsOpen(o => !o)}
-                  style={{ background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.45)', color: '#c7d2fe', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                  {t('btn_examples', { arrow: snippetsOpen ? '▲' : '▼' })}
-                </button>
+                <span style={{ display: 'flex', gap: 6 }}>
+                  <button type="button" onClick={() => setGuideOpen(true)}
+                    style={{ background: 'rgba(251,191,36,0.18)', border: '1px solid rgba(251,191,36,0.45)', color: '#fcd34d', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                    📖 {t('btn_guide')}
+                  </button>
+                  <button type="button" onClick={() => setSnippetsOpen(o => !o)}
+                    style={{ background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.45)', color: '#c7d2fe', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                    {t('btn_examples', { arrow: snippetsOpen ? '▲' : '▼' })}
+                  </button>
+                </span>
               </span>
               {snippetsOpen && (
                 <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, padding: 8, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 8 }}>
@@ -270,6 +278,8 @@ export default function ScriptComponentsModal({ open, onClose, components, onCha
           </div>
         )}
       </div>
+      {/* 스크립트 API 가이드 — 라이프사이클·core·HTTP api·예제·보안·서비스 cheat-sheet */}
+      <ScriptApiGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
     </div>
   );
 }

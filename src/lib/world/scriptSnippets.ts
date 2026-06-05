@@ -164,9 +164,9 @@ function onUpdate(dt) {
 
   // ── API ──
   {
-    id: 'api-weather', category: 'API', title: '외부 API 호출 (날씨)',
+    id: 'api-weather', category: 'API', title: '외부 API GET (날씨)',
     desc: 'api.startFetch → onUpdate 안 polling. HTTPS·credentials:omit·분당 30회 제한.',
-    code: `// 시작 시 API 요청 → 매 프레임 결과 체크
+    code: `// 인증 없는 공개 API (GET) — 키 불필요
 var weatherText = null;
 
 function onStart() {
@@ -190,6 +190,102 @@ function onClick(clickerId) {
   api.clearResult("weather");
   weatherText = null;
   api.startFetch("https://wttr.in/Seoul?format=3", "weather");
+}`,
+  },
+  {
+    id: 'api-openai-custom', category: 'API', title: '내 OpenAI 키로 GPT 호출',
+    desc: '설정 → 내 API 키 에서 "myGpt" 이름으로 OpenAI 키 등록 (Bearer). 스크립트는 키 못 봄 — 이름으로 참조.',
+    code: `// 사전 작업:
+//   설정 → 🔑 내 API 키 → ➕ 추가
+//   이름: myGpt  /  인증: Bearer  /  값: sk-... (본인 OpenAI 키)
+//
+// 클릭하면 GPT 에게 질문, 결과를 화면에 표시.
+
+var answer = null;
+
+function onClick(clickerId) {
+  if (!api.hasMyApi("myGpt")) {
+    print("myGpt 키 미설정 — 설정 → 내 API 키 에서 등록");
+    return;
+  }
+  answer = "...";
+  api.callMyApi(
+    "myGpt",
+    "https://api.openai.com/v1/chat/completions",
+    {
+      method: "POST",
+      body: {
+        model: "gpt-4o-mini",
+        max_tokens: 100,
+        messages: [
+          { role: "system", content: "당신은 친절한 NPC입니다. 짧게 답하세요." },
+          { role: "user", content: "지금 기분이 어떻니?" }
+        ]
+      }
+    },
+    "gptReply"
+  );
+}
+
+function onUpdate(dt) {
+  if (answer !== "...") return;
+  var r = api.getResult("gptReply");
+  if (!r) return;
+  if (r.ok) {
+    // OpenAI 응답: r.data.choices[0].message.content
+    answer = String(r.data.choices[0].message.content);
+    ui.text("gpt-text", answer, { x: 0.5, y: 0.3, size: 22, color: "#fff", bg: "rgba(0,0,0,0.6)" });
+    print("GPT:", answer);
+  } else {
+    answer = "에러";
+    print("실패:", r.error);
+  }
+  api.clearResult("gptReply");
+}`,
+  },
+  {
+    id: 'api-anthropic-custom', category: 'API', title: '내 Claude 키로 호출 (Custom Header)',
+    desc: '설정 → 내 API 키 에서 "myClaude" 이름 + Custom Header "x-api-key" + Anthropic 키 등록.',
+    code: `// 사전 작업:
+//   설정 → 🔑 내 API 키 → ➕ 추가
+//   이름: myClaude  /  인증: Custom  /  헤더: x-api-key  /  값: sk-ant-... (본인 키)
+
+var reply = null;
+
+function onClick(clickerId) {
+  reply = "...";
+  api.callMyApi(
+    "myClaude",
+    "https://api.anthropic.com/v1/messages",
+    {
+      method: "POST",
+      headers: {
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      body: {
+        model: "claude-3-5-haiku-20241022",
+        max_tokens: 200,
+        messages: [{ role: "user", content: "오늘 뭐 할까?" }]
+      }
+    },
+    "claudeReply"
+  );
+}
+
+function onUpdate(dt) {
+  if (reply !== "...") return;
+  var r = api.getResult("claudeReply");
+  if (!r) return;
+  if (r.ok) {
+    // Claude 응답: r.data.content[0].text
+    reply = String(r.data.content[0].text);
+    ui.text("claude-text", reply, { x: 0.5, y: 0.4, size: 22, color: "#fff" });
+  } else {
+    reply = "에러";
+    print("실패:", r.error);
+  }
+  api.clearResult("claudeReply");
 }`,
   },
 ];

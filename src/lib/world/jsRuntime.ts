@@ -1135,6 +1135,86 @@ export class JsScript {
         clearResult: (key: unknown): void => { apiResults.delete(String(key || '')); },
         /** 진행 중인지. true 면 결과 안 옴. */
         isPending: (key: unknown): boolean => apiPending.has(String(key || '')),
+        /**
+         * 본인이 등록한 API 키로 임의 URL 호출. 인증 헤더는 런타임이 자동 주입 (스크립트에 키 노출 X).
+         *
+         * keyName: 설정 → 내 API 키 에서 등록한 이름 (예: "myGpt", "myWeather")
+         * url: 전체 https:// URL
+         * options: { method? = 'GET', body? (object → JSON.stringify, string → 그대로), headers? }
+         * resultKey: 결과 polling 용 임의 문자열
+         *
+         * 예: 본인이 OpenAI 키를 "myGpt" 로 (bearer) 등록했다면:
+         *   api.callMyApi("myGpt", "https://api.openai.com/v1/chat/completions",
+         *     { method: "POST", body: { model: "gpt-4o-mini", messages: [{role:"user", content:"hi"}] } },
+         *     "result");
+         */
+        callMyApi: (keyName: unknown, url: unknown, options: unknown, resultKey: unknown): boolean => {
+          const k = String(resultKey || '');
+          const u = String(url || '');
+          const name = String(keyName || '');
+          if (!k) { apiErr('callMyApi: resultKey 필요'); return false; }
+          if (!name) { apiErr('callMyApi: keyName 필요'); return false; }
+          if (!u.startsWith('https://')) { apiErr(`callMyApi: HTTPS URL 만 (${u.slice(0, 60)})`); return false; }
+          if (u.length > 1000) { apiErr('callMyApi: URL 너무 김'); return false; }
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { getAuthHeader: getAuth } = require('./userApiKeys') as typeof import('./userApiKeys');
+          const auth = getAuth(name);
+          if (!auth) { apiErr(`callMyApi: "${name}" 키 미설정. 설정 → 내 API 키 에서 등록하세요.`); return false; }
+          if (apiPending.has(k)) return false;
+          if (!checkApiRate()) { apiErr(`callMyApi: rate limit (분당 ${API_RATE_LIMIT}회)`); return false; }
+          apiPending.add(k);
+          apiResults.delete(k);
+          const opts = (options || {}) as { method?: string; body?: unknown; headers?: Record<string, unknown> };
+          const method = (opts.method || 'GET').toString().toUpperCase();
+          const headers: Record<string, string> = {};
+          // 유저 지정 헤더 (인증 외)
+          if (opts.headers && typeof opts.headers === 'object') {
+            for (const hk of Object.keys(opts.headers)) headers[hk] = String((opts.headers as Record<string, unknown>)[hk]);
+          }
+          // 인증 헤더는 런타임이 주입 — 유저 지정 헤더보다 우선
+          headers[auth.headerName] = auth.headerValue;
+          // body 처리 — 객체면 JSON, 문자열은 그대로
+          let body: string | undefined;
+          if (opts.body !== undefined && opts.body !== null && method !== 'GET' && method !== 'HEAD') {
+            if (typeof opts.body === 'object') {
+              body = JSON.stringify(opts.body);
+              if (!headers['Content-Type'] && !headers['content-type']) headers['Content-Type'] = 'application/json';
+            } else {
+              body = String(opts.body);
+            }
+          }
+          // eslint-disable-next-line no-console
+          console.log(`[js:${obj.id.slice(0, 8)}] api.callMyApi ${k} → ${method} ${u.slice(0, 80)} (key: ${name})`);
+          fetch(u, { method, credentials: 'omit', mode: 'cors', cache: 'no-store', headers, body })
+            .then(async (r) => {
+              const text = await r.text();
+              if (text.length > 200_000) throw new Error('응답 200KB 초과');
+              const ct = (r.headers.get('content-type') || '').toLowerCase();
+              let parsed: unknown = text;
+              if (ct.includes('json')) {
+                try { parsed = JSON.parse(text); }
+                catch { /* parse 실패 — text 그대로 */ }
+              }
+              if (!r.ok) {
+                const msg = (parsed as { error?: { message?: string } })?.error?.message
+                  || (typeof parsed === 'string' ? parsed.slice(0, 200) : `HTTP ${r.status}`);
+                throw new Error(msg);
+              }
+              return parsed;
+            })
+            .then((data) => { apiResults.set(k, { ok: true, data }); apiPending.delete(k); })
+            .catch((err) => {
+              apiResults.set(k, { ok: false, error: String((err as Error).message || err) });
+              apiPending.delete(k);
+            });
+          return true;
+        },
+        /** 본인 device 에 해당 이름의 키가 설정됐는지. fallback 결정용. */
+        hasMyApi: (keyName: unknown): boolean => {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { getApiKeyConfig } = require('./userApiKeys') as typeof import('./userApiKeys');
+          return !!getApiKeyConfig(String(keyName || ''));
+        },
       };
 
       this.interp = new Interpreter({
