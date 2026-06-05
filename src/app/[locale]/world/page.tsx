@@ -7,12 +7,11 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useGameSocket } from '@/lib/world/useGameSocket';
 import { useGraphicsSettings } from '@/lib/world/graphicsSettings';
 import { session } from '@/lib/api';
+import { WorldSpawnModal, type SpawnPayload } from '@/components/world/WorldSpawnModal';
 
 const WorldCanvas = dynamic(() => import('@/components/world/WorldCanvas'), { ssr: false });
 const GraphicsPanel = dynamic(() => import('@/components/world/GraphicsPanel'), { ssr: false });
 const SessionPicker = dynamic(() => import('@/components/world/SessionPicker'), { ssr: false });
-const WorldSpawnModal = dynamic(() => import('@/components/world/WorldSpawnModal').then(m => m.WorldSpawnModal), { ssr: false });
-import type { SpawnPayload } from '@/components/world/WorldSpawnModal';
 
 interface MapObject {
   id: string;

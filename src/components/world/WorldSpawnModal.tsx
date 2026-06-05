@@ -15,6 +15,7 @@
  * 권한: 월드 안 누구나 spawn 가능.
  */
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
 import { session } from '@/lib/api';
 
@@ -42,12 +43,10 @@ export interface SpawnPayload {
   defaultScale: [number, number, number];
 }
 
-const KIND_LABELS: Record<AssetKind, { iconKey: string; emoji: string }> = {
-  model: { iconKey: 'spawnTab_model', emoji: '🎲' },
-  image: { iconKey: 'spawnTab_image', emoji: '🖼' },
-  video: { iconKey: 'spawnTab_video', emoji: '🎬' },
-  audio: { iconKey: 'spawnTab_audio', emoji: '🔊' },
+const KIND_EMOJI: Record<AssetKind, string> = {
+  model: '🎲', image: '🖼', video: '🎬', audio: '🔊',
 };
+const KINDS: AssetKind[] = ['model', 'image', 'video', 'audio'];
 
 export function WorldSpawnModal({ open, onClose, onSpawn }: {
   open: boolean;
@@ -99,9 +98,11 @@ export function WorldSpawnModal({ open, onClose, onSpawn }: {
 
   const countOf = (k: AssetKind) => assets.filter((a) => (a.kind || 'model') === k && a.modelUrl).length;
 
-  return (
-    <div onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 16777100 }}>
+  if (typeof document === 'undefined') return null;
+
+  return createPortal((
+    <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2147483600 }}>
       <div onClick={(e) => e.stopPropagation()}
         style={{ width: 720, maxWidth: '90vw', maxHeight: '80vh', background: '#1e1b4b', borderRadius: 14, padding: 20, display: 'flex', flexDirection: 'column', gap: 12, color: '#fff' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -112,8 +113,12 @@ export function WorldSpawnModal({ open, onClose, onSpawn }: {
 
         {/* kind 탭 */}
         <div style={{ display: 'flex', gap: 6 }}>
-          {(Object.keys(KIND_LABELS) as AssetKind[]).map((k) => {
+          {KINDS.map((k) => {
             const active = tab === k;
+            const label = k === 'model' ? t('spawnTab_model')
+              : k === 'image' ? t('spawnTab_image')
+              : k === 'video' ? t('spawnTab_video')
+              : t('spawnTab_audio');
             return (
               <button key={k} onClick={() => setTab(k)}
                 style={{
@@ -122,8 +127,8 @@ export function WorldSpawnModal({ open, onClose, onSpawn }: {
                   border: `1px solid ${active ? 'rgba(99,102,241,0.6)' : 'rgba(255,255,255,0.1)'}`,
                   borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer',
                 }}>
-                <span style={{ marginRight: 4 }}>{KIND_LABELS[k].emoji}</span>
-                {t(KIND_LABELS[k].iconKey)} ({countOf(k)})
+                <span style={{ marginRight: 4 }}>{KIND_EMOJI[k]}</span>
+                {label} ({countOf(k)})
               </button>
             );
           })}
@@ -143,7 +148,7 @@ export function WorldSpawnModal({ open, onClose, onSpawn }: {
                   : 'rgba(255,255,255,0.04)',
                 borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, opacity: (a.thumbnailUrl || a.thumbnail) ? 1 : 0.5,
               }}>
-                {(a.thumbnailUrl || a.thumbnail) ? null : KIND_LABELS[tab].emoji}
+                {(a.thumbnailUrl || a.thumbnail) ? null : KIND_EMOJI[tab]}
               </div>
               <div style={{ fontSize: 11, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
             </button>
@@ -164,5 +169,5 @@ export function WorldSpawnModal({ open, onClose, onSpawn }: {
         </div>
       </div>
     </div>
-  );
+  ), document.body);
 }
