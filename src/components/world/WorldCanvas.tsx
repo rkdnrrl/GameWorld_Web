@@ -1839,7 +1839,9 @@ export function Player({
     // 자유시점 모드 — 외부 카메라(WasdFly/Orbit)가 카메라 소유. Player 는 캐릭터 물리만 처리.
     if (!cameraControlEnabled) { /* skip camera positioning */ }
     else if (cameraMode === 'first') {
-      // 1인칭: 카메라를 head bone world position + 캐릭터 forward 0.12m 으로.
+      // 1인칭: head bone world position + 캐릭터 forward 0.12m.
+      // 떨림 fix: Y 만 강한 EMA smoothing (walk bobbing 흡수). XZ 는 즉시(회전 응답).
+      // 점프/큰 Y 변화: 차이가 크면 즉시 따라감 (delta > 0.3m).
       let camX: number, camY: number, camZ: number;
       const headBone = headBoneRef.current;
       if (headBone) {
@@ -1854,7 +1856,17 @@ export function Player({
         camX = p.x; camZ = p.z;
         camY = (p.y - 0.63) + 1.8 * modelScale * 0.94 * postureScale;
       }
-      camera.position.set(camX, camY, camZ);
+      // XZ 즉시 (회전 응답), Y EMA smoothing (bobbing 흡수)
+      camera.position.x = camX;
+      camera.position.z = camZ;
+      const dy = camY - camera.position.y;
+      if (Math.abs(dy) > 0.3) {
+        // 점프/순간이동 등 큰 변화 — 즉시 따라감
+        camera.position.y = camY;
+      } else {
+        // 작은 bobbing — 90% 이전 + 10% 새 (강한 smoothing, ~10 frame time constant)
+        camera.position.y += dy * 0.1;
+      }
       const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
       // FPS 관례: 마우스 아래 = 시점 아래로. camV 는 3인칭 기준 (마우스 아래 = camV ↑ = 카메라 위)
       // 이라서 1인칭에선 부호 반전.
