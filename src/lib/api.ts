@@ -1055,6 +1055,17 @@ export const api = {
     });
   },
 
+  /** 저장소 사용량 + tier 별 quota */
+  getAssetUsage(token: string) {
+    return request<{
+      tier: 'none' | 'bronze' | 'silver' | 'gold' | 'legend';
+      quotaBytes: number;
+      usageBytes: number;
+      remainingBytes: number;
+      percent: number;
+    }>("/api/assets/usage", { headers: authHeaders(token) });
+  },
+
   getCharacterAnimations() {
     return request<{
       slots: Partial<Record<CharacterAnimationSlot["slot"], CharacterAnimationSlot>>;

@@ -78,6 +78,10 @@ export default function AssetsPage() {
   /* ── 데이터 ── */
   const [assets, setAssets] = useState<Asset[]>([]);
   const [kinds,  setKinds]  = useState<AssetKind[]>([]);
+  const [usage,  setUsage]  = useState<{
+    tier: 'none' | 'bronze' | 'silver' | 'gold' | 'legend';
+    quotaBytes: number; usageBytes: number; percent: number;
+  } | null>(null);
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
   const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
   const [taggingAsset, setTaggingAsset] = useState<Asset | null>(null);
@@ -223,7 +227,7 @@ export default function AssetsPage() {
     router.replace(`?${sp.toString()}`, { scroll: false });
   }, [router, searchParams]);
 
-  /* ── 초기 로드: kinds + assets 병렬 ── */
+  /* ── 초기 로드: kinds + assets + usage 병렬 ── */
   useEffect(() => {
     fetch(`${API}/api/asset-kinds`)
       .then(r => r.json())
@@ -233,7 +237,22 @@ export default function AssetsPage() {
       .then(r => r.json())
       .then(d => setAssets(d.assets || []))
       .catch(() => {});
+    fetch(`${API}/api/assets/usage`, { headers: { Authorization: `Bearer ${token()}` } })
+      .then(r => r.json())
+      .then(d => { if (d && typeof d.quotaBytes === 'number') setUsage(d); })
+      .catch(() => {});
   }, []);
+
+  /* ── assets 변경 시 usage 재계산 (서버 호출 없이 클라 합산) ── */
+  useEffect(() => {
+    if (!usage) return;
+    const totalUsed = assets.reduce((sum, a) => {
+      const s = (a as { fileSize?: string | number | null }).fileSize;
+      return sum + (typeof s === 'string' ? Number(s) : (s || 0));
+    }, 0);
+    setUsage(prev => prev ? { ...prev, usageBytes: totalUsed, percent: prev.quotaBytes > 0 ? Math.min(100, Math.round(totalUsed / prev.quotaBytes * 100)) : 0 } : prev);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assets]);
 
   /* ── 업로드 허용 확장자 (DB kinds 기반) ── */
   const acceptAttr = useMemo(
@@ -660,6 +679,7 @@ export default function AssetsPage() {
             selectedFolder={selectedFolder}
             manualFolders={manualFolders}
             dragActive={dragActive}
+            usage={usage}
             onSelectKinds={ks => setQuery({ kind: ks })}
             onToggleTag={toggleTag}
             onSelectFolder={f => setQuery({ folder: f })}

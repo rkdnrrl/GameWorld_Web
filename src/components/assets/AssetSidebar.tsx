@@ -20,6 +20,13 @@ interface Props {
   manualFolders?: string[];
   /** 내부 카드 드래그 중 여부 — 드롭 타겟 강조 활성화 */
   dragActive?: boolean;
+  /** 저장소 사용량 정보 (tier 별 quota + 현재 사용량) */
+  usage?: {
+    tier: 'none' | 'bronze' | 'silver' | 'gold' | 'legend';
+    quotaBytes: number;
+    usageBytes: number;
+    percent: number;
+  } | null;
   onSelectKinds: (next: string[]) => void;
   onToggleTag: (tag: string) => void;
   onSelectFolder: (folder: string | null) => void;
@@ -33,7 +40,7 @@ const INITIAL_TAG_LIMIT = 12;
 
 export default function AssetSidebar({
   assets, kinds, selectedKinds, selectedTags, selectedFolder,
-  manualFolders = [], dragActive = false,
+  manualFolders = [], dragActive = false, usage = null,
   onSelectKinds, onToggleTag, onSelectFolder, onDropToFolder, onCreateFolder, onDeleteFolder, onFolderMove,
 }: Props) {
   const t = useTranslations('Assets');
@@ -73,6 +80,9 @@ export default function AssetSidebar({
       borderRight: '1px solid rgba(255,255,255,0.08)',
       fontSize: 13,
     }}>
+      {/* ── 저장소 사용량 ── */}
+      {usage ? <StorageQuotaBar usage={usage} /> : null}
+
       {/* ── 카테고리 ── */}
       <div style={{ fontSize: 10, opacity: 0.4, textTransform: 'uppercase', letterSpacing: 0.5, padding: '0 8px', marginBottom: 6 }}>
         {t('sidebarCategory')}
@@ -201,6 +211,43 @@ export default function AssetSidebar({
         />
       )}
     </aside>
+  );
+}
+
+function formatBytes(bytes: number): string {
+  const gb = bytes / (1024 * 1024 * 1024);
+  if (gb >= 1) return `${gb.toFixed(2)} GB`;
+  const mb = bytes / (1024 * 1024);
+  return `${mb.toFixed(1)} MB`;
+}
+
+const TIER_LABEL: Record<string, string> = {
+  none: '무료', bronze: '🥉 Bronze', silver: '🥈 Silver', gold: '🥇 Gold', legend: '🏆 Legend',
+};
+
+function StorageQuotaBar({ usage }: { usage: { tier: string; quotaBytes: number; usageBytes: number; percent: number } }) {
+  const danger = usage.percent >= 90;
+  const warn = usage.percent >= 70;
+  const barColor = danger ? '#ef4444' : warn ? '#f59e0b' : '#22c55e';
+  const tierLabel = TIER_LABEL[usage.tier] || usage.tier;
+  return (
+    <div style={{ padding: '0 8px 14px', marginBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, fontSize: 11, opacity: 0.6 }}>
+        <span>저장공간</span>
+        <span style={{ fontSize: 10 }}>{tierLabel}</span>
+      </div>
+      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', marginBottom: 6 }}>
+        {formatBytes(usage.usageBytes)} <span style={{ opacity: 0.5 }}>/ {formatBytes(usage.quotaBytes)}</span>
+      </div>
+      <div style={{ height: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden' }}>
+        <div style={{ width: `${Math.min(100, usage.percent)}%`, height: '100%', background: barColor, transition: 'width .3s' }} />
+      </div>
+      {usage.tier === 'none' && (
+        <a href="/support" style={{ display: 'block', marginTop: 8, fontSize: 11, color: '#a5b4fc', textDecoration: 'none' }}>
+          후원·멤버십으로 늘리기 →
+        </a>
+      )}
+    </div>
   );
 }
 
