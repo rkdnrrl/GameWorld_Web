@@ -240,26 +240,31 @@ export function calibrateCrouchHipsTrack(
   const depth = lifts[Math.floor(lifts.length / 2)];
   if (!isFinite(depth) || depth < 0.01) return clip;  // 1cm 미만 → 보정 불필요
 
-  // 6) world depth → local 단위 변환 (parent 의 accumulated world scale 으로 나눔)
-  //    Mixamo FBX 처럼 FBXLoader 가 root 에 0.01 scale 적용 + bone local 은 cm 인 경우
-  //    depth(0.386 world m) / parentScale(0.01) = 38.6 local cm 단위 변환 필요.
-  let parentScaleY = 1;
+  // 6) world space 에서 직접 계산 — 캐릭터 모든 parent transform / scale 자동 처리.
+  //    "현재 hips world Y - depth" 가 target world Y. parent.worldToLocal 로 local 변환.
+  //    bindHipsY (local) - depth (world) 직접 빼면 단위 mismatch 로 캐릭터마다 결과 다름.
+  scene.updateMatrixWorld(true);
+  const hipsWorld = hips.getWorldPosition(new THREE.Vector3());
+  const targetWorld = hipsWorld.clone();
+  targetWorld.y -= depth;
+  let constantY: number;
   if (hips.parent) {
-    const sc = new THREE.Vector3();
-    hips.parent.getWorldScale(sc);
-    parentScaleY = sc.y || 1;
+    hips.parent.updateMatrixWorld(true);
+    const targetLocal = targetWorld.clone();
+    hips.parent.worldToLocal(targetLocal);
+    constantY = targetLocal.y;
+  } else {
+    constantY = bindHipsY - depth;  // fallback
   }
-  const localDepth = depth / parentScaleY;
 
   // 7) Hips position track 주입 (constant, local units)
-  const constantY = bindHipsY - localDepth;
   const newTracks = clip.tracks.filter((t) => t.name !== hipsPosTrackName);
   newTracks.push(new THREE.VectorKeyframeTrack(
     hipsPosTrackName,
     [0, duration],
     [0, constantY, 0, 0, constantY, 0],
   ));
-  console.log(`[crouch-cal] ${clip.name}: lifts=${lifts.map((l) => l.toFixed(3)).join(',')} depth_world=${depth.toFixed(3)} parentScale=${parentScaleY.toFixed(4)} localDepth=${localDepth.toFixed(3)} bindHipsY=${bindHipsY.toFixed(3)} → hipsY=${constantY.toFixed(3)}`);
+  console.log(`[crouch-cal] ${clip.name}: lifts=${lifts.map((l) => l.toFixed(3)).join(',')} depth_world=${depth.toFixed(3)} hipsBindWorld=${hipsWorld.y.toFixed(3)} bindHipsY_local=${bindHipsY.toFixed(3)} → hipsY_local=${constantY.toFixed(3)}`);
   return new THREE.AnimationClip(clip.name, clip.duration, newTracks, clip.blendMode);
 }
 
