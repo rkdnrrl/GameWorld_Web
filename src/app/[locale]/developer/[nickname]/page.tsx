@@ -8,5 +8,6 @@ import { redirect } from 'next/navigation';
 
 export default async function DeveloperRedirect({ params }: { params: Promise<{ locale: string; nickname: string }> }) {
   const { locale, nickname } = await params;
-  redirect(`/${locale}/users/${encodeURIComponent(nickname)}`);
+  // 옛 /developer 는 게임 개발자 프로필 → 새 /users 페이지의 게임 탭으로
+  redirect(`/${locale}/users/${encodeURIComponent(nickname)}?tab=games`);
 }

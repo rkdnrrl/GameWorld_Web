@@ -74,6 +74,15 @@ export default function UserPage({ params }: { params: Promise<{ username: strin
   const [reportingAsset, setReportingAsset] = useState<Asset | null>(null);
   const [reportedIds, setReportedIds] = useState<Set<string>>(new Set());
 
+  // 탭 — assets | games. ?tab=games 로 게임 탭 진입 (옛 /developer 페이지 redirect 호환).
+  const tab = (searchParams.get('tab') === 'games' ? 'games' : 'assets') as 'assets' | 'games';
+  const [games, setGames] = useState<Array<{
+    id: string; title: string; description: string | null;
+    emoji: string; category: string; thumbnailUrl: string | null;
+    playCount: number; likeCount: number; ratingAvg: number; ratingCount: number;
+  }> | null>(null);
+  const [gamesLoading, setGamesLoading] = useState(false);
+
   const kindSel = searchParams.get('kind') || '';
   const sort    = (searchParams.get('sort') || 'popular') as 'recent' | 'name' | 'popular';
 
@@ -153,6 +162,17 @@ export default function UserPage({ params }: { params: Promise<{ username: strin
       setFollowBusy(false);
     }
   }
+
+  // 게임 목록 — 게임 탭 진입 시 1회 fetch (UGC 게임 개발자 프로필 API 재사용)
+  useEffect(() => {
+    if (!profile || tab !== 'games' || games !== null) return;
+    setGamesLoading(true);
+    fetch(`/api/games/developer/${encodeURIComponent(username)}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setGames(d?.games ?? []))
+      .catch(() => setGames([]))
+      .finally(() => setGamesLoading(false));
+  }, [profile, tab, username, games]);
 
   // 에셋 목록 — 필터 변경 시 1페이지부터
   useEffect(() => {
@@ -371,6 +391,76 @@ export default function UserPage({ params }: { params: Promise<{ username: strin
         </div>
 
         <div style={{ maxWidth: 1400, margin: '0 auto', padding: '20px 32px' }}>
+          {/* 탭 — 에셋 / 게임 */}
+          <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+            <button onClick={() => setQuery({ tab: null })}
+              style={{
+                padding: '10px 18px', fontSize: 13, fontWeight: 700,
+                background: 'transparent', border: 'none',
+                color: tab === 'assets' ? '#c7d2fe' : 'rgba(255,255,255,0.5)',
+                borderBottom: `2px solid ${tab === 'assets' ? '#6366f1' : 'transparent'}`,
+                cursor: 'pointer', marginBottom: -1,
+              }}>
+              📦 {t('tabAssets')}
+            </button>
+            <button onClick={() => setQuery({ tab: 'games' })}
+              style={{
+                padding: '10px 18px', fontSize: 13, fontWeight: 700,
+                background: 'transparent', border: 'none',
+                color: tab === 'games' ? '#c7d2fe' : 'rgba(255,255,255,0.5)',
+                borderBottom: `2px solid ${tab === 'games' ? '#6366f1' : 'transparent'}`,
+                cursor: 'pointer', marginBottom: -1,
+              }}>
+              🎮 {t('tabGames')}
+            </button>
+          </div>
+
+          {tab === 'games' ? (
+            /* 게임 그리드 */
+            <>
+              {gamesLoading && (
+                <div style={{ textAlign: 'center', opacity: 0.5, padding: '40px 0', fontSize: 14 }}>…</div>
+              )}
+              {!gamesLoading && games && games.length === 0 && (
+                <div style={{ textAlign: 'center', opacity: 0.4, padding: '60px 0', fontSize: 14 }}>
+                  {t('userNoGames')}
+                </div>
+              )}
+              {!gamesLoading && games && games.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14 }}>
+                  {games.map((g) => (
+                    <Link key={g.id} href={`/games/${g.id}`}
+                      style={{
+                        display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: 10,
+                        background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
+                        textDecoration: 'none', color: '#fff', transition: 'transform 0.15s',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}>
+                      <div style={{
+                        aspectRatio: '16/9', background: g.thumbnailUrl ? `url(${g.thumbnailUrl}) center/cover` : 'linear-gradient(135deg, #6366f1, #a855f7)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48,
+                      }}>
+                        {!g.thumbnailUrl && g.emoji}
+                      </div>
+                      <div style={{ padding: 12 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.title}</div>
+                        {g.description && (
+                          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{g.description}</div>
+                        )}
+                        <div style={{ marginTop: 8, display: 'flex', gap: 10, fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>
+                          {g.ratingCount > 0 && <span>⭐ {g.ratingAvg.toFixed(1)}</span>}
+                          {g.playCount > 0 && <span>👁 {g.playCount.toLocaleString()}</span>}
+                          {g.likeCount > 0 && <span>❤ {g.likeCount}</span>}
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+          <>
           {/* 필터 */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 16 }}>
             <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.05)', padding: 3, borderRadius: 9 }}>
@@ -445,6 +535,8 @@ export default function UserPage({ params }: { params: Promise<{ username: strin
                 {loading ? t('marketLoading') : t('marketLoadMore')}
               </button>
             </div>
+          )}
+          </>
           )}
         </div>
       </div>
