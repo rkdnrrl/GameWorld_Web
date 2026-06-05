@@ -381,8 +381,8 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     // 3) mixer + vrm.update + lookAt
     char.update(dt);
     // 4) Foot grounding — 발/toe 본 의 최저 world Y 를 parent group world Y (= ground) 로
-    //    부드럽게 (30%) 끌어내림. 애니메이션이 hips 를 들어올리거나 다른 캐릭터로 author 되어
-    //    발이 떠도 매 frame 보정. bind pose 추정만으로는 못 잡는 케이스 해결.
+    //    느리게 (10%) 끌어내림. 달리기 airborne phase 의 짧은 발 lift 가 캐릭터 흔들림으로
+    //    보이는 것 방지 — threshold 5cm 이상 + 약한 smoothing. 시작 시 떠 있는 float 도 1초 내에 보정.
     if (char.scene.parent) {
       const feet: THREE.Object3D[] = [];
       if (char.bones.leftFoot) feet.push(char.bones.leftFoot);
@@ -402,8 +402,8 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
         parent.getWorldScale(ws);
         const drift = lowestY - wp.y;
         const parentScaleY = ws.y || 1;
-        if (Math.abs(drift) > 0.02) {
-          char.scene.position.y -= (drift * 0.3) / parentScaleY;
+        if (Math.abs(drift) > 0.05) {
+          char.scene.position.y -= (drift * 0.1) / parentScaleY;
         }
       }
     }
