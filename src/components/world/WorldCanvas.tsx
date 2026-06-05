@@ -19,6 +19,7 @@ interface RapierBodyApi {
 }
 import * as THREE from 'three';
 import { HumanoidMesh } from './HumanoidMesh';
+import { PlacementGhostMesh } from './PlacementGhostMesh';
 
 /** animStateRef 가 없을 때 fallback — 항상 idle. */
 const FALLBACK_IDLE_REF: React.RefObject<AnimState> = { current: 'idle' as AnimState };
@@ -2840,6 +2841,8 @@ interface WorldCanvasProps {
   firstPersonFov?: number;
   /** 멀티플레이 WebSocket ref — 음성 채팅 시그널링에 사용 (Phase 22) */
   socketRef?: React.RefObject<WebSocket | null>;
+  /** 배치 모드 고스트 — 캐릭터 앞 2.5m 에 반투명 미리보기 렌더. null 이면 미표시. */
+  placementGhost?: import('@/lib/world/placementGhost').PlacementGhost | null;
 }
 
 /** 런타임 포탈 상태 — 플레이어 앞에 떠 있는 워프 게이트 */
@@ -3150,7 +3153,7 @@ function MobileControls({ inputLocked, cameraMode }: { inputLocked: boolean; cam
   );
 }
 
-export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId, sendObjClaim, sendObjRelease, objectOwnerRef, sendObjSpawn, sendObjDestroy, objSpawnRef, objDestroyRef, sendSceneRegister, portalApiRef, onPortalEnter, cameraMode: cameraModeProp, onCameraModeChange, firstPersonFov = 75, worldId, socketRef }: WorldCanvasProps) {
+export default function WorldCanvas({ character, playerId, players, posesRef, chatBubbles, onMove, customObjects, sceneSettings, graphics = DEFAULT_SETTINGS, chatInputActive = false, emoteSlot, emoteOneShotOverride, sendScriptEvent, scriptEventRef, sendObjectStates, objectStatesRef, hostId, sendObjClaim, sendObjRelease, objectOwnerRef, sendObjSpawn, sendObjDestroy, objSpawnRef, objDestroyRef, sendSceneRegister, portalApiRef, onPortalEnter, cameraMode: cameraModeProp, onCameraModeChange, firstPersonFov = 75, worldId, socketRef, placementGhost }: WorldCanvasProps) {
   // data.save 콜백 closure 안에서 stale 값 안 잡히게 ref 로 미러
   const worldIdRef = useRef<string | undefined>(worldId);
   useEffect(() => { worldIdRef.current = worldId; }, [worldId]);
@@ -5006,6 +5009,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               <Island />
             )}
             <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={handleObjectClick} playerCtlRef={playerCtlRef} spawnRef={spawnRef} getAnalyser={voice.getMyAnalyser} />
+            {placementGhost && <PlacementGhostMesh ghost={placementGhost} localPoseRef={localPoseRef} />}
             {Object.values(players).map((p) => (
               <RemotePlayerMesh
                 key={p.id}

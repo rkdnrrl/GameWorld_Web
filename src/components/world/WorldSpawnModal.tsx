@@ -122,18 +122,16 @@ export function WorldSpawnModal({ open, onClose, onSpawn, onSpawnPrefab }: {
     } else {
       payload = { worldKind: 'sound', soundUrl: a.modelUrl, defaultScale: [1, 1, 1] };
     }
+    // onClose 호출 X — 부모가 setSpawnModalOpen(false) 직접 호출 (배치 모드 진입 흐름).
     onSpawn(payload, a.name);
-    onClose();
   };
 
   const handleSelectPrefab = (p: PrefabRow) => {
-    // payload.tree 우선, 없으면 payload.root 단일
     const tree = Array.isArray(p.payload?.tree) && p.payload.tree.length > 0
       ? p.payload.tree
       : (p.payload?.root ? [p.payload.root] : []);
     if (tree.length === 0) return;
     onSpawnPrefab({ tree }, p.name);
-    onClose();
   };
 
   const countOf = (k: AssetKind) => {

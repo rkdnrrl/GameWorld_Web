@@ -10,6 +10,7 @@ import { session } from '@/lib/api';
 import { WorldSpawnModal, type SpawnPayload, type PrefabSpawnPayload } from '@/components/world/WorldSpawnModal';
 import { PlacementOverlay } from '@/components/world/PlacementOverlay';
 import { MyObjectsModal } from '@/components/world/MyObjectsModal';
+import { ghostFromSpawnPayload, ghostFromPrefab, type PlacementGhost } from '@/lib/world/placementGhost';
 
 const WorldCanvas = dynamic(() => import('@/components/world/WorldCanvas'), { ssr: false });
 const GraphicsPanel = dynamic(() => import('@/components/world/GraphicsPanel'), { ssr: false });
@@ -116,7 +117,12 @@ export default function WorldPage() {
   const [spawnModalOpen, setSpawnModalOpen] = useState(false);
   // 배치 모드 — 모달에서 선택 후 캔버스 클릭으로 spawn 시점 확정 (Sims/Roblox 식).
   // pendingPlacement.execute() 는 현재 pose 기준으로 spawn 발사 (클릭 시 호출).
-  const [pendingPlacement, setPendingPlacement] = useState<{ name: string; execute: () => void } | null>(null);
+  // pendingPlacement.ghost = WorldCanvas 가 캐릭터 앞 2.5m 에 그릴 반투명 3D 미리보기.
+  const [pendingPlacement, setPendingPlacement] = useState<{
+    name: string;
+    execute: () => void;
+    ghost: PlacementGhost;
+  } | null>(null);
   // 내가 spawn 한 root 오브젝트 추적 — 관리 모달 + 5개 제한.
   // Map<rootId, { name, childIds[] }>. 자식 cascade 삭제는 DO 가 처리하지만 클라도 추적해서 UI 갱신.
   const [mySpawned, setMySpawned] = useState<Map<string, { name: string; childIds: string[] }>>(new Map());
@@ -893,6 +899,7 @@ export default function WorldPage() {
         cameraMode={cameraMode}
         onCameraModeChange={changeCameraMode}
         firstPersonFov={fpFov}
+        placementGhost={pendingPlacement?.ghost ?? null}
       />
 
       {/* 우상단 단일 설정 버튼 — 클릭 또는 ESC 로 통합 모달 오픈 */}
@@ -1115,16 +1122,29 @@ export default function WorldPage() {
             alert(t('spawnLimitReached', { limit: SPAWN_LIMIT }));
             return;
           }
-          setPendingPlacement({ name, execute: () => handleSpawnFromAsset(payload, name) });
+          // 배치 모드 진입 — 모든 창 명시적으로 닫기 (returnToSettings 도 무효화)
+          setSpawnModalOpen(false);
+          setSettingsOpen(false);
           setReturnToSettings(false);
+          setPendingPlacement({
+            name,
+            execute: () => handleSpawnFromAsset(payload, name),
+            ghost: ghostFromSpawnPayload(payload),
+          });
         }}
         onSpawnPrefab={(prefab, name) => {
           if (mySpawned.size >= SPAWN_LIMIT) {
             alert(t('spawnLimitReached', { limit: SPAWN_LIMIT }));
             return;
           }
-          setPendingPlacement({ name, execute: () => handleSpawnPrefab(prefab, name) });
+          setSpawnModalOpen(false);
+          setSettingsOpen(false);
           setReturnToSettings(false);
+          setPendingPlacement({
+            name,
+            execute: () => handleSpawnPrefab(prefab, name),
+            ghost: ghostFromPrefab(prefab),
+          });
         }}
       />
 
