@@ -1307,6 +1307,13 @@ export function Player({
   const headBoneRef = useRef<THREE.Object3D | null>(null);
   /** 1인칭 카메라 head bone 위치 조회용 재사용 Vec3 */
   const _tmpHeadVec = useMemo(() => new THREE.Vector3(), []);
+  /** One Euro Filter state — 1인칭 카메라 떨림 제거. 작은 변화(bobbing)는 강한 smoothing,
+   *  큰 변화(자세 변화/점프)는 빠른 응답. Casiez et al. 2012. */
+  const oneEuroRef = useRef({
+    x: { hat: 0, dHat: 0, init: false },
+    y: { hat: 0, dHat: 0, init: false },
+    z: { hat: 0, dHat: 0, init: false },
+  });
   const portalTriggered = useRef(false);   // 같은 포탈 중복 발동 방지
   const lastPortalId    = useRef<string | null>(null);
   const { rapier, world: rWorld } = useRapier();
@@ -1839,24 +1846,46 @@ export function Player({
     // 자유시점 모드 — 외부 카메라(WasdFly/Orbit)가 카메라 소유. Player 는 캐릭터 물리만 처리.
     if (!cameraControlEnabled) { /* skip camera positioning */ }
     else if (cameraMode === 'first') {
-      // 1인칭 카메라 — animState 기반 명시적 눈 높이 (animation bobbing 영향 0).
-      // 자세 변화는 부드러운 transition (~150ms) 으로 잔상 방지.
-      const modelScale = Number((character?.appearance as Record<string, unknown> | undefined)?.modelScale) || 1.0;
-      const rotY = mesh.current?.rotation.y ?? 0;
-      const state = animStateRef.current ?? 'idle';
-      // 눈 높이 (이마): stand 시 캐릭터 머리 mesh 가 카메라 뒤로 가도록 약간 낮춤.
-      let eyeOffset: number;
-      if (typeof state === 'string' && state.startsWith('prone')) eyeOffset = 0.4;
-      else if (typeof state === 'string' && state.startsWith('crouch')) eyeOffset = 1.0;
-      else eyeOffset = 1.5;  // stand/walk/run/jump/fall/idle — 머리 mesh 1.6m+ 보다 낮게
-      const camX = p.x + Math.sin(rotY) * 0.15;     // forward 0.12 → 0.15 (머리 mesh 가 카메라 뒤로)
-      const targetCamY = (p.y - 0.63) + eyeOffset * modelScale;
-      const camZ = p.z + Math.cos(rotY) * 0.15;
-      // 자세 변화 transition — dt * 10 ≈ 100ms (잔상 없는 빠른 부드러움)
-      camera.position.x = camX;
-      camera.position.z = camZ;
-      camera.position.y += (targetCamY - camera.position.y) * Math.min(1, dt * 10);
-      const camY = camera.position.y;  // lookAt 에 사용
+      // 1인칭 카메라 — head bone 위치 추적 + One Euro Filter 로 떨림 제거.
+      // 수학적 원리: adaptive low-pass filter. 작은 변화(bobbing 1-3cm)는 강하게 smoothing,
+      // 큰 변화(자세 변화, 점프)는 미분값이 크므로 cutoff 자동 상승 → 즉시 응답.
+      // Casiez, Roussel, Vogel "1€ Filter" CHI 2012.
+      let rawX: number, rawY: number, rawZ: number;
+      const headBone = headBoneRef.current;
+      if (headBone) {
+        headBone.updateMatrixWorld(true);
+        const headPos = headBone.getWorldPosition(_tmpHeadVec);
+        const rotY = mesh.current?.rotation.y ?? 0;
+        rawX = headPos.x + Math.sin(rotY) * 0.15;
+        rawY = headPos.y + 0.05;
+        rawZ = headPos.z + Math.cos(rotY) * 0.15;
+      } else {
+        const modelScale = Number((character?.appearance as Record<string, unknown> | undefined)?.modelScale) || 1.0;
+        rawX = p.x; rawZ = p.z;
+        rawY = (p.y - 0.63) + 1.5 * modelScale * postureScale;
+      }
+      // One Euro Filter — 각 축마다 적용
+      const oneEuro = (st: { hat: number; dHat: number; init: boolean }, x: number, deltaT: number): number => {
+        if (!st.init) { st.init = true; st.hat = x; return x; }
+        if (deltaT <= 0) return st.hat;
+        // 미분값 (속도) 측정
+        const dx = (x - st.hat) / deltaT;
+        // 미분의 low-pass (cutoff 1Hz) → 노이즈 제거된 속도
+        const tauD = 1 / (2 * Math.PI * 1.0);
+        const aD = deltaT / (tauD + deltaT);
+        st.dHat = st.dHat + aD * (dx - st.dHat);
+        // adaptive cutoff: 속도 빠르면 cutoff ↑ (즉시 응답), 느리면 cutoff ↓ (smoothing)
+        // minCutoff=0.8Hz, beta=0.3 (자세변화 같은 큰 속도 시 즉시 반응)
+        const cutoff = 0.8 + 0.3 * Math.abs(st.dHat);
+        const tau = 1 / (2 * Math.PI * cutoff);
+        const a = deltaT / (tau + deltaT);
+        st.hat = st.hat + a * (x - st.hat);
+        return st.hat;
+      };
+      const camX = oneEuro(oneEuroRef.current.x, rawX, dt);
+      const camY = oneEuro(oneEuroRef.current.y, rawY, dt);
+      const camZ = oneEuro(oneEuroRef.current.z, rawZ, dt);
+      camera.position.set(camX, camY, camZ);
       const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
       // FPS 관례: 마우스 아래 = 시점 아래로. camV 는 3인칭 기준 (마우스 아래 = camV ↑ = 카메라 위)
       // 이라서 1인칭에선 부호 반전.
