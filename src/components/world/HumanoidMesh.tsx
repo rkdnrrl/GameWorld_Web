@@ -508,10 +508,14 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     } else {
       char.update(dt);
     }
-    // 3.5) 1인칭 머리 숨김 강제 — mixer.update 가 head bone scale 트랙을 매 frame 1.0 으로
-    //      덮어쓰므로 (특히 crouch/prone 클립), update 직후에 다시 scale 0 처리.
-    //      hideHead=true 일 때만 (1인칭) — 비용 미미.
-    if (hideHead) char.setHeadVisible(false);
+    // 3.5) 1인칭이면 본인 캐릭터 전체 컬링 (VRChat 식).
+    //      head bone scale 0 은 머리카락/액세서리 등 별도 SkinnedMesh 에 안 먹히고,
+    //      crouch/prone 시 mixer 가 scale 트랙으로 덮어쓰는 문제도 있음.
+    //      scene.visible 직접 토글이 가장 확실 — 모든 mesh + shadow pass 한 번에 skip.
+    //      char.scene.visible 은 (LOD 거리 토글 + compileReady 와) 매 frame 충돌하므로
+    //      hideHead=true 면 항상 false 로 강제. (충돌 우선순위: hideHead > 거리 LOD)
+    if (hideHead && char.scene.visible) char.scene.visible = false;
+    else if (!hideHead && compileReady && !char.scene.visible) char.scene.visible = true;
     // 4) Crouch grounding — per-frame 발 lift 측정해서 scene.y 즉시 보정.
     //    Static offset 은 평균 lift 만 잡아서 frame 별 변화로 발이 위아래 흔들림.
     //    매 frame "발 본의 scene-local Y - bind 시 발 본의 scene-local Y" = lift 측정,

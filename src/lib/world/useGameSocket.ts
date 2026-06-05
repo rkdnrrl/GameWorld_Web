@@ -302,7 +302,15 @@ export function useGameSocket({ worldId, sessionId = 'main', playerId, username,
     if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type: 'move', ...pos }));
     }
-  }, []);
+    // 본인 pose 도 posesRef 에 기록 — DO 는 sender 제외 broadcast 이므로 본인은 자기 데이터 안 받음.
+    // 이게 빠지면 에셋 spawn 위치 계산 등에서 본인 위치를 (0,0,0) 으로 인식 → 월드 중앙 생성 버그.
+    posesRef.current.set(playerId, {
+      x: pos.x, y: pos.y, z: pos.z, rotY: pos.rotY,
+      animState: pos.animState ?? 'idle',
+      vx: pos.vx ?? 0, vy: pos.vy ?? 0, vz: pos.vz ?? 0,
+      lastUpdate: Date.now(),
+    });
+  }, [playerId]);
 
   const sendChat = useCallback((message: string) => {
     if (ws.current?.readyState === WebSocket.OPEN) {

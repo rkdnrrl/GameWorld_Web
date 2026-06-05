@@ -945,7 +945,9 @@ export default function WorldPage() {
         customObjects={effectiveWorldId ? (effectiveCustomObjects ?? undefined) : undefined}
         sceneSettings={sceneSettings ?? undefined}
         graphics={graphics}
-        chatInputActive={chatOpen}
+        // 채팅창 + 에셋 추가 모달 어느 쪽이든 활성이면 입력 lock → 모달 닫히면 자동으로
+        // pointer lock 복원 (1인칭일 때) — WorldCanvas 의 cameraMode useEffect 가 처리
+        chatInputActive={chatOpen || spawnModalOpen}
         emoteSlot={emoteSlot}
         emoteOneShotOverride={Object.entries(emoteLoopMap).filter(([,v])=>!v).map(([k])=>k)}
         sendScriptEvent={sendScriptEvent}
