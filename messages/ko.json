@@ -1766,6 +1766,12 @@
     "noPrefabs": "프리팹이 없습니다. Studio 에서 오브젝트를 우클릭 → 프리팹으로 저장하세요.",
     "placementHint": "배치 모드 — 클릭하여 크로스헤어 방향에 생성",
     "placementCancel": "ESC 로 취소",
+    "spawnLimitReached": "최대 {limit}개까지만 생성할 수 있어요. 기존 오브젝트를 삭제하고 다시 시도하세요.",
+    "myObjectsManage": "내 오브젝트 관리",
+    "myObjectsTitle": "내가 생성한 오브젝트",
+    "myObjectsEmpty": "아직 생성한 오브젝트가 없어요.",
+    "myObjectsUsage": "사용 중인 slot",
+    "myObjectsDelete": "삭제",
     "searchAssets": "검색…",
     "noAssetsForKind": "이 종류의 에셋이 없습니다. 에셋 페이지에서 업로드하세요.",
     "spawnInFrontHint": "선택하면 캐릭터 앞 2.5m 에 생성됩니다. 세션이 종료되면 사라집니다."

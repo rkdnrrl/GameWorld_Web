@@ -101,14 +101,17 @@ interface Options {
   onObjDestroy?: (objectId: string) => void;
   /** 호스트가 등록한 씬 전체 스냅샷 (입장 시 한 번 수신) */
   onSceneSnapshot?: (objects: unknown[]) => void;
+  /** DO 가 spawn 거부 — 소유자당 5개 제한 초과 등 */
+  onObjSpawnRejected?: (reason: string) => void;
 }
 
-export function useGameSocket({ worldId, sessionId = 'main', playerId, username, character, enabled, onScriptEvent, onObjectStates, onObjectOwnership, onObjSpawn, onObjDestroy, onSceneSnapshot }: Options) {
+export function useGameSocket({ worldId, sessionId = 'main', playerId, username, character, enabled, onScriptEvent, onObjectStates, onObjectOwnership, onObjSpawn, onObjDestroy, onSceneSnapshot, onObjSpawnRejected }: Options) {
   const onScriptEventRef     = useRef(onScriptEvent);
   const onObjectStatesRef    = useRef(onObjectStates);
   const onObjectOwnershipRef = useRef(onObjectOwnership);
   const onObjSpawnRef        = useRef(onObjSpawn);
   const onObjDestroyRef      = useRef(onObjDestroy);
+  const onObjSpawnRejectedRef = useRef(onObjSpawnRejected);
   const onSceneSnapshotRef   = useRef(onSceneSnapshot);
   const [hostId, setHostId] = useState<string | null>(null);
   const [players, setPlayers]     = useState<Record<string, RemotePlayer>>({});
@@ -226,6 +229,10 @@ export function useGameSocket({ worldId, sessionId = 'main', playerId, username,
       else if (msg.type === 'obj_destroy') {
         const o = msg as unknown as { objectId: string };
         if (o.objectId) onObjDestroyRef.current?.(o.objectId);
+      }
+      else if (msg.type === 'obj_spawn_rejected') {
+        const o = msg as unknown as { reason?: string };
+        onObjSpawnRejectedRef.current?.(o.reason || 'unknown');
       }
       else if (msg.type === 'runtime_objects') {
         // 신규 입장 시 일괄 — 각 spec을 onObjSpawn으로 전달
@@ -355,6 +362,7 @@ export function useGameSocket({ worldId, sessionId = 'main', playerId, username,
   useEffect(() => { onObjectOwnershipRef.current = onObjectOwnership; }, [onObjectOwnership]);
   useEffect(() => { onObjSpawnRef.current        = onObjSpawn;        }, [onObjSpawn]);
   useEffect(() => { onObjDestroyRef.current      = onObjDestroy;      }, [onObjDestroy]);
+  useEffect(() => { onObjSpawnRejectedRef.current = onObjSpawnRejected; }, [onObjSpawnRejected]);
   useEffect(() => { onSceneSnapshotRef.current   = onSceneSnapshot;   }, [onSceneSnapshot]);
 
   return { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, sendObjClaim, sendObjRelease, sendObjSpawn, sendObjDestroy, sendSceneRegister, hostId, socketRef: ws };

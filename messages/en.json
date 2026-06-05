@@ -1766,6 +1766,12 @@
     "noPrefabs": "No prefabs yet. In Studio, right-click an object → Save as Prefab.",
     "placementHint": "placement mode — click to spawn in front of your crosshair",
     "placementCancel": "Press ESC to cancel",
+    "spawnLimitReached": "You can spawn at most {limit} objects. Delete existing ones and try again.",
+    "myObjectsManage": "My Objects",
+    "myObjectsTitle": "My Spawned Objects",
+    "myObjectsEmpty": "You haven't spawned anything yet.",
+    "myObjectsUsage": "Slots used",
+    "myObjectsDelete": "Delete",
     "searchAssets": "Search…",
     "noAssetsForKind": "No assets of this type. Upload some on the Assets page.",
     "spawnInFrontHint": "Spawns 2.5m in front of your character. Disappears when the session ends."

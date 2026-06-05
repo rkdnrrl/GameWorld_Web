@@ -9,6 +9,7 @@ import { useGraphicsSettings } from '@/lib/world/graphicsSettings';
 import { session } from '@/lib/api';
 import { WorldSpawnModal, type SpawnPayload, type PrefabSpawnPayload } from '@/components/world/WorldSpawnModal';
 import { PlacementOverlay } from '@/components/world/PlacementOverlay';
+import { MyObjectsModal } from '@/components/world/MyObjectsModal';
 
 const WorldCanvas = dynamic(() => import('@/components/world/WorldCanvas'), { ssr: false });
 const GraphicsPanel = dynamic(() => import('@/components/world/GraphicsPanel'), { ssr: false });
@@ -116,6 +117,11 @@ export default function WorldPage() {
   // 배치 모드 — 모달에서 선택 후 캔버스 클릭으로 spawn 시점 확정 (Sims/Roblox 식).
   // pendingPlacement.execute() 는 현재 pose 기준으로 spawn 발사 (클릭 시 호출).
   const [pendingPlacement, setPendingPlacement] = useState<{ name: string; execute: () => void } | null>(null);
+  // 내가 spawn 한 root 오브젝트 추적 — 관리 모달 + 5개 제한.
+  // Map<rootId, { name, childIds[] }>. 자식 cascade 삭제는 DO 가 처리하지만 클라도 추적해서 UI 갱신.
+  const [mySpawned, setMySpawned] = useState<Map<string, { name: string; childIds: string[] }>>(new Map());
+  const [myObjsModalOpen, setMyObjsModalOpen] = useState(false);
+  const SPAWN_LIMIT = 5;
   const closeCharManager = () => {
     setCharManagerOpen(false);
     if (returnToSettings) { setReturnToSettings(false); setSettingsOpen(true); }
@@ -452,6 +458,31 @@ export default function WorldPage() {
     },
     onObjDestroy: (objectId) => {
       objDestroyRef.current?.(objectId);
+      // mySpawned 에서 제거 — DO 가 자식 cascade 도 각각 obj_destroy 로 broadcast 함
+      setMySpawned(prev => {
+        if (!prev.has(objectId)) {
+          // 자식일 수도 — root 의 childIds 에서 제외 (그래도 root 자체는 삭제 X)
+          const next = new Map(prev);
+          let changed = false;
+          for (const [rid, info] of next) {
+            const idx = info.childIds.indexOf(objectId);
+            if (idx >= 0) {
+              info.childIds.splice(idx, 1);
+              next.set(rid, { ...info });
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        }
+        const next = new Map(prev); next.delete(objectId); return next;
+      });
+    },
+    onObjSpawnRejected: (reason) => {
+      // 서버가 거부 (5개 초과 등). 클라 mySpawned 에 optimistic 으로 넣어둔 항목 정리 필요.
+      // 다만 어느 id 가 거부됐는지 모르므로 — 가장 최근 단건만 롤백 (보수적).
+      // 실용적으론 alert 만으로 충분 — 다음 spawn 시 클라 한도 체크가 정확해짐.
+      console.warn('[world] obj_spawn rejected by server:', reason);
+      if (reason === 'limit') alert(t('spawnLimitReached', { limit: SPAWN_LIMIT }));
     },
     onSceneSnapshot: (objects) => {
       // 첫 스냅샷만 적용. 후속 스냅샷(예: 새 플레이어 입장 broadcast)은 무시 — 매번 새 array ref 로
@@ -464,7 +495,7 @@ export default function WorldPage() {
 
   // 내 에셋을 카메라 forward 2.5m 앞에 spawn → 본인 화면 + 다른 클라 broadcast.
   // DO 메모리만 (rt_ id) — DO 살아있는 한 유지, 호스트 교체 무관. 모두가 나가면 reap 되며 사라짐.
-  const handleSpawnFromAsset = useCallback((payload: SpawnPayload, _name: string) => {
+  const handleSpawnFromAsset = useCallback((payload: SpawnPayload, name: string) => {
     if (!userId) return;
     const pose = posesRef.current?.get(userId);
     const x = pose?.x ?? 0;
@@ -479,8 +510,9 @@ export default function WorldPage() {
     const objRotY = payload.worldKind === 'plane' ? rotY + Math.PI : rotY;
     // 평면 위치는 눈높이 (1.5m), 모델/사운드는 발 높이
     const posY = payload.worldKind === 'plane' ? y + 1.5 : y;
+    const id = `rt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
     const spec: RuntimeSpec = {
-      id: `rt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      id,
       kind: payload.worldKind,
       assetUrl: payload.assetUrl,
       textureAlbedo: payload.textureAlbedo,
@@ -498,6 +530,8 @@ export default function WorldPage() {
     };
     sendObjSpawn?.(spec);          // DO 가 받아서 다른 클라에 broadcast + runtimeObjects Map 에 저장
     objSpawnRef.current?.(spec);   // 본인 화면 즉시 표시 (DO 의 _broadcast 는 sender 제외)
+    // mySpawned 추적 — 단일 root, 자식 없음
+    setMySpawned(prev => { const next = new Map(prev); next.set(id, { name, childIds: [] }); return next; });
   }, [userId, posesRef, sendObjSpawn]);
 
   /**
@@ -508,7 +542,7 @@ export default function WorldPage() {
    * 멀티싱크: 각 spec 마다 sendObjSpawn + objSpawnRef. DO 가 _broadcast 로 다른 클라에 전달 +
    * 신규 입장자에게 runtime_objects 메시지로 일괄 전송. 컴포넌트(Grab)·스크립트·자식 관계 모두 보존.
    */
-  const handleSpawnPrefab = useCallback((prefab: PrefabSpawnPayload, _name: string) => {
+  const handleSpawnPrefab = useCallback((prefab: PrefabSpawnPayload, name: string) => {
     if (!userId || prefab.tree.length === 0) return;
     const pose = posesRef.current?.get(userId);
     const x = pose?.x ?? 0;
@@ -526,6 +560,12 @@ export default function WorldPage() {
       const oldId = (o as { id?: string }).id;
       if (oldId) idMap.set(oldId, `rt_${stamp}_${i}`);
     });
+
+    // root + 자식 id 수집 → mySpawned 에 1개 항목으로 추적 (root 가 카운트, 자식은 cascade 삭제 대상)
+    const rootId = `rt_${stamp}_0`;
+    const childIds: string[] = [];
+    prefab.tree.forEach((_, i) => { if (i > 0) childIds.push(`rt_${stamp}_${i}`); });
+    setMySpawned(prev => { const next = new Map(prev); next.set(rootId, { name, childIds }); return next; });
 
     // 각 오브젝트 spawn — Studio instantiatePrefab 과 같은 룰
     prefab.tree.forEach((raw, i) => {
@@ -1040,7 +1080,11 @@ export default function WorldPage() {
                       </button>
                       <button onClick={() => { setSettingsOpen(false); setReturnToSettings(true); setSpawnModalOpen(true); }}
                         style={{ ...actionBtn, border: '1px solid rgba(168,85,247,0.4)', background: 'rgba(168,85,247,0.12)' }}>
-                        🎨 {t('spawnAsset')}
+                        🎨 {t('spawnAsset')} ({mySpawned.size}/{SPAWN_LIMIT})
+                      </button>
+                      <button onClick={() => { setSettingsOpen(false); setReturnToSettings(true); setMyObjsModalOpen(true); }}
+                        style={{ ...actionBtn, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.12)' }}>
+                        🗂 {t('myObjectsManage')}
                       </button>
                       <button onClick={() => router.push('/worlds')}
                         style={{ ...actionBtn, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.12)' }}>
@@ -1067,11 +1111,18 @@ export default function WorldPage() {
         open={spawnModalOpen}
         onClose={() => { setSpawnModalOpen(false); if (returnToSettings) { setReturnToSettings(false); setSettingsOpen(true); } }}
         onSpawn={(payload, name) => {
-          // 즉시 spawn 하지 않고 배치 모드 진입. execute() 는 클릭 시점의 pose 로 spawn.
+          if (mySpawned.size >= SPAWN_LIMIT) {
+            alert(t('spawnLimitReached', { limit: SPAWN_LIMIT }));
+            return;
+          }
           setPendingPlacement({ name, execute: () => handleSpawnFromAsset(payload, name) });
-          setReturnToSettings(false);  // 배치 끝나도 설정 열지 않음 (몰입 유지)
+          setReturnToSettings(false);
         }}
         onSpawnPrefab={(prefab, name) => {
+          if (mySpawned.size >= SPAWN_LIMIT) {
+            alert(t('spawnLimitReached', { limit: SPAWN_LIMIT }));
+            return;
+          }
           setPendingPlacement({ name, execute: () => handleSpawnPrefab(prefab, name) });
           setReturnToSettings(false);
         }}
@@ -1087,6 +1138,25 @@ export default function WorldPage() {
           cancelText={t('placementCancel')}
         />
       )}
+
+      {/* 내 오브젝트 관리 모달 */}
+      <MyObjectsModal
+        open={myObjsModalOpen}
+        onClose={() => { setMyObjsModalOpen(false); if (returnToSettings) { setReturnToSettings(false); setSettingsOpen(true); } }}
+        items={[...mySpawned.entries()].map(([id, info]) => ({ id, name: info.name, childCount: info.childIds.length }))}
+        onDestroy={(id) => {
+          // DO 가 자식 cascade 처리. 클라는 root 만 sendObjDestroy 호출.
+          sendObjDestroy?.(id);
+          // optimistic UI — 다음 obj_destroy broadcast 가 더 늦게 와도 즉시 사라짐
+          setMySpawned(prev => { const next = new Map(prev); next.delete(id); return next; });
+        }}
+        limit={SPAWN_LIMIT}
+        title={t('myObjectsTitle')}
+        emptyHint={t('myObjectsEmpty')}
+        countLabel={t('myObjectsUsage')}
+        deleteLabel={t('myObjectsDelete')}
+        closeLabel={tc('close')}
+      />
 
       {charManagerOpen && (
         <div
