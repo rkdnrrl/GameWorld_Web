@@ -7,7 +7,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useGameSocket } from '@/lib/world/useGameSocket';
 import { useGraphicsSettings } from '@/lib/world/graphicsSettings';
 import { session } from '@/lib/api';
-import { WorldSpawnModal, type SpawnPayload } from '@/components/world/WorldSpawnModal';
+import { WorldSpawnModal, type SpawnPayload, type PrefabSpawnPayload } from '@/components/world/WorldSpawnModal';
 
 const WorldCanvas = dynamic(() => import('@/components/world/WorldCanvas'), { ssr: false });
 const GraphicsPanel = dynamic(() => import('@/components/world/GraphicsPanel'), { ssr: false });
@@ -494,6 +494,65 @@ export default function WorldPage() {
     };
     sendObjSpawn?.(spec);          // DO 가 받아서 다른 클라에 broadcast + runtimeObjects Map 에 저장
     objSpawnRef.current?.(spec);   // 본인 화면 즉시 표시 (DO 의 _broadcast 는 sender 제외)
+  }, [userId, posesRef, sendObjSpawn]);
+
+  /**
+   * Prefab spawn — Studio 의 savePrefab payload `{version, root, tree}` 형식.
+   * tree[0] = root (parentId 없음). 나머지는 자식. 모든 오브젝트에 새 rt_ id 부여 + parentId remap.
+   * root 위치만 캐릭터 앞 2.5m 으로 덮어쓰고, 자식은 local position 유지 (parent 기준).
+   *
+   * 멀티싱크: 각 spec 마다 sendObjSpawn + objSpawnRef. DO 가 _broadcast 로 다른 클라에 전달 +
+   * 신규 입장자에게 runtime_objects 메시지로 일괄 전송. 컴포넌트(Grab)·스크립트·자식 관계 모두 보존.
+   */
+  const handleSpawnPrefab = useCallback((prefab: PrefabSpawnPayload, _name: string) => {
+    if (!userId || prefab.tree.length === 0) return;
+    const pose = posesRef.current?.get(userId);
+    const x = pose?.x ?? 0;
+    const y = pose?.y ?? 1;
+    const z = pose?.z ?? 0;
+    const rotY = pose?.rotY ?? 0;
+    const fx = Math.sin(rotY);
+    const fz = Math.cos(rotY);
+    const DIST = 2.5;
+    const stamp = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+
+    // 옛 id → 새 rt_ id 매핑
+    const idMap = new Map<string, string>();
+    prefab.tree.forEach((o, i) => {
+      const oldId = (o as { id?: string }).id;
+      if (oldId) idMap.set(oldId, `rt_${stamp}_${i}`);
+    });
+
+    // 각 오브젝트 spawn — Studio instantiatePrefab 과 같은 룰
+    prefab.tree.forEach((raw, i) => {
+      const o = raw as Record<string, unknown> & {
+        id?: string;
+        parentId?: string;
+        kind?: string;
+        position?: [number, number, number];
+        rotation?: [number, number, number];
+        scale?: [number, number, number];
+        color?: string;
+        physics?: 'none' | 'fixed' | 'dynamic';
+      };
+      const isRoot = i === 0;
+      const newId = idMap.get(o.id || '') || `rt_${stamp}_${i}`;
+      const newParent = o.parentId ? idMap.get(o.parentId) : undefined;
+      const spec: RuntimeSpec = {
+        ...o,
+        id: newId,
+        parentId: newParent,
+        kind:     o.kind || 'cube',
+        // root 만 캐릭터 앞으로. 자식은 prefab 의 local position 유지.
+        position: isRoot ? [x + fx * DIST, y, z + fz * DIST] : (o.position || [0, 0, 0]),
+        rotation: isRoot ? [0, rotY + Math.PI, 0] : (o.rotation || [0, 0, 0]),
+        scale:    o.scale || [1, 1, 1],
+        color:    o.color || '#ffffff',
+        physics:  o.physics || 'none',
+      } as RuntimeSpec;
+      sendObjSpawn?.(spec);
+      objSpawnRef.current?.(spec);
+    });
   }, [userId, posesRef, sendObjSpawn]);
 
   // WorldCanvas 에 넘길 customObjects.
@@ -1004,6 +1063,7 @@ export default function WorldPage() {
         open={spawnModalOpen}
         onClose={() => { setSpawnModalOpen(false); if (returnToSettings) { setReturnToSettings(false); setSettingsOpen(true); } }}
         onSpawn={handleSpawnFromAsset}
+        onSpawnPrefab={handleSpawnPrefab}
       />
 
       {charManagerOpen && (

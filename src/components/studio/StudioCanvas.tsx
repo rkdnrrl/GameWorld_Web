@@ -8102,6 +8102,15 @@ export default function StudioCanvas() {
                     <button type="button" style={itemStyle} onMouseEnter={hover(true)} onMouseLeave={hover(false)}
                       onClick={() => { reparentObject(treeCtxMenu.objId!, null); setTreeCtxMenu(null); }}>⤴ {t('unparent')}</button>
                   )}
+                  <button type="button" style={itemStyle} onMouseEnter={hover(true)} onMouseLeave={hover(false)}
+                    onClick={() => {
+                      // 우클릭 노드를 selected 로 만들고 기존 savePrefab() 호출 (자식 트리 + 썸네일 자동)
+                      const id = treeCtxMenu.objId!;
+                      setTreeCtxMenu(null);
+                      setSelectedId(id);
+                      // selRef 동기화 위해 다음 tick 에 호출
+                      setTimeout(() => { void savePrefab(); }, 0);
+                    }}>🧩 {t('saveAsPrefab') ?? '프리팹으로 저장'}</button>
                   <button type="button" style={{ ...itemStyle, color: '#fca5a5' }} onMouseEnter={hover(true)} onMouseLeave={hover(false)}
                     onClick={() => {
                       const id = treeCtxMenu.objId!;

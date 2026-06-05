@@ -3661,6 +3661,13 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           soundLoop: spec.soundLoop,
           soundAutoplay: spec.soundAutoplay,
           soundRadius: spec.soundRadius,
+          // Prefab — 컴포넌트·스크립트·자식 연결. 멀티싱크는 기존 sendScriptEvent / sendObjectStates 인프라가 처리.
+          components: spec.components as UserMapObject['components'],
+          script: spec.script,
+          scriptVars: spec.scriptVars as UserMapObject['scriptVars'],
+          grabbable: spec.grabbable,
+          parentId: spec.parentId,
+          label: spec.label,
         };
         return [...prev, obj];
       });
