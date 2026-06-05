@@ -33,6 +33,39 @@ function yieldToMain(): Promise<void> {
   return new Promise<void>(resolve => setTimeout(resolve, 0));
 }
 
+/**
+ * 캐릭터 로딩 중 표시되는 이펙트 — 발밑 펄스 링 + 회전 wireframe 실린더.
+ * char 가 set 되면 부모 컴포넌트에서 unmount → 즉시 사라짐.
+ */
+function LoadingEffect({ targetHeight }: { targetHeight: number }) {
+  const cylRef = useRef<THREE.Mesh>(null);
+  const ringRef = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    const t = clock.getElapsedTime();
+    if (cylRef.current) cylRef.current.rotation.y = t * 1.5;
+    if (ringRef.current) {
+      const s = 1 + Math.sin(t * 3) * 0.15;
+      ringRef.current.scale.set(s, 1, s);
+      const mat = ringRef.current.material as THREE.MeshBasicMaterial;
+      mat.opacity = 0.45 + Math.sin(t * 3) * 0.25;
+    }
+  });
+  return (
+    <group>
+      {/* 발밑 펄스 링 — 스폰 마커 */}
+      <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+        <ringGeometry args={[0.35, 0.48, 32]} />
+        <meshBasicMaterial color="#a5b4fc" transparent opacity={0.6} side={THREE.DoubleSide} depthWrite={false} />
+      </mesh>
+      {/* 회전 wireframe 실린더 — 캐릭터 자리 표시 (수직) */}
+      <mesh ref={cylRef} position={[0, targetHeight / 2, 0]}>
+        <cylinderGeometry args={[0.3, 0.3, targetHeight, 8, 1, true]} />
+        <meshBasicMaterial color="#818cf8" wireframe transparent opacity={0.35} depthWrite={false} />
+      </mesh>
+    </group>
+  );
+}
+
 /** 슬롯별 raw 애니메이션 source 모듈 캐시 — 캐릭터별 retarget 위해 한 번만 로드. */
 const animSourceCache = new Map<string, Promise<AnimationSource>>();
 function getAnimationSource(url: string, slot: string): Promise<AnimationSource> {
@@ -471,5 +504,11 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
   });
 
   // group 에 user 의 scale + offsetY 적용 (char.scene 은 base 정규화만, 누적 변경 X)
-  return <group ref={groupRef} position={[0, offsetY, 0]} scale={userScale} />;
+  // char 가 로드되기 전에는 LoadingEffect 표시 → char 도착 즉시 React 가 unmount.
+  // char.scene 은 별도 useEffect 에서 group.add() 로 직접 부착되므로 JSX children 과 공존 OK.
+  return (
+    <group ref={groupRef} position={[0, offsetY, 0]} scale={userScale}>
+      {!char && <LoadingEffect targetHeight={targetHeight} />}
+    </group>
+  );
 }
