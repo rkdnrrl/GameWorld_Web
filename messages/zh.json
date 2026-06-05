@@ -1764,6 +1764,8 @@
     "spawnTab_audio": "音频",
     "spawnTab_prefab": "预制件",
     "noPrefabs": "暂无预制件。在 Studio 中右键对象 → 保存为预制件。",
+    "placementHint": "放置模式 — 点击在准星方向生成",
+    "placementCancel": "按 ESC 取消",
     "searchAssets": "搜索…",
     "noAssetsForKind": "没有此类资源。请到资源页面上传。",
     "spawnInFrontHint": "选定后会在角色前方2.5米生成。会话结束即消失。"

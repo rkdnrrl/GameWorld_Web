@@ -1764,6 +1764,8 @@
     "spawnTab_audio": "オーディオ",
     "spawnTab_prefab": "プレハブ",
     "noPrefabs": "プレハブがありません。Studio でオブジェクトを右クリック → プレハブとして保存。",
+    "placementHint": "配置モード — クリックでクロスヘア方向に生成",
+    "placementCancel": "ESC でキャンセル",
     "searchAssets": "検索…",
     "noAssetsForKind": "この種類のアセットがありません。アセットページからアップロードしてください。",
     "spawnInFrontHint": "選択するとキャラクターの2.5m前に生成されます。セッション終了で消えます。"

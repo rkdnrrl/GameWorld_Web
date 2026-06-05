@@ -8,6 +8,7 @@ import { useGameSocket } from '@/lib/world/useGameSocket';
 import { useGraphicsSettings } from '@/lib/world/graphicsSettings';
 import { session } from '@/lib/api';
 import { WorldSpawnModal, type SpawnPayload, type PrefabSpawnPayload } from '@/components/world/WorldSpawnModal';
+import { PlacementOverlay } from '@/components/world/PlacementOverlay';
 
 const WorldCanvas = dynamic(() => import('@/components/world/WorldCanvas'), { ssr: false });
 const GraphicsPanel = dynamic(() => import('@/components/world/GraphicsPanel'), { ssr: false });
@@ -112,6 +113,9 @@ export default function WorldPage() {
   const [charManagerOpen, setCharManagerOpen] = useState(false);
   // 월드 안에서 내 에셋 spawn — DO 메모리만, 세션 동안 유지
   const [spawnModalOpen, setSpawnModalOpen] = useState(false);
+  // 배치 모드 — 모달에서 선택 후 캔버스 클릭으로 spawn 시점 확정 (Sims/Roblox 식).
+  // pendingPlacement.execute() 는 현재 pose 기준으로 spawn 발사 (클릭 시 호출).
+  const [pendingPlacement, setPendingPlacement] = useState<{ name: string; execute: () => void } | null>(null);
   const closeCharManager = () => {
     setCharManagerOpen(false);
     if (returnToSettings) { setReturnToSettings(false); setSettingsOpen(true); }
@@ -1062,9 +1066,27 @@ export default function WorldPage() {
       <WorldSpawnModal
         open={spawnModalOpen}
         onClose={() => { setSpawnModalOpen(false); if (returnToSettings) { setReturnToSettings(false); setSettingsOpen(true); } }}
-        onSpawn={handleSpawnFromAsset}
-        onSpawnPrefab={handleSpawnPrefab}
+        onSpawn={(payload, name) => {
+          // 즉시 spawn 하지 않고 배치 모드 진입. execute() 는 클릭 시점의 pose 로 spawn.
+          setPendingPlacement({ name, execute: () => handleSpawnFromAsset(payload, name) });
+          setReturnToSettings(false);  // 배치 끝나도 설정 열지 않음 (몰입 유지)
+        }}
+        onSpawnPrefab={(prefab, name) => {
+          setPendingPlacement({ name, execute: () => handleSpawnPrefab(prefab, name) });
+          setReturnToSettings(false);
+        }}
       />
+
+      {/* 배치 모드 오버레이 — 캔버스 어디든 클릭하면 spawn, ESC 로 취소 */}
+      {pendingPlacement && (
+        <PlacementOverlay
+          name={pendingPlacement.name}
+          onConfirm={() => { pendingPlacement.execute(); setPendingPlacement(null); }}
+          onCancel={() => setPendingPlacement(null)}
+          hintText={t('placementHint', { name: pendingPlacement.name })}
+          cancelText={t('placementCancel')}
+        />
+      )}
 
       {charManagerOpen && (
         <div
