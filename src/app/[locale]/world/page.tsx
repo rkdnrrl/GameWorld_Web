@@ -564,23 +564,29 @@ export default function WorldPage() {
     },
   });
 
-  // 내 에셋을 카메라 forward 2.5m 앞에 spawn → 본인 화면 + 다른 클라 broadcast.
-  // DO 메모리만 (rt_ id) — DO 살아있는 한 유지, 호스트 교체 무관. 모두가 나가면 reap 되며 사라짐.
-  const handleSpawnFromAsset = useCallback((payload: SpawnPayload, name: string) => {
+  // 내 에셋 spawn — ghost 가 위치 ref 를 갖고 있으면 그 정확한 위치 사용 (크로스헤어 정확히).
+  // ghost 없으면 pose 기반 fallback (캐릭터 forward 2.5m).
+  const handleSpawnFromAsset = useCallback((payload: SpawnPayload, name: string, ghostPos?: { x: number; y: number; z: number; rotY: number } | null) => {
     if (!userId) return;
-    const pose = posesRef.current?.get(userId);
-    const x = pose?.x ?? 0;
-    const y = pose?.y ?? 1;
-    const z = pose?.z ?? 0;
-    const rotY = pose?.rotY ?? 0;
-    // ALP convention: forward = (sin(rotY), cos(rotY)) — WorldCanvas L3174 참고
-    const fx = Math.sin(rotY);
-    const fz = Math.cos(rotY);
-    const DIST = 2.5;
+    let x: number, y: number, z: number, rotY: number;
+    if (ghostPos) {
+      // ghost 가 매 frame 갱신한 위치 사용 — 카메라 시선 정확히 (pitch 포함)
+      x = ghostPos.x; y = ghostPos.y; z = ghostPos.z; rotY = ghostPos.rotY;
+    } else {
+      // fallback: 캐릭터 pose 기반
+      const pose = posesRef.current?.get(userId);
+      rotY = pose?.rotY ?? 0;
+      const fx = Math.sin(rotY);
+      const fz = Math.cos(rotY);
+      const DIST = 2.5;
+      x = (pose?.x ?? 0) + fx * DIST;
+      y = pose?.y ?? 1;
+      z = (pose?.z ?? 0) + fz * DIST;
+    }
     // 이미지/비디오 평면은 본인 쪽을 향해야 함 → rotY + π
     const objRotY = payload.worldKind === 'plane' ? rotY + Math.PI : rotY;
-    // 평면 위치는 눈높이 (1.5m), 모델/사운드는 발 높이
-    const posY = payload.worldKind === 'plane' ? y + 1.5 : y;
+    // ghost 가 위치 알려주면 y 그대로 (카메라 시선 위치). fallback 만 plane 일 때 눈높이 보정.
+    const posY = ghostPos ? y : (payload.worldKind === 'plane' ? y + 1.5 : y);
     const id = `rt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
     const spec: RuntimeSpec = {
       id,
@@ -593,7 +599,7 @@ export default function WorldPage() {
       soundLoop: payload.soundUrl ? true : undefined,
       soundAutoplay: payload.soundUrl ? true : undefined,
       soundRadius: payload.soundUrl ? 10 : undefined,
-      position: [x + fx * DIST, posY, z + fz * DIST],
+      position: [x, posY, z],
       rotation: [0, objRotY, 0],
       scale: payload.defaultScale,
       color: '#ffffff',
@@ -614,16 +620,21 @@ export default function WorldPage() {
    * 멀티싱크: 각 spec 마다 sendObjSpawn + objSpawnRef. DO 가 _broadcast 로 다른 클라에 전달 +
    * 신규 입장자에게 runtime_objects 메시지로 일괄 전송. 컴포넌트(Grab)·스크립트·자식 관계 모두 보존.
    */
-  const handleSpawnPrefab = useCallback((prefab: PrefabSpawnPayload, name: string) => {
+  const handleSpawnPrefab = useCallback((prefab: PrefabSpawnPayload, name: string, ghostPos?: { x: number; y: number; z: number; rotY: number } | null) => {
     if (!userId || prefab.tree.length === 0) return;
-    const pose = posesRef.current?.get(userId);
-    const x = pose?.x ?? 0;
-    const y = pose?.y ?? 1;
-    const z = pose?.z ?? 0;
-    const rotY = pose?.rotY ?? 0;
-    const fx = Math.sin(rotY);
-    const fz = Math.cos(rotY);
-    const DIST = 2.5;
+    let x: number, y: number, z: number, rotY: number;
+    if (ghostPos) {
+      x = ghostPos.x; y = ghostPos.y; z = ghostPos.z; rotY = ghostPos.rotY;
+    } else {
+      const pose = posesRef.current?.get(userId);
+      rotY = pose?.rotY ?? 0;
+      const fx = Math.sin(rotY);
+      const fz = Math.cos(rotY);
+      const DIST = 2.5;
+      x = (pose?.x ?? 0) + fx * DIST;
+      y = pose?.y ?? 1;
+      z = (pose?.z ?? 0) + fz * DIST;
+    }
     const stamp = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 
     // 옛 id → 새 rt_ id 매핑
@@ -659,8 +670,8 @@ export default function WorldPage() {
         id: newId,
         parentId: newParent,
         kind:     o.kind || 'cube',
-        // root 만 캐릭터 앞으로. 자식은 prefab 의 local position 유지.
-        position: isRoot ? [x + fx * DIST, y, z + fz * DIST] : (o.position || [0, 0, 0]),
+        // root 만 ghost/캐릭터 앞 위치. 자식은 prefab 의 local position 유지.
+        position: isRoot ? [x, y, z] : (o.position || [0, 0, 0]),
         rotation: isRoot ? [0, rotY + Math.PI, 0] : (o.rotation || [0, 0, 0]),
         scale:    o.scale || [1, 1, 1],
         color:    o.color || '#ffffff',
@@ -1199,10 +1210,12 @@ export default function WorldPage() {
           setSpawnModalOpen(false);
           setSettingsOpen(false);
           setReturnToSettings(false);
+          // ghost 객체를 변수로 잡아 execute 클로저가 매 frame 갱신된 poseRef 를 읽도록.
+          const ghost = ghostFromSpawnPayload(payload);
           setPendingPlacement({
             name,
-            execute: () => handleSpawnFromAsset(payload, name),
-            ghost: ghostFromSpawnPayload(payload),
+            execute: () => handleSpawnFromAsset(payload, name, ghost.poseRef?.current ?? undefined),
+            ghost,
           });
         }}
         onSpawnPrefab={(prefab, name) => {
@@ -1213,10 +1226,11 @@ export default function WorldPage() {
           setSpawnModalOpen(false);
           setSettingsOpen(false);
           setReturnToSettings(false);
+          const ghost = ghostFromPrefab(prefab);
           setPendingPlacement({
             name,
-            execute: () => handleSpawnPrefab(prefab, name),
-            ghost: ghostFromPrefab(prefab),
+            execute: () => handleSpawnPrefab(prefab, name, ghost.poseRef?.current ?? undefined),
+            ghost,
           });
         }}
       />

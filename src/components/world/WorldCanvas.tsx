@@ -1,7 +1,7 @@
 'use client';
 import React, { Suspense, useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Html, Sky, Text, Environment, useProgress, PerformanceMonitor } from '@react-three/drei';
+import { Billboard, Html, Sky, Text, Environment, useProgress, PerformanceMonitor } from '@react-three/drei';
 import { Physics, RigidBody, CapsuleCollider, CuboidCollider, useRapier } from '@react-three/rapier';
 import { devLog } from '@/lib/devLog';
 import { findLipSyncTarget, readAnalyserLevel, smoothLevel, applyLipSync, ANALYSER_BUFFER_SIZE, type LipSyncTarget } from '@/lib/world/lipSync';
@@ -2155,16 +2155,18 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick,
             런타임 emoteLoopMap 은 client-local 이라 sync 못 함 — 캐릭터 등록 시 영구 매핑만 따름. */}
         <CharacterMesh appearance={appearance} animStateRef={animStateRef} castShadow={castShadow ?? false} emoteOneShotOverride={Array.isArray(appearance.animOneShot) ? (appearance.animOneShot as unknown[]).map(String) : []} getAnalyser={getAnalyser} />
       </group>
-      <Text
-        position={[0, 1.8, 0]}
-        fontSize={0.22}
-        color="white"
-        anchorX="center"
-        outlineWidth={0.03}
-        outlineColor="#000"
-      >
-        {player.username}
-      </Text>
+      {/* Billboard: 캐릭터 group 의 회전과 무관하게 항상 카메라 정면 향함 — 어느 방향에서 봐도 읽힘. */}
+      <Billboard position={[0, 1.8, 0]} follow={true} lockX={false} lockY={false} lockZ={false}>
+        <Text
+          fontSize={0.22}
+          color="white"
+          anchorX="center"
+          outlineWidth={0.03}
+          outlineColor="#000"
+        >
+          {player.username}
+        </Text>
+      </Billboard>
       {bubble && (
         <Html position={[0, 2.12, 0]} center>
           <div

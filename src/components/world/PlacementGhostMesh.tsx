@@ -33,6 +33,11 @@ export function PlacementGhostMesh({ ghost, localPoseRef }: {
     // 회전은 yaw 만 (수평 방향) — 오브젝트가 뒤집어지지 않도록 pitch 무시.
     const fy = _fwd.x === 0 && _fwd.z === 0 ? 0 : Math.atan2(_fwd.x, _fwd.z) + Math.PI;
     g.rotation.y = ghost.faceCamera ? fy + Math.PI : fy;
+    // spawn 시점에서 ghost 의 정확한 위치/회전을 읽을 수 있게 ref 에 기록.
+    // (faceCamera 보정 전 raw yaw 를 저장 — spawn 코드가 자체 보정)
+    if (ghost.poseRef) {
+      ghost.poseRef.current = { x: g.position.x, y: g.position.y, z: g.position.z, rotY: fy };
+    }
     // 펄스 — 1.0 ~ 1.08 scale 진동 (시각적 신호)
     const pulse = 1.0 + Math.sin(clock.elapsedTime * 4) * 0.04;
     g.scale.setScalar(pulse);

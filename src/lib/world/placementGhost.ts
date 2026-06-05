@@ -22,30 +22,41 @@ export interface GhostPart {
   color: string;
 }
 
+/** ghost 의 현재 world 위치/회전 — PlacementGhostMesh 가 매 frame 갱신, spawn 핸들러가 읽음. */
+export interface GhostPose {
+  x: number; y: number; z: number; rotY: number;
+}
+
 export interface PlacementGhost {
   parts: GhostPart[];
   /** plane 류 (이미지/비디오) 는 본인쪽으로 향해야 자연스러움 → root rotation 반대로 회전 */
   faceCamera: boolean;
+  /** PlacementGhostMesh 가 매 frame 갱신하는 현재 world 위치. spawn 핸들러가 이걸 우선 사용. */
+  poseRef?: { current: GhostPose | null };
 }
 
 /** 단일 에셋 (모델/이미지/비디오/오디오) → 고스트 */
 export function ghostFromSpawnPayload(payload: SpawnPayload): PlacementGhost {
+  const poseRef = { current: null as GhostPose | null };
   if (payload.worldKind === 'plane') {
     return {
       parts: [{ shape: 'plane', localPos: [0, 0, 0], localRot: [0, 0, 0], scale: payload.defaultScale, color: '#a78bfa' }],
       faceCamera: true,
+      poseRef,
     };
   }
   if (payload.worldKind === 'sound') {
     return {
       parts: [{ shape: 'sphere', localPos: [0, 0, 0], localRot: [0, 0, 0], scale: [0.3, 0.3, 0.3], color: '#fbbf24' }],
       faceCamera: false,
+      poseRef,
     };
   }
   // worldKind === 'asset' — wireframe box (실제 모델 로드 X — 너무 무거움)
   return {
     parts: [{ shape: 'asset', localPos: [0, 0, 0], localRot: [0, 0, 0], scale: payload.defaultScale, color: '#a78bfa' }],
     faceCamera: false,
+    poseRef,
   };
 }
 
@@ -69,7 +80,7 @@ export function ghostFromPrefab(prefab: PrefabSpawnPayload): PlacementGhost {
       color: o.color || '#a78bfa',
     });
   }
-  return { parts, faceCamera: false };
+  return { parts, faceCamera: false, poseRef: { current: null } };
 }
 
 function kindToShape(kind: string): GhostShape {
