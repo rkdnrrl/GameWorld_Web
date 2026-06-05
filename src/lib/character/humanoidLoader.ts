@@ -138,11 +138,24 @@ export async function loadHumanoid(url: string, opts: HumanoidLoadOptions = {}):
     // VRM 0.x → 1.0 좌표계 정렬 (1.0 모델에선 noop)
     try { vrmMod.VRMUtils.rotateVRM0(vrm); } catch { /* noop */ }
     // frustumCulled=true (기본값) — 화면 밖 mesh 안 그리게 → 정면 시점 fps 큰 절감.
-    // 단 SkinnedMesh 의 boundingSphere 가 bind pose 기준이라 큰 회전/이동 시
-    // 부정확할 수 있음. 그 경우 mesh.frustumCulled = false 로 개별 예외.
+    // MToon outline 끄기 — outline pass 가 view direction 의존이라 카메라 회전 시 큰 비용.
+    // VRM 의 toon 표현이 좀 약해지지만 fps 우선.
     vrm.scene.traverse((c: THREE.Object3D) => {
       const m = c as THREE.Mesh;
-      if (m.isMesh) { m.castShadow = true; }
+      if (m.isMesh) {
+        m.castShadow = true;
+        // MToon 셰이더는 mat.userData.outlineWidthMode 등 outline 옵션 노출.
+        // outlineWidth = 0 으로 outline pass 비활성화 (draw call ↓ + fragment 비용 ↓).
+        const mats = Array.isArray(m.material) ? m.material : [m.material];
+        for (const mat of mats) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const mtoon = mat as any;
+          if (mtoon && (mtoon.isMToonMaterial || mtoon.type === 'ShaderMaterial' && mtoon.outlineWidthFactor !== undefined)) {
+            if (typeof mtoon.outlineWidthFactor === 'number') mtoon.outlineWidthFactor = 0;
+            if (typeof mtoon.outlineWidthMode === 'string') mtoon.outlineWidthMode = 'none';
+          }
+        }
+      }
     });
 
     const { boneByName, morphTargets } = collectBonesAndMorphs(vrm.scene);
