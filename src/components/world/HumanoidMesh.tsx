@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { createHumanoidCharacter, type HumanoidCharacter } from '@/lib/character/humanoidCharacter';
-import { loadAnimationSource, retargetWithSkeletonUtils, normalizeClipToHumanoidNames, retargetClipToHumanoid, calibrateCrouchHipsTrack, type AnimationSource } from '@/lib/character/humanoidAnimation';
+import { loadAnimationSource, retargetWithSkeletonUtils, normalizeClipToHumanoidNames, retargetClipToHumanoid, measureCrouchDepth, type AnimationSource } from '@/lib/character/humanoidAnimation';
 import { ANIM_SLOTS, ANIM_SLOT_LEGACY_ALIAS, type AnimSlot } from '@/lib/character/humanoid';
 import { createHumanoidFootIK, type HumanoidFootIK } from '@/lib/character/humanoidFootIK';
 import { loadVRMA, vrmaToClip, vrmaToUniversalClip, fbxToVrmClip } from '@/lib/character/vrmAnimation';
@@ -121,6 +121,10 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
   const groupRef = useRef<THREE.Group>(null);
   const [char, setChar] = useState<HumanoidCharacter | null>(null);
   const footIKRef = useRef<HumanoidFootIK | null>(null);
+  /** 현재 적용된 crouch scene Y offset (음수 = scene 이 내려감). 슬롯 변경 시 diff 계산. */
+  const appliedCrouchOffsetRef = useRef(0);
+  /** 캐릭터 인스턴스 추적 — 바뀌면 offset reset. */
+  const lastCharForCrouchRef = useRef<HumanoidCharacter | null>(null);
 
   // 모델 로드 + 클립 로드 + 슬롯 등록 (한 번)
   useEffect(() => {
@@ -238,18 +242,19 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
               }
               if (retargeted && retargeted.tracks.length > 0) {
                 retargeted.name = slot;
-                // Crouch 슬롯이면 자동 calibration — 다리 회전 시뮬레이션해서 발 lift 측정 후
-                // hips Y track 을 정확한 깊이로 주입. 캐릭터+clip 마다 자동 계산.
+                // Crouch 슬롯이면 depth 측정해서 char.scene.userData 에 저장.
+                // useFrame 에서 슬롯 active 시 scene.position.y -= depth 로 grounding.
                 if (slot.startsWith('crouch') || slot.startsWith('sit') || slot.startsWith('lay') || slot.startsWith('sleep')) {
                   try {
-                    const calibrated = calibrateCrouchHipsTrack(retargeted, c.bones, c.scene);
-                    if (calibrated) {
-                      calibrated.name = slot;
-                      retargeted = calibrated;
-                      console.log(`[humanoid] ${slot} crouch calibrated`);
+                    const depth = measureCrouchDepth(retargeted, c.bones, c.scene);
+                    if (depth !== null) {
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const userData = c.scene.userData as any;
+                      if (!userData.crouchDepths) userData.crouchDepths = {};
+                      userData.crouchDepths[slot] = depth;
                     }
                   } catch (eCal) {
-                    console.warn(`[humanoid] ${slot} calibration 실패`, eCal);
+                    console.warn(`[humanoid] ${slot} depth 측정 실패`, eCal);
                   }
                 }
                 clipMap.set(slot as AnimSlot, retargeted);
@@ -381,7 +386,23 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     }
     // 3) mixer + vrm.update + lookAt
     char.update(dt);
-    // 4) Foot IK (옵션) — Two-Bone IK 솔버. enableFootIK=true 일 때만.
+    // 4) Crouch grounding — 현재 슬롯이 crouch 면 scene.position.y -= depth.
+    //    char.scene.userData.crouchDepths[slot] 에 캐릭터+clip 별 사전 측정된 깊이 저장됨.
+    //    슬롯 변경 시 diff 만 적용 (누적 X).
+    if (char !== lastCharForCrouchRef.current) {
+      lastCharForCrouchRef.current = char;
+      appliedCrouchOffsetRef.current = 0;
+    }
+    const slotName = char.currentSlot || '';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const depths = (char.scene.userData as any).crouchDepths as Record<string, number> | undefined;
+    const targetOffset = (depths && depths[slotName]) || 0;
+    if (targetOffset !== appliedCrouchOffsetRef.current) {
+      const diff = targetOffset - appliedCrouchOffsetRef.current;
+      char.scene.position.y -= diff;  // depth 만큼 scene 내림 (양수 depth → scene Y 감소)
+      appliedCrouchOffsetRef.current = targetOffset;
+    }
+    // 5) Foot IK (옵션) — Two-Bone IK 솔버. enableFootIK=true 일 때만.
     //    Auto grounding 보정 (1회/매-frame 둘 다) 시도했으나 캐릭터/애니마다 발 lift 패턴이
     //    너무 달라 over-correct sink 발생. bind pose normalization (mount 시 box2.min.y) +
     //    hips position strip 만 신뢰. 떠/박힘은 운영자 페이지의 offsetY 슬라이더로 캐릭터별 조정.

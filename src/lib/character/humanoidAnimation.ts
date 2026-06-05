@@ -160,23 +160,20 @@ export function retargetClipsToHumanoid(
 }
 
 /**
- * Crouch 자동 calibration — clip 의 다리 회전을 캐릭터에 여러 frame 시뮬레이션해서
- * 발 본이 bind 대비 얼마나 떴는지의 **median** 측정. 그 lift = hips 가 내려가야 할 양.
+ * Crouch depth 측정 — clip 의 다리 회전을 캐릭터에 7 frame 시뮬레이션해서
+ * 발 본이 bind 대비 얼마나 떴는지의 median 반환 (world units).
  *
- * 단일 frame (t=0) 측정은 wild transition pose / 첫 frame 비표준 케이스 다 깨짐.
- * Mixer 로 7 frame 균등 sample → median 사용. Outlier (transition / extreme) 에 robust.
+ * 호출자는 이 값으로 char.scene.position.y -= depth 적용 → 발이 bind 위치로 복귀 → ground.
+ * 이전엔 hips bone position track 주입 시도했지만 parent scale/transform 처리 복잡해서
+ * 캐릭터마다 결과 다름. scene.position 직접 offset 이 1:1 world unit 이라 robust.
  *
- * 결과를 clip 의 hips position track 에 모든 frame Y = (bindHipsY - depth) 로 강제.
- *
- * @param clip 캐릭터 본 이름으로 retarget 된 crouch clip
- * @param bones 캐릭터의 humanoid bones map
- * @param scene 캐릭터 root scene (parent 없는 상태)
+ * @returns depth (world meters), 측정 실패 또는 1cm 미만이면 null
  */
-export function calibrateCrouchHipsTrack(
+export function measureCrouchDepth(
   clip: THREE.AnimationClip,
   bones: Partial<Record<HumanoidBoneName, THREE.Object3D>>,
   scene: THREE.Object3D,
-): THREE.AnimationClip | null {
+): number | null {
   const hips = bones.hips;
   const lFoot = bones.leftFoot;
   const rFoot = bones.rightFoot;
@@ -187,7 +184,6 @@ export function calibrateCrouchHipsTrack(
   scene.traverse((o) => {
     saved.set(o, { q: o.quaternion.clone(), p: o.position.clone() });
   });
-  const bindHipsY = saved.get(hips)!.p.y;
 
   // 2) bind pose 발 world Y 측정
   scene.updateMatrixWorld(true);
@@ -238,34 +234,9 @@ export function calibrateCrouchHipsTrack(
   // 5) median lift = depth (world units)
   lifts.sort((a, b) => a - b);
   const depth = lifts[Math.floor(lifts.length / 2)];
-  if (!isFinite(depth) || depth < 0.01) return clip;  // 1cm 미만 → 보정 불필요
-
-  // 6) world space 에서 직접 계산 — 캐릭터 모든 parent transform / scale 자동 처리.
-  //    "현재 hips world Y - depth" 가 target world Y. parent.worldToLocal 로 local 변환.
-  //    bindHipsY (local) - depth (world) 직접 빼면 단위 mismatch 로 캐릭터마다 결과 다름.
-  scene.updateMatrixWorld(true);
-  const hipsWorld = hips.getWorldPosition(new THREE.Vector3());
-  const targetWorld = hipsWorld.clone();
-  targetWorld.y -= depth;
-  let constantY: number;
-  if (hips.parent) {
-    hips.parent.updateMatrixWorld(true);
-    const targetLocal = targetWorld.clone();
-    hips.parent.worldToLocal(targetLocal);
-    constantY = targetLocal.y;
-  } else {
-    constantY = bindHipsY - depth;  // fallback
-  }
-
-  // 7) Hips position track 주입 (constant, local units)
-  const newTracks = clip.tracks.filter((t) => t.name !== hipsPosTrackName);
-  newTracks.push(new THREE.VectorKeyframeTrack(
-    hipsPosTrackName,
-    [0, duration],
-    [0, constantY, 0, 0, constantY, 0],
-  ));
-  console.log(`[crouch-cal] ${clip.name}: lifts=${lifts.map((l) => l.toFixed(3)).join(',')} depth_world=${depth.toFixed(3)} hipsBindWorld=${hipsWorld.y.toFixed(3)} bindHipsY_local=${bindHipsY.toFixed(3)} → hipsY_local=${constantY.toFixed(3)}`);
-  return new THREE.AnimationClip(clip.name, clip.duration, newTracks, clip.blendMode);
+  if (!isFinite(depth) || depth < 0.01) return null;  // 1cm 미만 → 보정 불필요
+  console.log(`[crouch-measure] ${clip.name}: lifts=${lifts.map((l) => l.toFixed(3)).join(',')} depth=${depth.toFixed(3)}m`);
+  return depth;
 }
 
 /** AnimationClip 의 root motion (hips.position) 제거 — 캐릭터가 제자리에서 움직이게.
