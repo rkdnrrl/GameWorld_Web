@@ -340,6 +340,12 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     // 이미 부착되어 있으면 skip
     if (char.scene.parent === groupRef.current) return;
     groupRef.current.add(char.scene);
+    // VRM firstPerson 분류 — 머리(눈/얼굴/머리카락) 를 layer 10 (thirdPersonOnly) 로,
+    // 몸/손/다리 등은 layer 0 (양쪽 모두) 로 자동 분류. WorldCanvas 의 카메라가
+    // 1인칭일 때 layer 10 disable → 머리만 안 보임 (몸은 보임, Dying Light 식).
+    if (char.vrm?.firstPerson) {
+      try { char.vrm.firstPerson.setup(); } catch (e) { console.warn('[humanoid] VRM firstPerson setup 실패', e); }
+    }
     // 셰이더 비동기 컴파일 — 끝나기 전엔 mesh 숨김 (LoadingEffect 가 그 자리 차지).
     // KHR_parallel_shader_compile 지원되면 백그라운드 컴파일 → frame 안 멈춤.
     // 미지원이어도 동기 컴파일 한 번 끝내고 visible → "갑자기 멈춤" 대신 LoadingEffect 가 자연스럽게 교체됨.
@@ -476,14 +482,9 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     } else {
       char.update(dt);
     }
-    // 3.5) 1인칭이면 본인 캐릭터 전체 컬링 (VRChat 식).
-    //      head bone scale 0 은 머리카락/액세서리 등 별도 SkinnedMesh 에 안 먹히고,
-    //      crouch/prone 시 mixer 가 scale 트랙으로 덮어쓰는 문제도 있음.
-    //      scene.visible 직접 토글이 가장 확실 — 모든 mesh + shadow pass 한 번에 skip.
-    //      char.scene.visible 은 (LOD 거리 토글 + compileReady 와) 매 frame 충돌하므로
-    //      hideHead=true 면 항상 false 로 강제. (충돌 우선순위: hideHead > 거리 LOD)
-    if (hideHead && char.scene.visible) char.scene.visible = false;
-    else if (!hideHead && compileReady && !char.scene.visible) char.scene.visible = true;
+    // 3.5) 1인칭에서 머리만 안 보이게 — VRM 의 firstPerson layer 시스템이 자동 처리.
+    //      camera.layers 토글은 WorldCanvas 가 cameraMode 따라 수행 (몸/손은 보임, 머리만 cull).
+    //      여기선 추가 처리 없음 — Repo/Dying Light/Cyberpunk 식 1인칭 몸 표시.
     // 4) Crouch grounding — per-frame 발 lift 측정해서 scene.y 즉시 보정.
     //    Static offset 은 평균 lift 만 잡아서 frame 별 변화로 발이 위아래 흔들림.
     //    매 frame "발 본의 scene-local Y - bind 시 발 본의 scene-local Y" = lift 측정,

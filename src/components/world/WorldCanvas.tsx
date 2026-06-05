@@ -1366,19 +1366,33 @@ export function Player({
   // onKeyDown 내부에서 cameraMode prop을 stale 없이 읽기 위한 ref
   const cameraModeRef = useRef(cameraMode);
   useEffect(() => { cameraModeRef.current = cameraMode; }, [cameraMode]);
-  // 1인칭 진입 시 마우스 커서 자동 숨김(pointer lock), 3인칭 진입 시 해제.
-  // 자동 모드 전환(줌-인) + V 키 + 어디서 모드 바뀌든 일관 처리.
+  // 카메라 모드/입력 lock 따라 pointer lock 자동 관리.
+  //   - inputLocked (채팅·모달 활성): unlock — 텍스트 입력 가능
+  //   - 1인칭/3인칭 모두: lock 유지 — 마우스 커서 안 보임. ESC 로 사용자가 수동 해제 가능.
   useEffect(() => {
-    if (inputLocked) return;  // 입력창/모달 활성 시 lock 안 함
-    if (cameraMode === 'first') {
-      if (document.pointerLockElement !== gl.domElement) {
-        const r = gl.domElement.requestPointerLock() as unknown;
-        if (r && typeof (r as Promise<void>).catch === 'function') (r as Promise<void>).catch(() => {});
-      }
-    } else {
+    if (inputLocked) {
       if (document.pointerLockElement === gl.domElement) document.exitPointerLock();
+      return;
+    }
+    if (document.pointerLockElement !== gl.domElement) {
+      const r = gl.domElement.requestPointerLock() as unknown;
+      if (r && typeof (r as Promise<void>).catch === 'function') (r as Promise<void>).catch(() => {});
     }
   }, [cameraMode, inputLocked, gl]);
+
+  // VRM firstPerson layer mask — 1인칭에 본인 머리 cull (Repo/Dying Light/Cyberpunk 식).
+  //   - vrm.firstPerson.setup() 가 머리를 layer 10 (thirdPersonOnly) 으로 분류.
+  //   - 1인칭: layer 10 disable → 머리 안 보임, 몸/손/다리 그대로 보임
+  //   - 3인칭: 전부 enable → 머리까지 모두 보임
+  // 본인 카메라(R3F PerspectiveCamera) 한 군데만 toggle — 다른 인스턴스 영향 없음.
+  useEffect(() => {
+    const FIRST_PERSON_ONLY_LAYER = 9;
+    const THIRD_PERSON_ONLY_LAYER = 10;
+    camera.layers.enable(0);
+    camera.layers.enable(FIRST_PERSON_ONLY_LAYER);
+    if (cameraMode === 'first') camera.layers.disable(THIRD_PERSON_ONLY_LAYER);
+    else camera.layers.enable(THIRD_PERSON_ONLY_LAYER);
+  }, [cameraMode, camera]);
   // 3인칭 전환 시 grab 자동 해제
   useEffect(() => {
     if (cameraMode !== 'first' && grabbedIdRef.current) {
