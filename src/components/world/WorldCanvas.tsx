@@ -2616,10 +2616,21 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
 
   // Water — 반투명 파란 plane + sin/cos 웨이브 (스튜디오와 동일 디자인).
   if (obj.kind === 'water') {
+    // collider 컴포넌트가 있으면 트리거/충돌 배선 (예: 물에 들어가면 onTriggerEnter → 수영 애니).
+    // 없으면 기존처럼 시각용 group 만 (walk-through).
+    if (physics === 'none' && !colliderArgs) {
+      return (
+        <group ref={groupRef} position={rPos} rotation={rRot} scale={rScale}>
+          <WorldWaterMesh color={obj.color || '#1e88e5'} />
+        </group>
+      );
+    }
     return (
-      <group position={rPos} rotation={rRot} scale={rScale}>
+      <RigidBody ref={bodyRef} type={bodyType} colliders={false}
+        position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }} {...colliderEvents}>
+        {colliderArgs && <CuboidCollider args={colliderArgs} position={colliderOffset} sensor={trig} />}
         <WorldWaterMesh color={obj.color || '#1e88e5'} />
-      </group>
+      </RigidBody>
     );
   }
 
