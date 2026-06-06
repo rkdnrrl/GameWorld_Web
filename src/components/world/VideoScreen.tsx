@@ -312,10 +312,10 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
   void planeW; void planeH;  // 더 이상 사용 안 함 (부모 scale 이 fit 담당)
   const sx = 1 / (YT_IFRAME_W * PX_TO_UNIT);
   const sy = 1 / (YT_IFRAME_H * PX_TO_UNIT);
-  // occlude=true (binary): 다른 오브젝트가 영상 앞에 있으면 visibility 토글로 가림.
-  // blending 의 매 frame alpha 보간 비용 없이 단순 처리 → 깜빡임 줄어듦.
+  // occlude="blending": 다른 오브젝트가 영상 앞을 가리면 alpha 보간으로 영상이 뒤로.
+  // drei 가 매 frame raycast 후 가려진 정도에 따라 opacity 처리 → 자연스러운 z-order.
   return (
-    <Html transform occlude pointerEvents="none" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center>
+    <Html transform occlude="blending" pointerEvents="none" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center>
       <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000' }} />
     </Html>
   );
@@ -389,9 +389,9 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
   const PX_TO_UNIT = 0.03;
   const sx = Math.max(0.01, planeW) / (YT_IFRAME_W * PX_TO_UNIT);
   const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);
-  // occlude=true (binary): 오브젝트가 영상 앞에 있으면 visibility 토글로 가림.
+  // occlude="blending": 오브젝트가 영상 앞을 가리면 alpha 보간으로 영상 뒤로.
   return (
-    <Html transform occlude pointerEvents="auto" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center>
+    <Html transform occlude="blending" pointerEvents="auto" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center>
       <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000', pointerEvents: 'auto' }} />
     </Html>
   );

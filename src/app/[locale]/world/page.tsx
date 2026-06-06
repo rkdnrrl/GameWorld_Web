@@ -96,7 +96,7 @@ export default function WorldPage() {
 
   // 통합 설정 모달 — ⚙ 클릭 또는 ESC 키로 열림. 그래픽/전체화면/허브 옵션 모두 포함.
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'graphics' | 'display' | 'hub' | 'develop'>('graphics');
+  const [settingsTab, setSettingsTab] = useState<'graphics' | 'display' | 'hub' | 'asset' | 'develop'>('graphics');
   // 설정에서 하위 모달(캐릭터/맵/포탈) 진입 시 true → 그 모달 X 닫을 때 설정으로 복귀.
   const [returnToSettings, setReturnToSettings] = useState(false);
   const closeCharModal = () => {
@@ -1023,6 +1023,7 @@ export default function WorldPage() {
           { id: 'graphics', icon: '🎨', label: t('graphics') },
           { id: 'display',  icon: '🖥', label: t('display') },
           { id: 'hub',      icon: '🌐', label: t('hubControl') },
+          { id: 'asset',    icon: '✨', label: t('spawnAsset') },
           { id: 'develop',  icon: '🛠', label: th('develop') },
         ] as const;
         const tabBtn = (active: boolean): React.CSSProperties => ({
@@ -1159,23 +1160,21 @@ export default function WorldPage() {
                     </div>
                   )}
 
+                  {/* ✨ 에셋 추가 */}
+                  {settingsTab === 'asset' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <button onClick={() => { setSettingsOpen(false); setReturnToSettings(true); setSpawnModalOpen(true); }}
+                        style={{ ...actionBtn, border: '1px solid rgba(168,85,247,0.4)', background: 'rgba(168,85,247,0.12)' }}>
+                        🎨 {t('spawnAsset')} ({mySpawned.size}/{SPAWN_LIMIT})
+                      </button>
+                    </div>
+                  )}
+
                   {/* 🛠 개발 */}
                   {settingsTab === 'develop' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <button onClick={() => router.push('/assets')} style={actionBtn}>
                         📦 {th('inventory')}
-                      </button>
-                      <button onClick={() => { setSettingsOpen(false); setReturnToSettings(true); setSpawnModalOpen(true); }}
-                        style={{ ...actionBtn, border: '1px solid rgba(168,85,247,0.4)', background: 'rgba(168,85,247,0.12)' }}>
-                        🎨 {t('spawnAsset')} ({mySpawned.size}/{SPAWN_LIMIT})
-                      </button>
-                      <button onClick={() => { setSettingsOpen(false); setReturnToSettings(true); setMyObjsModalOpen(true); }}
-                        style={{ ...actionBtn, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.12)' }}>
-                        🗂 {t('myObjectsManage')}
-                      </button>
-                      <button onClick={() => { setSettingsOpen(false); setReturnToSettings(true); setApiKeysModalOpen(true); }}
-                        style={{ ...actionBtn, border: '1px solid rgba(251,191,36,0.4)', background: 'rgba(251,191,36,0.08)' }}>
-                        🔑 {t('apiKeysTitle')}
                       </button>
                       <button onClick={() => router.push('/worlds')}
                         style={{ ...actionBtn, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.12)' }}>
