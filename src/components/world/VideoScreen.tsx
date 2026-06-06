@@ -323,7 +323,7 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
   const sx = 1 / (YT_IFRAME_W * PX_TO_UNIT);
   const sy = 1 / (YT_IFRAME_H * PX_TO_UNIT);
   return (
-    <Html transform occlude="blending" pointerEvents="none" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center style={{ backfaceVisibility: 'hidden', background: '#000' }}>
+    <Html transform occlude="blending" pointerEvents="none" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center style={{ background: '#000' }}>
       <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000' }} />
     </Html>
   );
@@ -338,7 +338,9 @@ export function YouTubeMeshMaterial({ videoId, selected, side = THREE.FrontSide 
   // live=false (편집 미리보기) 면 썸네일 표시 (영상 안 재생).
   const { live } = useContext(VideoScreenCtx);
   if (live) {
-    return <meshBasicMaterial color="#000" side={side} toneMapped={false} />;
+    // transparent + opacity 0 — iframe 이 plane 양면 모두 보이게 (mesh 가 가리지 않게).
+    // 외곽 fade 색은 wrap div 의 background:#000 으로 처리.
+    return <meshBasicMaterial color="#000" side={side} transparent opacity={0} toneMapped={false} />;
   }
   return <YouTubeThumbMaterial videoId={videoId} selected={selected} side={side} />;
 }
@@ -412,7 +414,7 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
   const sx = Math.max(0.01, planeW) / (YT_IFRAME_W * PX_TO_UNIT);
   const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);
   return (
-    <Html transform occlude="blending" pointerEvents="auto" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center style={{ backfaceVisibility: 'hidden', background: '#000' }}>
+    <Html transform occlude="blending" pointerEvents="auto" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center style={{ background: '#000' }}>
       <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000', pointerEvents: 'auto' }} />
     </Html>
   );
