@@ -213,15 +213,12 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
     }
     // drei <Html transform> 의 wrap div 들에 backface-visibility:hidden 강제 — 뒷면 안 그리게.
     // wrap → transform div → inner 까지 모두 적용. iframe 까지도.
-    // div + 부모 2단계 (drei transform wrap div 까지) 검정 background.
-    // 3단계는 portal root 까지 가서 페이지 검정 부작용 (#250).
     if (div) {
-      div.style.background = '#000';
-      const p1 = div.parentElement;
-      if (p1) {
-        p1.style.background = '#000';
-        const p2 = p1.parentElement;
-        if (p2) p2.style.background = '#000';
+      let el: HTMLElement | null = div;
+      for (let i = 0; i < 4 && el; i++) {
+        el.style.backfaceVisibility = 'hidden';
+        el.style.background = '#000';
+        el = el.parentElement;
       }
     }
   };
@@ -374,15 +371,12 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
     if (div && iframeRef.current && iframeRef.current.parentElement !== div) {
       div.appendChild(iframeRef.current);
     }
-    // div + 부모 2단계 (drei transform wrap div 까지) 검정 background.
-    // 3단계는 portal root 까지 가서 페이지 검정 부작용 (#250).
     if (div) {
-      div.style.background = '#000';
-      const p1 = div.parentElement;
-      if (p1) {
-        p1.style.background = '#000';
-        const p2 = p1.parentElement;
-        if (p2) p2.style.background = '#000';
+      let el: HTMLElement | null = div;
+      for (let i = 0; i < 4 && el; i++) {
+        el.style.backfaceVisibility = 'hidden';
+        el.style.background = '#000';
+        el = el.parentElement;
       }
     }
   };
