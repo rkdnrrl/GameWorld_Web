@@ -4862,7 +4862,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 0.7,
         }}
-        style={{ width: '100vw', height: '100vh', display: 'block', transform: 'translateZ(0)', willChange: 'transform', zIndex: 16777271, position: 'fixed', inset: 0 }}
+        style={{ width: '100vw', height: '100vh', display: 'block', transform: 'translateZ(0)', willChange: 'transform', zIndex: 16777271, position: 'fixed', inset: 0, background: '#000' }}
       >
         {/* 조명 — sceneSettings 기반 */}
         <ambientLight intensity={ambientIntensity} />
