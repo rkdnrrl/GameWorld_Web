@@ -211,8 +211,15 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
       console.log('[YT] re-parent iframe to new div', objId);
       div.appendChild(iframeRef.current);
     }
-    // drei <Html transform> 의 wrap div 들에 backface-visibility:hidden 강제 — 뒷면 안 그리게.
-    // wrap → transform div → inner 까지 모두 적용. iframe 까지도.
+    // 뒷면도 영상 보이게 (mirror) — drei wrap div + iframe backface 명시적으로 visible.
+    if (div) {
+      let el: HTMLElement | null = div;
+      for (let i = 0; i < 4 && el; i++) {
+        el.style.backfaceVisibility = 'visible';
+        el = el.parentElement;
+      }
+      if (iframeRef.current) iframeRef.current.style.backfaceVisibility = 'visible';
+    }
   };
 
   // 플레이어 생성 — videoId 변경 시만. iframe 을 document body 에 만들어 두고 div 마운트 시 옮김 → div
