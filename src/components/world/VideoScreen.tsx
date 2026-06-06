@@ -217,6 +217,7 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
       let el: HTMLElement | null = div;
       for (let i = 0; i < 4 && el; i++) {
         el.style.backfaceVisibility = 'hidden';
+        el.style.background = '#000';  // 외곽 fade 시 sky 대신 검정 보이게
         el = el.parentElement;
       }
     }
@@ -373,6 +374,7 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
       let el: HTMLElement | null = div;
       for (let i = 0; i < 4 && el; i++) {
         el.style.backfaceVisibility = 'hidden';
+        el.style.background = '#000';  // 외곽 fade 시 sky 대신 검정 보이게
         el = el.parentElement;
       }
     }
