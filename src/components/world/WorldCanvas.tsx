@@ -2712,11 +2712,6 @@ const VideoPlaneMesh = React.memo(function VideoPlaneMeshImpl({
     const ytId = parseYouTubeId(normUrl)!;
     return (
       <>
-        {/* 검정 background plane — 외곽 검정, plane 양면. iframe 은 transparent plane 위에 양면 그려짐. */}
-        <mesh position={[0, 0, -0.001]}>
-          <planeGeometry args={[1.05, 1.05]} />
-          <meshBasicMaterial color="#000" side={THREE.DoubleSide} toneMapped={false} />
-        </mesh>
         <mesh castShadow receiveShadow>
           {shape}
           <YouTubeMeshMaterial videoId={ytId} side={vidSide} />
