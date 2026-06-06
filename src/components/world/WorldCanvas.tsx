@@ -2675,6 +2675,15 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
     );
   }
 
+  // Video plane (영상/이미지/iframe) — drei Html transform 의 frame delay 회피를 위해
+  // group wrap 없이 mesh 에 직접 transform 적용 (Studio 와 동일 구조). 3인칭 외곽 색 fix.
+  if (obj.videoUrl && physics === 'none' && !colliderArgs) {
+    return (
+      <group ref={groupRef}>
+        <VideoPlaneMesh obj={obj} shape={shape} pos={rPos} rot={rRot} scl={rScale} />
+      </group>
+    );
+  }
   if (physics === 'none' && !colliderArgs) {
     return (
       <group ref={groupRef} position={rPos} rotation={rRot} scale={rScale}>
@@ -2688,6 +2697,61 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
       {colliderArgs && <CuboidCollider args={colliderArgs} sensor={trig} />}
       <PrimitiveMesh obj={obj} shape={shape} />
     </RigidBody>
+  );
+});
+
+/** Video plane (영상/이미지/iframe) — Studio 와 동일하게 mesh 에 직접 transform 적용.
+ *  drei Html transform 이 mesh.matrixWorld 를 frame-perfect 로 참조 → 3인칭 외곽 색 X. */
+const VideoPlaneMesh = React.memo(function VideoPlaneMeshImpl({
+  obj, shape, pos, rot, scl,
+}: {
+  obj: UserMapObject; shape: React.ReactElement;
+  pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number];
+}) {
+  const vidSide = THREE.FrontSide;
+  const normUrl = normalizeMediaUrl(obj.videoUrl!);
+  const kind = parseUrlKind(obj.videoUrl!);
+  if (kind === 'youtube') {
+    const ytId = parseYouTubeId(normUrl)!;
+    return (
+      <mesh position={pos} rotation={rot} scale={scl} castShadow receiveShadow>
+        {shape}
+        <YouTubeMeshMaterial videoId={ytId} side={vidSide} />
+        <YouTubeMaybeOverlay videoId={ytId} objId={obj.id} planeW={obj.scale[0]} planeH={obj.scale[1]} />
+      </mesh>
+    );
+  }
+  if (kind === 'videoFile') {
+    return (
+      <mesh position={pos} rotation={rot} scale={scl} castShadow receiveShadow>
+        {shape}
+        <VideoScreenMaterial url={normUrl} objId={obj.id} side={vidSide} />
+      </mesh>
+    );
+  }
+  if (kind === 'image') {
+    return (
+      <mesh position={pos} rotation={rot} scale={scl} castShadow receiveShadow>
+        {shape}
+        <ImageMaterial url={normUrl} side={vidSide} />
+      </mesh>
+    );
+  }
+  if (kind === 'iframe') {
+    return (
+      <mesh position={pos} rotation={rot} scale={scl} castShadow receiveShadow>
+        {shape}
+        <meshBasicMaterial color="#000" side={vidSide} />
+        <GenericIframeOverlay url={normUrl} planeW={obj.scale[0]} planeH={obj.scale[1]} />
+      </mesh>
+    );
+  }
+  // fallback (none) — 평범 검정 plane
+  return (
+    <mesh position={pos} rotation={rot} scale={scl} castShadow receiveShadow>
+      {shape}
+      <meshBasicMaterial color="#000" side={vidSide} />
+    </mesh>
   );
 });
 
