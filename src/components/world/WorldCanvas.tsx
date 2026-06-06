@@ -4852,8 +4852,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         camera={{ fov: 60, near: 0.3, far: graphics.farClip, position: [0, 8, 12] }}
         dpr={adaptiveDpr}
         gl={{
-          // alpha:false — frame 간 alpha 누적 잔상(motion blur 같은 효과) 방지. 투명 캔버스 필요 없음.
-          alpha: false,
+          // alpha:true — Studio 와 동일. drei occlude="blending" 이 alpha 채널로 iframe 합성하므로
+          //   alpha:false 면 안 그려진 영역에 불투명 sky 가 비침 (Studio 는 검정). 잔상은 preserveDrawingBuffer:false 로 이미 방지됨.
+          alpha: true,
           antialias: true,
           powerPreference: 'high-performance',
           stencil: false,
