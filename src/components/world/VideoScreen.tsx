@@ -312,10 +312,10 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
   void planeW; void planeH;  // 더 이상 사용 안 함 (부모 scale 이 fit 담당)
   const sx = 1 / (YT_IFRAME_W * PX_TO_UNIT);
   const sy = 1 / (YT_IFRAME_H * PX_TO_UNIT);
-  // occlude="blending" 은 캐릭터들이 영상 앞에 있을 때 매 frame depth blending 비용으로 fps drop 큼.
-  // false 로 두면 영상이 항상 위로 그려져 시각적 약간 어색하지만 fps 큰 절감. audio 는 영향 없음.
+  // occlude=true (binary): 다른 오브젝트가 영상 앞에 있으면 visibility 토글로 가림.
+  // blending 의 매 frame alpha 보간 비용 없이 단순 처리 → 깜빡임 줄어듦.
   return (
-    <Html transform occlude={false} pointerEvents="none" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center>
+    <Html transform occlude pointerEvents="none" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center>
       <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000' }} />
     </Html>
   );
@@ -389,9 +389,9 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
   const PX_TO_UNIT = 0.03;
   const sx = Math.max(0.01, planeW) / (YT_IFRAME_W * PX_TO_UNIT);
   const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);
-  // occlude=false — 캐릭터 occlude 비용 0. audio 영향 없음.
+  // occlude=true (binary): 오브젝트가 영상 앞에 있으면 visibility 토글로 가림.
   return (
-    <Html transform occlude={false} pointerEvents="auto" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center>
+    <Html transform occlude pointerEvents="auto" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center>
       <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000', pointerEvents: 'auto' }} />
     </Html>
   );

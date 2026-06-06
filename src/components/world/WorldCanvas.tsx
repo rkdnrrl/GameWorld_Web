@@ -4573,6 +4573,13 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   }, [cameraMode, onCameraModeChange]);
   // 1인칭 크로스헤어 UI state — Player 가 grab/aim 상태에 따라 호출
   const [crosshairState, setCrosshairState] = useState<'idle' | 'aim' | 'grab'>('idle');
+  // grab 중 RemotePlayer 클릭 차단 — 큐브 던질 때 유저정보 panel 안 뜨게.
+  const crosshairStateRef = useRef<'idle' | 'aim' | 'grab'>('idle');
+  useEffect(() => { crosshairStateRef.current = crosshairState; }, [crosshairState]);
+  const handleRemoteClick = useCallback((p: RemotePlayer) => {
+    if (crosshairStateRef.current === 'grab') return;  // 물체 들고 있을 땐 정보창 X
+    setSelectedRemote(p);
+  }, []);
 
   // 모바일 감지 (Canvas 외부)
   const [isMobile, setIsMobile] = useState(false);
@@ -4922,7 +4929,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         />
         <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
         <CanvasPointerEventsKeeper />
-        <RemotePlayerCrosshairClick players={players} onPlayerClick={setSelectedRemote} />
+        <RemotePlayerCrosshairClick players={players} onPlayerClick={handleRemoteClick} />
 
         {/* 스튜디오 시뮬레이션과 동일한 Sky 파라미터(기본 turbidity/rayleigh) — WYSIWYG 일치 */}
         {showSky && !hdriBackground && <Sky sunPosition={[20, 10, 10]} />}
@@ -5069,7 +5076,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                 posesRef={posesRef}
                 bubble={chatBubbles[p.id]}
                 castShadow={graphics.remoteShadows}
-                onPlayerClick={setSelectedRemote}
+                onPlayerClick={handleRemoteClick}
                 getAnalyser={() => voice.getRemoteAnalyser(p.id)}
               />
             ))}
