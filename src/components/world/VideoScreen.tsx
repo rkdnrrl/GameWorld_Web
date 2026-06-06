@@ -321,7 +321,7 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
   const sx = 1 / (YT_IFRAME_W * PX_TO_UNIT);
   const sy = 1 / (YT_IFRAME_H * PX_TO_UNIT);
   return (
-    <Html transform occlude="blending" pointerEvents="none" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center style={{ backfaceVisibility: 'hidden' }}>
+    <Html transform occlude pointerEvents="none" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center style={{ backfaceVisibility: 'hidden' }}>
       <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000', backfaceVisibility: 'hidden' }} />
     </Html>
   );
@@ -403,7 +403,7 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
   const sx = Math.max(0.01, planeW) / (YT_IFRAME_W * PX_TO_UNIT);
   const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);
   return (
-    <Html transform occlude="blending" pointerEvents="auto" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center style={{ backfaceVisibility: 'hidden' }}>
+    <Html transform occlude pointerEvents="auto" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center style={{ backfaceVisibility: 'hidden' }}>
       <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000', pointerEvents: 'auto', backfaceVisibility: 'hidden' }} />
     </Html>
   );
