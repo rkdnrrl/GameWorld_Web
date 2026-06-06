@@ -36,7 +36,7 @@ import { MAP_APPLY_EVENT } from '@/lib/assets/kinds/map';
 import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, type ComponentInstance, type ComponentType } from '@/lib/world/components';
 import { Player, type PlayerControl } from '@/components/world/WorldCanvas';
 
-const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광', spawn: '스폰 포인트', empty: '빈 오브젝트' };
+const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', water: '물', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광', spawn: '스폰 포인트', empty: '빈 오브젝트' };
 const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲', pointlight: '💡', spotlight: '🔦', dirlight: '☀', spawn: '🎯', empty: '🔵' };
 /** 레이어 0~9 색상 — 유니티 식 (0=Default, 1~9 사용자 레이어). 트리 배지 + 패널 색칠 공용. */
 const LAYER_COLORS: Record<number, string> = { 0: '#475569', 1: '#ef4444', 2: '#f97316', 3: '#eab308', 4: '#22c55e', 5: '#14b8a6', 6: '#3b82f6', 7: '#8b5cf6', 8: '#ec4899', 9: '#64748b' };
@@ -4573,6 +4573,23 @@ export default function StudioCanvas() {
     setSelectedId(id);
   }
 
+  // 물(바다/호수) 추가 — 반투명 파란 수면 + 웨이브. WaterMesh 가 내부에서 수평 회전 처리.
+  function addWater() {
+    const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    setObjects(prev => {
+      const next = [...prev, {
+        id, kind: 'water' as const, label: makeLabel('water'),
+        position: [0, 0.05, 0] as [number, number, number],
+        rotation: [0, 0, 0] as [number, number, number],
+        scale:    [10, 1, 10] as [number, number, number],
+        color:    '#1e88e5',
+      }];
+      pushHistory(next);
+      return next;
+    });
+    setSelectedId(id);
+  }
+
   function duplicate() {
     // 선택된 것 전부(다중 포함) + 각자의 자손까지 복제. 복제본끼리 부모-자식 관계 유지.
     const { sel, multi } = selRef.current;
@@ -6487,6 +6504,11 @@ export default function StudioCanvas() {
             {tCanvas("btn_add_terrain_noise")}
           </button>
         </div>
+        {/* 🌊 물(바다/호수) 추가 — 반투명 수면 + 웨이브 */}
+        <button type="button" onClick={addWater} title={tCanvas("tooltip_add_water")}
+          style={{ width: '100%', textAlign: 'left', background: 'rgba(56,189,248,0.14)', border: '1px solid rgba(56,189,248,0.45)', borderRadius: 6, color: '#bae6fd', fontSize: 11, padding: '6px 9px', cursor: 'pointer', fontWeight: 700, marginTop: 4 }}>
+          {tCanvas("btn_add_water")}
+        </button>
         <button type="button" onClick={addSound}
           title={tCanvas("tooltip_add_sound")}
           style={{ width: '100%', textAlign: 'left', background: 'rgba(168,85,247,0.14)', border: '1px solid rgba(168,85,247,0.45)', borderRadius: 6, color: '#e9d5ff', fontSize: 11, padding: '6px 9px', cursor: 'pointer', fontWeight: 700, marginTop: 4 }}>

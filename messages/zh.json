@@ -1295,7 +1295,9 @@
       "sound_volume_label": "音量 ({volume})",
       "legacy_physics_warn": "⚠ 旧版物理设置 ({physics})。建议迁移到 Physics 组件:",
       "ai_ui_json_intro": "把下方规格 + 你想做的 UI 描述一起发给 ChatGPT / Claude 等 AI,AI 会生成 JSON。将该 JSON 粘贴到下方框中并导入。",
-      "ctx_new_script": "📜 新建脚本"
+      "ctx_new_script": "📜 新建脚本",
+      "btn_add_water": "🌊 添加水面",
+      "tooltip_add_water": "添加半透明水面(海/湖) — 波浪动画"
     },
     "aiGuide": {
       "request_placeholder_default": "(请在此处用中文或英文自由描述你想生成的场景)",

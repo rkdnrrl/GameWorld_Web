@@ -1295,7 +1295,9 @@
       "sound_volume_label": "音量({volume})",
       "legacy_physics_warn": "⚠ レガシー物理設定({physics})。Physics コンポーネントへの移行を推奨:",
       "ai_ui_json_intro": "ChatGPT / Claude などの AI に下記スペック + 作りたい UI 説明 を一緒に渡すと JSON を作ってくれます。その JSON を下の欄に貼り付けて取り込み。",
-      "ctx_new_script": "📜 新規スクリプト"
+      "ctx_new_script": "📜 新規スクリプト",
+      "btn_add_water": "🌊 水を追加",
+      "tooltip_add_water": "半透明の水面(海・湖)を追加 — 波アニメーション"
     },
     "aiGuide": {
       "request_placeholder_default": "(ここに作りたいシーンを日本語または英語で自由に記入してください)",

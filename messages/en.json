@@ -1295,7 +1295,9 @@
       "sound_volume_label": "Volume ({volume})",
       "legacy_physics_warn": "⚠ Legacy physics setting ({physics}). Migration to Physics component recommended:",
       "ai_ui_json_intro": "Give the spec below plus a description of the UI you want to ChatGPT / Claude, etc., and the AI will generate JSON. Paste that JSON in the box below and import.",
-      "ctx_new_script": "📜 New script"
+      "ctx_new_script": "📜 New script",
+      "btn_add_water": "🌊 Add Water",
+      "tooltip_add_water": "Add translucent water (sea/lake) with wave animation"
     },
     "aiGuide": {
       "request_placeholder_default": "(Describe the scene you want to build here, in Korean or English)",
