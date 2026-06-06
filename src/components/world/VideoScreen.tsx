@@ -213,15 +213,8 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
     }
     // drei <Html transform> 의 wrap div 들에 backface-visibility:hidden 강제 — 뒷면 안 그리게.
     // wrap → transform div → inner 까지 모두 적용. iframe 까지도.
-    if (div) {
-      // 부모 4단계까지 검정 background 강제 (외곽 fade 시 sky 대신 검정).
-      // backfaceVisibility 는 적용 X — iframe 뒷면도 영상 보이게 (사용자 양면 요청).
-      let el: HTMLElement | null = div;
-      for (let i = 0; i < 4 && el; i++) {
-        el.style.background = '#000';
-        el = el.parentElement;
-      }
-    }
+    // div 자체에만 검정 background (4단계 traverse 는 portal root 까지 영향 줘서 페이지 다른 영역도 검정 → 제거)
+    if (div) div.style.background = '#000';
   };
 
   // 플레이어 생성 — videoId 변경 시만. iframe 을 document body 에 만들어 두고 div 마운트 시 옮김 → div
@@ -373,15 +366,8 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
     if (div && iframeRef.current && iframeRef.current.parentElement !== div) {
       div.appendChild(iframeRef.current);
     }
-    if (div) {
-      // 부모 4단계까지 검정 background 강제 (외곽 fade 시 sky 대신 검정).
-      // backfaceVisibility 는 적용 X — iframe 뒷면도 영상 보이게 (사용자 양면 요청).
-      let el: HTMLElement | null = div;
-      for (let i = 0; i < 4 && el; i++) {
-        el.style.background = '#000';
-        el = el.parentElement;
-      }
-    }
+    // div 자체에만 검정 background (4단계 traverse 는 portal root 까지 영향 줘서 페이지 다른 영역도 검정 → 제거)
+    if (div) div.style.background = '#000';
   };
 
   useEffect(() => {
