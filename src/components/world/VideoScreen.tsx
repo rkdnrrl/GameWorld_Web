@@ -332,8 +332,7 @@ export function YouTubeMeshMaterial({ videoId, selected, side = THREE.FrontSide 
   // live=false (편집 미리보기) 면 썸네일 표시 (영상 안 재생).
   const { live } = useContext(VideoScreenCtx);
   if (live) {
-    // transparent + opacity 0 — plane mesh 가 iframe 양면 모두 안 가리게.
-    return <meshBasicMaterial color="#000" side={side} transparent opacity={0} toneMapped={false} />;
+    return <meshBasicMaterial color="#000" side={side} toneMapped={false} />;
   }
   return <YouTubeThumbMaterial videoId={videoId} selected={selected} side={side} />;
 }

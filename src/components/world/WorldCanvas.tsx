@@ -2705,7 +2705,7 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
 const VideoPlaneMesh = React.memo(function VideoPlaneMeshImpl({
   obj, shape,
 }: { obj: UserMapObject; shape: React.ReactElement }) {
-  const vidSide = THREE.DoubleSide;  // 양면 — 뒷면 mirror 영상
+  const vidSide = THREE.FrontSide;
   const normUrl = normalizeMediaUrl(obj.videoUrl!);
   const kind = parseUrlKind(obj.videoUrl!);
   if (kind === 'youtube') {
