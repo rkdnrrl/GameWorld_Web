@@ -2,7 +2,7 @@
 import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { OrbitControls, TransformControls, Grid, Sky, Environment } from '@react-three/drei';
+import { OrbitControls, TransformControls, Grid, Sky, Environment, Edges } from '@react-three/drei';
 import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
 import * as THREE from 'three';
 import { buildFolderTree, normalizeFolder } from '@/lib/assets/folders';
@@ -1466,8 +1466,9 @@ function WaterMesh({ color, selected, strength = 1, speed = 1, frequency = 1 }: 
     <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
       <planeGeometry args={[1, 1, 16, 16]} />
       <meshStandardMaterial color={color} transparent opacity={0.75}
-        roughness={0.15} metalness={0.1} side={THREE.DoubleSide}
-        emissive={selected ? '#22d3ee' : '#000000'} emissiveIntensity={selected ? 0.5 : 0} />
+        roughness={0.15} metalness={0.1} side={THREE.DoubleSide} />
+      {/* 선택 표시 — 물 색을 가리지 않게 외곽선만 (변환 gizmo 와 함께) */}
+      {selected && <Edges threshold={90} color="#22d3ee" />}
     </mesh>
   );
 }
@@ -1638,6 +1639,8 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
         onPointerDown={handle} castShadow receiveShadow
         userData={noTransform ? {} : { id: obj.id }}>
         {geometry}
+        {/* 선택 표시 — 표면 색을 가리지 않게 외곽선만 (cyan). 색 구별 유지. */}
+        {selected && <Edges threshold={15} color="#22d3ee" />}
         {urlKind === 'youtube' && ytId
           ? <YouTubeMeshMaterial videoId={ytId} selected={selected} side={vidSide} />
           : urlKind === 'videoFile'
@@ -1678,16 +1681,13 @@ function PrimitiveMaterial({ obj, selected }: { obj: MapObject; selected?: boole
   }, [cfgKey]);
 
   const side = obj.kind === 'plane' ? THREE.DoubleSide : THREE.FrontSide;
+  // 선택 표시는 외곽선(Edges)으로 — 표면 색을 cyan 으로 덮지 않아 색 구별 가능.
+  void selected;
   if (matRef.current) {
     matRef.current.side = side;
-    // 선택 시 cyan glow — 어두운 환경에서도 명확히 보임
-    matRef.current.emissive.set(selected ? '#22d3ee' : '#000000');
-    matRef.current.emissiveIntensity = selected ? 0.6 : 0;
     return <primitive object={matRef.current} attach="material" />;
   }
-  return <meshStandardMaterial color={obj.color} side={side}
-    emissive={selected ? '#22d3ee' : '#000000'}
-    emissiveIntensity={selected ? 0.6 : 0} />;
+  return <meshStandardMaterial color={obj.color} side={side} />;
 }
 
 function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }: {
