@@ -1601,7 +1601,7 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
         userData={noTransform ? {} : { id: obj.id }}>
         {geometry}
         {urlKind === 'youtube' && ytId
-          ? <YouTubeMeshMaterial videoId={ytId} selected={selected} side={THREE.FrontSide} />
+          ? <YouTubeMeshMaterial videoId={ytId} selected={selected} side={vidSide} />
           : urlKind === 'videoFile'
             ? <VideoScreenMaterial url={normUrl} objId={obj.id} selected={selected} side={vidSide} />
             : urlKind === 'image'

@@ -2712,7 +2712,7 @@ const PrimitiveMesh = React.memo(function PrimitiveMeshImpl({ obj, shape }: { ob
         <>
           <mesh castShadow receiveShadow>
             {shape}
-            <YouTubeMeshMaterial videoId={ytId} side={THREE.FrontSide} />
+            <YouTubeMeshMaterial videoId={ytId} side={vidSide} />
           </mesh>
           <YouTubeMaybeOverlay videoId={ytId} objId={obj.id} planeW={obj.scale[0]} planeH={obj.scale[1]} />
         </>
