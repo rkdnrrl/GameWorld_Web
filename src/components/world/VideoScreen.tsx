@@ -213,8 +213,13 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
     }
     // drei <Html transform> 의 wrap div 들에 backface-visibility:hidden 강제 — 뒷면 안 그리게.
     // wrap → transform div → inner 까지 모두 적용. iframe 까지도.
-    // div 자체에만 검정 background (4단계 traverse 는 portal root 까지 영향 줘서 페이지 다른 영역도 검정 → 제거)
-    if (div) div.style.background = '#000';
+    // div + 부모 1단계 (drei wrap div) 까지 검정 background — alpha gradient 외곽이 검정으로.
+    // 2단계 이상 가면 portal root → page 다른 영역 검정 (#245 → #250 부작용 회피).
+    if (div) {
+      div.style.background = '#000';
+      const wrap = div.parentElement;
+      if (wrap) wrap.style.background = '#000';
+    }
   };
 
   // 플레이어 생성 — videoId 변경 시만. iframe 을 document body 에 만들어 두고 div 마운트 시 옮김 → div
@@ -366,8 +371,13 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
     if (div && iframeRef.current && iframeRef.current.parentElement !== div) {
       div.appendChild(iframeRef.current);
     }
-    // div 자체에만 검정 background (4단계 traverse 는 portal root 까지 영향 줘서 페이지 다른 영역도 검정 → 제거)
-    if (div) div.style.background = '#000';
+    // div + 부모 1단계 (drei wrap div) 까지 검정 background — alpha gradient 외곽이 검정으로.
+    // 2단계 이상 가면 portal root → page 다른 영역 검정 (#245 → #250 부작용 회피).
+    if (div) {
+      div.style.background = '#000';
+      const wrap = div.parentElement;
+      if (wrap) wrap.style.background = '#000';
+    }
   };
 
   useEffect(() => {
