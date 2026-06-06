@@ -172,10 +172,7 @@ export function YouTubeThumbMaterial({ videoId, selected, side = THREE.FrontSide
     return t;
   }, [videoId]);
   useEffect(() => () => texture.dispose(), [texture]);
-  // polygonOffset — thumbnail 을 depth 상 뒤로 밀어 iframe(blending occluder, z=0.001)과
-  // depth tie 제거. 먼 거리 3인칭에서 썸네일↔영상 z-fighting 방지.
-  return <meshBasicMaterial map={texture} color={selected ? '#9fb8ff' : '#ffffff'} toneMapped={false} side={side}
-    polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />;
+  return <meshBasicMaterial map={texture} color={selected ? '#9fb8ff' : '#ffffff'} toneMapped={false} side={side} />;
 }
 
 /* ── YouTube IFrame API 로더 (1회) ─────────────────────────── */
