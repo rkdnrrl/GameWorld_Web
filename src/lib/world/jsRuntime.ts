@@ -1422,6 +1422,26 @@ export interface ScriptVarDef {
   default: number | string | boolean | null;
 }
 
+// 폴백 — AST 파서가 실패할 때(for...of/delete/객체리터럴 등 복잡 구문) 정규식으로
+// top-level(들여쓰기 없는 줄) 단순 변수 선언만 추출. 객체/배열/계산식 초기값은 제외.
+function extractScriptVarsRegex(source: string): ScriptVarDef[] {
+  const out: ScriptVarDef[] = [];
+  const seen = new Set<string>();
+  // ^(들여쓰기 없음) = 함수 내부 변수 제외. 값은 null/불리언/숫자/문자열 리터럴만.
+  const re = /^(?:let|const|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(null|true|false|-?\d+(?:\.\d+)?|"[^"]*"|'[^']*')\s*;?/gm;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(source))) {
+    const name = m[1]; const raw = m[2];
+    if (!name || name.startsWith('_') || seen.has(name)) continue;
+    seen.add(name);
+    if (raw === 'null') out.push({ key: name, type: 'object', default: null });
+    else if (raw === 'true' || raw === 'false') out.push({ key: name, type: 'boolean', default: raw === 'true' });
+    else if (raw[0] === '"' || raw[0] === "'") out.push({ key: name, type: 'string', default: raw.slice(1, -1) });
+    else out.push({ key: name, type: 'number', default: Number(raw) });
+  }
+  return out;
+}
+
 export function extractScriptVars(source: string): ScriptVarDef[] {
   if (!source || !source.trim()) return [];
   try {
@@ -1438,8 +1458,9 @@ export function extractScriptVars(source: string): ScriptVarDef[] {
       else if (v.type === 'Bool') { out.push({ key: name, type: 'boolean', default: Boolean(v.value) }); seen.add(name); }
       else if (v.type === 'Null') { out.push({ key: name, type: 'object',  default: null });             seen.add(name); }
     }
-    return out;
+    // AST 가 변수를 못 찾았으면(복잡 구문으로 파싱 실패 가능) 정규식 폴백.
+    return out.length ? out : extractScriptVarsRegex(source);
   } catch {
-    return [];
+    return extractScriptVarsRegex(source);
   }
 }
