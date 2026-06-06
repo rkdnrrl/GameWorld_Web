@@ -100,9 +100,11 @@ function getRenderableBounds(obj: THREE.Object3D) {
 }
 
 /** Water mesh — sin/cos 웨이브 애니메이션. 스튜디오 WaterMesh 와 동일 공식. */
-function WorldWaterMesh({ color }: { color: string }) {
+function WorldWaterMesh({ color, strength = 1, speed = 1, frequency = 1 }: { color: string; strength?: number; speed?: number; frequency?: number }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const baseRef = useRef<Float32Array | null>(null);
+  const params = useRef({ strength, speed, frequency });
+  params.current = { strength, speed, frequency };
   useFrame(({ clock }) => {
     const m = meshRef.current;
     if (!m) return;
@@ -112,9 +114,11 @@ function WorldWaterMesh({ color }: { color: string }) {
     const base = baseRef.current;
     const arr = pos.array as Float32Array;
     const t = clock.elapsedTime;
+    const { strength: amp, speed: spd, frequency: freq } = params.current;
+    const a = 0.04 * amp;
     for (let i = 0; i < arr.length; i += 3) {
       const x = base[i], y = base[i + 1];
-      arr[i + 2] = base[i + 2] + Math.sin(x * 5 + t * 2) * 0.04 + Math.cos(y * 5 + t * 1.5) * 0.04;
+      arr[i + 2] = base[i + 2] + Math.sin(x * 5 * freq + t * 2 * spd) * a + Math.cos(y * 5 * freq + t * 1.5 * spd) * a;
     }
     pos.needsUpdate = true;
     geom.computeVertexNormals();
@@ -634,6 +638,8 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneSh
   const userScale    = Number(appearance.scale ?? appearance.modelScale ?? 1.0) || 1.0;
   const offsetY      = Number(appearance.offsetY ?? appearance.fbxOffsetY ?? 0);
   const manualBoneMap = (appearance.manualBoneMap as Record<string, string> | undefined) || undefined;
+  // 캐릭터별 커스텀 이동 애니메이션 (걷기/달리기/점프 등) — 운영자 기본 위에 덮어씀.
+  const coreAnimUrls = (appearance.coreAnimUrls as Record<string, string> | undefined) || undefined;
   void emoteOneShotOverride;  // 옛 시스템 — 무시 (T6 이모트 polish 다음 단계)
 
   if (modelUrl) {
@@ -641,6 +647,7 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneSh
       <HumanoidMesh
         url={modelUrl}
         manualBoneMap={manualBoneMap}
+        clipUrls={coreAnimUrls}
         animStateRef={animStateRef ?? FALLBACK_IDLE_REF}
         getAnalyser={getAnalyser}
         hideHead={hideHead}
@@ -2616,12 +2623,20 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
 
   // Water — 반투명 파란 plane + sin/cos 웨이브 (스튜디오와 동일 디자인).
   if (obj.kind === 'water') {
+    // 'wave' 컴포넌트로 물결 강도/속도/촘촘함 조절 (없으면 기본값).
+    const wv = obj.components?.find(c => c.type === 'wave')?.props;
+    const waterMesh = (
+      <WorldWaterMesh color={obj.color || '#1e88e5'}
+        strength={wv ? Number(wv.strength ?? 1) : 1}
+        speed={wv ? Number(wv.speed ?? 1) : 1}
+        frequency={wv ? Number(wv.frequency ?? 1) : 1} />
+    );
     // collider 컴포넌트가 있으면 트리거/충돌 배선 (예: 물에 들어가면 onTriggerEnter → 수영 애니).
     // 없으면 기존처럼 시각용 group 만 (walk-through).
     if (physics === 'none' && !colliderArgs) {
       return (
         <group ref={groupRef} position={rPos} rotation={rRot} scale={rScale}>
-          <WorldWaterMesh color={obj.color || '#1e88e5'} />
+          {waterMesh}
         </group>
       );
     }
@@ -2629,7 +2644,7 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
       <RigidBody ref={bodyRef} type={bodyType} colliders={false}
         position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }} {...colliderEvents}>
         {colliderArgs && <CuboidCollider args={colliderArgs} position={colliderOffset} sensor={trig} />}
-        <WorldWaterMesh color={obj.color || '#1e88e5'} />
+        {waterMesh}
       </RigidBody>
     );
   }

@@ -1608,7 +1608,18 @@
     "emotesHint": "自分のアニメーションアセットを登録すると、ワールドで1~9キーで再生できます。",
     "emotesEmpty": "登録されたエモートがありません。",
     "emotesAdd": "アセットからエモート追加",
-    "emotesNamePrompt": "エモート名を入力してください (例: ダンス)"
+    "emotesNamePrompt": "エモート名を入力してください (例: ダンス)",
+    "coreAnimTitle": "移動アニメーション (カスタム)",
+    "coreAnimHint": "歩き・走りなどを自分のアニメーションアセットに変更。空欄=デフォルト。",
+    "coreAnimDefault": "デフォルト",
+    "coreAnimSet": "設定",
+    "coreAnimChange": "変更",
+    "animIdle": "待機",
+    "animWalk": "歩き",
+    "animRun": "走り",
+    "animJump": "ジャンプ",
+    "animFall": "落下",
+    "animCrouch": "しゃがみ"
   },
   "Assets": {
     "title": "アセットライブラリ",

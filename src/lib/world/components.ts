@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -78,6 +78,17 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'offsetY', label: '오프셋 Y', type: 'number', default: 0, step: 0.1 },
       { key: 'offsetZ', label: '오프셋 Z', type: 'number', default: 0, step: 0.1 },
       { key: 'trigger', label: '트리거(센서) — 막지 않고 통과, 닿으면 onTriggerEnter', type: 'boolean', default: false },
+    ],
+  },
+  {
+    type: 'wave',
+    name: '웨이브 (물결)',
+    icon: '🌊',
+    description: '물(water) 오브젝트의 물결 세기·속도·촘촘함을 조절. 물에 부착. 강도 0 = 잔잔, 클수록 출렁임.',
+    props: [
+      { key: 'strength',  label: '강도 (물결 높이)', type: 'number', default: 1, min: 0, max: 10, step: 0.1 },
+      { key: 'speed',     label: '속도',             type: 'number', default: 1, min: 0, max: 5,  step: 0.1 },
+      { key: 'frequency', label: '촘촘함 (잔물결)',  type: 'number', default: 1, min: 0.2, max: 4, step: 0.1 },
     ],
   },
   {

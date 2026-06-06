@@ -275,9 +275,14 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
           c.scene.userData.__sceneBindY = c.scene.position.y;
         }
         // ── 2) 클립 로드 ──
-        const effectiveClipUrls = clipUrls && Object.keys(clipUrls).length
-          ? clipUrls
-          : await getOperatorClipUrls();
+        // 운영자 등록 슬롯 + 캐릭터별 오버라이드(clipUrls) 병합 — 캐릭터가 일부 슬롯(걷기/달리기 등)만
+        // 바꿔도 나머지는 운영자 기본 유지. 캐릭터 슬롯이 같은 키면 그게 우선.
+        const operatorClips = await getOperatorClipUrls();
+        if (cancelled) return;
+        const effectiveClipUrls: Partial<Record<AnimSlot, string>> =
+          clipUrls && Object.keys(clipUrls).length
+            ? { ...operatorClips, ...clipUrls }
+            : operatorClips;
         if (cancelled) return;
         if (effectiveClipUrls) {
           const urlCount = Object.values(effectiveClipUrls).filter(Boolean).length;

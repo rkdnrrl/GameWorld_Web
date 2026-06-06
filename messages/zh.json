@@ -1608,7 +1608,18 @@
     "emotesHint": "注册你的动画资源后，可在世界中用 1~9 键播放。",
     "emotesEmpty": "尚未注册表情动作。",
     "emotesAdd": "从资源添加表情动作",
-    "emotesNamePrompt": "请输入表情动作名称 (例如: 跳舞)"
+    "emotesNamePrompt": "请输入表情动作名称 (例如: 跳舞)",
+    "coreAnimTitle": "移动动画 (自定义)",
+    "coreAnimHint": "用你的动画资源替换走/跑等。留空=默认。",
+    "coreAnimDefault": "默认",
+    "coreAnimSet": "设置",
+    "coreAnimChange": "更改",
+    "animIdle": "待机",
+    "animWalk": "走",
+    "animRun": "跑",
+    "animJump": "跳",
+    "animFall": "下落",
+    "animCrouch": "蹲"
   },
   "Assets": {
     "title": "资源库",

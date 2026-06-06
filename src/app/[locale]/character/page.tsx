@@ -43,7 +43,19 @@ interface AppearanceV2 {
   manualExpressionMap?: Record<string, string>;
   /** 커스텀 이모트 — { 이모트이름: 애니메이션 에셋 URL }. 월드 1~9 픽커 + 스크립트 playEmote 에서 사용. */
   animSlotUrls?: Record<string, string>;
+  /** 커스텀 이동 애니메이션 — { 슬롯(idle/walk_fwd/run_fwd..): 애니메이션 에셋 URL }. 운영자 기본 위에 덮어씀. */
+  coreAnimUrls?: Record<string, string>;
 }
+
+/** 캐릭터가 직접 바꿀 수 있는 핵심 이동 슬롯 (라벨). 나머지는 fallback chain 으로 자동 대체됨. */
+const CORE_ANIM_BIND: ReadonlyArray<{ slot: string; labelKey: string }> = [
+  { slot: 'idle',        labelKey: 'animIdle' },
+  { slot: 'walk_fwd',    labelKey: 'animWalk' },
+  { slot: 'run_fwd',     labelKey: 'animRun' },
+  { slot: 'jump_start',  labelKey: 'animJump' },
+  { slot: 'fall',        labelKey: 'animFall' },
+  { slot: 'crouch_idle', labelKey: 'animCrouch' },
+];
 
 export default function CharacterPage() {
   const router = useRouter();
@@ -64,6 +76,10 @@ export default function CharacterPage() {
   const [emotePickerOpen, setEmotePickerOpen] = useState(false);
   // 에셋 선택 후 이름 입력 대기 (window.prompt 대신 인앱 입력 — 자동화·UX 개선)
   const [pendingEmote, setPendingEmote] = useState<{ url: string; name: string } | null>(null);
+  // 커스텀 이동 애니메이션 — { 슬롯: 애니메이션 에셋 URL }
+  const [coreAnims, setCoreAnims] = useState<Record<string, string>>({});
+  // 코어 애니 에셋 선택 중인 슬롯 (AssetPicker 열림)
+  const [coreSlotPicking, setCoreSlotPicking] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -97,6 +113,7 @@ export default function CharacterPage() {
           setOffsetY(ap.offsetY ?? 0);
           setManualBoneMap(ap.manualBoneMap || {});
           setEmotes(ap.animSlotUrls || {});
+          setCoreAnims(ap.coreAnimUrls || {});
         }
       }
       // official 목록 (공유된 캐릭터)
@@ -135,6 +152,7 @@ export default function CharacterPage() {
       offsetY,
       ...(Object.keys(manualBoneMap).length ? { manualBoneMap } : {}),
       ...(Object.keys(emotes).length ? { animSlotUrls: emotes } : {}),
+      ...(Object.keys(coreAnims).length ? { coreAnimUrls: coreAnims } : {}),
     };
     try {
       const token = session.getToken();
@@ -193,6 +211,7 @@ export default function CharacterPage() {
     setOffsetY(0);
     setManualBoneMap({});
     setEmotes({});
+    setCoreAnims({});
     setDiagnosis(null);
   };
 
@@ -211,7 +230,7 @@ export default function CharacterPage() {
             <directionalLight position={[3, 6, 3]} intensity={0.8} castShadow />
             <gridHelper args={[6, 12, '#444', '#222']} position={[0, 0, 0]} />
             {modelUrl && (
-              <PreviewWrap modelUrl={modelUrl} manualBoneMap={manualBoneMap} scale={scale} offsetY={offsetY} onLoaded={handleCharLoaded} />
+              <PreviewWrap modelUrl={modelUrl} manualBoneMap={manualBoneMap} scale={scale} offsetY={offsetY} coreAnimUrls={coreAnims} onLoaded={handleCharLoaded} />
             )}
             <OrbitControls target={[0, 1, 0]} enablePan={false} minDistance={1.5} maxDistance={6} />
           </Canvas>
@@ -290,6 +309,36 @@ export default function CharacterPage() {
               {showAllBones && (
                 <ManualMapUI diagnosis={diagnosis} manualBoneMap={manualBoneMap} setManualBoneMap={setManualBoneMap} />
               )}
+            </Section>
+          )}
+
+          {/* 이동 애니메이션 — 걷기/달리기/점프 등을 내 애니메이션 에셋으로 교체 */}
+          {modelUrl && (
+            <Section title={t('coreAnimTitle')}>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 8 }}>{t('coreAnimHint')}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {CORE_ANIM_BIND.map(({ slot, labelKey }) => {
+                  const url = coreAnims[slot];
+                  const fname = url ? (url.split('/').pop() || '').split('?')[0] : '';
+                  return (
+                    <div key={slot} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 10px' }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, minWidth: 52, color: '#93c5fd' }}>{t(labelKey)}</span>
+                      <span style={{ flex: 1, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: url ? '#fff' : 'rgba(255,255,255,0.4)' }}>
+                        {url ? `🎬 ${fname}` : t('coreAnimDefault')}
+                      </span>
+                      <button onClick={() => setCoreSlotPicking(slot)}
+                        style={{ border: '1px solid rgba(59,130,246,0.4)', background: 'rgba(59,130,246,0.15)', color: '#bfdbfe', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontWeight: 700 }}>
+                        {url ? t('coreAnimChange') : t('coreAnimSet')}
+                      </button>
+                      {url && (
+                        <button onClick={() => { const n = { ...coreAnims }; delete n[slot]; setCoreAnims(n); }}
+                          aria-label={tCommon('delete')}
+                          style={{ border: 'none', background: 'rgba(239,68,68,0.15)', color: '#f87171', borderRadius: 6, width: 26, height: 26, cursor: 'pointer', fontSize: 14 }}>×</button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </Section>
           )}
 
@@ -385,6 +434,18 @@ export default function CharacterPage() {
           tCommon={tCommon}
         />
       )}
+
+      {coreSlotPicking && (
+        <AssetPicker
+          onSelect={(url) => {
+            setCoreAnims(prev => ({ ...prev, [coreSlotPicking]: url }));
+            setCoreSlotPicking(null);
+          }}
+          onClose={() => setCoreSlotPicking(null)}
+          accept=".fbx,.vrma,.glb,.gltf"
+          tCommon={tCommon}
+        />
+      )}
     </div>
   );
 }
@@ -416,8 +477,9 @@ function btnStyle(color: string): React.CSSProperties {
 }
 
 /** Canvas 안 미리보기 wrapper — animStateRef 와 grid 등 보조. */
-function PreviewWrap({ modelUrl, manualBoneMap, scale, offsetY, onLoaded }: {
+function PreviewWrap({ modelUrl, manualBoneMap, scale, offsetY, coreAnimUrls, onLoaded }: {
   modelUrl: string; manualBoneMap: Partial<Record<HumanoidBoneName, string>>; scale: number; offsetY: number;
+  coreAnimUrls?: Record<string, string>;
   onLoaded?: (char: HumanoidChar) => void;
 }) {
   const animStateRef = useRef<AnimSlot>('idle');
@@ -431,6 +493,7 @@ function PreviewWrap({ modelUrl, manualBoneMap, scale, offsetY, onLoaded }: {
       <HumanoidMesh
         url={modelUrl}
         manualBoneMap={manualBoneMap as Record<string, string>}
+        clipUrls={coreAnimUrls}
         animStateRef={animStateRef}
         userScale={scale}
         enableLookAt={false}

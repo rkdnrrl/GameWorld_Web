@@ -1628,7 +1628,18 @@
     "emotesHint": "내 애니메이션 에셋을 등록하면 월드에서 1~9 키로 재생됩니다.",
     "emotesEmpty": "등록된 이모트가 없습니다.",
     "emotesAdd": "에셋에서 이모트 추가",
-    "emotesNamePrompt": "이모트 이름을 입력하세요 (예: 댄스)"
+    "emotesNamePrompt": "이모트 이름을 입력하세요 (예: 댄스)",
+    "coreAnimTitle": "이동 애니메이션 (커스텀)",
+    "coreAnimHint": "걷기·달리기 등을 내 애니메이션 에셋으로 교체. 비우면 기본 애니메이션 사용.",
+    "coreAnimDefault": "기본",
+    "coreAnimSet": "설정",
+    "coreAnimChange": "변경",
+    "animIdle": "대기",
+    "animWalk": "걷기",
+    "animRun": "달리기",
+    "animJump": "점프",
+    "animFall": "낙하",
+    "animCrouch": "앉기"
   },
   "Assets": {
     "title": "에셋 라이브러리",

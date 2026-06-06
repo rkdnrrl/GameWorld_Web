@@ -1608,7 +1608,18 @@
     "emotesHint": "Register your animation assets to play them with keys 1~9 in the world.",
     "emotesEmpty": "No emotes registered.",
     "emotesAdd": "Add emote from assets",
-    "emotesNamePrompt": "Enter an emote name (e.g. Dance)"
+    "emotesNamePrompt": "Enter an emote name (e.g. Dance)",
+    "coreAnimTitle": "Movement Animations (Custom)",
+    "coreAnimHint": "Replace walk/run etc. with your animation assets. Empty = default.",
+    "coreAnimDefault": "Default",
+    "coreAnimSet": "Set",
+    "coreAnimChange": "Change",
+    "animIdle": "Idle",
+    "animWalk": "Walk",
+    "animRun": "Run",
+    "animJump": "Jump",
+    "animFall": "Fall",
+    "animCrouch": "Crouch"
   },
   "Assets": {
     "title": "Asset Library",
