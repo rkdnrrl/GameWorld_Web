@@ -205,14 +205,51 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const playerRef = useRef<any>(null);
+  const wrapDivRef = useRef<HTMLDivElement | null>(null);
+  const groupRef = useRef<THREE.Group>(null);
 
   // div container ref callback — drei 가 div 를 새로 만들 때마다 호출. 옛 iframe 을 새 div 로 옮겨 영구 보존.
   const setContainerRef = (div: HTMLDivElement | null) => {
+    wrapDivRef.current = div;
     if (div && iframeRef.current && iframeRef.current.parentElement !== div) {
       console.log('[YT] re-parent iframe to new div', objId);
       div.appendChild(iframeRef.current);
     }
   };
+
+  // 자체 occlusion — drei occlude 의 매 frame scene 전체 raycast (187ms long task) 대신
+  // 4 frame throttle + SkinnedMesh 제외. 가려지면 opacity 0 (visibility 안 씀 → video 계속 재생).
+  const raycaster = useMemo(() => new THREE.Raycaster(), []);
+  const frameCount = useRef(0);
+  const _planeWorld = useRef(new THREE.Vector3());
+  const _dir = useRef(new THREE.Vector3());
+  const lastOccluded = useRef(false);
+  useFrame(({ camera, scene }) => {
+    frameCount.current++;
+    if (frameCount.current % 4 !== 0) return;  // 매 4 frame ~15fps update
+    if (!groupRef.current || !wrapDivRef.current) return;
+    groupRef.current.getWorldPosition(_planeWorld.current);
+    _dir.current.copy(_planeWorld.current).sub(camera.position);
+    const distance = _dir.current.length();
+    if (distance < 0.1) return;
+    _dir.current.normalize();
+    raycaster.set(camera.position, _dir.current);
+    raycaster.far = distance - 0.05;  // plane 자체 제외
+    // SkinnedMesh 제외 — 캐릭터 raycast 가 본 변형 반영 위해 매우 무거움
+    const occluders: THREE.Object3D[] = [];
+    scene.traverse(o => {
+      const m = o as THREE.Mesh;
+      if (!m.visible) return;
+      if ((o as THREE.SkinnedMesh).isSkinnedMesh) return;
+      if (m.isMesh) occluders.push(o);
+    });
+    const hits = raycaster.intersectObjects(occluders, false);
+    const occluded = hits.length > 0;
+    if (occluded !== lastOccluded.current) {
+      lastOccluded.current = occluded;
+      wrapDivRef.current.style.opacity = occluded ? '0' : '1';
+    }
+  });
 
   // 플레이어 생성 — videoId 변경 시만. iframe 을 document body 에 만들어 두고 div 마운트 시 옮김 → div
   // 마운트 타이밍 무관하게 안전. 첫 div mount 는 setContainerRef 가 처리.
@@ -312,13 +349,13 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
   void planeW; void planeH;  // 더 이상 사용 안 함 (부모 scale 이 fit 담당)
   const sx = 1 / (YT_IFRAME_W * PX_TO_UNIT);
   const sy = 1 / (YT_IFRAME_H * PX_TO_UNIT);
-  // ⚠ occlude="blending"/true 는 매 frame scene 전체 raycast → VRM SkinnedMesh.raycast
-  // 가 본 변형 반영 위해 매우 무거움 (187ms long task 측정). fps 우선시 → false.
-  // 영상이 항상 오브젝트 위에 그려지지만 fps 정상.
+  // drei occlude 사용 안 함 — 자체 raycast (4-frame throttle, SkinnedMesh 제외) 로 처리.
   return (
-    <Html transform occlude={false} pointerEvents="none" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center>
-      <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000', backfaceVisibility: 'hidden' }} />
-    </Html>
+    <group ref={groupRef}>
+      <Html transform occlude={false} pointerEvents="none" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center>
+        <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000', backfaceVisibility: 'hidden', transition: 'opacity 80ms' }} />
+      </Html>
+    </group>
   );
 });
 
