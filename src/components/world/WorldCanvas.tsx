@@ -1378,10 +1378,11 @@ export function Player({
     }
   }, [cameraMode, inputLocked, gl]);
 
-  // 1인칭 camera.near = 0.15 — 머리/머리카락 컬링 + ground 안 잘림.
-  // 3인칭 = 0.01 — 사실상 컬링 없음 (사용자 요청). 가까운 오브젝트 모두 보임.
+  // 1인칭 camera.near = 0.17 — 머리/머리카락 컬링 + ground 안 잘림.
+  // 3인칭 = 0.3 — 카메라가 캐릭터 뒤에 떨어져 있어 작은 near 불필요.
+  //   near 0.01 은 depth buffer 정밀도를 무너뜨려 먼 거리 영상 plane z-fighting 유발 → 0.3 으로 상향.
   useEffect(() => {
-    camera.near = cameraMode === 'first' ? 0.17 : 0.01;
+    camera.near = cameraMode === 'first' ? 0.17 : 0.3;
     if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
       (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
     }
