@@ -2485,6 +2485,8 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
   const scriptBodyRefs = useRef<Map<string, SimBodyRefs>>(new Map());
   // 플레이어 제어 — world.teleport/respawn/setSpawn. Player 가 텔레포트 함수 등록, spawnRef=리스폰 지점.
   const playerCtlRef = useRef<PlayerControl | null>(null);
+  // 시뮬 플레이어 실시간 위치 — Player 가 매 frame 갱신. world.getPlayers() 가 본인 위치 반환용 (높이 체크 등).
+  const simPlayerPoseRef = useRef<{ x: number; y: number; z: number; rotY: number }>({ x: 0, y: 0, z: 0, rotY: 0 });
   const spawnRef = useRef<[number, number, number]>([0, 4, 0]);
   useEffect(() => { if (player?.spawnPos) spawnRef.current = player.spawnPos; }, [player?.spawnPos]);
   // per-player 제어 명령을 시뮬 플레이어에 적용 (시뮬은 단일 플레이어라 항상 로컬).
@@ -2670,7 +2672,7 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
 
       const worldAPI: import('@/lib/world/jsRuntime').JsWorldAPI = {
         getTime: () => worldElapsed.current,
-        getPlayers: () => [], // 스튜디오엔 플레이어 없음
+        getPlayers: () => { const p = simPlayerPoseRef.current; return player ? [{ id: 'player', username: '나', x: p.x, y: p.y, z: p.z }] : []; },
         findObject: (nameOrId) => {
           const target = [...objects, ...runtimeObjectsRef.current].find(o => o.id === nameOrId || o.label === nameOrId);
           if (!target) return null;
@@ -2808,7 +2810,7 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
 
     const worldAPI2: import('@/lib/world/jsRuntime').JsWorldAPI = {
       getTime: () => worldElapsed.current,
-      getPlayers: () => [],
+      getPlayers: () => { const p = simPlayerPoseRef.current; return player ? [{ id: 'player', username: '나', x: p.x, y: p.y, z: p.z }] : []; },
       // 메인 스크립트와 동일하게 id/label 로 오브젝트 찾기 — 오브젝트 참조 변수(드롭한 target) 해석에 필요.
       // (이게 () => null 이라 시뮬에선 target 이 항상 null 이라 동작 안 하던 버그)
       findObject: (nameOrId) => {
@@ -2996,6 +2998,7 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
         <Player
           character={player.character}
           onMove={() => {}}
+          localPoseRef={simPlayerPoseRef}
           inputLocked={player.freeCam}
           cameraControlEnabled={!player.freeCam}
           hideHeadOverride={false}

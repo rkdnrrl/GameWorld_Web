@@ -4503,10 +4503,15 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     const worldAPI: import('@/lib/world/jsRuntime').JsWorldAPI = {
       getTime: () => worldElapsed.current,
       getPlayers: () => {
-        return Object.values(playersRef.current).map(p => {
+        const list = Object.values(playersRef.current).map(p => {
           const pose = posesRef.current?.get(p.id);
           return { id: p.id, username: p.username, x: pose?.x ?? 0, y: pose?.y ?? 0, z: pose?.z ?? 0 };
         });
+        // 로컬(본인) 플레이어도 포함 — 스크립트(높이 체크 등)가 본인 위치를 봐야 함.
+        // 트리거 이벤트의 본인 id 가 'player' 라 동일하게 'player' 로 노출 (region 매칭).
+        const lp = localPoseRef.current;
+        list.push({ id: 'player', username: '나', x: lp.x, y: lp.y, z: lp.z });
+        return list;
       },
       findObject: (nameOrId) => {
         const target = customObjects?.find(o => o.id === nameOrId || (o as { label?: string }).label === nameOrId)
