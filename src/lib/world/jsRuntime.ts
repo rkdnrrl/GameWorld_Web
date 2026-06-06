@@ -290,6 +290,19 @@ class Parser {
   parseFor(): Node {
     this.eat('KW', 'for');
     this.eat('PUNCT', '(');
+    // for...of 지원: for (let|const|var X of <iterable>) — 'of' 는 IDENT 로 토큰화됨.
+    if (this.match('KW', 'let') || this.match('KW', 'const') || this.match('KW', 'var')) {
+      const t1 = this.peek(1); const t2 = this.peek(2);
+      if (t1 && t1.type === 'IDENT' && t2 && t2.type === 'IDENT' && t2.value === 'of') {
+        this.pos++;                         // let/const/var
+        const name = this.eat('IDENT').value;
+        this.pos++;                         // 'of'
+        const iter = this.parseExpression();
+        this.eat('PUNCT', ')');
+        const body = this.parseStatementOrBlock();
+        return { type: 'ForOf', name, iter, body };
+      }
+    }
     let init: Node | null = null;
     if (!this.match('PUNCT', ';')) {
       if (this.match('KW', 'let') || this.match('KW', 'const') || this.match('KW', 'var')) {
@@ -648,6 +661,26 @@ class Interpreter {
             else throw e;
           }
           if (node.update) this.eval(node.update, forEnv);
+        }
+        return undefined;
+      }
+      case 'ForOf': {
+        const iterable = this.eval(node.iter, env) as unknown[];
+        const list = Array.isArray(iterable) ? iterable
+          : (iterable && typeof (iterable as { length?: number }).length === 'number'
+              ? Array.prototype.slice.call(iterable as ArrayLike<unknown>) : []);
+        let iter = 0;
+        for (const item of list) {
+          if (++iter > MAX_LOOP_ITER) throw new Error(`for 반복 한도 초과 (${MAX_LOOP_ITER})`);
+          const inner = new Environment(env);
+          inner.declare(node.name as string, item);
+          try {
+            for (const s of node.body) this.exec(s, inner);
+          } catch (e) {
+            if (e instanceof BreakSignal) break;
+            if (e instanceof ContinueSignal) { /* 다음 항목 */ }
+            else throw e;
+          }
         }
         return undefined;
       }
