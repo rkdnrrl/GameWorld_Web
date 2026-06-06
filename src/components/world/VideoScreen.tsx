@@ -214,10 +214,11 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
     // drei <Html transform> 의 wrap div 들에 backface-visibility:hidden 강제 — 뒷면 안 그리게.
     // wrap → transform div → inner 까지 모두 적용. iframe 까지도.
     if (div) {
+      // 부모 4단계까지 검정 background 강제 (외곽 fade 시 sky 대신 검정).
+      // backfaceVisibility 는 적용 X — iframe 뒷면도 영상 보이게 (사용자 양면 요청).
       let el: HTMLElement | null = div;
       for (let i = 0; i < 4 && el; i++) {
-        el.style.backfaceVisibility = 'hidden';
-        el.style.background = '#000';  // 외곽 fade 시 sky 대신 검정 보이게
+        el.style.background = '#000';
         el = el.parentElement;
       }
     }
@@ -234,7 +235,7 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
     iframe.title = 'YouTube';
     iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
     iframe.tabIndex = -1;   // focus 못 받게 — focus 가면 키보드 이벤트가 iframe 으로 가서 ctrl+z / ctrl+d 등 안 먹음
-    iframe.style.cssText = 'border:none;display:block;background:#000;pointer-events:none;width:100%;height:100%;backface-visibility:hidden';
+    iframe.style.cssText = 'border:none;display:block;background:#000;pointer-events:none;width:100%;height:100%';
     iframeRef.current = iframe;
     // setContainerRef 가 div mount 시 옮길 텐데, 그게 useEffect 이전이면 이미 옮겨졌을 수도. 아니면 강제 트리거.
     // 트리거: ref callback 다시 호출은 안 되니, 한 frame 후 ref.current 확인.
@@ -323,7 +324,7 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
   const sy = 1 / (YT_IFRAME_H * PX_TO_UNIT);
   return (
     <Html transform occlude="blending" pointerEvents="none" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center style={{ backfaceVisibility: 'hidden', background: '#000' }}>
-      <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000', backfaceVisibility: 'hidden' }} />
+      <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000' }} />
     </Html>
   );
 });
@@ -371,10 +372,11 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
       div.appendChild(iframeRef.current);
     }
     if (div) {
+      // 부모 4단계까지 검정 background 강제 (외곽 fade 시 sky 대신 검정).
+      // backfaceVisibility 는 적용 X — iframe 뒷면도 영상 보이게 (사용자 양면 요청).
       let el: HTMLElement | null = div;
       for (let i = 0; i < 4 && el; i++) {
-        el.style.backfaceVisibility = 'hidden';
-        el.style.background = '#000';  // 외곽 fade 시 sky 대신 검정 보이게
+        el.style.background = '#000';
         el = el.parentElement;
       }
     }
@@ -387,7 +389,7 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
     iframe.height = String(YT_IFRAME_H);
     iframe.src = url;
     iframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
-    iframe.style.cssText = 'border:none;display:block;background:#000;pointer-events:auto;width:100%;height:100%;backface-visibility:hidden';
+    iframe.style.cssText = 'border:none;display:block;background:#000;pointer-events:auto;width:100%;height:100%';
     iframeRef.current = iframe;
     return () => {
       try { iframe.remove(); } catch { /* noop */ }
@@ -411,7 +413,7 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
   const sy = Math.max(0.01, planeH) / (YT_IFRAME_H * PX_TO_UNIT);
   return (
     <Html transform occlude="blending" pointerEvents="auto" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center style={{ backfaceVisibility: 'hidden', background: '#000' }}>
-      <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000', pointerEvents: 'auto', backfaceVisibility: 'hidden' }} />
+      <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000', pointerEvents: 'auto' }} />
     </Html>
   );
 });

@@ -2708,7 +2708,7 @@ const VideoPlaneMesh = React.memo(function VideoPlaneMeshImpl({
   obj: UserMapObject; shape: React.ReactElement;
   pos: [number, number, number]; rot: [number, number, number]; scl: [number, number, number];
 }) {
-  const vidSide = THREE.FrontSide;
+  const vidSide = THREE.DoubleSide;  // 양면 — 뒤에서도 영상 보이게
   const normUrl = normalizeMediaUrl(obj.videoUrl!);
   const kind = parseUrlKind(obj.videoUrl!);
   if (kind === 'youtube') {
