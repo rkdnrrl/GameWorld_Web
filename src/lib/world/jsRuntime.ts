@@ -954,6 +954,22 @@ export class JsScript {
         destroy: () => api.destroy?.(),
       });
 
+      // emote 인자 정규화 — opts: 숫자(=duration) | { loop?, duration? }. loop:false → '#once' 인코딩.
+      const emoteArgs = (slot: unknown, opts: unknown): { encoded: string | null; dur: number | undefined } => {
+        if (slot == null) return { encoded: null, dur: undefined };
+        let s = String(slot);
+        let dur: number | undefined;
+        let loop = true;
+        if (typeof opts === 'number') dur = opts;
+        else if (opts && typeof opts === 'object') {
+          const o = opts as { loop?: unknown; duration?: unknown };
+          if (o.loop === false) loop = false;
+          if (o.duration != null) dur = Number(o.duration);
+        }
+        if (!loop && !s.endsWith('#once')) s += '#once';
+        return { encoded: s, dur };
+      };
+
       const world = {
         time: 0,
         getPlayers: () => worldApi.getPlayers(),
@@ -1000,13 +1016,22 @@ export class JsScript {
         // ── 이모트 (커스텀 애니메이션) ──
         // slot 인자: 등록 슬롯명("idle"/"walk_fwd"..) 또는 애니메이션 에셋 URL(.fbx/.vrma/.glb).
         //   URL 을 주면 모든 클라가 그 공개 에셋을 on-demand 로 로드+리타게팅 → 전원 공유 재생.
-        // world.playEmote("https://.../dance.fbx")  — 본인 캐릭터에 재생 (계속)
-        // world.playEmote("https://.../wave.fbx", 3) — 3초 후 자동 해제
-        playEmote: (slot: unknown, durationSec?: unknown) =>
-          worldApi.playEmoteLocal?.(slot == null ? null : String(slot), durationSec == null ? undefined : Number(durationSec)),
-        // world.playEmoteOnPlayer(other, "dance", 3) — 특정 플레이어(트리거 other 등)에 emote 재생
-        playEmoteOnPlayer: (id: unknown, slot: unknown, durationSec?: unknown) =>
-          worldApi.controlPlayer?.(String(id), { t: 'emote', slot: slot == null ? null : String(slot), dur: durationSec == null ? undefined : Number(durationSec) }),
+        // 3번째 인자(opts): 숫자 = duration(초, 그 동안 루프 후 자동 해제)
+        //   또는 { loop?:boolean, duration?:number } — loop:false 면 1회 재생 후 자동 idle 복귀.
+        //   loop:false 는 URL 끝에 '#once' 를 붙여 인코딩 → animState broadcast 로 멀티 동기화됨.
+        // world.playEmote("https://.../dance.fbx")                — 계속 루프
+        // world.playEmote("https://.../wave.fbx", { loop:false }) — 1회만 재생
+        // world.playEmote("https://.../wave.fbx", 3)              — 3초 후 자동 해제
+        playEmote: (slot: unknown, opts?: unknown) => {
+          const a = emoteArgs(slot, opts);
+          worldApi.playEmoteLocal?.(a.encoded, a.dur);
+        },
+        // world.playEmoteOnPlayer(other, anim)               — 특정 플레이어에 계속 루프
+        // world.playEmoteOnPlayer(other, anim, { loop:false }) — 1회만
+        playEmoteOnPlayer: (id: unknown, slot: unknown, opts?: unknown) => {
+          const a = emoteArgs(slot, opts);
+          worldApi.controlPlayer?.(String(id), { t: 'emote', slot: a.encoded, dur: a.dur });
+        },
         // world.stopEmote() — 본인 해제 / world.stopEmote(other) — 특정 플레이어 해제
         stopEmote: (id?: unknown) => {
           if (id == null) worldApi.playEmoteLocal?.(null);

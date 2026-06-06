@@ -515,16 +515,31 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     if (isEmoteUrl(rawState)) {
       // 커스텀 애니메이션 에셋 URL — 이 캐릭터에 아직 등록 안 됐으면 on-demand 로드+retarget+캐싱.
       // 로드 완료 전엔 현재 슬롯 유지. 로드되면 char.actions 에 URL 키로 등록 → setSlot(url) 재생.
+      // '#once' 접미사 = 1회 재생 후 자동 idle (world.playEmote(url,{loop:false}) 인코딩).
+      // 없으면 무한 루프. fetch 는 접미사 뗀 순수 URL 로.
+      const once = rawState.endsWith('#once');
+      const fetchUrl = once ? rawState.slice(0, -'#once'.length) : rawState;
       if (char.actions.has(rawState as AnimSlot)) {
         if (char.currentSlot !== rawState) char.setSlot(rawState as AnimSlot);
       } else if (!emoteLoadingRef.current.has(rawState)) {
         emoteLoadingRef.current.add(rawState);
-        retargetEmoteClipForChar(rawState, char).then((clip) => {
+        retargetEmoteClipForChar(fetchUrl, char).then((clip) => {
           if (!clip) return;
           clip.name = rawState;
           const action = char.mixer.clipAction(clip);
-          action.loop = THREE.LoopRepeat; action.enabled = true;
+          action.loop = once ? THREE.LoopOnce : THREE.LoopRepeat;
+          action.clampWhenFinished = once;
+          action.enabled = true;
           char.actions.set(rawState as AnimSlot, action);
+          if (once) {
+            // 1회 재생 끝 → '__done__' 신호 (Player 가 emote 해제 → idle). 본인/원격 공통.
+            const onFinished = (e: { action: THREE.AnimationAction }) => {
+              if (e.action !== action) return;
+              char.mixer.removeEventListener('finished', onFinished as never);
+              if (animStateRef.current === rawState) animStateRef.current = '__done__';
+            };
+            char.mixer.addEventListener('finished', onFinished as never);
+          }
         }).catch(() => {});
       }
     } else {
