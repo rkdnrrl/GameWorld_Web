@@ -4582,6 +4582,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     customObjects?.map(o => o.id + (o.script ?? '') + JSON.stringify(o.components ?? [])).join(','),
+    // 런타임 소환(world.spawn / 프리팹 소환) 오브젝트도 포함 — 빠지면 소환된 프리팹의
+    // 스크립트/컴포넌트 VM 이 안 만들어져 onClick·onStart 등이 동작 안 함 (시뮬에선 customObjects 라 됐던 버그).
+    runtimeObjects.map(o => o.id + (o.script ?? '') + JSON.stringify(o.components ?? [])).join(','),
     scriptComponentsLoaded,
   ]);
 
