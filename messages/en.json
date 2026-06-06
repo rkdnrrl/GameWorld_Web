@@ -1468,6 +1468,7 @@
     "activeCharacter": "Active",
     "manageCharacters": "Open Character Manager",
     "moveMap": "Move to Map",
+    "switchSession": "Switch Session",
     "portalOpen": "Open Portal",
     "portalPickTitle": "Pick a Map to Portal To",
     "portalHere": "Portal Here",

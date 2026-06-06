@@ -777,15 +777,16 @@ export default function WorldPage() {
    */
   function moveWorld(nextId: string, nextName?: string) {
     const current = worldIdParam || '';
-    if (nextId === current) return;
     // 빈 id 또는 명시적으로 홈허브 id 클릭한 경우 — picker 없이 바로 이동
     const isTargetHomeHub = !nextId || (!!homeHubId && nextId === homeHubId);
     if (isTargetHomeHub) {
+      // 이미 홈허브면(personal 모드) 세션 개념 없음 → 무시
+      if (nextId === current || (!current && !nextId)) return;
       // /world (no id) → 페이지가 home-hub API 로 해석. 홈허브 = personal 모드 → sessionId=playerId 자동.
       window.location.assign(`/${locale}/world`);
       return;
     }
-    // 그 외 맵 → 먼저 세션 picker 띄움 (현재 페이지에서)
+    // 그 외 맵 → 세션 picker 띄움. 같은 맵이어도 다른 세션으로 이동할 수 있게 허용.
     setPickerForWorld({ id: nextId, name: nextName || nextId });
     setMapModalOpen(false); // map browser 모달 닫기
   }
@@ -939,6 +940,11 @@ export default function WorldPage() {
           maxPlayersDefault={50}
           onClose={() => setPickerForWorld(null)}
           onPick={(sid) => {
+            // 현재 맵+현재 세션과 동일하면 리로드 없이 닫기만.
+            if (pickerForWorld.id === (worldIdParam || '') && sid === effectiveSessionId) {
+              setPickerForWorld(null);
+              return;
+            }
             window.location.assign(`/${locale}/world?id=${encodeURIComponent(pickerForWorld.id)}&s=${encodeURIComponent(sid)}`);
           }}
         />
@@ -1608,22 +1614,33 @@ export default function WorldPage() {
                                 ))}
                               </div>
                             )}
+                            {(() => {
+                              const focusedIsHomeHub = !!focused && !!homeHubId && focused.id === homeHubId;
+                              // 현재 맵이어도 (포탈 모드 X, 홈허브 X) 면 세션 전환 버튼으로 활성화.
+                              const showSessionSwitch = focusedIsCurrent && !portalPickMode && !focusedIsHomeHub;
+                              const btnDisabled = focusedIsCurrent && (portalPickMode || focusedIsHomeHub);
+                              return (
                             <button
                               onClick={() => handleWorldPick(focused)}
-                              disabled={focusedIsCurrent}
+                              disabled={btnDisabled}
                               style={{
                                 marginTop: 6,
                                 width: '100%', padding: '12px 0',
-                                background: focusedIsCurrent ? 'rgba(255,255,255,0.06)'
+                                background: btnDisabled ? 'rgba(255,255,255,0.06)'
+                                  : showSessionSwitch ? 'linear-gradient(135deg,#0ea5e9,#6366f1)'
                                   : (portalPickMode ? 'linear-gradient(135deg,#06b6d4,#3b82f6)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)'),
-                                color: focusedIsCurrent ? 'rgba(255,255,255,0.45)' : '#fff',
+                                color: btnDisabled ? 'rgba(255,255,255,0.45)' : '#fff',
                                 border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 800,
-                                cursor: focusedIsCurrent ? 'default' : 'pointer',
-                                boxShadow: focusedIsCurrent ? 'none' : '0 4px 14px rgba(99,102,241,0.35)',
+                                cursor: btnDisabled ? 'default' : 'pointer',
+                                boxShadow: btnDisabled ? 'none' : '0 4px 14px rgba(99,102,241,0.35)',
                               }}
                             >
-                              {focusedIsCurrent ? '✓ 현재 맵' : (portalPickMode ? `🌀 ${t('portalHere')}` : `▶ ${t('moveMap')}`)}
+                              {btnDisabled ? '✓ 현재 맵'
+                                : showSessionSwitch ? `🔀 ${t('switchSession')}`
+                                : (portalPickMode ? `🌀 ${t('portalHere')}` : `▶ ${t('moveMap')}`)}
                             </button>
+                              );
+                            })()}
                           </div>
                         </div>
                       )}

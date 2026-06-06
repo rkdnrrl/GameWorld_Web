@@ -1468,6 +1468,7 @@
     "activeCharacter": "使用中",
     "manageCharacters": "前往角色管理",
     "moveMap": "切换地图",
+    "switchSession": "切换会话",
     "portalOpen": "开启传送门",
     "portalPickTitle": "选择传送门目标地图",
     "portalHere": "传送到这里",
