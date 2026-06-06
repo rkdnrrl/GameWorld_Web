@@ -3467,6 +3467,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const makeObjectAPIRef = useRef<((id: string, fallback?: UserMapObject) => import('@/lib/world/jsRuntime').JsObjectAPI) | null>(null);
   // 유저 정의 컴포넌트 코드 캐시 — id → ScriptComponent (코드/이름)
   const scriptComponentDefsRef = useRef<Map<string, import('@/lib/api').ScriptComponent>>(new Map());
+  // 이미 on-demand fetch 시도한 컴포넌트 id (무한 재시도 방지)
+  const triedCompFetchRef = useRef<Set<string>>(new Set());
   // 컴포넌트 코드 변경 감지용 (state — 변경되면 VM 재생성 트리거)
   const [scriptComponentsLoaded, setScriptComponentsLoaded] = useState(0);
   // 스크립트 컴포넌트 코드 fetch (월드 마운트 시 1회).
@@ -4539,6 +4541,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     componentScripts.current.clear();
 
     const allObjs = [...(customObjects ?? []), ...runtimeObjectsRef.current];
+    const missingCompIds = new Set<string>();   // def 없는 컴포넌트 → 아래서 on-demand fetch
     for (const obj of allObjs) {
       if (obj.hidden) continue;
       const userComps = (obj.components ?? []).filter(c => c.type.startsWith('user:'));
@@ -4557,7 +4560,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         const compId = inst.type.slice(5); // 'user:abc' → 'abc'
         const def = scriptComponentDefsRef.current.get(compId);
         if (!def) {
-          console.warn(`[user-component] 코드 없음: ${compId} (오브젝트 ${obj.id})`);
+          if (!triedCompFetchRef.current.has(compId)) missingCompIds.add(compId);
+          else console.warn(`[user-component] 코드 없음(로드 실패): ${compId} (오브젝트 ${obj.id})`);
           continue;
         }
         const vm2 = new JsScript();
@@ -4568,6 +4572,26 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         vms.push({ vm: vm2, key: `${obj.id}::${idx}::${compId}` });
       }
       if (vms.length > 0) componentScripts.current.set(obj.id, vms);
+    }
+
+    // 누락된 컴포넌트 코드를 on-demand 로 직접 로드 → 성공하면 재실행해 VM 생성 (월드에서 def fetch
+    // 타이밍/순서로 누락되는 케이스 self-heal). 한 id 당 한 번만 시도 (무한 루프 방지).
+    if (missingCompIds.size > 0) {
+      const fetchIds = [...missingCompIds].filter(id => !triedCompFetchRef.current.has(id));
+      if (fetchIds.length > 0) {
+        fetchIds.forEach(id => triedCompFetchRef.current.add(id));
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { api, session } = require('@/lib/api') as typeof import('@/lib/api');
+        api.getScriptComponentsByIds(session.getToken() || undefined, fetchIds)
+          .then(r => {
+            let added = 0;
+            for (const c of r.components) {
+              if (!scriptComponentDefsRef.current.has(c.id)) { scriptComponentDefsRef.current.set(c.id, c); added++; }
+            }
+            if (added > 0) setScriptComponentsLoaded(n => n + 1);   // 재실행 → VM 생성
+          })
+          .catch(e => console.warn('[user-component] on-demand fetch 실패', e));
+      }
     }
 
     return () => {
