@@ -225,7 +225,7 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
     iframe.title = 'YouTube';
     iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
     iframe.tabIndex = -1;   // focus 못 받게 — focus 가면 키보드 이벤트가 iframe 으로 가서 ctrl+z / ctrl+d 등 안 먹음
-    iframe.style.cssText = 'border:none;display:block;background:#000;pointer-events:none;width:100%;height:100%';
+    iframe.style.cssText = 'border:none;display:block;background:#000;pointer-events:none;width:100%;height:100%;backface-visibility:hidden';
     iframeRef.current = iframe;
     // setContainerRef 가 div mount 시 옮길 텐데, 그게 useEffect 이전이면 이미 옮겨졌을 수도. 아니면 강제 트리거.
     // 트리거: ref callback 다시 호출은 안 되니, 한 frame 후 ref.current 확인.
@@ -317,7 +317,7 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
   // 영상이 항상 오브젝트 위에 그려지지만 fps 정상.
   return (
     <Html transform occlude={false} pointerEvents="none" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center>
-      <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000' }} />
+      <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000', backfaceVisibility: 'hidden' }} />
     </Html>
   );
 });
@@ -368,7 +368,7 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
     iframe.height = String(YT_IFRAME_H);
     iframe.src = url;
     iframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
-    iframe.style.cssText = 'border:none;display:block;background:#000;pointer-events:auto;width:100%;height:100%';
+    iframe.style.cssText = 'border:none;display:block;background:#000;pointer-events:auto;width:100%;height:100%;backface-visibility:hidden';
     iframeRef.current = iframe;
     return () => {
       try { iframe.remove(); } catch { /* noop */ }
@@ -393,7 +393,7 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
   // ⚠ occlude=blending 은 187ms long task — 사용 금지. fps 우선.
   return (
     <Html transform occlude={false} pointerEvents="auto" position={[0, 0, 0.001]} scale={[sx, sy, 1]} center>
-      <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000', pointerEvents: 'auto' }} />
+      <div ref={setContainerRef} style={{ width: YT_IFRAME_W, height: YT_IFRAME_H, background: '#000', pointerEvents: 'auto', backfaceVisibility: 'hidden' }} />
     </Html>
   );
 });
