@@ -4923,8 +4923,11 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         {/* 거리 기반 culling — 카메라에서 cullDistance 너머 mesh 안 그림 */}
         <PerfManager cullDistance={graphics.cullDistance} />
         {/* fps 자동 측정 — 60fps 못 유지하면 dpr 0.75 단계로 낮춤. 회복되면 다시 올림.
-            min/max bound 로 0.5~1.0 사이만 조정 — 너무 흐려지지 않게. */}
-        <PerformanceMonitor bounds={() => [50, 60]} flipflops={3}
+            min/max bound 로 0.5~1.0 사이만 조정 — 너무 흐려지지 않게.
+            ⚠ DPR 변경 = WebGL drawing buffer resize = 한 프레임 전체 flash(맵 깜빡임).
+              새 캐릭터 입장 시 순간 fps 하락에 과민 반응하면 입장마다 화면이 깜빡임 →
+              iterations(샘플 길이) 늘리고 flipflops 키워서 "지속적" 저fps 에만 반응. */}
+        <PerformanceMonitor bounds={() => [45, 60]} flipflops={6} iterations={12} ms={400}
           onIncline={() => setDprFactor(1)}
           onDecline={() => setDprFactor((f) => Math.max(0.5, f - 0.25))}
           onFallback={() => setDprFactor(0.5)}
