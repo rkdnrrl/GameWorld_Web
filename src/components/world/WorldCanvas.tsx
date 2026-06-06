@@ -3253,6 +3253,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // 최소 0.5 (이전 1.0 강제는 effectiveDpr cap 무력화시킴 — fragment fill rate fps drop 원인).
   const [dprFactor, setDprFactor] = useState(1);
   const adaptiveDpr = effectiveDpr * dprFactor;
+  // PerformanceMonitor warmup — 입장/캐릭터 로드 초기 스파이크에 DPR 이 바뀌면
+  // Canvas dpr prop 변경 → WebGL 재구성 → drei Html 영상 iframe teardown(영상 처음부터) + 맵 깜빡.
+  // 6초 warmup 후에만 PerformanceMonitor 활성화 — 초기 로드 동안 DPR 고정.
+  const [perfMonitorReady, setPerfMonitorReady] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setPerfMonitorReady(true), 6000);
+    return () => clearTimeout(id);
+  }, []);
   const ss = sceneSettings ?? {};
   const ambientIntensity = typeof ss.lightAmbient === 'number' ? ss.lightAmbient : 0.04;
   const dirIntensity     = typeof ss.lightDir     === 'number' ? ss.lightDir     : 0.0;
@@ -4927,11 +4935,13 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             ⚠ DPR 변경 = WebGL drawing buffer resize = 한 프레임 전체 flash(맵 깜빡임).
               새 캐릭터 입장 시 순간 fps 하락에 과민 반응하면 입장마다 화면이 깜빡임 →
               iterations(샘플 길이) 늘리고 flipflops 키워서 "지속적" 저fps 에만 반응. */}
-        <PerformanceMonitor bounds={() => [45, 60]} flipflops={6} iterations={12} ms={400}
-          onIncline={() => setDprFactor(1)}
-          onDecline={() => setDprFactor((f) => Math.max(0.5, f - 0.25))}
-          onFallback={() => setDprFactor(0.5)}
-        />
+        {perfMonitorReady && (
+          <PerformanceMonitor bounds={() => [45, 60]} flipflops={6} iterations={12} ms={400}
+            onIncline={() => setDprFactor(1)}
+            onDecline={() => setDprFactor((f) => Math.max(0.5, f - 0.25))}
+            onFallback={() => setDprFactor(0.5)}
+          />
+        )}
         <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
         <CanvasPointerEventsKeeper />
         <RemotePlayerCrosshairClick players={players} onPlayerClick={handleRemoteClick} />
