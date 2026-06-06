@@ -21,7 +21,8 @@
     "checking": "Checking…",
     "totalCount": "Total {count} items",
     "pageOf": "{page} / {total}",
-    "close": "Close"
+    "close": "Close",
+    "confirm": "OK"
   },
   "Metadata": {
     "title": "ALP",

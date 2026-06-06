@@ -21,7 +21,8 @@
     "checking": "확인 중…",
     "totalCount": "총 {count}건",
     "pageOf": "{page} / {total}",
-    "close": "닫기"
+    "close": "닫기",
+    "confirm": "확인"
   },
   "Metadata": {
     "title": "ALP",

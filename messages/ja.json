@@ -21,7 +21,8 @@
     "checking": "確認中…",
     "totalCount": "合計 {count} 件",
     "pageOf": "{page} / {total}",
-    "close": "閉じる"
+    "close": "閉じる",
+    "confirm": "確認"
   },
   "Metadata": {
     "title": "ALP",

@@ -21,7 +21,8 @@
     "checking": "检查中…",
     "totalCount": "共 {count} 条",
     "pageOf": "{page} / {total}",
-    "close": "关闭"
+    "close": "关闭",
+    "confirm": "确认"
   },
   "Metadata": {
     "title": "ALP",

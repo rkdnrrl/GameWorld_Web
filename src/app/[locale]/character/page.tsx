@@ -62,6 +62,8 @@ export default function CharacterPage() {
   // 커스텀 이모트 — { 이름: 애니메이션 에셋 URL }
   const [emotes, setEmotes] = useState<Record<string, string>>({});
   const [emotePickerOpen, setEmotePickerOpen] = useState(false);
+  // 에셋 선택 후 이름 입력 대기 (window.prompt 대신 인앱 입력 — 자동화·UX 개선)
+  const [pendingEmote, setPendingEmote] = useState<{ url: string; name: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -309,10 +311,42 @@ export default function CharacterPage() {
                   </div>
                 ))}
               </div>
-              <button onClick={() => setEmotePickerOpen(true)}
-                style={{ width: '100%', padding: '10px 0', background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.4)', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                + {t('emotesAdd')}
-              </button>
+              {pendingEmote ? (
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input
+                    autoFocus
+                    value={pendingEmote.name}
+                    onChange={e => setPendingEmote(p => p ? { ...p, name: e.target.value } : p)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        const nm = pendingEmote.name.trim();
+                        if (nm) setEmotes(prev => ({ ...prev, [nm]: pendingEmote.url }));
+                        setPendingEmote(null);
+                      } else if (e.key === 'Escape') setPendingEmote(null);
+                    }}
+                    placeholder={t('emotesNamePrompt')}
+                    style={{ flex: 1, background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(168,85,247,0.5)', color: '#fff', fontSize: 13, padding: '9px 10px', borderRadius: 8, outline: 'none' }}
+                  />
+                  <button
+                    onClick={() => {
+                      const nm = pendingEmote.name.trim();
+                      if (nm) setEmotes(prev => ({ ...prev, [nm]: pendingEmote.url }));
+                      setPendingEmote(null);
+                    }}
+                    style={{ padding: '9px 14px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                    {tCommon('confirm')}
+                  </button>
+                  <button onClick={() => setPendingEmote(null)}
+                    style={{ padding: '9px 12px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, color: 'rgba(255,255,255,0.7)', fontSize: 13, cursor: 'pointer' }}>
+                    {tCommon('cancel')}
+                  </button>
+                </div>
+              ) : (
+                <button onClick={() => setEmotePickerOpen(true)}
+                  style={{ width: '100%', padding: '10px 0', background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.4)', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  + {t('emotesAdd')}
+                </button>
+              )}
             </Section>
           )}
 
@@ -342,9 +376,9 @@ export default function CharacterPage() {
         <AssetPicker
           onSelect={(url) => {
             setEmotePickerOpen(false);
-            const name = (window.prompt(t('emotesNamePrompt')) || '').trim();
-            if (!name) return;
-            setEmotes(prev => ({ ...prev, [name]: url }));
+            // 기본 이름은 파일명 — 사용자가 인앱 입력에서 바로 수정 가능.
+            const base = (url.split('/').pop() || 'emote').split('?')[0].replace(/\.[^.]+$/, '');
+            setPendingEmote({ url, name: base });
           }}
           onClose={() => setEmotePickerOpen(false)}
           accept=".fbx,.vrma,.glb,.gltf"
