@@ -2769,23 +2769,35 @@ function UserAsset({ url, matObj }: { url: string; matObj: UserMapObject }) {
         const box = new THREE.Box3().setFromObject(model);
         const size = box.getSize(new THREE.Vector3());
         const h = Math.max(size.x, size.y, size.z);
-        // 데스크탑 에디터 finalizeFbx 와 동일 — 최대 치수 2m 기준 정규화 (옛 1m 면 크기 절반).
         if (h > 0) model.scale.multiplyScalar(2 / h);
-        // 원본 머티리얼 저장
         originalMats.current.clear();
+        // Progressive reveal — mesh 들을 invisible 로 시작, 매 frame 1-2 개씩 표시.
+        // 한꺼번에 등장 시 첫 frame 의 texture upload + shader compile 부담 분산.
+        const progressiveMeshes: THREE.Mesh[] = [];
         model.traverse(c => {
           const m = c as THREE.Mesh;
           if (m.isMesh) {
             m.castShadow = true;
             m.receiveShadow = true;
-            // 스킨드(캐릭터) 메시는 바운딩 구가 본 변형을 반영 못해 화면 안인데도 컬링되어
-            // 사라지는 문제가 있음 → 컬링 끔. (정적 에셋도 무해)
             m.frustumCulled = false;
             fixModelMaterials(m);
             originalMats.current.set(m, m.material);
+            m.visible = false;
+            progressiveMeshes.push(m);
           }
         });
         setObj(model);
+        // 매 frame 2 mesh 씩 노출 — 큰 에셋도 빠르게 완전 표시
+        let idx = 0;
+        const revealNext = () => {
+          if (cancelled) return;
+          for (let n = 0; n < 2 && idx < progressiveMeshes.length; n++) {
+            progressiveMeshes[idx].visible = true;
+            idx++;
+          }
+          if (idx < progressiveMeshes.length) requestAnimationFrame(revealNext);
+        };
+        requestAnimationFrame(revealNext);
       }).catch(err => console.error('[world] 모델 로드 실패:', err))
     );
     return () => { cancelled = true; };
