@@ -2705,18 +2705,13 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
 const VideoPlaneMesh = React.memo(function VideoPlaneMeshImpl({
   obj, shape,
 }: { obj: UserMapObject; shape: React.ReactElement }) {
-  const vidSide = THREE.DoubleSide;  // 양면 영상 표시
+  const vidSide = THREE.FrontSide;  // Studio 와 동일
   const normUrl = normalizeMediaUrl(obj.videoUrl!);
   const kind = parseUrlKind(obj.videoUrl!);
   if (kind === 'youtube') {
     const ytId = parseYouTubeId(normUrl)!;
     return (
       <>
-        {/* 검정 background plane — 약간 큼. 카메라 회전 잔상 영역을 검정으로 (sky 안 보이게) */}
-        <mesh position={[0, 0, -0.001]}>
-          <planeGeometry args={[1.05, 1.05]} />
-          <meshBasicMaterial color="#000" side={THREE.DoubleSide} toneMapped={false} />
-        </mesh>
         <mesh castShadow receiveShadow>
           {shape}
           <YouTubeMeshMaterial videoId={ytId} side={vidSide} />
