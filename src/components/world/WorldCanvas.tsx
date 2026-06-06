@@ -2675,15 +2675,6 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
     );
   }
 
-  // Video plane (영상/이미지/iframe) — Studio 와 동일 구조: group 에 transform,
-  // mesh + Html overlay 가 같은 group 의 child (sibling).
-  if (obj.videoUrl && physics === 'none' && !colliderArgs) {
-    return (
-      <group ref={groupRef} position={rPos} rotation={rRot} scale={rScale}>
-        <VideoPlaneMesh obj={obj} shape={shape} />
-      </group>
-    );
-  }
   if (physics === 'none' && !colliderArgs) {
     return (
       <group ref={groupRef} position={rPos} rotation={rRot} scale={rScale}>
@@ -2700,65 +2691,10 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
   );
 });
 
-/** Video plane (영상/이미지/iframe) — Studio 와 동일하게 mesh 에 직접 transform 적용.
- *  drei Html transform 이 mesh.matrixWorld 를 frame-perfect 로 참조 → 3인칭 외곽 색 X. */
-const VideoPlaneMesh = React.memo(function VideoPlaneMeshImpl({
-  obj, shape,
-}: { obj: UserMapObject; shape: React.ReactElement }) {
-  const vidSide = THREE.FrontSide;
-  const normUrl = normalizeMediaUrl(obj.videoUrl!);
-  const kind = parseUrlKind(obj.videoUrl!);
-  if (kind === 'youtube') {
-    const ytId = parseYouTubeId(normUrl)!;
-    return (
-      <>
-        <mesh castShadow receiveShadow>
-          {shape}
-          <YouTubeMeshMaterial videoId={ytId} side={vidSide} />
-        </mesh>
-        <YouTubeMaybeOverlay videoId={ytId} objId={obj.id} planeW={obj.scale[0]} planeH={obj.scale[1]} />
-      </>
-    );
-  }
-  if (kind === 'videoFile') {
-    return (
-      <mesh castShadow receiveShadow>
-        {shape}
-        <VideoScreenMaterial url={normUrl} objId={obj.id} side={vidSide} />
-      </mesh>
-    );
-  }
-  if (kind === 'image') {
-    return (
-      <mesh castShadow receiveShadow>
-        {shape}
-        <ImageMaterial url={normUrl} side={vidSide} />
-      </mesh>
-    );
-  }
-  if (kind === 'iframe') {
-    return (
-      <>
-        <mesh castShadow receiveShadow>
-          {shape}
-          <meshBasicMaterial color="#000" side={vidSide} />
-        </mesh>
-        <GenericIframeOverlay url={normUrl} planeW={obj.scale[0]} planeH={obj.scale[1]} />
-      </>
-    );
-  }
-  return (
-    <mesh castShadow receiveShadow>
-      {shape}
-      <meshBasicMaterial color="#000" side={vidSide} />
-    </mesh>
-  );
-});
-
 const PrimitiveMesh = React.memo(function PrimitiveMeshImpl({ obj, shape }: { obj: UserMapObject; shape: React.ReactElement }) {
   const material = React.useMemo(() => {
     const mat = buildMaterial(obj, obj.color);
-    // plane 도 FrontSide — 뒤에서 안 보임
+    if (obj.kind === 'plane') mat.side = THREE.DoubleSide;
     return mat;
   }, [obj.material, obj.materialColor, obj.color, obj.textureAlbedo, obj.textureNormal, obj.textureRoughness, obj.textureTilingX, obj.textureTilingY, obj.kind]);
 
@@ -2767,7 +2703,7 @@ const PrimitiveMesh = React.memo(function PrimitiveMeshImpl({ obj, shape }: { ob
   // 비디오 스크린 — URL 종류에 따라 분기. YouTube/영상파일/이미지(GIF)/generic iframe.
   // embed 코드(<iframe src=...>)도 normalizeMediaUrl 로 src 추출 후 분기.
   if (obj.videoUrl) {
-    const vidSide = THREE.FrontSide;  // 앞면만 — 영상/이미지 plane 이 뒤에서도 보이는 버그 fix
+    const vidSide = obj.kind === 'plane' ? THREE.DoubleSide : THREE.FrontSide;
     const normUrl = normalizeMediaUrl(obj.videoUrl);
     const kind = parseUrlKind(obj.videoUrl);
     if (kind === 'youtube') {

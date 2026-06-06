@@ -1587,7 +1587,7 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
     obj.kind === 'cylinder' ? <cylinderGeometry args={[0.5, 0.5, 1, 16]} /> :
     obj.kind === 'plane'    ? <planeGeometry args={[1, 1]} /> :
                               <boxGeometry args={[1, 1, 1]} />;
-  const vidSide = THREE.FrontSide;  // 앞면만 — 영상/이미지 plane 이 뒤에서도 보이는 버그 fix
+  const vidSide = obj.kind === 'plane' ? THREE.DoubleSide : THREE.FrontSide;
   const normUrl = obj.videoUrl ? normalizeMediaUrl(obj.videoUrl) : '';
   const urlKind = obj.videoUrl ? parseUrlKind(obj.videoUrl) : 'none';
   const ytId = urlKind === 'youtube' ? parseYouTubeId(normUrl) : null;
@@ -1639,7 +1639,7 @@ function PrimitiveMaterial({ obj, selected }: { obj: MapObject; selected?: boole
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cfgKey]);
 
-  const side = THREE.FrontSide;  // 앞면만 — plane 이 뒤에서 안 보임
+  const side = obj.kind === 'plane' ? THREE.DoubleSide : THREE.FrontSide;
   if (matRef.current) {
     matRef.current.side = side;
     // 선택 시 cyan glow — 어두운 환경에서도 명확히 보임
