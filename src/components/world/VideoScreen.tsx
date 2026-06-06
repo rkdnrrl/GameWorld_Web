@@ -331,8 +331,13 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
 export function YouTubeMeshMaterial({ videoId, selected, side = THREE.FrontSide }: {
   videoId: string; selected?: boolean; side?: THREE.Side;
 }) {
-  // 항상 썸네일 — live(시뮬/월드)에선 그 위에 iframe 이 덮어 재생. iframe 이 안 떠도
-  // 검은 화면 대신 썸네일이 보이게 (폴백).
+  // live 모드 (시뮬/월드) 면 검정 mesh — iframe 이 그 위에 덮여 영상 표시.
+  // blending alpha gradient 시 외곽이 sky/thumbnail 색 대신 검정으로 fade (사용자 요청).
+  // live=false (편집 미리보기) 면 썸네일 표시 (영상 안 재생).
+  const { live } = useContext(VideoScreenCtx);
+  if (live) {
+    return <meshBasicMaterial color="#000" side={side} toneMapped={false} />;
+  }
   return <YouTubeThumbMaterial videoId={videoId} selected={selected} side={side} />;
 }
 export const YouTubeMaybeOverlay = memo(function YouTubeMaybeOverlayImpl({ videoId, objId, planeW, planeH }: { videoId: string; objId?: string; planeW?: number; planeH?: number }) {
