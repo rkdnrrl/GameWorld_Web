@@ -2694,7 +2694,7 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
 const PrimitiveMesh = React.memo(function PrimitiveMeshImpl({ obj, shape }: { obj: UserMapObject; shape: React.ReactElement }) {
   const material = React.useMemo(() => {
     const mat = buildMaterial(obj, obj.color);
-    if (obj.kind === 'plane') mat.side = THREE.DoubleSide;
+    // plane 도 FrontSide — 뒤에서 안 보임
     return mat;
   }, [obj.material, obj.materialColor, obj.color, obj.textureAlbedo, obj.textureNormal, obj.textureRoughness, obj.textureTilingX, obj.textureTilingY, obj.kind]);
 
@@ -2703,7 +2703,7 @@ const PrimitiveMesh = React.memo(function PrimitiveMeshImpl({ obj, shape }: { ob
   // 비디오 스크린 — URL 종류에 따라 분기. YouTube/영상파일/이미지(GIF)/generic iframe.
   // embed 코드(<iframe src=...>)도 normalizeMediaUrl 로 src 추출 후 분기.
   if (obj.videoUrl) {
-    const vidSide = obj.kind === 'plane' ? THREE.DoubleSide : THREE.FrontSide;
+    const vidSide = THREE.FrontSide;  // 앞면만 — 영상/이미지 plane 이 뒤에서도 보이는 버그 fix
     const normUrl = normalizeMediaUrl(obj.videoUrl);
     const kind = parseUrlKind(obj.videoUrl);
     if (kind === 'youtube') {
