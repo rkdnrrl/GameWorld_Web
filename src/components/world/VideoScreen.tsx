@@ -213,12 +213,16 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
     }
     // drei <Html transform> 의 wrap div 들에 backface-visibility:hidden 강제 — 뒷면 안 그리게.
     // wrap → transform div → inner 까지 모두 적용. iframe 까지도.
-    // div + 부모 1단계 (drei wrap div) 까지 검정 background — alpha gradient 외곽이 검정으로.
-    // 2단계 이상 가면 portal root → page 다른 영역 검정 (#245 → #250 부작용 회피).
+    // div + 부모 2단계 (drei transform wrap div 까지) 검정 background.
+    // 3단계는 portal root 까지 가서 페이지 검정 부작용 (#250).
     if (div) {
       div.style.background = '#000';
-      const wrap = div.parentElement;
-      if (wrap) wrap.style.background = '#000';
+      const p1 = div.parentElement;
+      if (p1) {
+        p1.style.background = '#000';
+        const p2 = p1.parentElement;
+        if (p2) p2.style.background = '#000';
+      }
     }
   };
 
@@ -336,9 +340,8 @@ export function YouTubeMeshMaterial({ videoId, selected, side = THREE.FrontSide 
   // live=false (편집 미리보기) 면 썸네일 표시 (영상 안 재생).
   const { live } = useContext(VideoScreenCtx);
   if (live) {
-    // transparent + opacity 0 — iframe 이 plane 양면 모두 보이게 (mesh 가 가리지 않게).
-    // 외곽 fade 색은 wrap div 의 background:#000 으로 처리.
-    return <meshBasicMaterial color="#000" side={side} transparent opacity={0} toneMapped={false} />;
+    // 검정 plane mesh — iframe 외곽이 plane 검정 위에 → 외곽선 검정 (Studio 와 동일).
+    return <meshBasicMaterial color="#000" side={side} toneMapped={false} />;
   }
   return <YouTubeThumbMaterial videoId={videoId} selected={selected} side={side} />;
 }
@@ -371,12 +374,16 @@ export const GenericIframeOverlay = memo(function GenericIframeOverlayImpl({ url
     if (div && iframeRef.current && iframeRef.current.parentElement !== div) {
       div.appendChild(iframeRef.current);
     }
-    // div + 부모 1단계 (drei wrap div) 까지 검정 background — alpha gradient 외곽이 검정으로.
-    // 2단계 이상 가면 portal root → page 다른 영역 검정 (#245 → #250 부작용 회피).
+    // div + 부모 2단계 (drei transform wrap div 까지) 검정 background.
+    // 3단계는 portal root 까지 가서 페이지 검정 부작용 (#250).
     if (div) {
       div.style.background = '#000';
-      const wrap = div.parentElement;
-      if (wrap) wrap.style.background = '#000';
+      const p1 = div.parentElement;
+      if (p1) {
+        p1.style.background = '#000';
+        const p2 = p1.parentElement;
+        if (p2) p2.style.background = '#000';
+      }
     }
   };
 

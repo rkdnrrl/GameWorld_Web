@@ -2705,7 +2705,7 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
 const VideoPlaneMesh = React.memo(function VideoPlaneMeshImpl({
   obj, shape,
 }: { obj: UserMapObject; shape: React.ReactElement }) {
-  const vidSide = THREE.DoubleSide;  // 양면 — 뒤에서도 영상 보이게
+  const vidSide = THREE.FrontSide;  // Studio 와 동일 — 외곽 검정 우선
   const normUrl = normalizeMediaUrl(obj.videoUrl!);
   const kind = parseUrlKind(obj.videoUrl!);
   if (kind === 'youtube') {
