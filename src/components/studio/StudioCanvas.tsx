@@ -643,16 +643,30 @@ function UserComponentCard({
       {objectVars.map(v => {
         const refId = props[v.key];
         const refObj = typeof refId === 'string' ? allObjects.find(o => o.id === refId) : undefined;
+        // 오브젝트가 아니고 URL 문자열이면 = 에셋 참조 (애니메이션 FBX 등 드래그됨)
+        const isAssetUrl = !refObj && typeof refId === 'string' && /^https?:\/\//.test(refId);
+        const assetName = isAssetUrl ? (refId as string).split('/').pop()?.split('?')[0] || 'asset' : '';
+        const filled = !!refObj || isAssetUrl;
         return (
           <div key={v.key} style={{ marginTop: 6 }}>
             <div style={{ fontSize: 10, opacity: 0.75, marginBottom: 3 }}>🔗 {v.key}</div>
             <div
               data-objvar={`${objectId}|${componentIdx}|${v.key}`}
               title={tCanvas("tooltip_drop_object_slot")}
+              onDragOver={e => {
+                if (e.dataTransfer.types.includes('application/x-alp-asset-url')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }
+              }}
+              onDrop={e => {
+                const url = e.dataTransfer.getData('application/x-alp-asset-url');
+                if (!url) return;
+                e.preventDefault();
+                onPropsChange({ ...props, [v.key]: url });
+                onPropsCommit();
+              }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 5, minHeight: 22,
-                border: `1px dashed ${refObj ? 'rgba(129,140,248,0.6)' : 'rgba(255,255,255,0.2)'}`,
-                background: refObj ? 'rgba(99,102,241,0.14)' : 'rgba(0,0,0,0.25)', fontSize: 10,
+                border: `1px dashed ${filled ? 'rgba(129,140,248,0.6)' : 'rgba(255,255,255,0.2)'}`,
+                background: filled ? 'rgba(99,102,241,0.14)' : 'rgba(0,0,0,0.25)', fontSize: 10,
               }}>
               {refObj ? (
                 <>
@@ -662,6 +676,13 @@ function UserComponentCard({
                     style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', color: '#c7d2fe', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer', textAlign: 'left', padding: 0, fontSize: 10 }}>
                     {KIND_ICONS[refObj.kind] ?? '📦'} {refObj.label || refObj.kind}
                   </button>
+                  <button type="button" title={tCanvas("tooltip_unlink")}
+                    onClick={() => { const next = { ...props }; delete next[v.key]; onPropsChange(next); onPropsCommit(); }}
+                    style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.75)', fontSize: 11, cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>
+                </>
+              ) : isAssetUrl ? (
+                <>
+                  <span style={{ flex: 1, minWidth: 0, color: '#a78bfa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🎬 {assetName}</span>
                   <button type="button" title={tCanvas("tooltip_unlink")}
                     onClick={() => { const next = { ...props }; delete next[v.key]; onPropsChange(next); onPropsCommit(); }}
                     style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.75)', fontSize: 11, cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>
@@ -1065,7 +1086,15 @@ function StudioAssetCard({ asset, onDelete, onRename, onPreview, selected }: {
           // 선택(포커스) 후 F2 → 이름 변경
           if (e.key === 'F2' && !editing) { e.preventDefault(); e.stopPropagation(); setEditVal(asset.name); setEditing(true); }
         }}
-        onDragStart={e => { e.dataTransfer.setData('text/plain', asset.id); e.dataTransfer.effectAllowed = 'move'; }}
+        onDragStart={e => {
+          e.dataTransfer.setData('text/plain', asset.id);
+          // 스크립트 변수(let x = null) 슬롯에 드롭 시 이 URL 이 변수값이 됨 (예: 애니메이션 FBX → world.playEmote(x)).
+          if (asset.modelUrl) {
+            e.dataTransfer.setData('application/x-alp-asset-url', asset.modelUrl);
+            e.dataTransfer.setData('application/x-alp-asset-name', asset.name || '');
+          }
+          e.dataTransfer.effectAllowed = 'copyMove';
+        }}
         style={{
           background: hovered || focused ? 'rgba(129,140,248,0.16)' : 'rgba(255,255,255,0.05)',
           border: `1px solid ${focused ? '#818cf8' : 'rgba(255,255,255,0.09)'}`,
@@ -2450,10 +2479,11 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
   const spawnRef = useRef<[number, number, number]>([0, 4, 0]);
   useEffect(() => { if (player?.spawnPos) spawnRef.current = player.spawnPos; }, [player?.spawnPos]);
   // per-player 제어 명령을 시뮬 플레이어에 적용 (시뮬은 단일 플레이어라 항상 로컬).
-  const applyPlayerCmd = useCallback((cmd: { t?: string; x?: number; y?: number; z?: number }) => {
+  const applyPlayerCmd = useCallback((cmd: { t?: string; x?: number; y?: number; z?: number; slot?: string | null; dur?: number }) => {
     if (cmd.t === 'tp') playerCtlRef.current?.teleport(Number(cmd.x), Number(cmd.y), Number(cmd.z));
     else if (cmd.t === 'respawn') { const [x, y, z] = spawnRef.current; playerCtlRef.current?.teleport(x, y + 1, z); }
     else if (cmd.t === 'setspawn') spawnRef.current = [Number(cmd.x), Number(cmd.y), Number(cmd.z)];
+    else if (cmd.t === 'emote') playerCtlRef.current?.setEmote(cmd.slot ?? null, cmd.dur);
   }, []);
   const lightRefs = useRef<Map<string, THREE.Light>>(new Map());
   const luaScripts = useRef<Map<string, import('@/lib/world/jsRuntime').JsScript>>(new Map());
@@ -2658,6 +2688,7 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
         respawnLocal: () => { const [x, y, z] = spawnRef.current; playerCtlRef.current?.teleport(x, y + 1, z); },
         setPlayerSpeed: (m) => playerCtlRef.current?.setSpeed(m),
         setPlayerJump: (p) => playerCtlRef.current?.setJump(p),
+        playEmoteLocal: (slot, durationSec) => playerCtlRef.current?.setEmote(slot, durationSec),
         isPlayerId: (id) => id === '__sim_player__' || id === 'player',
         controlPlayer: (_id, cmd) => applyPlayerCmd(cmd),   // 시뮬은 단일 플레이어 — 항상 로컬
       };

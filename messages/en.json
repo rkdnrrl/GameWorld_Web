@@ -1600,7 +1600,12 @@
     "oneShotLabel": "Once",
     "customSlotsLabel": "Custom Slots",
     "customSlotPlaceholder": "Slot name (e.g. sleep, swim)",
-    "customSlotAdd": "Add"
+    "customSlotAdd": "Add",
+    "emotesTitle": "Emotes (Custom Animations)",
+    "emotesHint": "Register your animation assets to play them with keys 1~9 in the world.",
+    "emotesEmpty": "No emotes registered.",
+    "emotesAdd": "Add emote from assets",
+    "emotesNamePrompt": "Enter an emote name (e.g. Dance)"
   },
   "Assets": {
     "title": "Asset Library",

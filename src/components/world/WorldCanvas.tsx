@@ -1205,6 +1205,8 @@ export interface PlayerControl {
   teleport: (x: number, y: number, z: number) => void;
   setSpeed: (mult: number) => void;
   setJump: (power: number) => void;
+  /** 이모트(커스텀 애니메이션) 재생. slot=null 이면 해제(idle 복귀). durationSec 주면 그 후 자동 해제. */
+  setEmote: (slot: string | null, durationSec?: number) => void;
 }
 
 /* ── 로컬 플레이어 컨트롤러 ─────────────── */
@@ -1328,6 +1330,14 @@ export function Player({
       },
       setSpeed: (mult: number) => { speedMulRef.current = Number.isFinite(mult) ? Math.max(0, mult) : 1; },
       setJump:  (power: number) => { jumpOverrideRef.current = Number.isFinite(power) ? power : null; },
+      setEmote: (slot: string | null, durationSec?: number) => {
+        if (emoteTimerRef.current) { clearTimeout(emoteTimerRef.current); emoteTimerRef.current = null; }
+        emoteSlotRef.current = slot || null;
+        // animState 가 매 frame onMove 로 broadcast → 다른 클라에도 자동 sync (별도 sync 불필요).
+        if (slot && durationSec && durationSec > 0) {
+          emoteTimerRef.current = setTimeout(() => { emoteSlotRef.current = null; emoteTimerRef.current = null; }, durationSec * 1000);
+        }
+      },
     };
     return () => { if (playerCtlRef) playerCtlRef.current = null; };
   }, [playerCtlRef]);
@@ -1336,6 +1346,8 @@ export function Player({
   // 이모트(커스텀 애니메이션) 오버라이드 — idle 상태일 때만 적용
   const emoteSlotRef = useRef<string | null>(null);
   useEffect(() => { emoteSlotRef.current = emoteSlot ?? null; }, [emoteSlot]);
+  // 스크립트 world.playEmote 가 건 이모트의 자동 해제 타이머 (durationSec)
+  const emoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 토글 키: C(앉기), Z(엎드리기)
   const crouchRef = useRef(false);
   const proneRef  = useRef(false);
@@ -3297,10 +3309,11 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const spawnRef = useRef<[number, number, number]>(spawnPick.pos);
   useEffect(() => { spawnRef.current = spawnPick.pos; }, [spawnPick]);
   // per-player 제어 명령을 "내 로컬 플레이어"에 적용 (직접 호출 또는 __pctl__ 수신 시).
-  const applyPlayerCmd = useCallback((cmd: { t?: string; x?: number; y?: number; z?: number }) => {
+  const applyPlayerCmd = useCallback((cmd: { t?: string; x?: number; y?: number; z?: number; slot?: string | null; dur?: number }) => {
     if (cmd.t === 'tp') playerCtlRef.current?.teleport(Number(cmd.x), Number(cmd.y), Number(cmd.z));
     else if (cmd.t === 'respawn') { const [x, y, z] = spawnRef.current; playerCtlRef.current?.teleport(x, y + 1, z); }
     else if (cmd.t === 'setspawn') spawnRef.current = [Number(cmd.x), Number(cmd.y), Number(cmd.z)];
+    else if (cmd.t === 'emote') playerCtlRef.current?.setEmote(cmd.slot ?? null, cmd.dur);
   }, []);
 
   // ── JS 스크립트 관리 ──────────────────────────────────────
@@ -3644,7 +3657,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       }
       // 플레이어 제어 명령 — 호스트가 나를 타깃해 보낸 것. 내 로컬 플레이어에 적용.
       if (event === '__pctl__') {
-        applyPlayerCmd(data as { t?: string; x?: number; y?: number; z?: number });
+        applyPlayerCmd(data as { t?: string; x?: number; y?: number; z?: number; slot?: string | null; dur?: number });
         return;
       }
       luaScripts.current.get(objectId)?.callNetEvent(event, data, fromId);
@@ -4494,6 +4507,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       respawnLocal: () => { const [x, y, z] = spawnRef.current; playerCtlRef.current?.teleport(x, y + 1, z); },
       setPlayerSpeed: (m) => playerCtlRef.current?.setSpeed(m),
       setPlayerJump: (p) => playerCtlRef.current?.setJump(p),
+      playEmoteLocal: (slot, durationSec) => playerCtlRef.current?.setEmote(slot, durationSec),
       isPlayerId: (id) => id === playerId || id === 'player' || !!playersRef.current[id],
       // 특정 플레이어 제어 — 본인이면 직접, 아니면 그 클라로 명령 라우팅(__pctl__ 타깃 전송).
       controlPlayer: (id, cmd) => {

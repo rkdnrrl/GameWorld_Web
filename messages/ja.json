@@ -1600,7 +1600,12 @@
     "oneShotLabel": "1回",
     "customSlotsLabel": "カスタムスロット",
     "customSlotPlaceholder": "スロット名（例: sleep, swim）",
-    "customSlotAdd": "追加"
+    "customSlotAdd": "追加",
+    "emotesTitle": "エモート (カスタムアニメーション)",
+    "emotesHint": "自分のアニメーションアセットを登録すると、ワールドで1~9キーで再生できます。",
+    "emotesEmpty": "登録されたエモートがありません。",
+    "emotesAdd": "アセットからエモート追加",
+    "emotesNamePrompt": "エモート名を入力してください (例: ダンス)"
   },
   "Assets": {
     "title": "アセットライブラリ",

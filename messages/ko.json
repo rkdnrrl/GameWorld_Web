@@ -1620,7 +1620,12 @@
     "oneShotLabel": "1회",
     "customSlotsLabel": "커스텀 슬롯",
     "customSlotPlaceholder": "슬롯 이름 (예: sleep, swim)",
-    "customSlotAdd": "추가"
+    "customSlotAdd": "추가",
+    "emotesTitle": "이모트 (커스텀 애니메이션)",
+    "emotesHint": "내 애니메이션 에셋을 등록하면 월드에서 1~9 키로 재생됩니다.",
+    "emotesEmpty": "등록된 이모트가 없습니다.",
+    "emotesAdd": "에셋에서 이모트 추가",
+    "emotesNamePrompt": "이모트 이름을 입력하세요 (예: 댄스)"
   },
   "Assets": {
     "title": "에셋 라이브러리",

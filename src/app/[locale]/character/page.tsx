@@ -41,6 +41,8 @@ interface AppearanceV2 {
   offsetY?: number;
   manualBoneMap?: Partial<Record<HumanoidBoneName, string>>;
   manualExpressionMap?: Record<string, string>;
+  /** 커스텀 이모트 — { 이모트이름: 애니메이션 에셋 URL }. 월드 1~9 픽커 + 스크립트 playEmote 에서 사용. */
+  animSlotUrls?: Record<string, string>;
 }
 
 export default function CharacterPage() {
@@ -57,6 +59,9 @@ export default function CharacterPage() {
   const [scale, setScale] = useState(1.0);
   const [offsetY, setOffsetY] = useState(0);
   const [manualBoneMap, setManualBoneMap] = useState<Partial<Record<HumanoidBoneName, string>>>({});
+  // 커스텀 이모트 — { 이름: 애니메이션 에셋 URL }
+  const [emotes, setEmotes] = useState<Record<string, string>>({});
+  const [emotePickerOpen, setEmotePickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -89,6 +94,7 @@ export default function CharacterPage() {
           setScale(ap.scale ?? 1.0);
           setOffsetY(ap.offsetY ?? 0);
           setManualBoneMap(ap.manualBoneMap || {});
+          setEmotes(ap.animSlotUrls || {});
         }
       }
       // official 목록 (공유된 캐릭터)
@@ -126,6 +132,7 @@ export default function CharacterPage() {
       scale,
       offsetY,
       ...(Object.keys(manualBoneMap).length ? { manualBoneMap } : {}),
+      ...(Object.keys(emotes).length ? { animSlotUrls: emotes } : {}),
     };
     try {
       const token = session.getToken();
@@ -183,6 +190,7 @@ export default function CharacterPage() {
     setScale(1.0);
     setOffsetY(0);
     setManualBoneMap({});
+    setEmotes({});
     setDiagnosis(null);
   };
 
@@ -283,6 +291,31 @@ export default function CharacterPage() {
             </Section>
           )}
 
+          {/* 이모트 — 내 애니메이션 에셋을 1~9 단축키 / 스크립트 playEmote 로 사용 */}
+          {modelUrl && (
+            <Section title={t('emotesTitle')}>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 8 }}>{t('emotesHint')}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                {Object.keys(emotes).length === 0 && (
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', padding: '6px 0' }}>{t('emotesEmpty')}</div>
+                )}
+                {Object.entries(emotes).map(([name, url], i) => (
+                  <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 10px' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#a78bfa', minWidth: 18 }}>{i + 1}</span>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                    <button onClick={() => { const next = { ...emotes }; delete next[name]; setEmotes(next); }}
+                      aria-label={tCommon('delete')}
+                      style={{ border: 'none', background: 'rgba(239,68,68,0.15)', color: '#f87171', borderRadius: 6, width: 26, height: 26, cursor: 'pointer', fontSize: 14 }}>×</button>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => setEmotePickerOpen(true)}
+                style={{ width: '100%', padding: '10px 0', background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.4)', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                + {t('emotesAdd')}
+              </button>
+            </Section>
+          )}
+
           {/* 저장 */}
           {error && <div style={{ color: '#ef4444', fontSize: 12 }}>{error}</div>}
           <button onClick={handleSave} disabled={saving || !name.trim() || !modelUrl}
@@ -301,6 +334,20 @@ export default function CharacterPage() {
           onSelect={(url) => { setModelUrl(url); setPickerOpen(false); }}
           onClose={() => setPickerOpen(false)}
           accept=".vrm,.glb,.gltf,.fbx"
+          tCommon={tCommon}
+        />
+      )}
+
+      {emotePickerOpen && (
+        <AssetPicker
+          onSelect={(url) => {
+            setEmotePickerOpen(false);
+            const name = (window.prompt(t('emotesNamePrompt')) || '').trim();
+            if (!name) return;
+            setEmotes(prev => ({ ...prev, [name]: url }));
+          }}
+          onClose={() => setEmotePickerOpen(false)}
+          accept=".fbx,.vrma,.glb,.gltf"
           tCommon={tCommon}
         />
       )}

@@ -875,8 +875,10 @@ export interface JsWorldAPI {
   setPlayerJump?(power: number): void;
   /** id 가 플레이어인지 (트리거 other 가 플레이어인지 판별). */
   isPlayerId?(id: string): boolean;
-  /** 특정 플레이어 제어 — 멀티에선 해당 클라로 라우팅. cmd: {t:'tp'|'respawn'|'setspawn', x?,y?,z?}. */
+  /** 특정 플레이어 제어 — 멀티에선 해당 클라로 라우팅. cmd: {t:'tp'|'respawn'|'setspawn'|'emote', x?,y?,z?,slot?,dur?}. */
   controlPlayer?(id: string, cmd: Record<string, unknown>): void;
+  /** 로컬 플레이어 이모트(커스텀 애니메이션) 재생. slot=null 이면 해제. durationSec 후 자동 해제. */
+  playEmoteLocal?(slot: string | null, durationSec?: number): void;
 }
 
 export interface JsNetAPI {
@@ -995,6 +997,21 @@ export class JsScript {
         respawnPlayer: (id: unknown) => worldApi.controlPlayer?.(String(id), { t: 'respawn' }),
         setSpawnFor: (id: unknown, x: unknown, y: unknown, z: unknown) =>
           worldApi.controlPlayer?.(String(id), { t: 'setspawn', x: Number(x), y: Number(y), z: Number(z) }),
+        // ── 이모트 (커스텀 애니메이션) ──
+        // slot 인자: 등록 슬롯명("idle"/"walk_fwd"..) 또는 애니메이션 에셋 URL(.fbx/.vrma/.glb).
+        //   URL 을 주면 모든 클라가 그 공개 에셋을 on-demand 로 로드+리타게팅 → 전원 공유 재생.
+        // world.playEmote("https://.../dance.fbx")  — 본인 캐릭터에 재생 (계속)
+        // world.playEmote("https://.../wave.fbx", 3) — 3초 후 자동 해제
+        playEmote: (slot: unknown, durationSec?: unknown) =>
+          worldApi.playEmoteLocal?.(slot == null ? null : String(slot), durationSec == null ? undefined : Number(durationSec)),
+        // world.playEmoteOnPlayer(other, "dance", 3) — 특정 플레이어(트리거 other 등)에 emote 재생
+        playEmoteOnPlayer: (id: unknown, slot: unknown, durationSec?: unknown) =>
+          worldApi.controlPlayer?.(String(id), { t: 'emote', slot: slot == null ? null : String(slot), dur: durationSec == null ? undefined : Number(durationSec) }),
+        // world.stopEmote() — 본인 해제 / world.stopEmote(other) — 특정 플레이어 해제
+        stopEmote: (id?: unknown) => {
+          if (id == null) worldApi.playEmoteLocal?.(null);
+          else worldApi.controlPlayer?.(String(id), { t: 'emote', slot: null });
+        },
       };
       // world.time을 항상 최신 값으로 → getter처럼 동작
       Object.defineProperty(world, 'time', {
@@ -1259,9 +1276,14 @@ export class JsScript {
           if (!this.interp.globalEnv.has(k)) continue;
           try {
             if (objRefKeys.has(k)) {
-              const id = typeof vars[k] === 'string' ? (vars[k] as string) : '';
-              const found = id ? worldApi.findObject?.(id) : null;
-              this.interp.globalEnv.set(k, found ? wrapObjectAPI(found) : null);
+              const raw = typeof vars[k] === 'string' ? (vars[k] as string) : '';
+              if (raw && /^https?:\/\//.test(raw)) {
+                // 에셋 URL 드롭 — 오브젝트 조회 대신 URL 문자열 그대로 주입 (예: world.playEmote(x)).
+                this.interp.globalEnv.set(k, raw);
+              } else {
+                const found = raw ? worldApi.findObject?.(raw) : null;
+                this.interp.globalEnv.set(k, found ? wrapObjectAPI(found) : null);
+              }
             } else {
               this.interp.globalEnv.set(k, vars[k]);
             }

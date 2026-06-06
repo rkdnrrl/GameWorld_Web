@@ -91,6 +91,24 @@ function onTriggerEnter(other) {
 }`,
   },
 
+  // ── 이모트 (커스텀 애니메이션) ──
+  {
+    id: 'emote_zone', category: '이모트', title: '존 진입 이모트', desc: '이 영역(트리거)에 들어오면 등록된 이모트 재생. slot 은 운영자가 등록한 애니메이션 이름.',
+    code: `function onTriggerEnter(other) {
+  if (!world.isPlayer(other)) return;
+  world.playEmoteOnPlayer(other, "dance");   // 계속 재생
+}
+function onTriggerExit(other) {
+  if (world.isPlayer(other)) world.stopEmote(other);  // 나가면 해제
+}`,
+  },
+  {
+    id: 'emote_click', category: '이모트', title: '클릭하면 이모트', desc: '이 오브젝트를 클릭/상호작용하면 누른 플레이어가 이모트. 3초 후 자동 해제.',
+    code: `function onClick(by) {
+  world.playEmoteOnPlayer(by, "wave", 3);
+}`,
+  },
+
   // ── UI·HUD ──
   {
     id: 'timer', category: 'UI·HUD', title: '타이머', desc: '경과 시간(초)을 화면 위에',

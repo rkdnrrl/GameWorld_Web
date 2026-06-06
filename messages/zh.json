@@ -1600,7 +1600,12 @@
     "oneShotLabel": "单次",
     "customSlotsLabel": "自定义槽位",
     "customSlotPlaceholder": "槽位名称（例: sleep, swim）",
-    "customSlotAdd": "添加"
+    "customSlotAdd": "添加",
+    "emotesTitle": "表情动作 (自定义动画)",
+    "emotesHint": "注册你的动画资源后，可在世界中用 1~9 键播放。",
+    "emotesEmpty": "尚未注册表情动作。",
+    "emotesAdd": "从资源添加表情动作",
+    "emotesNamePrompt": "请输入表情动作名称 (例如: 跳舞)"
   },
   "Assets": {
     "title": "资源库",

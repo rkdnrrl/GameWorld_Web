@@ -76,6 +76,33 @@ function getAnimationSource(url: string, slot: string): Promise<AnimationSource>
   return animSourceCache.get(key)!;
 }
 
+/** animState 값이 슬롯명이 아니라 애니메이션 에셋 URL 인지 — on-demand emote 판별. */
+function isEmoteUrl(s: string): boolean {
+  return /^https?:\/\//.test(s) && /\.(fbx|vrma|glb|gltf)(\?|#|$)/i.test(s);
+}
+
+/** URL 애니메이션 에셋 → 이 캐릭터에 맞게 retarget. 슬롯 로딩 블록과 동일 chain (FBX→VRM / VRMA / generic). */
+async function retargetEmoteClipForChar(url: string, char: HumanoidCharacter): Promise<THREE.AnimationClip | null> {
+  let retargeted: THREE.AnimationClip | null = null;
+  try {
+    if (isFbxUrl(url) && char.vrm) {
+      try { retargeted = await fbxToVrmClip(url, char.vrm, url); } catch { /* fallthrough */ }
+    }
+    if (!retargeted && isVrmaUrl(url)) {
+      const vrma = await loadVRMA(url);
+      retargeted = char.vrm ? vrmaToClip(vrma, char.vrm, url) : vrmaToUniversalClip(vrma, char.bones, url);
+    }
+    if (!retargeted) {
+      const src = await getAnimationSource(url, '__emote__');
+      try { retargeted = await retargetWithSkeletonUtils(src.root, src.clip, char.bones); }
+      catch { retargeted = retargetClipToHumanoid(normalizeClipToHumanoidNames(src.clip), char.bones); }
+    }
+  } catch (e) {
+    console.warn('[humanoid] emote URL retarget 실패', url, e);
+  }
+  return (retargeted && retargeted.tracks.length > 0) ? retargeted : null;
+}
+
 const API = (typeof window !== 'undefined' && (window as { __ALP_API__?: string }).__ALP_API__) || 'https://airliveplay.com';
 
 /**
@@ -476,6 +503,8 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
 
   // analyser 매 frame buffer (성능)
   const lipSyncBuf = useMemo(() => new Uint8Array(32), []);
+  // on-demand URL emote 로딩 추적 — 같은 URL 중복 로드 방지. (캐릭터당 1 set)
+  const emoteLoadingRef = useRef<Set<string>>(new Set());
 
   useFrame((_, dt) => {
     if (!char) return;
@@ -483,9 +512,27 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     //    legacy 5슬롯 (walk/run/jump) 들어오면 새 슬롯명으로 변환.
     //    누락 슬롯은 setSlot 내부 fallback chain 으로 처리.
     const rawState = animStateRef.current ?? 'idle';
-    const state = (ANIM_SLOT_LEGACY_ALIAS[rawState] ?? rawState) as AnimSlot;
-    if (state && state !== char.currentSlot) {
-      char.setSlot(state);
+    if (isEmoteUrl(rawState)) {
+      // 커스텀 애니메이션 에셋 URL — 이 캐릭터에 아직 등록 안 됐으면 on-demand 로드+retarget+캐싱.
+      // 로드 완료 전엔 현재 슬롯 유지. 로드되면 char.actions 에 URL 키로 등록 → setSlot(url) 재생.
+      if (char.actions.has(rawState as AnimSlot)) {
+        if (char.currentSlot !== rawState) char.setSlot(rawState as AnimSlot);
+      } else if (!emoteLoadingRef.current.has(rawState)) {
+        emoteLoadingRef.current.add(rawState);
+        retargetEmoteClipForChar(rawState, char).then((clip) => {
+          if (!clip) return;
+          clip.name = rawState;
+          const action = char.mixer.clipAction(clip);
+          action.loop = THREE.LoopRepeat; action.enabled = true;
+          char.actions.set(rawState as AnimSlot, action);
+        }).catch(() => {});
+      }
+    } else {
+      // legacy 5슬롯 (walk/run/jump) 들어오면 새 슬롯명으로 변환. 누락 슬롯은 setSlot 내부 fallback.
+      const state = (ANIM_SLOT_LEGACY_ALIAS[rawState] ?? rawState) as AnimSlot;
+      if (state && state !== char.currentSlot) {
+        char.setSlot(state);
+      }
     }
     // 2) lipSync — 진폭 평균 → 입 모양
     if (getAnalyser) {

@@ -286,12 +286,19 @@ export default function WorldPage() {
       const ap = (character.appearance || {}) as Record<string, unknown>;
       const slots = (ap.animSlots as Record<string, string>) || {};
       const slotUrls = (ap.animSlotUrls as Record<string, string>) || {};
-      Object.keys(slots).forEach(s => {
+      // animSlots(이름→슬롯) + animSlotUrls(이름→URL, 캐릭터 페이지 이모트 등록) 둘 다 포함
+      new Set([...Object.keys(slots), ...Object.keys(slotUrls)]).forEach(s => {
         if (!CORE_ANIM_SLOTS.has(s) && (slots[s] || slotUrls[s])) set.add(s);
       });
     }
     return [...set];
   }, [character, platformEmoteSlots, CORE_ANIM_SLOTS]);
+
+  // 이모트 이름 → 애니메이션 URL 맵. 커스텀 이모트는 URL 로 재생(on-demand 로드+멀티 sync).
+  const emoteUrlMap = useMemo(() => {
+    const ap = (character?.appearance || {}) as Record<string, unknown>;
+    return (ap.animSlotUrls as Record<string, string>) || {};
+  }, [character]);
 
   // 키보드 단축키 — 1~9 키로 emote 슬롯 즉시 트리거. 채팅창·input·iframe 안에선 무시.
   useEffect(() => {
@@ -308,7 +315,9 @@ export default function WorldPage() {
         const slot = emoteSlots[idx];
         if (!slot) return;
         e.preventDefault();
-        setEmoteSlot(prev => prev === slot ? null : slot);
+        // 커스텀 이모트(URL 등록) 면 URL 로, 아니면 슬롯명으로 재생.
+        const value = emoteUrlMap[slot] || slot;
+        setEmoteSlot(prev => prev === value ? null : value);
       } else if (e.key === '0' || e.key === 'Escape') {
         // 0 또는 ESC → emote 해제
         if (emoteSlot) {
@@ -319,7 +328,7 @@ export default function WorldPage() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [emoteSlots, emoteSlot]);
+  }, [emoteSlots, emoteSlot, emoteUrlMap]);
 
   useEffect(() => {
     // 견고한 redirect 헬퍼 — next-intl router 가 안 먹는 경우 window.location 으로 강제.
