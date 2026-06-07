@@ -1192,8 +1192,9 @@ function CameraWaterWatcher({ volsRef, onChange }: {
         const lx = bv.hx ? (p.x - bv.cx) / (2 * bv.hx) : 0;
         const ly = bv.hz ? -(p.z - bv.cz) / (2 * bv.hz) : 0;
         const a = 0.04 * bv.waveStrength;
-        surf += Math.sin(lx * 5 * bv.waveFreq + wt * 2 * bv.waveSpeed) * a
-              + Math.cos(ly * 5 * bv.waveFreq + wt * 1.5 * bv.waveSpeed) * a;
+        const disp = Math.sin(lx * 5 * bv.waveFreq + wt * 2 * bv.waveSpeed) * a
+                   + Math.cos(ly * 5 * bv.waveFreq + wt * 1.5 * bv.waveSpeed) * a;
+        surf += Math.max(0, disp);   // 마루(crest)만 경계 상승, 골(trough)은 평균 유지 → 큰 물결에도 안 깜빡
       }
       if (p.y <= surf && p.y >= bv.cy - bv.scaleY) { idx = i; break; }   // 수면~바닥(보이는 물 부피)
     }
