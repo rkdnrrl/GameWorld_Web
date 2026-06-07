@@ -1485,13 +1485,22 @@ function WaterMesh({ color, selected, strength = 1, speed = 1, frequency = 1, sc
   });
 
   return (
-    <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-      <planeGeometry args={[1, 1, 16, 16]} />
-      <meshStandardMaterial color={color} transparent opacity={0.75}
-        roughness={0.15} metalness={0.1} side={THREE.DoubleSide} />
-      {/* 선택 표시 — 물 색을 가리지 않게 외곽선만 (변환 gizmo 와 함께) */}
-      {selected && <Edges threshold={90} color="#22d3ee" />}
-    </mesh>
+    <group>
+      {/* 수면 (애니메이션 평면) */}
+      <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[1, 1, 16, 16]} />
+        <meshStandardMaterial color={color} transparent opacity={0.75}
+          roughness={0.15} metalness={0.1} side={THREE.DoubleSide} />
+        {/* 선택 표시 — 물 색을 가리지 않게 외곽선만 (변환 gizmo 와 함께) */}
+        {selected && <Edges threshold={90} color="#22d3ee" />}
+      </mesh>
+      {/* 수심 부피 — 수면에서 바닥(= Y 스케일)까지 반투명 박스로 깊이 표현 */}
+      <mesh position={[0, -0.5, 0]}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial color={color} transparent opacity={0.22}
+          roughness={0.2} metalness={0.1} side={THREE.DoubleSide} depthWrite={false} />
+      </mesh>
+    </group>
   );
 }
 
