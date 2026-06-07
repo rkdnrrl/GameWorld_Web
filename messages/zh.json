@@ -1203,6 +1203,7 @@
       "msg_loading": "加载中…",
       "msg_prefab_empty_hint": "选中物体后点击\"💾 保存为预制体\"",
       "tooltip_drag_prefab_to_viewport": "拖动放入视口",
+      "tooltip_drag_shape_to_viewport": "拖动到视口该位置生成",
       "btn_ai_make_map": "🤖 用 AI 生成地图",
       "tooltip_webgl_shadow_limit": "防止超出 WebGL 纹理槽位上限(16)",
       "btn_shadow_lights_off": "⚠ 阴影灯光 {count} 个 → 全部关闭",

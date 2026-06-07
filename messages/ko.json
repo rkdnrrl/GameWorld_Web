@@ -1203,6 +1203,7 @@
       "msg_loading": "로드 중…",
       "msg_prefab_empty_hint": "오브젝트 선택 후 \"💾 프리팹으로 저장\"",
       "tooltip_drag_prefab_to_viewport": "드래그해서 뷰포트에 놓기",
+      "tooltip_drag_shape_to_viewport": "드래그해서 뷰포트의 그 위치에 생성",
       "btn_ai_make_map": "🤖 AI 로 맵 만들기",
       "tooltip_webgl_shadow_limit": "WebGL 텍스처 슬롯 한계(16) 초과 방지",
       "btn_shadow_lights_off": "⚠ 그림자 조명 {count}개 → 전체 OFF",

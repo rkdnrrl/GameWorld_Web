@@ -1203,6 +1203,7 @@
       "msg_loading": "読み込み中…",
       "msg_prefab_empty_hint": "オブジェクト選択後 \"💾 プレハブとして保存\"",
       "tooltip_drag_prefab_to_viewport": "ドラッグしてビューポートにドロップ",
+      "tooltip_drag_shape_to_viewport": "ドラッグしてビューポートの位置に生成",
       "btn_ai_make_map": "🤖 AI でマップ作成",
       "tooltip_webgl_shadow_limit": "WebGL テクスチャスロット上限(16)超過防止",
       "btn_shadow_lights_off": "⚠ 影付きライト {count} 個 → 一括 OFF",

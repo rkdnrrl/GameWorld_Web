@@ -1203,6 +1203,7 @@
       "msg_loading": "Loading…",
       "msg_prefab_empty_hint": "Select an object then \"💾 Save as Prefab\"",
       "tooltip_drag_prefab_to_viewport": "Drag into the viewport to place",
+      "tooltip_drag_shape_to_viewport": "Drag into the viewport to place at that spot",
       "btn_ai_make_map": "🤖 Build Map with AI",
       "tooltip_webgl_shadow_limit": "Prevents exceeding WebGL texture slot limit (16)",
       "btn_shadow_lights_off": "⚠ {count} shadow lights → Turn all OFF",

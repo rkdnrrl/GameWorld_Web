@@ -4575,13 +4575,15 @@ export default function StudioCanvas() {
     return `${KIND_LABELS[kind] ?? kind} ${objCounterRef.current[kind]}`;
   }
 
-  function addPrimitive(kind: 'cube' | 'sphere' | 'cylinder' | 'plane') {
+  function addPrimitive(kind: 'cube' | 'sphere' | 'cylinder' | 'plane', dropPos?: [number, number, number]) {
     const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const label = makeLabel(kind);
+    const px = dropPos ? dropPos[0] : 0;
+    const pz = dropPos ? dropPos[2] : 0;
     setObjects(prev => {
       const next = [...prev, {
         id, kind, label,
-        position: [0, kind === 'plane' ? 0.01 : 0.5, 0] as [number,number,number],
+        position: [px, kind === 'plane' ? 0.01 : 0.5, pz] as [number,number,number],
         rotation: (kind === 'plane' ? [-Math.PI / 2, 0, 0] : [0, 0, 0]) as [number,number,number],
         scale:    (kind === 'plane' ? [5, 5, 1] : [1, 1, 1]) as [number,number,number],
         color:    '#94a3b8',
@@ -6474,7 +6476,10 @@ export default function StudioCanvas() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, marginBottom: 5 }}>
             {([['cube','📦','shapeCube'],['sphere','⚪','shapeSphere'],['cylinder','🥫','shapeCylinder'],['plane','▭','shapePlane']] as const).map(([kind, icon, labelKey]) => (
               <button key={kind} onClick={() => addPrimitive(kind)}
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'pointer' }}>
+                draggable
+                onDragStart={e => { e.dataTransfer.setData('application/x-alp-shape', kind); e.dataTransfer.effectAllowed = 'copy'; }}
+                title={tCanvas("tooltip_drag_shape_to_viewport")}
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#fff', fontSize: 10, padding: '5px 3px', cursor: 'grab' }}>
                 {icon} {t(labelKey)}
               </button>
             ))}
@@ -7498,6 +7503,7 @@ export default function StudioCanvas() {
           if (
             e.dataTransfer.types.includes('text/plain') ||
             e.dataTransfer.types.includes('application/x-alp-prefab') ||
+            e.dataTransfer.types.includes('application/x-alp-shape') ||
             e.dataTransfer.types.includes('sceneobjid') ||  // dataTransfer.types 는 소문자
             e.dataTransfer.types.includes('Files')
           ) {
@@ -7544,6 +7550,12 @@ export default function StudioCanvas() {
               // 빈 공간 드롭 → 루트로
               reparentObject(sceneObjId, null);
             }
+            return;
+          }
+          // 도형 — application/x-alp-shape MIME (드롭 위치에 생성)
+          const shapeKind = e.dataTransfer.getData('application/x-alp-shape');
+          if (shapeKind === 'cube' || shapeKind === 'sphere' || shapeKind === 'cylinder' || shapeKind === 'plane') {
+            addPrimitive(shapeKind, dropPositionFromEvent(e));
             return;
           }
           // 프리팹 — application/x-alp-prefab MIME
