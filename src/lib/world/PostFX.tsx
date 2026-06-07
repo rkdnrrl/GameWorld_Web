@@ -10,7 +10,7 @@
  */
 import * as THREE from 'three';
 import {
-  EffectComposer, Bloom, Vignette, ChromaticAberration, BrightnessContrast, DepthOfField, ToneMapping,
+  EffectComposer, Bloom, Vignette, ChromaticAberration, BrightnessContrast, ToneMapping,
   HueSaturation, Noise, Pixelation, Scanline, Sepia, ColorAverage, wrapEffect,
 } from '@react-three/postprocessing';
 import { ToneMappingMode, Effect } from 'postprocessing';
@@ -160,9 +160,6 @@ export default function PostFX({ s }: { s: PostFXSettings }) {
   if (!s.enabled) return null;
 
   const fx: React.ReactElement[] = [];
-  // DOF 는 먼저(깊이 기반)
-  // DOF — 정규화 focusDistance/focusRange(0~1). focusRange 가 작으면 화면 전체가 흐려지니 충분히 크게.
-  if (s.dof) fx.push(<DepthOfField key="dof" focusDistance={s.dofFocus} focusRange={s.dofFocalLength} bokehScale={s.dofBokeh} />);
   if (s.pixelate > 0) fx.push(<Pixelation key="px" granularity={s.pixelate} />);
   // 색 보정
   if (s.brightness !== 0 || s.contrast !== 0) fx.push(<BrightnessContrast key="bc" brightness={s.brightness} contrast={s.contrast} />);
