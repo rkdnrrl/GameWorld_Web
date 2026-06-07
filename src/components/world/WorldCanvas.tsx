@@ -38,7 +38,7 @@ import { api as backendApi } from '@/lib/api';
 // ⚠ T10 임시 — dead CustomModel/loadFBXCached 가 아직 의존. 다음 step 에서 전체 삭제 시 함께 제거
 import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
-import PostFX, { derivePostFX, derivePostFXUnderwater, collectPostFXZones, type PostFXZone } from '@/lib/world/PostFX';
+import PostFX, { derivePostFX, collectPostFXZones, collectWaterPostFX, type PostFXZone, type WaterPostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, parseUrlKind, normalizeMediaUrl, ImageMaterial, GenericIframeOverlay, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, VideoRemotePanel, VideoDistanceUpdater, VideoInitialStateApplier, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
 import VoiceSettingsPanel from './VoiceSettingsPanel';
@@ -1195,23 +1195,22 @@ function UnderwaterFog({ stateRef, onToggle }: {
   return null;
 }
 
-/** 카메라가 보이는 물 부피(수면~바닥) 안에 있으면 onChange(true). 3인칭에서도 카메라 기준으로 수중 후처리 트리거. */
+/** 카메라가 물(water+PostProcess) 부피 안이면 그 물의 인덱스를 onChange. 안에 없으면 -1. */
 function CameraWaterWatcher({ volsRef, onChange }: {
-  volsRef: React.MutableRefObject<BuoyancyVolume[]>;
-  onChange: (inWater: boolean) => void;
+  volsRef: React.MutableRefObject<WaterPostFX[]>;
+  onChange: (index: number) => void;
 }) {
   const { camera } = useThree();
-  const last = useRef(false);
+  const last = useRef(-1);
   useFrame((rtState) => {
     const vols = volsRef.current;
     const p = camera.position;
     const wt = rtState.clock.elapsedTime;
-    let inW = false;
+    let idx = -1;
     for (let i = 0; i < vols.length; i++) {
       const bv = vols[i];
       if (Math.abs(p.x - bv.cx) > bv.hx || Math.abs(p.z - bv.cz) > bv.hz) continue;
-      // 수면 Y = WaterMesh 와 동일 파도 공식 (카메라 xz 에서 평가)
-      let surf = bv.cy + bv.offset;
+      let surf = bv.cy + bv.offset;   // 수면 Y = WaterMesh 와 동일 파도 공식
       if (bv.waveStrength) {
         const lx = bv.hx ? (p.x - bv.cx) / (2 * bv.hx) : 0;
         const ly = bv.hz ? -(p.z - bv.cz) / (2 * bv.hz) : 0;
@@ -1219,10 +1218,9 @@ function CameraWaterWatcher({ volsRef, onChange }: {
         surf += Math.sin(lx * 5 * bv.waveFreq + wt * 2 * bv.waveSpeed) * a
               + Math.cos(ly * 5 * bv.waveFreq + wt * 1.5 * bv.waveSpeed) * a;
       }
-      const bottom = bv.cy - bv.scaleY;   // 보이는 물 부피: 수면(cy)에서 바닥(cy - 수심)까지
-      if (p.y <= surf && p.y >= bottom) { inW = true; break; }
+      if (p.y <= surf && p.y >= bv.cy - bv.scaleY) { idx = i; break; }   // 수면~바닥(보이는 물 부피)
     }
-    if (inW !== last.current) { last.current = inW; onChange(inW); }
+    if (idx !== last.current) { last.current = idx; onChange(idx); }
   });
   return null;
 }
@@ -3513,8 +3511,6 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const objectsById = useMemo(() => new Map((customObjects ?? []).map(o => [o.id, o])), [customObjects]);
   // 후처리 볼륨 — postProcess 컴포넌트 설정
   const postFX = useMemo(() => derivePostFX(customObjects ?? []), [customObjects]);
-  // 물에 잠겼을 때만 적용되는 후처리 (underwaterOnly=true) — underwaterTint 로 잠수 감지.
-  const underwaterPostFX = useMemo(() => derivePostFXUnderwater(customObjects ?? []), [customObjects]);
   // 영역(zone) 한정 후처리 — 플레이어가 그 박스 안에 들어가면 해당 볼륨 설정 적용.
   const postFXZones = useMemo(() => collectPostFXZones(customObjects ?? []), [customObjects]);
   const postFXZonesRef = useRef<PostFXZone[]>(postFXZones);
@@ -3526,8 +3522,11 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // 수중 화면효과 — Player 가 잠수 상태를 ref 에 기록, UnderwaterFog 가 scene.fog 적용, DOM 오버레이로 틴트.
   const underwaterRef = useRef<{ on: boolean; color: string; density: number }>({ on: false, color: '#1e88e5', density: 0.08 });
   const [underwaterTint, setUnderwaterTint] = useState<string | null>(null);
-  // 카메라가 보이는 물 부피 안인지 — 수중 후처리(underwaterOnly)를 카메라 기준으로 트리거.
-  const [cameraInWater, setCameraInWater] = useState(false);
+  // 물(water+PostProcess) 후처리 — 카메라가 그 물 부피 안일 때 그 물의 PostProcess 적용.
+  const waterPostFX = useMemo(() => collectWaterPostFX(customObjects ?? []), [customObjects]);
+  const waterPostFXRef = useRef<WaterPostFX[]>(waterPostFX);
+  useEffect(() => { waterPostFXRef.current = waterPostFX; }, [waterPostFX]);
+  const [activeWaterFX, setActiveWaterFX] = useState(-1);
   // 스폰 포인트 — 여러 개 있으면 랜덤 선택. 없으면 기본 [0, 4, 0].
   const spawnObjects = (customObjects ?? []).filter((o: UserMapObject) => o.kind === 'spawn' && !o.hidden);
   // 컴포넌트 마운트 시 1회만 픽 (재렌더 시 점프 방지) — useMemo with stable dep
@@ -5414,12 +5413,12 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           onValueChange={(_id, script, value) => execUiButtonScript(script, gameRuntime.api, value)}
         />
         <PostFX s={
-          (cameraInWater && underwaterPostFX.enabled) ? underwaterPostFX
+          (activeWaterFX >= 0 && waterPostFX[activeWaterFX]) ? waterPostFX[activeWaterFX].s
           : (activePostFXZone >= 0 && postFXZones[activePostFXZone]) ? postFXZones[activePostFXZone].s
           : postFX
         } />
         <UnderwaterFog stateRef={underwaterRef} onToggle={setUnderwaterTint} />
-        <CameraWaterWatcher volsRef={buoyancyVolsRef} onChange={setCameraInWater} />
+        <CameraWaterWatcher volsRef={waterPostFXRef} onChange={setActiveWaterFX} />
       </Canvas>
       {/* UI Renderer — Screen Space HTML overlay (Phase 1).
           customObjects + uiOverrides merge: 호스트가 ui.set/show/hide 한 결과를 비호스트도 같이 봄. */}

@@ -11,7 +11,7 @@ import { getKind } from '@/lib/assets/registry';
 import '@/lib/assets/kinds'; // kind 핸들러(Thumbnail/Preview) 등록 — 사이드이펙트
 import AssetPreviewModal from '@/components/assets/AssetPreviewModal';
 import type { Asset as RegistryAsset } from '@/lib/assets/types';
-import PostFX, { derivePostFX, derivePostFXUnderwater, collectPostFXZones, type PostFXZone } from '@/lib/world/PostFX';
+import PostFX, { derivePostFX, collectPostFXZones, collectWaterPostFX, type PostFXZone, type WaterPostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { devLog } from '@/lib/devLog';
 import { PerfManager } from '@/lib/world/PerfManager';
@@ -3772,14 +3772,14 @@ function PostFXZoneWatcher({ zones, onZone }: { zones: PostFXZone[]; onZone: (i:
 }
 
 /** 카메라가 보이는 물 부피(수면~바닥) 안이면 onChange(true) — underwaterOnly 후처리를 카메라 기준 트리거. */
-function CameraWaterWatcher({ volsRef, onChange }: { volsRef: React.MutableRefObject<BuoyancyVolume[]>; onChange: (inWater: boolean) => void }) {
+function CameraWaterWatcher({ volsRef, onChange }: { volsRef: React.MutableRefObject<WaterPostFX[]>; onChange: (index: number) => void }) {
   const { camera } = useThree();
-  const last = useRef(false);
+  const last = useRef(-1);
   useFrame((rtState) => {
     const vols = volsRef.current;
     const p = camera.position;
     const wt = rtState.clock.elapsedTime;
-    let inW = false;
+    let idx = -1;
     for (let i = 0; i < vols.length; i++) {
       const bv = vols[i];
       if (Math.abs(p.x - bv.cx) > bv.hx || Math.abs(p.z - bv.cz) > bv.hz) continue;
@@ -3790,9 +3790,9 @@ function CameraWaterWatcher({ volsRef, onChange }: { volsRef: React.MutableRefOb
         const a = 0.04 * bv.waveStrength;
         surf += Math.sin(lx * 5 * bv.waveFreq + wt * 2 * bv.waveSpeed) * a + Math.cos(ly * 5 * bv.waveFreq + wt * 1.5 * bv.waveSpeed) * a;
       }
-      if (p.y <= surf && p.y >= bv.cy - bv.scaleY) { inW = true; break; }
+      if (p.y <= surf && p.y >= bv.cy - bv.scaleY) { idx = i; break; }
     }
-    if (inW !== last.current) { last.current = inW; onChange(inW); }
+    if (idx !== last.current) { last.current = idx; onChange(idx); }
   });
   return null;
 }
@@ -4298,10 +4298,10 @@ export default function StudioCanvas() {
   // 후처리 볼륨 — postProcess 컴포넌트 설정 (편집/시뮬 공통)
   const postFX = useMemo(() => derivePostFX(objects), [objects]);
   // 물에 잠겼을 때만 적용 후처리 (underwaterOnly) — 카메라가 보이는 물 부피 안인지로 판정 (편집·시뮬 공통).
-  const underwaterPostFX = useMemo(() => derivePostFXUnderwater(objects), [objects]);
-  const [simUnderwater, setSimUnderwater] = useState(false);
-  const studioWaterVolsRef = useRef<BuoyancyVolume[]>([]);
-  useEffect(() => { studioWaterVolsRef.current = computeBuoyancyVolumes(objects); }, [objects]);
+  const waterPostFX = useMemo(() => collectWaterPostFX(objects), [objects]);
+  const waterPostFXRef = useRef<WaterPostFX[]>(waterPostFX);
+  useEffect(() => { waterPostFXRef.current = waterPostFX; }, [waterPostFX]);
+  const [activeWaterFX, setActiveWaterFX] = useState(-1);
   // 영역(zone) 후처리 — 편집/시뮬 카메라가 그 박스 안이면 해당 볼륨 미리보기.
   const postFXZones = useMemo(() => collectPostFXZones(objects), [objects]);
   const [activePostFXZone, setActivePostFXZone] = useState(-1);
@@ -7899,7 +7899,7 @@ export default function StudioCanvas() {
           {simulating && <PerfManager cullDistance={400} />}
           <CameraRefCapture cameraRef={cameraRef} />
           <PostFXZoneWatcher zones={postFXZones} onZone={setActivePostFXZone} />
-          <CameraWaterWatcher volsRef={studioWaterVolsRef} onChange={setSimUnderwater} />
+          <CameraWaterWatcher volsRef={waterPostFXRef} onChange={setActiveWaterFX} />
           {/* World Space UI — canvas.space === 'world' 인 UI 오브젝트를 3D 공간에 렌더 */}
           <UIWorldRenderer
             objects={(simulating ? simObjs : objects).filter(o => o.kind === 'ui' && o.ui).map(o => ({
@@ -7913,7 +7913,7 @@ export default function StudioCanvas() {
           onLocalValueChange={(id, patch) => setObjects(prev => prev.map(o => o.id === id && o.ui ? { ...o, ui: { ...o.ui, ...patch } } : o))}
           />
           <PostFX s={
-            (simUnderwater && underwaterPostFX.enabled) ? underwaterPostFX
+            (activeWaterFX >= 0 && waterPostFX[activeWaterFX]) ? waterPostFX[activeWaterFX].s
             : (activePostFXZone >= 0 && postFXZones[activePostFXZone]) ? postFXZones[activePostFXZone].s
             : postFX
           } />

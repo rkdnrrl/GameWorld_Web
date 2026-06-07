@@ -86,22 +86,47 @@ function settingsFromInst(inst: ComponentInstance): PostFXSettings {
   };
 }
 
-/** 전역 postProcess 볼륨 → 설정. zone=true(영역 한정) / underwaterOnly=true(잠수 전용) 는 제외. */
-export function derivePostFX(objects: ReadonlyArray<{ components?: ComponentInstance[] }>): PostFXSettings {
+/** 전역 postProcess 볼륨 → 설정. 없으면 비활성. zone=true(영역 한정) / 물 오브젝트(물 안에서만) 는 제외. */
+export function derivePostFX(objects: ReadonlyArray<{ kind?: string; components?: ComponentInstance[] }>): PostFXSettings {
   for (const o of objects) {
+    if (o.kind === 'water') continue;   // 물의 PostProcess 는 물 안에서만 적용 (collectWaterPostFX)
     const inst = findComponent(o.components, 'postProcess');
-    if (inst && !getProp(inst, 'zone', false) && !getProp(inst, 'underwaterOnly', false)) return settingsFromInst(inst);
+    if (inst && !getProp(inst, 'zone', false)) return settingsFromInst(inst);
   }
   return OFF;
 }
 
-/** 물에 잠겼을 때만 적용되는 postProcess 볼륨 → 설정. underwaterOnly=true 인 첫 볼륨. */
-export function derivePostFXUnderwater(objects: ReadonlyArray<{ components?: ComponentInstance[] }>): PostFXSettings {
+/** 물(water) 오브젝트에 붙은 postProcess → 물 부피(수면~바닥) + 설정. 카메라/플레이어가 그 물 안일 때만 적용. */
+export interface WaterPostFX {
+  cx: number; cy: number; cz: number;   // 수면 중심 (cy = 수면 Y)
+  hx: number; hz: number; scaleY: number;
+  waveStrength: number; waveSpeed: number; waveFreq: number; offset: number;
+  s: PostFXSettings;
+}
+export function collectWaterPostFX(
+  objects: ReadonlyArray<{ kind?: string; position?: number[]; scale?: number[]; components?: ComponentInstance[]; hidden?: boolean }>,
+): WaterPostFX[] {
+  const out: WaterPostFX[] = [];
   for (const o of objects) {
-    const inst = findComponent(o.components, 'postProcess');
-    if (inst && getProp(inst, 'underwaterOnly', false)) return settingsFromInst(inst);
+    if (o.kind !== 'water' || o.hidden) continue;
+    const pp = findComponent(o.components, 'postProcess');
+    if (!pp || !getProp(pp, 'enabled', true)) continue;
+    const pos = o.position || [0, 0, 0];
+    const scl = o.scale || [1, 1, 1];
+    const wave = findComponent(o.components, 'wave');
+    const buoy = findComponent(o.components, 'buoyancy');
+    const waveBob = buoy ? getProp(buoy, 'waveBob', true) : true;
+    out.push({
+      cx: Number(pos[0]) || 0, cy: Number(pos[1]) || 0, cz: Number(pos[2]) || 0,
+      hx: Math.abs(Number(scl[0]) || 1) / 2, hz: Math.abs(Number(scl[2]) || 1) / 2, scaleY: Math.abs(Number(scl[1]) || 1),
+      waveStrength: (wave && waveBob) ? Number(getProp(wave, 'strength', 1)) : 0,
+      waveSpeed: wave ? Number(getProp(wave, 'speed', 1)) : 1,
+      waveFreq: wave ? Number(getProp(wave, 'frequency', 1)) : 1,
+      offset: buoy ? Number(getProp(buoy, 'offset', 0)) : 0,
+      s: settingsFromInst(pp),
+    });
   }
-  return OFF;
+  return out;
 }
 
 /** 영역 한정(zone=true) postProcess 볼륨들 → 박스 경계 + 설정. 플레이어가 박스 안일 때만 적용. */
@@ -118,7 +143,6 @@ export function collectPostFXZones(
     if (o.hidden) continue;
     const inst = findComponent(o.components, 'postProcess');
     if (!inst || !getProp(inst, 'zone', false)) continue;
-    if (getProp(inst, 'underwaterOnly', false)) continue;   // 잠수 전용은 박스(zone)로 잡지 않음
     const pos = o.position || [0, 0, 0];
     const scl = o.scale || [1, 1, 1];
     out.push({
