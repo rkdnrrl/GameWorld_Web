@@ -467,12 +467,15 @@ function ComponentsSection({
                     onChange={e => updateProp(idx, p.key, e.target.value)}
                     onBlur={() => pushHistory(allObjects)}
                     onDragOver={e => {
-                      if (e.dataTransfer.types.includes('application/x-alp-objid') || e.dataTransfer.types.includes('application/x-alp-objlabel')) {
+                      if (e.dataTransfer.types.includes('application/x-alp-asset-url') || e.dataTransfer.types.includes('application/x-alp-objid') || e.dataTransfer.types.includes('application/x-alp-objlabel')) {
                         e.preventDefault(); e.dataTransfer.dropEffect = 'copy';
                       }
                     }}
                     onDrop={e => {
-                      // id 우선 (라벨 변경에도 안정), 없으면 라벨 fallback
+                      // 내 에셋에서 드래그한 에셋 URL → 단일 URL 교체 (수영 애니 등)
+                      const assetUrl = e.dataTransfer.getData('application/x-alp-asset-url');
+                      if (assetUrl) { e.preventDefault(); updateProp(idx, p.key, assetUrl); pushHistory(allObjects); return; }
+                      // 씬 트리 오브젝트 id/label → 콤마로 추가 (target prop 편의)
                       const dropped = e.dataTransfer.getData('application/x-alp-objid') || e.dataTransfer.getData('application/x-alp-objlabel');
                       if (!dropped) return;
                       e.preventDefault();
@@ -482,7 +485,7 @@ function ComponentsSection({
                       updateProp(idx, p.key, tokens.join(', '));
                       pushHistory(allObjects);
                     }}
-                    placeholder={p.label.includes('드래그') || p.key === 'target' ? tCanvas("placeholder_drag_object_from_tree") : undefined}
+                    placeholder={p.label.includes('URL') ? tCanvas("placeholder_drag_asset_or_url") : (p.label.includes('드래그') || p.key === 'target' ? tCanvas("placeholder_drag_object_from_tree") : undefined)}
                     style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
                 </label>
               );

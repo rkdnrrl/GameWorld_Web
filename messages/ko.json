@@ -1112,6 +1112,7 @@
       "tooltip_missing_token": "누락 — {id}",
       "btn_delete": "삭제",
       "placeholder_drag_object_from_tree": "씬 트리에서 오브젝트 드래그 OK",
+      "placeholder_drag_asset_or_url": "에셋 드래그 또는 URL",
       "msg_no_components": "컴포넌트 없음",
       "tooltip_collapse": "접기",
       "tooltip_expand": "펼치기",

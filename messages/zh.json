@@ -1112,6 +1112,7 @@
       "tooltip_missing_token": "缺失 — {id}",
       "btn_delete": "删除",
       "placeholder_drag_object_from_tree": "可从场景树拖入物体",
+      "placeholder_drag_asset_or_url": "拖入资源或粘贴 URL",
       "msg_no_components": "无组件",
       "tooltip_collapse": "收起",
       "tooltip_expand": "展开",
