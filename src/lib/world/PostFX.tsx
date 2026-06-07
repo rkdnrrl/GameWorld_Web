@@ -11,9 +11,27 @@
 import * as THREE from 'three';
 import {
   EffectComposer, Bloom, Vignette, ChromaticAberration, BrightnessContrast, DepthOfField, ToneMapping,
-  HueSaturation, Noise, Pixelation, Scanline, Sepia, ColorAverage,
+  HueSaturation, Noise, Pixelation, Scanline, Sepia, ColorAverage, wrapEffect,
 } from '@react-three/postprocessing';
-import { ToneMappingMode } from 'postprocessing';
+import { ToneMappingMode, Effect } from 'postprocessing';
+
+/** 색상 틴트 — 화면 전체를 지정 색으로 물들임 (강도 0~1). 언리얼 Color Grading 의 간이판. */
+class TintEffectImpl extends Effect {
+  constructor({ color = '#ffffff', intensity = 0 }: { color?: string; intensity?: number } = {}) {
+    super(
+      'TintEffect',
+      `uniform vec3 tColor; uniform float tInt;
+       void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor){
+         outputColor = vec4(mix(inputColor.rgb, inputColor.rgb * tColor, tInt), inputColor.a);
+       }`,
+      { uniforms: new Map<string, THREE.Uniform>([
+        ['tColor', new THREE.Uniform(new THREE.Color(color))],
+        ['tInt', new THREE.Uniform(intensity)],
+      ]) },
+    );
+  }
+}
+const Tint = wrapEffect(TintEffectImpl);
 import { findComponent, getProp, type ComponentInstance } from '@/lib/world/components';
 
 export interface PostFXSettings {
@@ -22,6 +40,7 @@ export interface PostFXSettings {
   vignette: number;          // 0 = off
   chromatic: number;         // 0 = off
   brightness: number; contrast: number;
+  tintColor: string; tintStrength: number;   // 색상 틴트 (화면을 이 색으로 물들임, 0=끔)
   saturation: number; hue: number;       // 색 보정 (saturation -1..1, hue 라디안)
   grain: number;             // 필름 노이즈 0 = off
   pixelate: number;          // 픽셀화 0 = off (픽셀 크기)
@@ -35,6 +54,7 @@ export interface PostFXSettings {
 const OFF: PostFXSettings = {
   enabled: false, bloom: false, bloomIntensity: 0, bloomThreshold: 0,
   vignette: 0, chromatic: 0, brightness: 0, contrast: 0,
+  tintColor: '#ffffff', tintStrength: 0,
   saturation: 0, hue: 0, grain: 0, pixelate: 0, scanline: 0, sepia: false, grayscale: false,
   dof: false, dofFocus: 0, dofFocalLength: 0, dofBokeh: 0, toneMapping: false,
 };
@@ -49,6 +69,8 @@ function settingsFromInst(inst: ComponentInstance): PostFXSettings {
     chromatic:      getProp(inst, 'chromatic', 0),
     brightness:     getProp(inst, 'brightness', 0),
     contrast:       getProp(inst, 'contrast', 0),
+    tintColor:      getProp(inst, 'tintColor', '#ffffff'),
+    tintStrength:   getProp(inst, 'tintStrength', 0),
     saturation:     getProp(inst, 'saturation', 0),
     hue:            getProp(inst, 'hue', 0),
     grain:          getProp(inst, 'grain', 0),
@@ -110,6 +132,7 @@ export default function PostFX({ s }: { s: PostFXSettings }) {
   // 색 보정
   if (s.brightness !== 0 || s.contrast !== 0) fx.push(<BrightnessContrast key="bc" brightness={s.brightness} contrast={s.contrast} />);
   if (s.saturation !== 0 || s.hue !== 0) fx.push(<HueSaturation key="hs" hue={s.hue} saturation={s.saturation} />);
+  if (s.tintStrength > 0) fx.push(<Tint key="tint" color={s.tintColor} intensity={s.tintStrength} />);
   if (s.grayscale) fx.push(<ColorAverage key="gray" />);
   if (s.sepia) fx.push(<Sepia key="sep" intensity={1} />);
   if (s.bloom && s.bloomIntensity > 0) fx.push(<Bloom key="bloom" intensity={s.bloomIntensity} luminanceThreshold={s.bloomThreshold} luminanceSmoothing={0.9} mipmapBlur />);

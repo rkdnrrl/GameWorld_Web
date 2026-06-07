@@ -122,6 +122,8 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'brightness',     label: '밝기',                   type: 'number', default: 0,    min: -0.5, max: 0.5, step: 0.02, group: 'basic' },
       { key: 'contrast',       label: '대비',                   type: 'number', default: 0,    min: -0.5, max: 0.5, step: 0.02, group: 'basic' },
       { key: 'saturation',     label: '채도 (-1=흑백 ~ +1=쨍)', type: 'number', default: 0,    min: -1, max: 1,   step: 0.05, group: 'basic' },
+      { key: 'tintColor',      label: '색상 틴트 (화면 색)',     type: 'color',  default: '#ffffff', group: 'basic' },
+      { key: 'tintStrength',   label: '틴트 강도 (0=끔)',        type: 'number', default: 0,    min: 0, max: 1,    step: 0.05, group: 'basic' },
       { key: 'bloom',          label: 'Bloom 발광',             type: 'boolean', default: true, group: 'basic' },
       { key: 'bloomIntensity', label: '발광 세기',              type: 'number', default: 0.6,  min: 0, max: 3,    step: 0.05, group: 'basic' },
       { key: 'vignette',       label: '비네팅 (가장자리 어둠, 0=끔)', type: 'number', default: 0.3, min: 0, max: 1, step: 0.05, group: 'basic' },
