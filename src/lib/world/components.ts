@@ -107,7 +107,6 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'strength',  label: '부력 세기 (수면 복원 강도, float 전용)', type: 'number', default: 6, min: 1, max: 15, step: 0.5 },
       { key: 'waveBob',   label: '웨이브 따라 출렁임',                  type: 'boolean', default: true },
       { key: 'offset',    label: '뜨는 높이 보정 (+위 / -아래)',        type: 'number', default: 0, min: -2, max: 2, step: 0.05 },
-      { key: 'underwaterFog', label: '수중 안개 진하기 (0=끔, 잠수 시 화면 효과)', type: 'number', default: 0.08, min: 0, max: 0.4, step: 0.01 },
     ],
   },
   {
@@ -305,8 +304,6 @@ export interface BuoyancyVolume {
   waveStrength: number;                 // 웨이브 강도 (0=출렁 없음). WaterMesh 와 동일 a=0.04*strength
   waveSpeed: number;
   waveFreq: number;
-  fogColor: string;                     // 수중 안개 색 (물 색에서 가져옴)
-  fogDensity: number;                   // 수중 안개 진하기 (0=수중 효과 없음)
 }
 
 /** water + buoyancy 컴포넌트가 있는 오브젝트들에서 부력 볼륨 목록 계산. */
@@ -341,8 +338,6 @@ export function computeBuoyancyVolumes(
       waveStrength: p.waveBob === false || !w ? 0 : Number(wp.strength ?? 1),
       waveSpeed: w ? Number(wp.speed ?? 1) : 1,
       waveFreq: w ? Number(wp.frequency ?? 1) : 1,
-      fogColor: o.color || '#1e88e5',
-      fogDensity: Number(p.underwaterFog ?? 0.08),
     });
   }
   return out;

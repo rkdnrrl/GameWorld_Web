@@ -1172,29 +1172,6 @@ function ShadowUpdateThrottle({ hz = 30 }: { hz?: number }) {
    텍스처/모델이 다 로드될 때까지 진행률 바를 보여주고, 완료되면 사라진다.
    drei useProgress 가 Three.js DefaultLoadingManager 를 추적 (Canvas 밖 DOM 에서도 동작). */
 /** 수중 화면효과 — 잠수 시 scene.fog 를 물 색으로 부드럽게 적용 (Canvas 안). */
-function UnderwaterFog({ stateRef, onToggle }: {
-  stateRef: React.MutableRefObject<{ on: boolean; color: string; density: number }>;
-  onToggle: (color: string | null) => void;
-}) {
-  const { scene } = useThree();
-  const cur = useRef(0);
-  const wasOn = useRef(false);
-  useFrame((_, dt) => {
-    const st = stateRef.current;
-    cur.current += ((st.on ? 1 : 0) - cur.current) * Math.min(1, dt * 6);  // 부드러운 전환
-    if (cur.current < 0.003) {
-      if (scene.fog) scene.fog = null;
-    } else {
-      let f = scene.fog as THREE.FogExp2 | null;
-      if (!(f instanceof THREE.FogExp2)) { f = new THREE.FogExp2(st.color, 0); scene.fog = f; }
-      f.color.set(st.color);
-      f.density = Math.max(0, st.density) * cur.current;
-    }
-    if (st.on !== wasOn.current) { wasOn.current = st.on; onToggle(st.on ? st.color : null); }
-  });
-  return null;
-}
-
 /** 카메라가 물(water+PostProcess) 부피 안이면 그 물의 인덱스를 onChange. 안에 없으면 -1. */
 function CameraWaterWatcher({ volsRef, onChange }: {
   volsRef: React.MutableRefObject<WaterPostFX[]>;
@@ -1329,7 +1306,6 @@ export function Player({
   spawnRotY = 0,
   localPoseRef,
   buoyancyRef,
-  underwaterRef,
   postFXZonesRef,
   onPostFXZone,
   portalRef,
@@ -1381,8 +1357,6 @@ export function Player({
   localPoseRef?: React.MutableRefObject<{ x: number; y: number; z: number; rotY: number }>;
   /** 부력 볼륨 — 물에 뜨기/수영 물리. 물(water)+buoyancy 컴포넌트에서 계산. */
   buoyancyRef?: React.MutableRefObject<import('@/lib/world/components').BuoyancyVolume[]>;
-  /** 수중 상태 — 잠수 시 화면 후처리(안개/틴트)용. Player 가 매 frame 갱신. */
-  underwaterRef?: React.MutableRefObject<{ on: boolean; color: string; density: number }>;
   /** 영역 후처리 존 박스 목록 — 플레이어가 들어간 존 인덱스를 onPostFXZone 으로 보고. */
   postFXZonesRef?: React.MutableRefObject<import('@/lib/world/PostFX').PostFXZone[]>;
   onPostFXZone?: (index: number) => void;
@@ -1842,8 +1816,6 @@ export function Player({
           }
           if (posT.y > surf + 0.6) continue;   // 수면 위 공중이면 부력 안 걸림 (점프로 탈출 가능)
           inBuoyancy = true;
-          // 수중 화면효과(안개/틴트) — 머리가 수면 아래로 잠겼을 때만 ON.
-          if (underwaterRef) underwaterRef.current = { on: posT.y < surf - 0.2, color: bv.fogColor, density: bv.fogDensity };
           // 수영 애니 — 콜라이더/트리거 없이 물 안(범위) 판정만으로 재생. 이동/정지 자동.
           if (bv.swimIdle || bv.swimMove) {
             const swimMoving = forward || backward || left || right || jump || isCrouch || isProne || _mob.moveTouch.active;
@@ -1900,8 +1872,7 @@ export function Player({
           break;
         }
       }
-      // 물 영역 밖이면 수중 효과 + 수영 애니 해제
-      if (!inBuoyancy && underwaterRef && underwaterRef.current.on) underwaterRef.current.on = false;
+      // 물 영역 밖이면 수영 애니 해제
       if (!inBuoyancy && swimAnimRef.current !== null) { swimAnimRef.current = null; emoteSlotRef.current = null; }
 
       // 영역(zone) 후처리 — 플레이어가 들어간 박스 인덱스를 변경 시에만 보고
@@ -3519,9 +3490,6 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // 부력 볼륨 — water + buoyancy 컴포넌트. Player 가 매 프레임 참조해 수영/뜨기 물리 적용.
   const buoyancyVolsRef = useRef<BuoyancyVolume[]>([]);
   useEffect(() => { buoyancyVolsRef.current = computeBuoyancyVolumes(customObjects ?? []); }, [customObjects]);
-  // 수중 화면효과 — Player 가 잠수 상태를 ref 에 기록, UnderwaterFog 가 scene.fog 적용, DOM 오버레이로 틴트.
-  const underwaterRef = useRef<{ on: boolean; color: string; density: number }>({ on: false, color: '#1e88e5', density: 0.08 });
-  const [underwaterTint, setUnderwaterTint] = useState<string | null>(null);
   // 물(water+PostProcess) 후처리 — 카메라가 그 물 부피 안일 때 그 물의 PostProcess 적용.
   const waterPostFX = useMemo(() => collectWaterPostFX(customObjects ?? []), [customObjects]);
   const waterPostFXRef = useRef<WaterPostFX[]>(waterPostFX);
@@ -5380,7 +5348,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            {mapReady && <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} buoyancyRef={buoyancyVolsRef} underwaterRef={underwaterRef} postFXZonesRef={postFXZonesRef} onPostFXZone={setActivePostFXZone} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={handleObjectClick} playerCtlRef={playerCtlRef} spawnRef={spawnRef} getAnalyser={voice.getMyAnalyser} />}
+            {mapReady && <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} buoyancyRef={buoyancyVolsRef} postFXZonesRef={postFXZonesRef} onPostFXZone={setActivePostFXZone} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={handleObjectClick} playerCtlRef={playerCtlRef} spawnRef={spawnRef} getAnalyser={voice.getMyAnalyser} />}
             {placementGhost && <PlacementGhostMesh ghost={placementGhost} localPoseRef={localPoseRef} />}
             {Object.values(players).map((p) => (
               <RemotePlayerMesh
@@ -5417,7 +5385,6 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           : (activePostFXZone >= 0 && postFXZones[activePostFXZone]) ? postFXZones[activePostFXZone].s
           : postFX
         } />
-        <UnderwaterFog stateRef={underwaterRef} onToggle={setUnderwaterTint} />
         <CameraWaterWatcher volsRef={waterPostFXRef} onChange={setActiveWaterFX} />
       </Canvas>
       {/* UI Renderer — Screen Space HTML overlay (Phase 1).
@@ -5436,10 +5403,6 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         onValueChange={(_id, script, value) => execUiButtonScript(script, gameRuntime.api, value)}
       />
       <MapLoadingOverlay />
-      {/* 수중 틴트 — 잠수 시 물 색 오버레이 (fog 와 함께 수중 느낌) */}
-      {underwaterTint && (
-        <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', background: underwaterTint, opacity: 0.28, mixBlendMode: 'multiply', transition: 'opacity 0.45s ease', zIndex: 6 }} />
-      )}
     </>
   );
 }
