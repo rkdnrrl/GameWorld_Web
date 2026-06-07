@@ -3402,6 +3402,25 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const playerCtlRef = useRef<PlayerControl | null>(null);
   const spawnRef = useRef<[number, number, number]>(spawnPick.pos);
   useEffect(() => { spawnRef.current = spawnPick.pos; }, [spawnPick]);
+
+  // ── 맵 로딩 게이트 — 지형/에셋/콜라이더가 다 준비된 뒤에 플레이어 스폰 ──
+  //    (로딩 중 스폰되면 아직 없는 바닥을 뚫고 추락하는 문제 방지)
+  const { active: loadActive } = useProgress();
+  const [mapReady, setMapReady] = useState(false);
+  const hadLoadRef = useRef(false);
+  useEffect(() => { if (loadActive) hadLoadRef.current = true; }, [loadActive]);
+  useEffect(() => {
+    if (mapReady || loadActive) return;
+    // 로드 활동이 끝났으면(또는 처음부터 없으면) 콜라이더 정착 여유 후 스폰.
+    const delay = hadLoadRef.current ? 350 : 800;
+    const t = setTimeout(() => setMapReady(true), delay);
+    return () => clearTimeout(t);
+  }, [loadActive, mapReady]);
+  useEffect(() => {  // 안전장치 — 로더가 안 끝나도 최대 12초 후 강제 입장
+    const t = setTimeout(() => setMapReady(true), 12000);
+    return () => clearTimeout(t);
+  }, []);
+
   // per-player 제어 명령을 "내 로컬 플레이어"에 적용 (직접 호출 또는 __pctl__ 수신 시).
   const applyPlayerCmd = useCallback((cmd: { t?: string; x?: number; y?: number; z?: number; slot?: string | null; dur?: number }) => {
     if (cmd.t === 'tp') playerCtlRef.current?.teleport(Number(cmd.x), Number(cmd.y), Number(cmd.z));
@@ -5222,7 +5241,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} buoyancyRef={buoyancyVolsRef} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={handleObjectClick} playerCtlRef={playerCtlRef} spawnRef={spawnRef} getAnalyser={voice.getMyAnalyser} />
+            {mapReady && <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} buoyancyRef={buoyancyVolsRef} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={handleObjectClick} playerCtlRef={playerCtlRef} spawnRef={spawnRef} getAnalyser={voice.getMyAnalyser} />}
             {placementGhost && <PlacementGhostMesh ghost={placementGhost} localPoseRef={localPoseRef} />}
             {Object.values(players).map((p) => (
               <RemotePlayerMesh
