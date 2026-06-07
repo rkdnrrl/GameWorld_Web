@@ -1775,8 +1775,15 @@ export function Player({
             const tvx = dl > 0 ? (dx / dl) * swimSpeed : 0;
             const tvy = dl > 0 ? (dy / dl) * swimSpeed : 0;
             const tvz = dl > 0 ? (dz / dl) * swimSpeed : 0;
-            let nvy = vel.y + (tvy - vel.y) * k;
-            if (posT.y > surf && nvy > 0) nvy = 0;                                    // 수면 위로는 안 솟음
+            // 수직 입력(잠수/상승)이 없고 수면 근처면 → 웨이브 따라 위아래로 출렁(float 식). 잠수하려면 시선 아래로.
+            const wantsVertical = Math.abs(dy) > 0.01;
+            let nvy;
+            if (!wantsVertical && posT.y > surf - 0.6) {
+              nvy = Math.max(-6, Math.min(6, (surf - posT.y) * bv.strength));        // 수면(웨이브 포함) 으로 스프링 → 출렁
+            } else {
+              nvy = vel.y + (tvy - vel.y) * k;
+              if (posT.y > surf && nvy > 0) nvy = 0;                                  // 수면 위로는 안 솟음
+            }
             body.current.setLinvel({
               x: vel.x + (tvx - vel.x) * k,
               y: nvy,
