@@ -1750,28 +1750,33 @@ export function Player({
           if (posT.y > surf + 0.6) continue;   // 수면 위 공중이면 부력 안 걸림 (점프로 탈출 가능)
           inBuoyancy = true;
           if (bv.mode === 'swim') {
-            // ── 서브노티카식 자유 수영 — 시선 방향(상하 포함) 3D 이동 + 물 저항(관성) ──
-            const cosV = Math.cos(_mob.camV), sinV = Math.sin(_mob.camV);
+            // ── 자유 수영 — 컴포넌트 옵션(속도/저항/시선수영)으로 조작감 조절 ──
+            const swimSpeed = SPEED * 0.7 * bv.swimSpeed;
+            const k = 1 - Math.exp(-bv.drag * dt);   // 물 저항(관성): drag 낮을수록 미끄러지듯
             let dx = 0, dy = 0, dz = 0;
-            if (forward)  { dx += -sinH * cosV; dy += -sinV; dz += -cosH * cosV; }  // 시선 정면(보는 쪽으로 잠수/상승)
-            if (backward) { dx +=  sinH * cosV; dy +=  sinV; dz +=  cosH * cosV; }
-            if (left)     { dx += -cosH;                     dz +=  sinH; }          // 좌우는 수평 스트레이프
-            if (right)    { dx +=  cosH;                     dz += -sinH; }
-            if (jump)              dy += 1;                                          // Space = 추가 상승
-            if (isCrouch || isProne) dy -= 1;                                        // 앉기/엎드리기 = 추가 하강
-            if (!inputLocked && _mob.moveTouch.active) {                             // 모바일 조이스틱(수평)
-              const jy = -_mob.moveTouch.y, jx = _mob.moveTouch.x;
-              dx += (-sinH * cosV) * jy + cosH * jx; dy += (-sinV) * jy; dz += (-cosH * cosV) * jy + (-sinH) * jx;
+            if (bv.lookSwim) {
+              // 서브노티카식 — 시선 방향(상하 포함) 3D 이동
+              const cosV = Math.cos(_mob.camV), sinV = Math.sin(_mob.camV);
+              if (forward)  { dx += -sinH * cosV; dy += -sinV; dz += -cosH * cosV; }  // 보는 쪽으로 잠수/상승
+              if (backward) { dx +=  sinH * cosV; dy +=  sinV; dz +=  cosH * cosV; }
+              if (left)     { dx += -cosH;                     dz +=  sinH; }          // 좌우 수평 스트레이프
+              if (right)    { dx +=  cosH;                     dz += -sinH; }
+              if (!inputLocked && _mob.moveTouch.active) {                             // 모바일 조이스틱
+                const jy = -_mob.moveTouch.y, jx = _mob.moveTouch.x;
+                dx += (-sinH * cosV) * jy + cosH * jx; dy += (-sinV) * jy; dz += (-cosH * cosV) * jy + (-sinH) * jx;
+              }
+            } else {
+              // 클래식 — WASD 수평 (이미 계산된 mx,mz), 상하는 키
+              dx = mx; dz = mz;
             }
-            const swimSpeed = SPEED * 0.7;
+            if (jump)               dy += 1;                                          // Space = 상승
+            if (isCrouch || isProne) dy -= 1;                                         // 앉기/엎드리기 = 하강
             const dl = Math.hypot(dx, dy, dz);
             const tvx = dl > 0 ? (dx / dl) * swimSpeed : 0;
             const tvy = dl > 0 ? (dy / dl) * swimSpeed : 0;
             const tvz = dl > 0 ? (dz / dl) * swimSpeed : 0;
-            // 물 저항: 목표 속도로 부드럽게 수렴(관성). 입력 없으면 천천히 감속 → 둥실 글라이드.
-            const k = 1 - Math.exp(-4 * dt);
             let nvy = vel.y + (tvy - vel.y) * k;
-            if (posT.y > surf && nvy > 0) nvy = 0;                                   // 수면 위로는 안 솟음
+            if (posT.y > surf && nvy > 0) nvy = 0;                                    // 수면 위로는 안 솟음
             body.current.setLinvel({
               x: vel.x + (tvx - vel.x) * k,
               y: nvy,

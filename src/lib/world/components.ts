@@ -98,7 +98,10 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     description: '물(water) 에 부착. 캐릭터가 물에 들어가면 수면을 따라 떠오르고 웨이브 따라 출렁임. 모드: float=수면에 떠서 부유(가라앉지 않음), swim=Space 상승/앉기 하강으로 자유 수영. ※ 트리거(센서) 켠 Collider 필요.',
     props: [
       { key: 'mode',      label: '모드 (float=떠다님 / swim=자유수영)', type: 'enum', default: 'float', options: ['float', 'swim'] },
-      { key: 'strength',  label: '부력 세기 (수면 복원 강도)',          type: 'number', default: 6, min: 1, max: 15, step: 0.5 },
+      { key: 'lookSwim',  label: '시선 방향 수영 (서브노티카식, swim 전용)', type: 'boolean', default: true },
+      { key: 'swimSpeed', label: '수영 속도 (swim 전용)',              type: 'number', default: 1, min: 0.2, max: 3, step: 0.1 },
+      { key: 'drag',      label: '물 저항 (낮을수록 미끄러지듯 관성↑, swim 전용)', type: 'number', default: 4, min: 1, max: 12, step: 0.5 },
+      { key: 'strength',  label: '부력 세기 (수면 복원 강도, float 전용)', type: 'number', default: 6, min: 1, max: 15, step: 0.5 },
       { key: 'waveBob',   label: '웨이브 따라 출렁임',                  type: 'boolean', default: true },
       { key: 'offset',    label: '뜨는 높이 보정 (+위 / -아래)',        type: 'number', default: 0, min: -2, max: 2, step: 0.05 },
     ],
@@ -276,6 +279,9 @@ export interface BuoyancyVolume {
   hx: number; hz: number;               // 반-범위 x,z (= scale/2)
   scaleY: number;                       // 그룹 Y 스케일 (웨이브 변위 → world Y 매핑)
   mode: 'float' | 'swim';
+  lookSwim: boolean;                    // swim: true=시선방향 3D(서브노티카) / false=수평+상하키
+  swimSpeed: number;                    // swim 속도 배수
+  drag: number;                         // swim 물저항(관성) 계수 — 낮을수록 미끄러짐
   strength: number;                     // 수면 복원(스프링) 세기
   offset: number;                       // 뜨는 높이 보정
   waveStrength: number;                 // 웨이브 강도 (0=출렁 없음). WaterMesh 와 동일 a=0.04*strength
@@ -305,6 +311,9 @@ export function computeBuoyancyVolumes(
       hz: Math.abs(Number(scl[2]) || 1) / 2,
       scaleY: Math.abs(Number(scl[1]) || 1),
       mode: p.mode === 'swim' ? 'swim' : 'float',
+      lookSwim: p.lookSwim !== false,
+      swimSpeed: Number(p.swimSpeed ?? 1),
+      drag: Number(p.drag ?? 4),
       strength: Number(p.strength ?? 6),
       offset: Number(p.offset ?? 0),
       waveStrength: p.waveBob === false || !w ? 0 : Number(wp.strength ?? 1),
