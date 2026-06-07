@@ -115,11 +115,11 @@ export function collectWaterPostFX(
     const scl = o.scale || [1, 1, 1];
     const wave = findComponent(o.components, 'wave');
     const buoy = findComponent(o.components, 'buoyancy');
-    const waveBob = buoy ? getProp(buoy, 'waveBob', true) : true;
     out.push({
       cx: Number(pos[0]) || 0, cy: Number(pos[1]) || 0, cz: Number(pos[2]) || 0,
       hx: Math.abs(Number(scl[0]) || 1) / 2, hz: Math.abs(Number(scl[2]) || 1) / 2, scaleY: Math.abs(Number(scl[1]) || 1),
-      waveStrength: (wave && waveBob) ? Number(getProp(wave, 'strength', 1)) : 0,
+      // 보이는 수면(WaterMesh)은 wave 컴포넌트 강도로 항상 출렁 → 후처리 경계도 동일하게 (waveBob 은 플레이어 부력용이라 무관).
+      waveStrength: wave ? Number(getProp(wave, 'strength', 1)) : 0,
       waveSpeed: wave ? Number(getProp(wave, 'speed', 1)) : 1,
       waveFreq: wave ? Number(getProp(wave, 'frequency', 1)) : 1,
       offset: buoy ? Number(getProp(buoy, 'offset', 0)) : 0,
