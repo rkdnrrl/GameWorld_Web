@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -250,6 +250,18 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'offsetY', label: 'Y 오프셋 (오브젝트 위)',   type: 'number', default: 1,   min: -5, max: 10, step: 0.1 },
       { key: 'initiallyPlaying', label: '입장 시 자동 재생 (체크 해제 시 정지 상태로 시작)', type: 'boolean', default: true },
       { key: 'globalAudio',      label: '월드 전역 음향 (체크 해제 시 거리에 따라 감쇠)',    type: 'boolean', default: false },
+    ],
+  },
+  {
+    type: 'animator',
+    name: 'Animator (애니메이션 재생)',
+    icon: '🎞️',
+    description: '모델(GLB/FBX/VRM) 에 내장된 애니메이션 클립을 재생. 클립 이름을 비우면 첫 번째 클립 자동 재생. 인스펙터에서 모델에 들어있는 클립 목록을 드롭다운으로 고를 수 있음.',
+    props: [
+      { key: 'clip',     label: '클립 이름 (비우면 첫 번째)', type: 'string',  default: '' },
+      { key: 'autoplay', label: '자동 재생 (입장/시뮬 시작 시)', type: 'boolean', default: true },
+      { key: 'loop',     label: '반복 재생',                  type: 'boolean', default: true },
+      { key: 'speed',    label: '재생 속도',                  type: 'number',  default: 1, min: 0, max: 4, step: 0.1 },
     ],
   },
 ];

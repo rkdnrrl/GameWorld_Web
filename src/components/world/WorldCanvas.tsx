@@ -2947,17 +2947,24 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
                               <boxGeometry args={[1, 1, 1]} />;
 
   if (obj.kind === 'asset' && obj.assetUrl) {
+    const animComp = obj.components?.find(c => c.type === 'animator');
+    const animProps = animComp ? {
+      clip: String(animComp.props?.clip ?? ''),
+      autoplay: animComp.props?.autoplay !== false,
+      loop: animComp.props?.loop !== false,
+      speed: Number(animComp.props?.speed ?? 1),
+    } : undefined;
     if (physics === 'none' && !colliderArgs) {
       return (
         <group ref={groupRef} position={rPos} rotation={rRot} scale={rScale}>
-          <UserAsset url={obj.assetUrl} matObj={obj} />
+          <UserAsset url={obj.assetUrl} matObj={obj} anim={animProps} />
         </group>
       );
     }
     return (
       <RigidBody ref={bodyRef} type={bodyType} colliders={false} position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }} {...colliderEvents}>
         {colliderArgs && <CuboidCollider args={colliderArgs} position={colliderOffset} sensor={trig} />}
-        <UserAsset url={obj.assetUrl} matObj={obj} />
+        <UserAsset url={obj.assetUrl} matObj={obj} anim={animProps} />
       </RigidBody>
     );
   }
@@ -3040,10 +3047,12 @@ const PrimitiveMesh = React.memo(function PrimitiveMeshImpl({ obj, shape }: { ob
   );
 });
 
-function UserAsset({ url, matObj }: { url: string; matObj: UserMapObject }) {
+function UserAsset({ url, matObj, anim }: { url: string; matObj: UserMapObject; anim?: { clip: string; autoplay: boolean; loop: boolean; speed: number } }) {
   const [obj, setObj] = useState<THREE.Object3D | null>(null);
   // 원본 머티리얼 백업 (Map<mesh, originalMaterial>)
   const originalMats = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
+  // Animator — 모델 내장 클립 재생 (mixer + 선택 액션)
+  const mixerRef = useRef<THREE.AnimationMixer | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -3126,6 +3135,25 @@ function UserAsset({ url, matObj }: { url: string; matObj: UserMapObject }) {
       disposeMaterial(newMat);
     };
   }, [obj, matObj.material, matObj.materialColor, matObj.textureAlbedo, matObj.textureNormal, matObj.textureRoughness, matObj.textureTilingX, matObj.textureTilingY]);
+
+  // Animator — clip 재생. obj/anim 변경 시 mixer 재구성.
+  useEffect(() => {
+    if (!obj || !anim) { mixerRef.current = null; return; }
+    const clips = (obj.animations || []) as THREE.AnimationClip[];
+    if (!clips.length) return;
+    const clip = (anim.clip && clips.find(c => c.name === anim.clip)) || clips[0];
+    if (!clip) return;
+    const mixer = new THREE.AnimationMixer(obj);
+    mixerRef.current = mixer;
+    const action = mixer.clipAction(clip);
+    action.setLoop(anim.loop ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
+    action.clampWhenFinished = !anim.loop;
+    action.timeScale = anim.speed;
+    if (anim.autoplay) action.play();
+    return () => { mixer.stopAllAction(); mixer.uncacheRoot(obj); mixerRef.current = null; };
+  }, [obj, anim?.clip, anim?.autoplay, anim?.loop, anim?.speed]);
+
+  useFrame((_, dt) => { mixerRef.current?.update(dt); });
 
   if (!obj) return null;
   return <primitive object={obj} />;

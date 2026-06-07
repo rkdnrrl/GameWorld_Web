@@ -89,8 +89,10 @@ export async function loadStaticModel(url: string, manager?: THREE.LoadingManage
           if (vrm.humanoid) vrm.scene.userData.vrmHumanoid = vrm.humanoid;
           // expressionManager / vrm 인스턴스 전체도 (lipSync 등이 접근).
           vrm.scene.userData.vrm = vrm;
+          vrm.scene.animations = gltf.animations || [];   // Animator 컴포넌트가 재생할 클립 보존
           resolve(vrm.scene);
         } else {
+          gltf.scene.animations = gltf.animations || [];  // Animator 컴포넌트가 재생할 클립 보존
           resolve(gltf.scene);
         }
       }, undefined, reject);

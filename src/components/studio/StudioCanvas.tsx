@@ -1761,6 +1761,7 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }:
   const [model, setModel] = useState<THREE.Object3D | null>(null);
   const originalMatsRef = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
   const appliedMatsRef = useRef<THREE.MeshStandardMaterial[]>([]);
+  const mixerRef = useRef<THREE.AnimationMixer | null>(null);
   const [, forceUpdate] = useState(0);
 
   useEffect(() => {
@@ -1828,6 +1829,29 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }:
     appliedMatsRef.current.forEach(disposeMat);
     appliedMatsRef.current = [];
   }, []);
+
+  // Animator — 모델 내장 클립 미리보기 (편집/시뮬 둘 다). animator 컴포넌트 있을 때만.
+  const animComp = obj.components?.find(c => c.type === 'animator');
+  const animClip  = animComp ? String(animComp.props?.clip ?? '') : '';
+  const animAuto  = animComp ? animComp.props?.autoplay !== false : false;
+  const animLoop  = animComp ? animComp.props?.loop !== false : true;
+  const animSpeed = animComp ? Number(animComp.props?.speed ?? 1) : 1;
+  useEffect(() => {
+    if (!model || !animComp) { mixerRef.current = null; return; }
+    const clips = (model.animations || []) as THREE.AnimationClip[];
+    if (!clips.length) return;
+    const clip = (animClip && clips.find(c => c.name === animClip)) || clips[0];
+    if (!clip) return;
+    const mixer = new THREE.AnimationMixer(model);
+    mixerRef.current = mixer;
+    const action = mixer.clipAction(clip);
+    action.setLoop(animLoop ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
+    action.clampWhenFinished = !animLoop;
+    action.timeScale = animSpeed;
+    if (animAuto) action.play();
+    return () => { mixer.stopAllAction(); mixer.uncacheRoot(model); mixerRef.current = null; };
+  }, [model, animComp, animClip, animAuto, animLoop, animSpeed]);
+  useFrame((_, dt) => { mixerRef.current?.update(dt); });
 
   if (!model) return null;
   // noTransform=true: 위치/userData는 외부 SceneNode group이 담당
