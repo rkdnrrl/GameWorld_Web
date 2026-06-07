@@ -1392,6 +1392,7 @@ export function Player({
   const keys = useRef(new Set<string>());
   const lastPostFXZone = useRef(-1);   // 현재 들어가 있는 후처리 존 인덱스 (-1=없음)
   const swimAnimRef = useRef<'idle' | 'move' | null>(null);   // 부력 수영 애니 상태 (콜라이더 없이 물 안 판정)
+  const waterGravityOffRef = useRef(false);   // 물 안에서는 중력 끔 → 가만히 있으면 그 깊이에 멈춤
 
   const isLocked = useRef(false);
   const lastSend = useRef(0);
@@ -1816,6 +1817,8 @@ export function Player({
           }
           if (posT.y > surf + 0.6) continue;   // 수면 위 공중이면 부력 안 걸림 (점프로 탈출 가능)
           inBuoyancy = true;
+          // 물 안에서는 중력 끔 → 입력 없으면 그 깊이에 멈춤(중성 부력). 가라앉지 않음.
+          if (!waterGravityOffRef.current) { body.current.setGravityScale(0, true); waterGravityOffRef.current = true; }
           // 수영 애니 — 콜라이더/트리거 없이 물 안(범위) 판정만으로 재생. 이동/정지 자동.
           if (bv.swimIdle || bv.swimMove) {
             const swimMoving = forward || backward || left || right || jump || isCrouch || isProne || _mob.moveTouch.active;
@@ -1872,8 +1875,9 @@ export function Player({
           break;
         }
       }
-      // 물 영역 밖이면 수영 애니 해제
+      // 물 영역 밖이면 수영 애니 해제 + 중력 복원
       if (!inBuoyancy && swimAnimRef.current !== null) { swimAnimRef.current = null; emoteSlotRef.current = null; }
+      if (!inBuoyancy && waterGravityOffRef.current) { body.current.setGravityScale(1, true); waterGravityOffRef.current = false; }
 
       // 영역(zone) 후처리 — 플레이어가 들어간 박스 인덱스를 변경 시에만 보고
       if (postFXZonesRef && onPostFXZone) {
