@@ -1213,24 +1213,37 @@ function CameraWaterWatcher({ volsRef, onChange }: {
 function VRLocomotion({ localPoseRef }: { localPoseRef?: React.MutableRefObject<{ x: number; y: number; z: number; rotY: number }> }) {
   const session = useXR((s) => s.session);
   const left = useXRInputSourceState('controller', 'left');
+  const right = useXRInputSourceState('controller', 'right');
   const { camera } = useThree();
   const originRef = useRef<THREE.Group>(null);
   const eRef = useRef(new THREE.Euler(0, 0, 0, 'YXZ'));
+  const triggerHeld = useRef(false);
   useEffect(() => {
     _mob.xr = !!session;
     return () => { _mob.xr = false; _mob.moveTouch.active = false; _mob.moveTouch.x = 0; _mob.moveTouch.y = 0; };
   }, [session]);
   useFrame(() => {
     if (!session) return;
-    // 헤드셋 yaw → camH (이동 방향이 보는 쪽 기준)
+    // 헤드셋 yaw/pitch → camH/camV (이동·grab 방향이 보는 쪽 기준)
     eRef.current.setFromQuaternion(camera.quaternion);
     _mob.camH = eRef.current.y;
+    _mob.camV = -eRef.current.x;
     // 왼쪽 컨트롤러 썸스틱 → moveTouch (기존 이동 로직이 소비)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const stick = (left as any)?.gamepad?.['xr-standard-thumbstick'];
     const ax = Number(stick?.xAxis ?? 0), ay = Number(stick?.yAxis ?? 0);
     if (Math.hypot(ax, ay) > 0.15) { _mob.moveTouch.active = true; _mob.moveTouch.x = ax; _mob.moveTouch.y = ay; }
     else if (_mob.moveTouch.active) { _mob.moveTouch.active = false; _mob.moveTouch.x = 0; _mob.moveTouch.y = 0; }
+    // 오른쪽 트리거 → 잡기/놓기 (기존 E 키 grab 재사용 = 보는 쪽으로 grab)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const trig = (right as any)?.gamepad?.['xr-standard-trigger'];
+    const pressed = (trig?.state === 'pressed') || Number(trig?.button ?? 0) > 0.6;
+    if (pressed && !triggerHeld.current) {
+      triggerHeld.current = true;
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' }));
+    } else if (!pressed && triggerHeld.current) {
+      triggerHeld.current = false;
+    }
     // XROrigin 을 플레이어 발밑에 — 헤드셋이 내 캐릭터 위치/높이에 오도록
     const p = localPoseRef?.current;
     if (originRef.current && p) originRef.current.position.set(p.x, p.y - 0.9, p.z);
@@ -1554,8 +1567,8 @@ export function Player({
           if (r && typeof (r as Promise<void>).catch === 'function') (r as Promise<void>).catch(() => {});
         }
       }
-      // ── E: 1인칭 grab/release 토글 ──
-      if (e.code === 'KeyE' && cameraModeRef.current === 'first') {
+      // ── E: 1인칭/VR grab/release 토글 ──
+      if (e.code === 'KeyE' && (cameraModeRef.current === 'first' || _mob.xr)) {
         if (grabbedIdRef.current) {
           // release
           const released = grabbedIdRef.current;
@@ -2120,8 +2133,8 @@ export function Player({
       camera.lookAt(p.x, lookY, p.z);
     }
 
-    /* ── 1인칭 grab — Unreal physics handle 흉내 ── */
-    if (grabbedIdRef.current && cameraMode === 'first' && scriptBodyRefs) {
+    /* ── 1인칭/VR grab — Unreal physics handle 흉내 ── */
+    if (grabbedIdRef.current && (cameraMode === 'first' || _mob.xr) && scriptBodyRefs) {
       const grabId = grabbedIdRef.current;
       const ref = scriptBodyRefs.current.get(grabId);
       let gb = ref?.body.current;
