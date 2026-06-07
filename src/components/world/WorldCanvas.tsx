@@ -101,45 +101,64 @@ function getRenderableBounds(obj: THREE.Object3D) {
 }
 
 /** Water mesh — sin/cos 웨이브 애니메이션. 스튜디오 WaterMesh 와 동일 공식. */
+/**
+ * 물 입체 지오메트리 — 파도치는 윗면(NxN 그리드) + 옆벽 + 바닥이 한 메쉬.
+ * 옆벽의 윗변이 윗면 가장자리 정점을 공유하므로 파도와 옆면이 틈 없이 이어짐.
+ * 로컬: 윗면 y=0, 바닥 y=-1 (그룹 Y 스케일이 수심 결정). 윗면 정점은 매 frame 파도 변위.
+ */
+function buildWaterVolumeGeometry(N: number): { geom: THREE.BufferGeometry; topCount: number } {
+  const verts: number[] = [];
+  for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) verts.push(i / N - 0.5, 0, j / N - 0.5);   // 윗면
+  const topCount = (N + 1) * (N + 1);
+  for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) verts.push(i / N - 0.5, -1, j / N - 0.5);   // 바닥
+  const ti = (i: number, j: number) => j * (N + 1) + i;
+  const bi = (i: number, j: number) => topCount + j * (N + 1) + i;
+  const idx: number[] = [];
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    idx.push(ti(i, j), ti(i, j + 1), ti(i + 1, j + 1), ti(i, j), ti(i + 1, j + 1), ti(i + 1, j));     // 윗면(위 방향)
+    idx.push(bi(i, j), bi(i + 1, j + 1), bi(i, j + 1), bi(i, j), bi(i + 1, j), bi(i + 1, j + 1));     // 바닥(아래 방향)
+  }
+  for (let i = 0; i < N; i++) {
+    idx.push(ti(i, 0), bi(i, 0), bi(i + 1, 0), ti(i, 0), bi(i + 1, 0), ti(i + 1, 0));                 // 앞벽 j=0
+    idx.push(ti(i, N), ti(i + 1, N), bi(i + 1, N), ti(i, N), bi(i + 1, N), bi(i, N));                 // 뒷벽 j=N
+  }
+  for (let j = 0; j < N; j++) {
+    idx.push(ti(0, j), ti(0, j + 1), bi(0, j + 1), ti(0, j), bi(0, j + 1), bi(0, j));                 // 좌벽 i=0
+    idx.push(ti(N, j), bi(N, j), bi(N, j + 1), ti(N, j), bi(N, j + 1), ti(N, j + 1));                 // 우벽 i=N
+  }
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts), 3));
+  geom.setIndex(idx);
+  geom.computeVertexNormals();
+  return { geom, topCount };
+}
+
 function WorldWaterMesh({ color, strength = 1, speed = 1, frequency = 1, scaleY = 1 }: { color: string; strength?: number; speed?: number; frequency?: number; scaleY?: number }) {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const N = 12;
+  const { geom, topCount } = useMemo(() => buildWaterVolumeGeometry(N), []);
   const baseRef = useRef<Float32Array | null>(null);
   const params = useRef({ strength, speed, frequency, scaleY });
   params.current = { strength, speed, frequency, scaleY };
   useFrame(({ clock }) => {
-    const m = meshRef.current;
-    if (!m) return;
-    const geom = m.geometry as THREE.PlaneGeometry;
     const pos = geom.attributes.position as THREE.BufferAttribute;
     if (!baseRef.current) baseRef.current = (pos.array as Float32Array).slice() as Float32Array;
     const base = baseRef.current;
     const arr = pos.array as Float32Array;
     const t = clock.elapsedTime;
     const { strength: amp, speed: spd, frequency: freq, scaleY: sy } = params.current;
-    // 물결 높이를 Y 스케일(수심)과 무관하게 — 로컬 변위를 scaleY 로 나눠 보정 (월드 진폭 = 0.04*strength 고정).
-    const a = 0.04 * amp / Math.max(0.01, sy);
-    for (let i = 0; i < arr.length; i += 3) {
-      const x = base[i], y = base[i + 1];
-      arr[i + 2] = base[i + 2] + Math.sin(x * 5 * freq + t * 2 * spd) * a + Math.cos(y * 5 * freq + t * 1.5 * spd) * a;
+    const a = 0.04 * amp / Math.max(0.01, sy);   // 물결 높이를 Y 스케일(수심)과 무관하게 보정
+    for (let v = 0; v < topCount; v++) {          // 윗면 정점만 파도 변위 (옆벽 윗변은 공유 → 같이 출렁)
+      const ix = v * 3, x = base[ix], z = base[ix + 2];
+      arr[ix + 1] = Math.sin(x * 5 * freq + t * 2 * spd) * a + Math.cos(z * 5 * freq + t * 1.5 * spd) * a;
     }
     pos.needsUpdate = true;
     geom.computeVertexNormals();
   });
   return (
-    <group>
-      {/* 수면 (애니메이션 평면) */}
-      <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[1, 1, 16, 16]} />
-        <meshStandardMaterial color={color} transparent opacity={0.75}
-          roughness={0.15} metalness={0.1} side={THREE.DoubleSide} />
-      </mesh>
-      {/* 수심 부피 — 수면에서 바닥(= Y 스케일)까지 반투명 박스로 깊이 표현 */}
-      <mesh position={[0, -0.5, 0]}>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color={color} transparent opacity={0.22}
-          roughness={0.2} metalness={0.1} side={THREE.DoubleSide} depthWrite={false} />
-      </mesh>
-    </group>
+    <mesh geometry={geom} receiveShadow>
+      <meshStandardMaterial color={color} transparent opacity={0.78}
+        roughness={0.15} metalness={0.1} side={THREE.DoubleSide} />
+    </mesh>
   );
 }
 
