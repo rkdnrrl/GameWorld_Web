@@ -1458,11 +1458,11 @@ function TexturePickerModal({ assets, onSelect, onClose, title, mode = 'image' }
 }
 
 /* ── Water mesh — sin/cos 웨이브 애니메이션. 데스크탑 viewer.js 의 isWater 루프와 동일 공식. */
-function WaterMesh({ color, selected, strength = 1, speed = 1, frequency = 1 }: { color: string; selected: boolean; strength?: number; speed?: number; frequency?: number }) {
+function WaterMesh({ color, selected, strength = 1, speed = 1, frequency = 1, scaleY = 1 }: { color: string; selected: boolean; strength?: number; speed?: number; frequency?: number; scaleY?: number }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const baseRef = useRef<Float32Array | null>(null);
-  const params = useRef({ strength, speed, frequency });
-  params.current = { strength, speed, frequency };
+  const params = useRef({ strength, speed, frequency, scaleY });
+  params.current = { strength, speed, frequency, scaleY };
 
   useFrame(({ clock }) => {
     const mesh = meshRef.current;
@@ -1473,8 +1473,9 @@ function WaterMesh({ color, selected, strength = 1, speed = 1, frequency = 1 }: 
     const base = baseRef.current;
     const arr = pos.array as Float32Array;
     const t = clock.elapsedTime;
-    const { strength: amp, speed: spd, frequency: freq } = params.current;
-    const a = 0.04 * amp;
+    const { strength: amp, speed: spd, frequency: freq, scaleY: sy } = params.current;
+    // 물결 높이를 Y 스케일(수심)과 무관하게 — scaleY 로 나눠 보정.
+    const a = 0.04 * amp / Math.max(0.01, sy);
     for (let i = 0; i < arr.length; i += 3) {
       const x = base[i], y = base[i + 1];
       arr[i + 2] = base[i + 2] + Math.sin(x * 5 * freq + t * 2 * spd) * a + Math.cos(y * 5 * freq + t * 1.5 * spd) * a;
@@ -1606,7 +1607,8 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
         <WaterMesh color={obj.color || '#1e88e5'} selected={selected}
           strength={wv ? Number(wv.strength ?? 1) : 1}
           speed={wv ? Number(wv.speed ?? 1) : 1}
-          frequency={wv ? Number(wv.frequency ?? 1) : 1} />
+          frequency={wv ? Number(wv.frequency ?? 1) : 1}
+          scaleY={Math.abs(obj.scale?.[1] ?? 1)} />
       </group>
     );
   }

@@ -101,11 +101,11 @@ function getRenderableBounds(obj: THREE.Object3D) {
 }
 
 /** Water mesh — sin/cos 웨이브 애니메이션. 스튜디오 WaterMesh 와 동일 공식. */
-function WorldWaterMesh({ color, strength = 1, speed = 1, frequency = 1 }: { color: string; strength?: number; speed?: number; frequency?: number }) {
+function WorldWaterMesh({ color, strength = 1, speed = 1, frequency = 1, scaleY = 1 }: { color: string; strength?: number; speed?: number; frequency?: number; scaleY?: number }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const baseRef = useRef<Float32Array | null>(null);
-  const params = useRef({ strength, speed, frequency });
-  params.current = { strength, speed, frequency };
+  const params = useRef({ strength, speed, frequency, scaleY });
+  params.current = { strength, speed, frequency, scaleY };
   useFrame(({ clock }) => {
     const m = meshRef.current;
     if (!m) return;
@@ -115,8 +115,9 @@ function WorldWaterMesh({ color, strength = 1, speed = 1, frequency = 1 }: { col
     const base = baseRef.current;
     const arr = pos.array as Float32Array;
     const t = clock.elapsedTime;
-    const { strength: amp, speed: spd, frequency: freq } = params.current;
-    const a = 0.04 * amp;
+    const { strength: amp, speed: spd, frequency: freq, scaleY: sy } = params.current;
+    // 물결 높이를 Y 스케일(수심)과 무관하게 — 로컬 변위를 scaleY 로 나눠 보정 (월드 진폭 = 0.04*strength 고정).
+    const a = 0.04 * amp / Math.max(0.01, sy);
     for (let i = 0; i < arr.length; i += 3) {
       const x = base[i], y = base[i + 1];
       arr[i + 2] = base[i + 2] + Math.sin(x * 5 * freq + t * 2 * spd) * a + Math.cos(y * 5 * freq + t * 1.5 * spd) * a;
@@ -1779,7 +1780,7 @@ export function Player({
             const a = 0.04 * bv.waveStrength;
             const disp = Math.sin(lx * 5 * bv.waveFreq + wt * 2 * bv.waveSpeed) * a
                        + Math.cos(ly * 5 * bv.waveFreq + wt * 1.5 * bv.waveSpeed) * a;
-            surf += disp * bv.scaleY;
+            surf += disp;   // 월드 진폭이 이미 scaleY 무관 (WaterMesh 와 동일 보정) → scaleY 곱 안 함
           }
           if (posT.y > surf + 0.6) continue;   // 수면 위 공중이면 부력 안 걸림 (점프로 탈출 가능)
           inBuoyancy = true;
@@ -2760,7 +2761,8 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
       <WorldWaterMesh color={obj.color || '#1e88e5'}
         strength={wv ? Number(wv.strength ?? 1) : 1}
         speed={wv ? Number(wv.speed ?? 1) : 1}
-        frequency={wv ? Number(wv.frequency ?? 1) : 1} />
+        frequency={wv ? Number(wv.frequency ?? 1) : 1}
+        scaleY={Math.abs(obj.scale?.[1] ?? 1)} />
     );
     // collider 컴포넌트가 있으면 트리거/충돌 배선 (예: 물에 들어가면 onTriggerEnter → 수영 애니).
     // 없으면 기존처럼 시각용 group 만 (walk-through).
