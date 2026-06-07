@@ -79,9 +79,9 @@ function settingsFromInst(inst: ComponentInstance): PostFXSettings {
     sepia:          getProp(inst, 'sepia', false),
     grayscale:      getProp(inst, 'grayscale', false),
     dof:            getProp(inst, 'dof', false),
-    dofFocus:       getProp(inst, 'dofFocus', 0.02),
-    dofFocalLength: getProp(inst, 'dofFocalLength', 0.05),
-    dofBokeh:       getProp(inst, 'dofBokeh', 2),
+    dofFocus:       getProp(inst, 'dofFocus', 8),
+    dofFocalLength: getProp(inst, 'dofFocalLength', 10),
+    dofBokeh:       getProp(inst, 'dofBokeh', 3),
     toneMapping:    getProp(inst, 'toneMapping', false),
   };
 }
@@ -161,7 +161,8 @@ export default function PostFX({ s }: { s: PostFXSettings }) {
 
   const fx: React.ReactElement[] = [];
   // DOF 는 먼저(깊이 기반)
-  if (s.dof) fx.push(<DepthOfField key="dof" focusDistance={s.dofFocus} focalLength={s.dofFocalLength} bokehScale={s.dofBokeh} />);
+  // DOF — 미터 단위(worldFocusDistance/Range). 정규화 값은 초점범위가 거의 0이라 전체가 흐려짐.
+  if (s.dof) fx.push(<DepthOfField key="dof" worldFocusDistance={s.dofFocus} worldFocusRange={Math.max(0.1, s.dofFocalLength)} bokehScale={s.dofBokeh} />);
   if (s.pixelate > 0) fx.push(<Pixelation key="px" granularity={s.pixelate} />);
   // 색 보정
   if (s.brightness !== 0 || s.contrast !== 0) fx.push(<BrightnessContrast key="bc" brightness={s.brightness} contrast={s.contrast} />);
