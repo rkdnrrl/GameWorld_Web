@@ -86,11 +86,20 @@ function settingsFromInst(inst: ComponentInstance): PostFXSettings {
   };
 }
 
-/** 전역(존 아님) postProcess 볼륨 → 설정. 없으면 비활성. zone=true 인 건 제외(영역 한정). */
+/** 전역 postProcess 볼륨 → 설정. zone=true(영역 한정) / underwaterOnly=true(잠수 전용) 는 제외. */
 export function derivePostFX(objects: ReadonlyArray<{ components?: ComponentInstance[] }>): PostFXSettings {
   for (const o of objects) {
     const inst = findComponent(o.components, 'postProcess');
-    if (inst && !getProp(inst, 'zone', false)) return settingsFromInst(inst);
+    if (inst && !getProp(inst, 'zone', false) && !getProp(inst, 'underwaterOnly', false)) return settingsFromInst(inst);
+  }
+  return OFF;
+}
+
+/** 물에 잠겼을 때만 적용되는 postProcess 볼륨 → 설정. underwaterOnly=true 인 첫 볼륨. */
+export function derivePostFXUnderwater(objects: ReadonlyArray<{ components?: ComponentInstance[] }>): PostFXSettings {
+  for (const o of objects) {
+    const inst = findComponent(o.components, 'postProcess');
+    if (inst && getProp(inst, 'underwaterOnly', false)) return settingsFromInst(inst);
   }
   return OFF;
 }

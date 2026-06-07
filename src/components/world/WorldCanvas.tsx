@@ -38,7 +38,7 @@ import { api as backendApi } from '@/lib/api';
 // ⚠ T10 임시 — dead CustomModel/loadFBXCached 가 아직 의존. 다음 step 에서 전체 삭제 시 함께 제거
 import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
-import PostFX, { derivePostFX, collectPostFXZones, type PostFXZone } from '@/lib/world/PostFX';
+import PostFX, { derivePostFX, derivePostFXUnderwater, collectPostFXZones, type PostFXZone } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, parseUrlKind, normalizeMediaUrl, ImageMaterial, GenericIframeOverlay, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, VideoRemotePanel, VideoDistanceUpdater, VideoInitialStateApplier, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
 import VoiceSettingsPanel from './VoiceSettingsPanel';
@@ -3453,6 +3453,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const objectsById = useMemo(() => new Map((customObjects ?? []).map(o => [o.id, o])), [customObjects]);
   // 후처리 볼륨 — postProcess 컴포넌트 설정
   const postFX = useMemo(() => derivePostFX(customObjects ?? []), [customObjects]);
+  // 물에 잠겼을 때만 적용되는 후처리 (underwaterOnly=true) — underwaterTint 로 잠수 감지.
+  const underwaterPostFX = useMemo(() => derivePostFXUnderwater(customObjects ?? []), [customObjects]);
   // 영역(zone) 한정 후처리 — 플레이어가 그 박스 안에 들어가면 해당 볼륨 설정 적용.
   const postFXZones = useMemo(() => collectPostFXZones(customObjects ?? []), [customObjects]);
   const postFXZonesRef = useRef<PostFXZone[]>(postFXZones);
@@ -5349,7 +5351,11 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           onButtonClick={(_id, script) => execUiButtonScript(script, gameRuntime.api)}
           onValueChange={(_id, script, value) => execUiButtonScript(script, gameRuntime.api, value)}
         />
-        <PostFX s={activePostFXZone >= 0 && postFXZones[activePostFXZone] ? postFXZones[activePostFXZone].s : postFX} />
+        <PostFX s={
+          (underwaterTint !== null && underwaterPostFX.enabled) ? underwaterPostFX
+          : (activePostFXZone >= 0 && postFXZones[activePostFXZone]) ? postFXZones[activePostFXZone].s
+          : postFX
+        } />
         <UnderwaterFog stateRef={underwaterRef} onToggle={setUnderwaterTint} />
       </Canvas>
       {/* UI Renderer — Screen Space HTML overlay (Phase 1).
