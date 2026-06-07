@@ -1489,6 +1489,9 @@ function buildWaterVolumeGeometry(N: number): { geom: THREE.BufferGeometry; topC
   return { geom, topCount };
 }
 
+/** 물 선택 외곽선 — 단위 박스 모서리(직육면체). 그룹 스케일로 물 부피 경계 표시 (크기 가늠용). */
+const WATER_BOX_EDGES = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1));
+
 /* ── Water mesh — 입체(파도 윗면+옆벽+바닥). 데스크탑 viewer.js 의 isWater 공식과 동일 파도. */
 function WaterMesh({ color, selected, strength = 1, speed = 1, frequency = 1, scaleY = 1 }: { color: string; selected: boolean; strength?: number; speed?: number; frequency?: number; scaleY?: number }) {
   const N = 12;
@@ -1514,12 +1517,18 @@ function WaterMesh({ color, selected, strength = 1, speed = 1, frequency = 1, sc
   });
 
   return (
-    <mesh geometry={geom} receiveShadow>
-      <meshStandardMaterial color={color} transparent opacity={0.78}
-        roughness={0.15} metalness={0.1} side={THREE.DoubleSide} />
-      {/* 선택 표시 — 물 색 안 가리게 외곽선 */}
-      {selected && <Edges threshold={30} color="#22d3ee" />}
-    </mesh>
+    <group>
+      <mesh geometry={geom} receiveShadow>
+        <meshStandardMaterial color={color} transparent opacity={0.78}
+          roughness={0.15} metalness={0.1} side={THREE.DoubleSide} />
+      </mesh>
+      {/* 선택 표시 — 물 부피 경계를 깔끔한 직육면체 외곽선으로 (크기 가늠용). 수면 y=0 ~ 바닥 y=-1 */}
+      {selected && (
+        <lineSegments geometry={WATER_BOX_EDGES} position={[0, -0.5, 0]} raycast={() => null}>
+          <lineBasicMaterial color="#22d3ee" />
+        </lineSegments>
+      )}
+    </group>
   );
 }
 
