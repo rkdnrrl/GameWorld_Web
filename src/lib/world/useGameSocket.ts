@@ -77,6 +77,7 @@ export interface RuntimeObjectSpec {
   soundRadius?: number;
   // Prefab — 컴포넌트(Grab/AutoRotate)·스크립트·자식 트리
   components?: unknown[];   // ComponentInstance[] — 정확한 타입은 components.ts 에
+  keyframeAnim?: unknown;   // KeyframeAnim — 키프레임 애니메이션
   script?: string;
   scriptVars?: Record<string, unknown>;
   grabbable?: boolean;

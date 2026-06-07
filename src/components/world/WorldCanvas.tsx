@@ -6,6 +6,7 @@ import { Physics, RigidBody, CapsuleCollider, CuboidCollider, useRapier } from '
 import { createXRStore, XR, XROrigin, useXRInputSourceState, useXR } from '@react-three/xr';
 import { devLog } from '@/lib/devLog';
 import { findLipSyncTarget, readAnalyserLevel, smoothLevel, applyLipSync, ANALYSER_BUFFER_SIZE, type LipSyncTarget } from '@/lib/world/lipSync';
+import { sampleKeyframeAnim } from '@/lib/world/keyframeAnim';
 
 /** Rapier 강체 — 우리가 호출하는 메서드만 추린 미니 인터페이스 (버전 무관) */
 interface RapierBodyApi {
@@ -17,6 +18,8 @@ interface RapierBodyApi {
   linvel(): { x: number; y: number; z: number };
   setLinvel(v: { x: number; y: number; z: number }, wakeUp: boolean): void;
   setAngvel(v: { x: number; y: number; z: number }, wakeUp: boolean): void;
+  setNextKinematicTranslation?(v: { x: number; y: number; z: number }): void;
+  setNextKinematicRotation?(q: { x: number; y: number; z: number; w: number }): void;
 }
 import * as THREE from 'three';
 import { HumanoidMesh } from './HumanoidMesh';
@@ -2580,6 +2583,8 @@ interface UserMapObject {
   grabbable?: boolean;
   // Unity 스타일 컴포넌트 — Grab / AutoRotate 등 부착 가능
   components?: import('@/lib/world/components').ComponentInstance[];
+  // 키프레임 애니메이션 (타임라인 제작 — 위치/회전/스케일)
+  keyframeAnim?: import('@/lib/world/keyframeAnim').KeyframeAnim;
   // JavaScript 스크립트
   script?: string;
   // 스크립트 인스펙터 변수 오버라이드 (유니티 직렬화 필드처럼)
@@ -2761,7 +2766,11 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
   // Collider 컴포넌트 — 있으면 명시적 박스 콜라이더 (자동 콜라이더 대신).
   // physics 가 'none' 이어도 콜라이더가 있으면 고정(fixed) 바디로 충돌시킴.
   const colliderComp = obj.components?.find(c => c.type === 'collider');
-  const bodyType: 'fixed' | 'dynamic' = physics === 'dynamic' ? 'dynamic' : 'fixed';
+  // 키프레임 + 콜라이더 → 충돌하는 이동 플랫폼(키네마틱 바디). dynamic 물리면 제외(물리가 우선).
+  const kfAuto = !!obj.keyframeAnim?.autoplay && !!obj.keyframeAnim?.keys?.length;
+  const isKinematicAnim = kfAuto && physics !== 'dynamic' && !!colliderComp;
+  const bodyType: 'fixed' | 'dynamic' | 'kinematicPosition' =
+    isKinematicAnim ? 'kinematicPosition' : (physics === 'dynamic' ? 'dynamic' : 'fixed');
   const weight = Math.max(0.1, Number(physicsComp?.props?.weight ?? 1));   // 물 부력용 무게
   const colliderArgs: [number, number, number] | null = colliderComp
     ? [
@@ -2815,6 +2824,23 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
   // 월드 밖으로 일정 이상 떨어진 동적 오브젝트 → 원위치로 복귀 (플레이어 추락 복구와 동일).
   // 스폰 높이 기준 OBJ_FALL_RESET 만큼 아래로 떨어지면 위치·속도·회전 리셋.
   useFrame((rtState, dt) => {
+    // 키프레임 애니메이션 — 타임라인대로 움직임 (autoplay).
+    const kf = obj.keyframeAnim;
+    if (kf?.autoplay && kf.keys?.length) {
+      const s = sampleKeyframeAnim(kf, rtState.clock.elapsedTime);
+      if (s) {
+        if (isKinematicAnim && bodyRef.current?.setNextKinematicTranslation) {
+          // 충돌하는 이동 플랫폼 — 키네마틱 바디로 위치/회전 구동 (스케일은 콜라이더 고정이라 미적용).
+          bodyRef.current.setNextKinematicTranslation({ x: s.position[0], y: s.position[1], z: s.position[2] });
+          const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(s.rotation[0], s.rotation[1], s.rotation[2]));
+          bodyRef.current.setNextKinematicRotation?.({ x: q.x, y: q.y, z: q.z, w: q.w });
+        } else if (physics === 'none' && groupRef.current) {
+          groupRef.current.position.set(s.position[0], s.position[1], s.position[2]);
+          groupRef.current.rotation.set(s.rotation[0], s.rotation[1], s.rotation[2]);
+          groupRef.current.scale.set(s.scale[0], s.scale[1], s.scale[2]);
+        }
+      }
+    }
     if (physics !== 'dynamic') return;
     const b = bodyRef.current;
     if (!b) return;
@@ -4080,6 +4106,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           soundRadius: spec.soundRadius,
           // Prefab — 컴포넌트·스크립트·자식 연결. 멀티싱크는 기존 sendScriptEvent / sendObjectStates 인프라가 처리.
           components: spec.components as UserMapObject['components'],
+          keyframeAnim: spec.keyframeAnim as UserMapObject['keyframeAnim'],
           script: spec.script,
           scriptVars: spec.scriptVars as UserMapObject['scriptVars'],
           grabbable: spec.grabbable,

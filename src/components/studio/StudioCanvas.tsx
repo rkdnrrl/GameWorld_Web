@@ -34,6 +34,7 @@ import ScriptComponentsModal from './ScriptComponentsModal';
 import ScriptAssetEditor from '@/components/assets/ScriptAssetEditor';
 import { MAP_APPLY_EVENT } from '@/lib/assets/kinds/map';
 import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, computeBuoyancyVolumes, type ComponentInstance, type ComponentType, type BuoyancyVolume, type ComponentPropDef } from '@/lib/world/components';
+import { sampleKeyframeAnim, normalizeKeyframeAnim, type KeyframeAnim, type KeyFrame } from '@/lib/world/keyframeAnim';
 import { Player, type PlayerControl } from '@/components/world/WorldCanvas';
 
 const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', water: '물', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광', spawn: '스폰 포인트', empty: '빈 오브젝트' };
@@ -182,6 +183,8 @@ interface MapObject {
   grabbable?: boolean;
   // Unity 스타일 컴포넌트 — Grab / AutoRotate 등
   components?: import('@/lib/world/components').ComponentInstance[];
+  // 키프레임 애니메이션 (타임라인에서 제작 — 위치/회전/스케일 트랙)
+  keyframeAnim?: import('@/lib/world/keyframeAnim').KeyframeAnim;
   // JavaScript 스크립트
   script?: string;
   // 스크립트 인스펙터 변수 오버라이드 (유니티 직렬화 필드처럼) — 코드의 top-level 변수 기본값을 덮어씀
@@ -210,6 +213,9 @@ interface Asset {
   metadata?: any;           // 신규 — metadata.materialConfig
 }
 
+/** assetUrl → 모델 내장 애니메이션 클립 이름 목록. AssetMesh 가 로드 시 채움. Animator 인스펙터 드롭다운용. */
+const _assetClipCache = new Map<string, string[]>();
+
 /* ── Unity 스타일 컴포넌트 섹션 (인스펙터) ──
    부착된 컴포넌트 카드 + "+ 컴포넌트 추가" 버튼. 각 카드는 props 편집 input 포함. */
 function ComponentsSection({
@@ -232,6 +238,13 @@ function ComponentsSection({
   const tCanvas = useTranslations('Studio.canvas');
   const list = selected.components ?? [];
   const [dropOver, setDropOver] = useState(false);
+  // Animator 클립 캐시 갱신 시 리렌더 (모델 비동기 로드 후 드롭다운 채우기)
+  const [, setClipVer] = useState(0);
+  useEffect(() => {
+    const h = () => setClipVer(v => v + 1);
+    window.addEventListener('alp-clips-loaded', h);
+    return () => window.removeEventListener('alp-clips-loaded', h);
+  }, []);
   // 레거시: grabbable 플래그도 가상 컴포넌트로 표시 (제거 시 plain false)
   const legacyGrab = !!selected.grabbable && !list.some(c => c.type === 'grab');
 
@@ -457,6 +470,26 @@ function ComponentsSection({
                       onChange={e => updateProp(idx, p.key, e.target.value)}
                       onBlur={() => pushHistory(allObjects)}
                       style={{ width: 36, height: 22, padding: 0, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
+                  </label>
+                );
+              }
+              // Animator clip — 모델 내장 클립 드롭다운 (로드되면 목록, 아니면 텍스트 입력)
+              if (def.type === 'animator' && p.key === 'clip') {
+                const clips = (selected.assetUrl && _assetClipCache.get(selected.assetUrl)) || [];
+                return (
+                  <label key={p.key} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, opacity: 0.75, marginTop: 4 }}>
+                    {p.label}
+                    {clips.length > 0 ? (
+                      <select value={String(val)} onChange={e => { updateProp(idx, p.key, e.target.value); pushHistory(allObjects); }}
+                        style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }}>
+                        <option value="">(첫 번째 클립)</option>
+                        {clips.map(n => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    ) : (
+                      <input type="text" value={String(val)} onChange={e => updateProp(idx, p.key, e.target.value)} onBlur={() => pushHistory(allObjects)}
+                        placeholder="클립 이름 (모델을 뷰포트에 띄우면 목록 표시)"
+                        style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
+                    )}
                   </label>
                 );
               }
@@ -1791,6 +1824,12 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }:
           }
         });
         originalMatsRef.current = origMap;
+        // Animator 인스펙터용 — 내장 클립 이름 캐시 + 알림
+        if (obj.assetUrl) {
+          const names = ((model.animations || []) as THREE.AnimationClip[]).map(a => a.name).filter(Boolean);
+          _assetClipCache.set(obj.assetUrl, names);
+          window.dispatchEvent(new CustomEvent('alp-clips-loaded'));
+        }
         setModel(model);
       }).catch(err => console.error('[studio] 모델 로드 실패:', err))
     );
@@ -2298,6 +2337,16 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
 
   // 월드 밖으로 일정 이상 떨어진 동적 오브젝트 → 원위치로 복귀 + 물 부력
   useFrame((rtState, dt) => {
+    // 키프레임 애니메이션 — 시뮬 중 비물리 오브젝트를 타임라인대로 움직임.
+    const kf = obj.keyframeAnim;
+    if (kf?.autoplay && groupRef.current && kf.keys?.length) {
+      const s = sampleKeyframeAnim(kf, rtState.clock.elapsedTime);
+      if (s) {
+        groupRef.current.position.set(s.position[0], s.position[1], s.position[2]);
+        groupRef.current.rotation.set(s.rotation[0], s.rotation[1], s.rotation[2]);
+        groupRef.current.scale.set(s.scale[0], s.scale[1], s.scale[2]);
+      }
+    }
     const b = bodyRef.current;
     if (!b) return;
     const comp = obj.components?.find(c => c.type === 'physics');
@@ -3943,6 +3992,94 @@ function useSheetDrag(initial = 62) {
   return { heightVh, dragging, gripHandlers };
 }
 
+/** 키프레임 타임라인 패널 — 선택 오브젝트의 위치/회전/스케일 키프레임 제작 + 미리보기. */
+function KeyframeTimelinePanel({ obj, label, onChange, onPreview }: {
+  obj: MapObject;
+  label: string;
+  onChange: (anim: KeyframeAnim) => void;
+  onPreview: (pose: { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] } | null) => void;
+}) {
+  const anim: KeyframeAnim = obj.keyframeAnim ?? { duration: 3, loop: true, autoplay: true, keys: [] };
+  const [time, setTime] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const timeRef = useRef(0);
+
+  useEffect(() => () => onPreview(null), []);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!playing) return;
+    let last = performance.now();
+    let t = timeRef.current;
+    let raf = 0;
+    const dur = anim.duration || 1;
+    const tick = () => {
+      const now = performance.now();
+      const dt = (now - last) / 1000; last = now;
+      t += dt;
+      let stop = false;
+      if (t >= dur) { if (anim.loop) t = t % dur; else { t = dur; stop = true; } }
+      timeRef.current = t;
+      setTime(t);
+      const s = sampleKeyframeAnim(anim, t);
+      if (s) onPreview({ p: s.position, r: s.rotation, s: s.scale });
+      if (stop) { setPlaying(false); return; }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const scrub = (v: number) => {
+    timeRef.current = v; setTime(v);
+    const s = sampleKeyframeAnim(anim, v);
+    if (s) onPreview({ p: s.position, r: s.rotation, s: s.scale });
+  };
+  const stopEdit = () => { setPlaying(false); onPreview(null); };
+  const addKey = () => {
+    const tt = Math.round(time * 100) / 100;
+    const key: KeyFrame = { t: tt, position: [...obj.position], rotation: [...obj.rotation], scale: [...obj.scale] };
+    const keys = anim.keys.filter(k => Math.abs(k.t - tt) > 0.001).concat(key);
+    onChange(normalizeKeyframeAnim({ ...anim, keys }));
+    onPreview(null);
+  };
+  const delKey = (i: number) => onChange(normalizeKeyframeAnim({ ...anim, keys: anim.keys.filter((_, n) => n !== i) }));
+  const patch = (p: Partial<KeyframeAnim>) => onChange(normalizeKeyframeAnim({ ...anim, ...p }));
+  const dur = anim.duration || 3;
+
+  return (
+    <div style={{ position: 'fixed', left: 12, right: 12, bottom: 12, zIndex: 50, background: 'rgba(20,20,28,0.96)',
+      border: '1px solid #333', borderRadius: 10, padding: '10px 14px', color: '#eee', font: '12px sans-serif', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+        <strong style={{ color: '#a5b4fc' }}>🎬 타임라인 — {label}</strong>
+        <button onClick={() => (playing ? stopEdit() : setPlaying(true))} style={{ padding: '3px 12px', borderRadius: 6, border: 'none', background: playing ? '#ef4444' : '#6366f1', color: '#fff', cursor: 'pointer' }}>{playing ? '⏸ 정지' : '▶ 재생'}</button>
+        <button onClick={stopEdit} style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid #555', background: 'transparent', color: '#ccc', cursor: 'pointer' }}>■ 편집모드</button>
+        <button onClick={addKey} style={{ padding: '3px 12px', borderRadius: 6, border: 'none', background: '#22c55e', color: '#fff', cursor: 'pointer' }}>＋ 현재 위치로 키 추가 ({time.toFixed(2)}s)</button>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>길이
+          <input type="number" min={0.1} step={0.1} value={dur} onChange={e => patch({ duration: Math.max(0.1, Number(e.target.value) || 0.1) })}
+            style={{ width: 56, background: '#111', border: '1px solid #444', color: '#eee', borderRadius: 4, padding: '2px 4px' }} />s</label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}><input type="checkbox" checked={anim.loop} onChange={e => patch({ loop: e.target.checked })} />반복</label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}><input type="checkbox" checked={anim.autoplay} onChange={e => patch({ autoplay: e.target.checked })} />자동재생</label>
+      </div>
+      <input type="range" min={0} max={dur} step={0.01} value={Math.min(time, dur)} onChange={e => scrub(Number(e.target.value))} style={{ width: '100%' }} />
+      <div style={{ position: 'relative', height: 14, marginTop: 2 }}>
+        {anim.keys.map((k, i) => (
+          <div key={i} onClick={() => scrub(k.t)} title={`${k.t.toFixed(2)}s — 클릭 미리보기`}
+            style={{ position: 'absolute', left: `calc(${(k.t / dur) * 100}% - 5px)`, top: 0, width: 10, height: 10, background: '#fbbf24', transform: 'rotate(45deg)', cursor: 'pointer' }} />
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+        {anim.keys.length === 0 && <span style={{ color: '#888' }}>오브젝트를 옮긴 뒤 “키 추가”로 키프레임을 찍으세요. 2개 이상이면 사이가 보간됩니다.</span>}
+        {anim.keys.map((k, i) => (
+          <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#2a2a38', borderRadius: 5, padding: '2px 6px' }}>
+            <button onClick={() => scrub(k.t)} style={{ background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer' }}>{k.t.toFixed(2)}s</button>
+            <button onClick={() => delKey(i)} aria-label="키 삭제" style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}>✕</button>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function StudioCanvas() {
   useEffect(() => { silenceConsoleSpam(); }, []);
   const t            = useTranslations('Studio');
@@ -3985,6 +4122,9 @@ export default function StudioCanvas() {
   const [objects, setObjects]       = useState<MapObject[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode]             = useState<'translate' | 'rotate' | 'scale'>('translate');
+  // 키프레임 타임라인 — 편집 미리보기 포즈 오버라이드 (선택 오브젝트의 worldTRS 를 일시 대체)
+  const [kfPreview, setKfPreview] = useState<{ id: string; p: [number,number,number]; r: [number,number,number]; s: [number,number,number] } | null>(null);
+  const [showTimeline, setShowTimeline] = useState(false);
   // 시뮬레이션
   const [simulating, setSimulating] = useState(false);
   // 게임 로직 레이어(시뮬용) — 스크립트의 game/ui/world.playSound 가 들어오고 <GameHud> 가 그림.
@@ -5741,6 +5881,8 @@ export default function StudioCanvas() {
   // 평탄 렌더용 — 오브젝트의 월드 TRS 계산 (부모 체인 합성). empty 도 일반 자식처럼 부모를 따름.
   // spawn 은 플레이어 스폰 기준점이라 월드 절대값을 유지(부모 합성 X) → 플레이/시뮬의 스폰 위치와 일치.
   function worldTRSFor(o: MapObject): { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] } {
+    // 키프레임 미리보기 중이면 그 포즈로 덮어씀 (재생/스크럽)
+    if (kfPreview && kfPreview.id === o.id) return { p: kfPreview.p, r: kfPreview.r, s: kfPreview.s };
     if (!o.parentId || o.kind === 'spawn') {
       return { p: o.position, r: o.rotation, s: o.scale };
     }
@@ -8036,6 +8178,33 @@ export default function StudioCanvas() {
         )}
 
         {/* 시뮬레이션 시작/중지 버튼은 상단 툴바로 이동됨 */}
+
+        {/* 키프레임 타임라인 — 선택 오브젝트 애니메이션 제작 (편집 모드 전용) */}
+        {!simulating && selectedId && (() => {
+          const selObj = objects.find(o => o.id === selectedId);
+          if (!selObj) return null;
+          return (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowTimeline(v => !v)}
+                style={{ position: 'fixed', right: 16, bottom: showTimeline ? 150 : 16, zIndex: 51,
+                  padding: '8px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)',
+                  background: showTimeline ? 'rgba(99,102,241,0.9)' : 'rgba(40,40,52,0.9)',
+                  color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', backdropFilter: 'blur(6px)' }}
+              >🎬 타임라인 {showTimeline ? '닫기' : '열기'}</button>
+              {showTimeline && (
+                <KeyframeTimelinePanel
+                  key={selObj.id}
+                  obj={selObj}
+                  label={selObj.label || selObj.kind}
+                  onChange={(anim) => { pushHistory(objects); setObjects(prev => prev.map(o => o.id === selObj.id ? { ...o, keyframeAnim: anim } : o)); }}
+                  onPreview={(pose) => setKfPreview(pose ? { id: selObj.id, ...pose } : null)}
+                />
+              )}
+            </>
+          );
+        })()}
 
         {/* 빈 씬 온보딩 안내 — 오브젝트 없을 때만 표시 */}
         {!simulating && objects.length === 0 && (
