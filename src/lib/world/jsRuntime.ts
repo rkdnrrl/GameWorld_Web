@@ -1134,6 +1134,27 @@ export class JsScript {
             w: o.w != null ? Number(o.w) : undefined,
             h: o.h != null ? Number(o.h) : undefined });
         },
+        // ui.panel("inv", { x:0.5, y:0.5, w:320, h:240, bg:"rgba(15,23,42,0.92)", text:"인벤토리" }) — 박스(인벤토리/제작창 배경)
+        panel: (id: unknown, opts?: Record<string, unknown>) => {
+          const o = (opts && typeof opts === 'object') ? opts : {};
+          gameApi?.hudSet({ id: String(id), type: 'panel', text: o.text != null ? String(o.text) : undefined,
+            x: numOr(o.x, 0.5), y: numOr(o.y, 0.5),
+            w: o.w != null ? Number(o.w) : undefined, h: o.h != null ? Number(o.h) : undefined,
+            size: o.size != null ? Number(o.size) : undefined,
+            color: o.color != null ? String(o.color) : undefined,
+            bg: o.bg != null ? String(o.bg) : undefined });
+        },
+        // ui.button("craft", "제작", { x:0.5, y:0.7 }) — 클릭 시 onUiClick("craft") 호출
+        button: (id: unknown, text: unknown, opts?: Record<string, unknown>) => {
+          const o = (opts && typeof opts === 'object') ? opts : {};
+          gameApi?.hudSet({ id: String(id), type: 'button', text: String(text),
+            x: numOr(o.x, 0.5), y: numOr(o.y, 0.7),
+            w: o.w != null ? Number(o.w) : undefined, h: o.h != null ? Number(o.h) : undefined,
+            size: o.size != null ? Number(o.size) : undefined,
+            color: o.color != null ? String(o.color) : undefined,
+            bg: o.bg != null ? String(o.bg) : undefined,
+            url: o.icon != null ? String(o.icon) : undefined });
+        },
         clear: (id: unknown) => { gameApi?.hudClear(String(id)); },
         clearAll: () => { gameApi?.hudClearAll(); },
         // ── 신규 UI 시스템 (kind='ui' MapObject) 제어 — label 로 검색 ──
@@ -1462,6 +1483,8 @@ export class JsScript {
   callCollisionExit(otherId: string): void { this.dispatch('onCollisionExit', [otherId]); }
   /** 1인칭에서 이 오브젝트를 클릭(정조준 후 좌클릭) — onClick(clicker) */
   callClick(clickerId: string): void { this.dispatch('onClick', [clickerId]); }
+  /** UI 버튼 클릭 — ui.button(id,...) 클릭 시 호출. function onUiClick(id) {} */
+  callUiClick(id: string): void { this.dispatch('onUiClick', [id]); }
 
   /** 사용자 정의 이벤트 함수가 있으면 호출 (없으면 무시). 에러는 중복 없이 누적. */
   private dispatch(fnName: string, args: unknown[]): void {

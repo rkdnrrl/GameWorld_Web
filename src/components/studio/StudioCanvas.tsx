@@ -2636,12 +2636,14 @@ function SimCameraNear({ near }: { near: number }) {
   return null;
 }
 
-function SimScene({ objects, transforms, myAssets, player, gameApi }: {
+function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }: {
   objects: MapObject[];
   transforms: SimTransforms;
   myAssets: Asset[];
   /** 게임 로직 레이어 — 스크립트의 game/ui/world.playSound 가 이 API 로 들어감. */
   gameApi: import('@/lib/world/gameRuntime').JsGameAPI;
+  /** 게임 런타임 스토어 — UI 버튼 클릭 핸들러 등록용. */
+  gameStore?: import('@/lib/world/gameRuntime').GameRuntimeStore;
   /** 시뮬레이션 플레이어 — 본인 캐릭터로 직접 플레이 (월드와 동일). null 이면 플레이어 없음. */
   player?: {
     character: Record<string, unknown>;
@@ -2704,6 +2706,14 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
     luaScripts.current.get(objectId)?.callClick('player');
     componentScripts.current.get(objectId)?.forEach(({ vm }) => vm.callClick('player'));
   }, []);
+  // UI 버튼(ui.button) 클릭 → 스크립트 onUiClick(id) 디스패치
+  useEffect(() => {
+    gameStore?.setHudClickHandler((id) => {
+      luaScripts.current.forEach(vm => vm.callUiClick(id));
+      componentScripts.current.forEach(arr => arr.forEach(({ vm }) => vm.callUiClick(id)));
+    });
+    return () => gameStore?.setHudClickHandler(null);
+  }, [gameStore]);
   // user 컴포넌트 코드 캐시 — id → ScriptComponent
   const scriptComponentDefsRef = useRef<Map<string, ScriptComponent>>(new Map());
   const [scriptCompsLoaded, setScriptCompsLoaded] = useState(0);
@@ -7958,7 +7968,7 @@ export default function StudioCanvas() {
                 initiallyPaused={simObjs.some(o => o.components?.some(c => c.type === 'videoRemote' && c.props?.initiallyPlaying === false))}
                 unlockedRef={simVideoUnlockedRef} />
               <Physics gravity={[0, worldPhysics.gravity, 0]} interpolate={false}>
-                <SimScene objects={simObjs} transforms={simTransforms} myAssets={myAssets} gameApi={simGameRuntime.api}
+                <SimScene objects={simObjs} transforms={simTransforms} myAssets={myAssets} gameApi={simGameRuntime.api} gameStore={simGameRuntime}
                   player={simCharacter ? {
                     character: simCharacter,
                     cameraMode: simCameraMode,

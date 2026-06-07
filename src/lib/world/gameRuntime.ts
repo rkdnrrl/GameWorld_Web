@@ -25,13 +25,13 @@
 
 export interface HudElement {
   id: string;
-  type: 'text' | 'bar' | 'image';
+  type: 'text' | 'bar' | 'image' | 'panel' | 'button';
   text?: string;
   value?: number;     // bar: 현재값
   max?: number;       // bar: 최대값
-  url?: string;       // image: 이미지 URL
-  w?: number;         // image: 가로 px
-  h?: number;         // image: 세로 px
+  url?: string;       // image: 이미지 URL / button·panel: 아이콘 이미지(선택)
+  w?: number;         // image/panel/button: 가로 px
+  h?: number;         // image/panel/button: 세로 px
   x: number;          // 0~1 화면 가로 비율 (앵커)
   y: number;          // 0~1 화면 세로 비율 (앵커)
   size?: number;      // text: 폰트 px / bar: 높이 px
@@ -91,6 +91,10 @@ export interface GameRuntimeStore {
   applySnapshot(snap: GameSnapshot): void;
   /** 수신한 사운드 로컬 재생 (비호스트). */
   playRemoteSound(url: string, opts?: { volume?: number; loop?: boolean }): void;
+  /** UI 버튼 클릭 — GameHud 가 호출 → 등록된 핸들러(스크립트 onUiClick 디스패치)로 라우팅. */
+  clickHud(id: string): void;
+  /** 버튼 클릭 핸들러 등록 (호스트 캔버스가 모든 스크립트 VM 의 onUiClick 으로 연결). */
+  setHudClickHandler(fn: ((id: string) => void) | null): void;
   /** 맵 데이터 캐시 — 호스트가 서버에서 load 후 한 번에 채움 (scope 별). */
   loadDataSnapshot(entries: Array<{ key: string; value: unknown; shared: boolean }>): void;
   /** 단일 entry 적용 — broadcast 수신용. */
@@ -119,6 +123,7 @@ export function createGameRuntime(opts?: {
   const sharedData = new Map<string, unknown>();
   const listeners = new Set<() => void>();
   let dirty = false;
+  let hudClickHandler: ((id: string) => void) | null = null;
   const notify = () => { for (const l of listeners) l(); };
 
   const playLocal = (url: string, o?: { volume?: number; loop?: boolean }) => {
@@ -163,6 +168,8 @@ export function createGameRuntime(opts?: {
     getHud: () => hud,
     subscribe: (l) => { listeners.add(l); return () => { listeners.delete(l); }; },
     reset: () => { state.clear(); hud.clear(); dirty = true; notify(); },
+    clickHud: (id) => { hudClickHandler?.(String(id)); },
+    setHudClickHandler: (fn) => { hudClickHandler = fn; },
     isDirty: () => dirty,
     markDirty: () => { dirty = true; },
     takeSnapshot: () => { dirty = false; return { state: [...state.entries()], hud: [...hud.values()] }; },

@@ -3772,6 +3772,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       }
     },
   }), []);
+  // UI 버튼(ui.button) 클릭 → 모든 스크립트 VM 의 onUiClick(id) 호출.
+  useEffect(() => {
+    gameRuntime.setHudClickHandler((id) => {
+      luaScripts.current.forEach(vm => vm.callUiClick(id));
+      componentScripts.current.forEach(arr => arr.forEach(({ vm }) => vm.callUiClick(id)));
+    });
+    return () => gameRuntime.setHudClickHandler(null);
+  }, [gameRuntime]);
   // 비디오 URL 런타임 오버라이드 — 컨트롤 바에서 URL 변경 시(멀티 동기). objId→새 URL.
   const [videoUrlOverrides, setVideoUrlOverrides] = useState<Record<string, string>>({});
   // 컨트롤 바/리모컨 동작 — 등록된 비디오 스크린에 적용 + 다른 플레이어에게 broadcast(__videoctl__).

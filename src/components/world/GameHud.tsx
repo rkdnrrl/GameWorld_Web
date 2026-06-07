@@ -15,14 +15,48 @@ export default function GameHud({ runtime }: { runtime: GameRuntimeStore }) {
   if (hud.size === 0) return null;
   return (
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 5 }}>
-      {[...hud.values()].map(el => <HudItem key={el.id} el={el} />)}
+      {[...hud.values()].map(el => <HudItem key={el.id} el={el} onClick={() => runtime.clickHud(el.id)} />)}
     </div>
   );
 }
 
-function HudItem({ el }: { el: HudElement }) {
+function HudItem({ el, onClick }: { el: HudElement; onClick: () => void }) {
   const left = `${Math.max(0, Math.min(1, el.x)) * 100}%`;
   const top = `${Math.max(0, Math.min(1, el.y)) * 100}%`;
+
+  // 패널 — 반투명 박스 (인벤토리/제작창 배경). pointerEvents 막아 뒤 클릭 차단.
+  if (el.type === 'panel') {
+    return (
+      <div style={{
+        position: 'absolute', left, top, transform: 'translate(-50%, -50%)',
+        width: el.w && el.w > 0 ? el.w : 200, height: el.h && el.h > 0 ? el.h : 120,
+        background: el.bg || 'rgba(15,23,42,0.92)', border: '1px solid rgba(255,255,255,0.15)',
+        borderRadius: 12, pointerEvents: 'auto', boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: el.color || '#fff', fontSize: el.size && el.size > 0 ? el.size : 13, fontWeight: 700,
+        textAlign: 'center', whiteSpace: 'pre-wrap', padding: 8,
+      }}>{el.text || ''}</div>
+    );
+  }
+
+  // 버튼 — 클릭 시 스크립트 onUiClick(id) 호출 (제작 버튼 등).
+  if (el.type === 'button') {
+    return (
+      <button onClick={(e) => { e.stopPropagation(); onClick(); }} style={{
+        position: 'absolute', left, top, transform: 'translate(-50%, -50%)',
+        width: el.w && el.w > 0 ? el.w : undefined, height: el.h && el.h > 0 ? el.h : undefined,
+        minWidth: 64, padding: '8px 14px',
+        background: el.bg || '#6366f1', color: el.color || '#fff',
+        border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8,
+        fontSize: el.size && el.size > 0 ? el.size : 13, fontWeight: 700, cursor: 'pointer',
+        pointerEvents: 'auto', boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+      }}>
+        {el.url ? <img src={el.url} alt="" style={{ width: 18, height: 18, objectFit: 'contain' }} /> : null}
+        {el.text || ''}
+      </button>
+    );
+  }
 
   if (el.type === 'image') {
     if (!el.url) return null;
