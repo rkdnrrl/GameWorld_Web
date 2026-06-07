@@ -31,27 +31,58 @@ const OFF: PostFXSettings = {
   dof: false, dofFocus: 0, dofFocalLength: 0, dofBokeh: 0, toneMapping: false,
 };
 
-/** 오브젝트 목록에서 postProcess 볼륨 컴포넌트 → 설정. 없으면 비활성. */
+function settingsFromInst(inst: ComponentInstance): PostFXSettings {
+  return {
+    enabled:        getProp(inst, 'enabled', true),
+    bloom:          getProp(inst, 'bloom', true),
+    bloomIntensity: getProp(inst, 'bloomIntensity', 0.6),
+    bloomThreshold: getProp(inst, 'bloomThreshold', 0.85),
+    vignette:       getProp(inst, 'vignette', 0.3),
+    chromatic:      getProp(inst, 'chromatic', 0),
+    brightness:     getProp(inst, 'brightness', 0),
+    contrast:       getProp(inst, 'contrast', 0),
+    dof:            getProp(inst, 'dof', false),
+    dofFocus:       getProp(inst, 'dofFocus', 0.02),
+    dofFocalLength: getProp(inst, 'dofFocalLength', 0.05),
+    dofBokeh:       getProp(inst, 'dofBokeh', 2),
+    toneMapping:    getProp(inst, 'toneMapping', false),
+  };
+}
+
+/** 전역(존 아님) postProcess 볼륨 → 설정. 없으면 비활성. zone=true 인 건 제외(영역 한정). */
 export function derivePostFX(objects: ReadonlyArray<{ components?: ComponentInstance[] }>): PostFXSettings {
   for (const o of objects) {
     const inst = findComponent(o.components, 'postProcess');
-    if (inst) return {
-      enabled:        getProp(inst, 'enabled', true),
-      bloom:          getProp(inst, 'bloom', true),
-      bloomIntensity: getProp(inst, 'bloomIntensity', 0.6),
-      bloomThreshold: getProp(inst, 'bloomThreshold', 0.85),
-      vignette:       getProp(inst, 'vignette', 0.3),
-      chromatic:      getProp(inst, 'chromatic', 0),
-      brightness:     getProp(inst, 'brightness', 0),
-      contrast:       getProp(inst, 'contrast', 0),
-      dof:            getProp(inst, 'dof', false),
-      dofFocus:       getProp(inst, 'dofFocus', 0.02),
-      dofFocalLength: getProp(inst, 'dofFocalLength', 0.05),
-      dofBokeh:       getProp(inst, 'dofBokeh', 2),
-      toneMapping:    getProp(inst, 'toneMapping', false),
-    };
+    if (inst && !getProp(inst, 'zone', false)) return settingsFromInst(inst);
   }
   return OFF;
+}
+
+/** 영역 한정(zone=true) postProcess 볼륨들 → 박스 경계 + 설정. 플레이어가 박스 안일 때만 적용. */
+export interface PostFXZone {
+  cx: number; cy: number; cz: number;   // 중심
+  hx: number; hy: number; hz: number;   // 반-범위 (= scale/2)
+  s: PostFXSettings;
+}
+export function collectPostFXZones(
+  objects: ReadonlyArray<{ position?: number[]; scale?: number[]; components?: ComponentInstance[]; hidden?: boolean }>,
+): PostFXZone[] {
+  const out: PostFXZone[] = [];
+  for (const o of objects) {
+    if (o.hidden) continue;
+    const inst = findComponent(o.components, 'postProcess');
+    if (!inst || !getProp(inst, 'zone', false)) continue;
+    const pos = o.position || [0, 0, 0];
+    const scl = o.scale || [1, 1, 1];
+    out.push({
+      cx: Number(pos[0]) || 0, cy: Number(pos[1]) || 0, cz: Number(pos[2]) || 0,
+      hx: Math.abs(Number(scl[0]) || 1) / 2,
+      hy: Math.abs(Number(scl[1]) || 1) / 2,
+      hz: Math.abs(Number(scl[2]) || 1) / 2,
+      s: settingsFromInst(inst),
+    });
+  }
+  return out;
 }
 
 export default function PostFX({ s }: { s: PostFXSettings }) {

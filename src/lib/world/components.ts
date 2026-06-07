@@ -114,6 +114,7 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     description: '언리얼식 후처리 볼륨. 빈 오브젝트에 부착해 화면 효과(발광/비네팅/색수차/밝기·대비/피사계심도/톤매핑) 조절. 여러 개면 첫 번째만 적용. 편집·시뮬·플레이 모두 반영.',
     props: [
       { key: 'enabled',        label: '활성화',                 type: 'boolean', default: true },
+      { key: 'zone',           label: '이 오브젝트 영역 안에서만 적용 (크기=영역, 끄면 전역)', type: 'boolean', default: false },
       { key: 'bloom',          label: 'Bloom 발광',             type: 'boolean', default: true },
       { key: 'bloomIntensity', label: '발광 세기',              type: 'number', default: 0.6,  min: 0, max: 3,    step: 0.05 },
       { key: 'bloomThreshold', label: '발광 임계값',            type: 'number', default: 0.85, min: 0, max: 1,    step: 0.05 },
