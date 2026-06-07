@@ -2254,13 +2254,14 @@ function buildColliderEvents(objId: string, trig: boolean, onColliderEvent?: (ob
 }
 
 /** 오브젝트 1개 렌더 + body/light ref 등록 (스크립트에서 제어 가능하도록) */
-function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onColliderEvent }: {
+function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onColliderEvent, buoyancyRef }: {
   obj: MapObject;
   transforms: SimTransforms;
   myAssets: Asset[];
   scriptBodyRefs: React.MutableRefObject<Map<string, SimBodyRefs>>;
   lightRefs: React.MutableRefObject<Map<string, THREE.Light>>;
   onColliderEvent?: (objId: string, otherId: string, kind: ColliderEventKind) => void;
+  buoyancyRef?: React.MutableRefObject<BuoyancyVolume[]>;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bodyRef = useRef<any>(null);
@@ -2271,8 +2272,8 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
     return () => { scriptBodyRefs.current.delete(obj.id); };
   }, [obj.id, scriptBodyRefs]);
 
-  // 월드 밖으로 일정 이상 떨어진 동적 오브젝트 → 원위치로 복귀
-  useFrame(() => {
+  // 월드 밖으로 일정 이상 떨어진 동적 오브젝트 → 원위치로 복귀 + 물 부력
+  useFrame((rtState, dt) => {
     const b = bodyRef.current;
     if (!b) return;
     const comp = obj.components?.find(c => c.type === 'physics');
@@ -2286,6 +2287,33 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
       b.setAngvel?.({ x: 0, y: 0, z: 0 }, true);
       const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(home.rot[0], home.rot[1], home.rot[2]));
       b.setRotation?.({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+      return;
+    }
+    // 물 부력 — 무게에 따라 뜨기/가라앉기 (월드와 동일).
+    const bvs = buoyancyRef?.current;
+    if (bvs && bvs.length) {
+      const weight = Math.max(0.1, Number(comp?.props?.weight ?? 1));
+      const wt = rtState.clock.elapsedTime;
+      for (let i = 0; i < bvs.length; i++) {
+        const bv = bvs[i];
+        if (Math.abs(tr.x - bv.cx) > bv.hx || Math.abs(tr.z - bv.cz) > bv.hz) continue;
+        let surf = bv.cy + bv.offset;
+        if (bv.waveStrength) {
+          const lx = bv.hx ? (tr.x - bv.cx) / (2 * bv.hx) : 0;
+          const ly = bv.hz ? -(tr.z - bv.cz) / (2 * bv.hz) : 0;
+          const a = 0.04 * bv.waveStrength;
+          surf += Math.sin(lx * 5 * bv.waveFreq + wt * 2 * bv.waveSpeed) * a + Math.cos(ly * 5 * bv.waveFreq + wt * 1.5 * bv.waveSpeed) * a;
+        }
+        if (tr.y > surf + 0.3 || tr.y < bv.cy - bv.scaleY - 1) continue;
+        const vel = b.linvel();
+        const k = 1 - Math.exp(-3 * dt);
+        const sub = surf - tr.y;
+        const tvy = weight <= 1 ? Math.max(-2, Math.min(3, sub * 5 / Math.max(0.3, weight))) : -0.4 * (weight - 1);
+        b.setLinvel({ x: vel.x * (1 - 0.6 * k), y: vel.y + (tvy - vel.y) * k, z: vel.z * (1 - 0.6 * k) }, true);
+        const av = b.angvel?.();
+        if (av) b.setAngvel?.({ x: av.x * (1 - k), y: av.y * (1 - k), z: av.z * (1 - k) }, true);
+        break;
+      }
     }
   });
 
@@ -2387,12 +2415,9 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
       </RigidBody>
     );
   }
-  const colliders =
-    obj.kind === 'sphere'  ? 'ball'    :
-    obj.kind === 'asset'   ? (phys === 'dynamic' ? 'hull' : 'trimesh') :
-                             'cuboid';
+  // Physics 만으로는 충돌체 X — Collider 컴포넌트가 있어야 충돌 (위 분기에서 처리). 여기는 자동 콜라이더 없이 바디만.
   return (
-    <RigidBody ref={bodyRef} type={bodyType} colliders={colliders} userData={{ objectId: obj.id }}
+    <RigidBody ref={bodyRef} type={bodyType} colliders={false} userData={{ objectId: obj.id }}
       position={t.pos} rotation={t.rot} scale={t.scl}>
       {mesh}
     </RigidBody>
@@ -3044,7 +3069,7 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
       {allObjects.map(obj => (
         <SimObject key={obj.id} obj={obj} transforms={transforms}
           myAssets={myAssets} scriptBodyRefs={scriptBodyRefs} lightRefs={lightRefs}
-          onColliderEvent={dispatchColliderEvent} />
+          onColliderEvent={dispatchColliderEvent} buoyancyRef={simBuoyancyRef} />
       ))}
       {/* 파티클 레이어 — 빈 오브젝트 포함 모든 kind. 물리 바디 밖에 두어 충돌에 영향 X */}
       {allObjects.filter(o => o.components?.some(c => c.type === 'particle')).map(obj => {

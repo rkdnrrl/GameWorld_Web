@@ -61,9 +61,10 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     type: 'physics',
     name: 'Physics (물리)',
     icon: '🧱',
-    description: 'Rigidbody + Collider. 부착 안 하면 물리 X (콜라이더도 없음). mode=fixed 는 움직임 없는 단단한 벽, dynamic 은 중력/충돌 받음.',
+    description: 'Rigidbody (중력/동적). 충돌은 Collider 컴포넌트를 따로 붙여야 생김 (Physics 만으로는 충돌체 없음). mode=fixed 단단한 벽, dynamic 중력 받음.',
     props: [
       { key: 'mode', label: 'mode (fixed/dynamic)', type: 'string', default: 'fixed' },
+      { key: 'weight', label: '무게 (물에서: 낮을수록 뜨고 높을수록 가라앉음, dynamic 전용)', type: 'number', default: 1, min: 0.1, max: 5, step: 0.1 },
     ],
   },
   {

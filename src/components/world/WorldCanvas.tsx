@@ -2678,7 +2678,7 @@ function colliderOtherId(p: { other: { rigidBodyObject?: THREE.Object3D | null }
   return ud?.objectId ?? ud?.playerId ?? 'player';
 }
 
-const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scriptBodyRefs, world, onColliderEvent }: {
+const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scriptBodyRefs, world, onColliderEvent, buoyancyRef }: {
   obj: UserMapObject;
   scriptBodyRefs?: React.MutableRefObject<Map<string, {
     body: React.MutableRefObject<RapierBodyApi | null>;
@@ -2687,6 +2687,8 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
   // 부모 변환이 합성된 월드 TRS. 자식이면 전달됨. 루트면 undefined → local 사용.
   world?: { position: [number,number,number]; rotation: [number,number,number]; scale: [number,number,number] };
   onColliderEvent?: (objId: string, otherId: string, kind: ColliderEventKind) => void;
+  /** 물 부피 — 동적 오브젝트가 물에 들어가면 무게에 따라 뜨기/가라앉기 */
+  buoyancyRef?: React.MutableRefObject<import('@/lib/world/components').BuoyancyVolume[]>;
 }) {
   const rPos = world?.position ?? obj.position;
   const rRot = world?.rotation ?? obj.rotation;
@@ -2711,6 +2713,7 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
   // physics 가 'none' 이어도 콜라이더가 있으면 고정(fixed) 바디로 충돌시킴.
   const colliderComp = obj.components?.find(c => c.type === 'collider');
   const bodyType: 'fixed' | 'dynamic' = physics === 'dynamic' ? 'dynamic' : 'fixed';
+  const weight = Math.max(0.1, Number(physicsComp?.props?.weight ?? 1));   // 물 부력용 무게
   const colliderArgs: [number, number, number] | null = colliderComp
     ? [
         Math.max(0.01, Number(colliderComp.props?.sizeX ?? 1)) / 2,
@@ -2762,7 +2765,7 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
 
   // 월드 밖으로 일정 이상 떨어진 동적 오브젝트 → 원위치로 복귀 (플레이어 추락 복구와 동일).
   // 스폰 높이 기준 OBJ_FALL_RESET 만큼 아래로 떨어지면 위치·속도·회전 리셋.
-  useFrame(() => {
+  useFrame((rtState, dt) => {
     if (physics !== 'dynamic') return;
     const b = bodyRef.current;
     if (!b) return;
@@ -2773,6 +2776,35 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
       b.setAngvel?.({ x: 0, y: 0, z: 0 }, true);
       const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rRot[0], rRot[1], rRot[2]));
       b.setRotation?.({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+      return;
+    }
+    // 물 부력 — 동적 오브젝트가 물 부피 안이면 무게에 따라 뜨기/가라앉기 (물 저항으로 부드럽게).
+    const bvs = buoyancyRef?.current;
+    if (bvs && bvs.length) {
+      const wt = rtState.clock.elapsedTime;
+      for (let i = 0; i < bvs.length; i++) {
+        const bv = bvs[i];
+        if (Math.abs(t.x - bv.cx) > bv.hx || Math.abs(t.z - bv.cz) > bv.hz) continue;
+        let surf = bv.cy + bv.offset;
+        if (bv.waveStrength) {
+          const lx = bv.hx ? (t.x - bv.cx) / (2 * bv.hx) : 0;
+          const ly = bv.hz ? -(t.z - bv.cz) / (2 * bv.hz) : 0;
+          const a = 0.04 * bv.waveStrength;
+          surf += Math.sin(lx * 5 * bv.waveFreq + wt * 2 * bv.waveSpeed) * a + Math.cos(ly * 5 * bv.waveFreq + wt * 1.5 * bv.waveSpeed) * a;
+        }
+        if (t.y > surf + 0.3 || t.y < bv.cy - bv.scaleY - 1) continue;   // 수면 위 공중 / 바닥 한참 아래면 부력 X
+        const vel = b.linvel();
+        const k = 1 - Math.exp(-3 * dt);             // 물 저항(감쇠)
+        const sub = surf - t.y;                       // 잠긴 깊이
+        // weight ≤1 → 수면으로 떠오름(스프링), >1 → 천천히 가라앉음
+        const tvy = weight <= 1
+          ? Math.max(-2, Math.min(3, sub * 5 / Math.max(0.3, weight)))
+          : -0.4 * (weight - 1);
+        b.setLinvel({ x: vel.x * (1 - 0.6 * k), y: vel.y + (tvy - vel.y) * k, z: vel.z * (1 - 0.6 * k) }, true);
+        const av = b.angvel?.();
+        if (av) b.setAngvel?.({ x: av.x * (1 - k), y: av.y * (1 - k), z: av.z * (1 - k) }, true);   // 회전도 물 저항
+        break;
+      }
     }
   });
 
@@ -2874,7 +2906,7 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
       );
     }
     return (
-      <RigidBody ref={bodyRef} type={bodyType} colliders={colliderArgs ? false : (physics === 'dynamic' ? 'hull' : 'trimesh')} position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }} {...colliderEvents}>
+      <RigidBody ref={bodyRef} type={bodyType} colliders={false} position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }} {...colliderEvents}>
         {colliderArgs && <CuboidCollider args={colliderArgs} position={colliderOffset} sensor={trig} />}
         <UserAsset url={obj.assetUrl} matObj={obj} />
       </RigidBody>
@@ -2888,10 +2920,9 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
       </group>
     );
   }
-  const colliders = obj.kind === 'sphere' ? 'ball' : 'cuboid';
   return (
-    <RigidBody ref={bodyRef} type={bodyType} colliders={colliderArgs ? false : colliders} position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }} {...colliderEvents}>
-      {colliderArgs && <CuboidCollider args={colliderArgs} sensor={trig} />}
+    <RigidBody ref={bodyRef} type={bodyType} colliders={false} position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }} {...colliderEvents}>
+      {colliderArgs && <CuboidCollider args={colliderArgs} position={colliderOffset} sensor={trig} />}
       <PrimitiveMesh obj={obj} shape={shape} />
     </RigidBody>
   );
@@ -5270,7 +5301,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                   .map(obj => (
                     <UserMapObjectMesh key={obj.id} obj={obj}
                       world={obj.parentId ? computeWorldTRS(obj, byId) : undefined}
-                      scriptBodyRefs={scriptBodyRefs} onColliderEvent={dispatchColliderEvent} />
+                      scriptBodyRefs={scriptBodyRefs} onColliderEvent={dispatchColliderEvent} buoyancyRef={buoyancyVolsRef} />
                   ));
                 // 파티클 레이어 — 빈 오브젝트 포함 모든 kind (물리 바디 밖, 메시 렌더와 별개)
                 const particles = list
