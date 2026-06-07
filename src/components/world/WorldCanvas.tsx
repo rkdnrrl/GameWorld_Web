@@ -3,6 +3,7 @@ import React, { Suspense, useRef, useEffect, useState, useMemo, useCallback } fr
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Billboard, Html, Sky, Text, Environment, useProgress, PerformanceMonitor } from '@react-three/drei';
 import { Physics, RigidBody, CapsuleCollider, CuboidCollider, useRapier } from '@react-three/rapier';
+import { createXRStore, XR, XROrigin, useXRInputSourceState, useXR } from '@react-three/xr';
 import { devLog } from '@/lib/devLog';
 import { findLipSyncTarget, readAnalyserLevel, smoothLevel, applyLipSync, ANALYSER_BUFFER_SIZE, type LipSyncTarget } from '@/lib/world/lipSync';
 
@@ -1203,6 +1204,40 @@ function CameraWaterWatcher({ volsRef, onChange }: {
   return null;
 }
 
+/**
+ * VR 로코모션 — XR 세션일 때만 동작. 비-VR 유저는 영향 0.
+ * - _mob.xr 플래그로 플레이어 카메라 제어 끄고(헤드셋이 카메라 소유),
+ * - 헤드셋 yaw → _mob.camH (이동 방향), 왼쪽 썸스틱 → _mob.moveTouch (기존 이동 로직 재사용),
+ * - XROrigin 을 플레이어 발밑에 매 frame 붙여 헤드셋이 내 캐릭터 위치에 오게 함.
+ */
+function VRLocomotion({ localPoseRef }: { localPoseRef?: React.MutableRefObject<{ x: number; y: number; z: number; rotY: number }> }) {
+  const session = useXR((s) => s.session);
+  const left = useXRInputSourceState('controller', 'left');
+  const { camera } = useThree();
+  const originRef = useRef<THREE.Group>(null);
+  const eRef = useRef(new THREE.Euler(0, 0, 0, 'YXZ'));
+  useEffect(() => {
+    _mob.xr = !!session;
+    return () => { _mob.xr = false; _mob.moveTouch.active = false; _mob.moveTouch.x = 0; _mob.moveTouch.y = 0; };
+  }, [session]);
+  useFrame(() => {
+    if (!session) return;
+    // 헤드셋 yaw → camH (이동 방향이 보는 쪽 기준)
+    eRef.current.setFromQuaternion(camera.quaternion);
+    _mob.camH = eRef.current.y;
+    // 왼쪽 컨트롤러 썸스틱 → moveTouch (기존 이동 로직이 소비)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const stick = (left as any)?.gamepad?.['xr-standard-thumbstick'];
+    const ax = Number(stick?.xAxis ?? 0), ay = Number(stick?.yAxis ?? 0);
+    if (Math.hypot(ax, ay) > 0.15) { _mob.moveTouch.active = true; _mob.moveTouch.x = ax; _mob.moveTouch.y = ay; }
+    else if (_mob.moveTouch.active) { _mob.moveTouch.active = false; _mob.moveTouch.x = 0; _mob.moveTouch.y = 0; }
+    // XROrigin 을 플레이어 발밑에 — 헤드셋이 내 캐릭터 위치/높이에 오도록
+    const p = localPoseRef?.current;
+    if (originRef.current && p) originRef.current.position.set(p.x, p.y - 0.9, p.z);
+  });
+  return <XROrigin ref={originRef} />;
+}
+
 function MapLoadingOverlay() {
   const { active, progress, loaded, total, item } = useProgress();
   const [visible, setVisible] = useState(true);
@@ -1251,6 +1286,7 @@ function MapLoadingOverlay() {
    Player(Canvas 내부)와 MobileControls(Canvas 외부)가 ref 없이 공유.
    Canvas 외부 DOM에서 렌더링해야 drei Html의 transform 스케일 문제를 피할 수 있음. */
 const _mob = {
+  xr:         false,   // VR 세션 활성 — true 면 헤드셋이 카메라 소유(플레이어 카메라 제어 skip), 썸스틱이 이동
   moveTouch:  { active: false, x: 0, y: 0, pointerId: -1 },
   lookTouch:  { active: false, pointerId: -1, lastX: 0, lastY: 0 },
   jumpQueued: false,
@@ -2020,8 +2056,8 @@ export function Player({
       const targetFov = cameraMode === 'first' ? firstPersonFov : 60;
       if (cam.isPerspectiveCamera && cam.fov !== targetFov) { cam.fov = targetFov; cam.updateProjectionMatrix(); }
     }
-    // 자유시점 모드 — 외부 카메라(WasdFly/Orbit)가 카메라 소유. Player 는 캐릭터 물리만 처리.
-    if (!cameraControlEnabled) { /* skip camera positioning */ }
+    // 자유시점/VR 모드 — 외부(WasdFly/Orbit) 또는 VR 헤드셋이 카메라 소유. Player 는 캐릭터 물리만 처리.
+    if (!cameraControlEnabled || _mob.xr) { /* skip camera positioning */ }
     else if (cameraMode === 'first') {
       // 1인칭 카메라 — head bone 위치 즉시 (filter 없음, 본인 몸과 sync).
       // filter 적용 시 카메라가 본인 mesh 와 phase shift → 본인 몸 잔상.
@@ -3531,6 +3567,13 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const waterPostFXRef = useRef<WaterPostFX[]>(waterPostFX);
   useEffect(() => { waterPostFXRef.current = waterPostFX; }, [waterPostFX]);
   const [activeWaterFX, setActiveWaterFX] = useState(-1);
+  // VR(WebXR) — 로컬 전용 모드. 비-VR(데스크탑/모바일) 유저는 영향 없음. 멀티는 기존 위치 동기화 그대로.
+  const xrStore = useMemo(() => createXRStore(), []);
+  const [vrSupported, setVrSupported] = useState(false);
+  useEffect(() => {
+    const xr = (navigator as Navigator & { xr?: { isSessionSupported?: (m: string) => Promise<boolean> } }).xr;
+    xr?.isSessionSupported?.('immersive-vr').then(setVrSupported).catch(() => {});
+  }, []);
   // 스폰 포인트 — 여러 개 있으면 랜덤 선택. 없으면 기본 [0, 4, 0].
   const spawnObjects = (customObjects ?? []).filter((o: UserMapObject) => o.kind === 'spawn' && !o.hidden);
   // 컴포넌트 마운트 시 1회만 픽 (재렌더 시 점프 방지) — useMemo with stable dep
@@ -5174,6 +5217,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         }}
         style={{ width: '100vw', height: '100vh', display: 'block', transform: 'translateZ(0)', willChange: 'transform', zIndex: 16777271, position: 'fixed', inset: 0, background: '#000' }}
       >
+        <XR store={xrStore}>
+        <VRLocomotion localPoseRef={localPoseRef} />
         {/* 조명 — sceneSettings 기반 */}
         <ambientLight intensity={ambientIntensity} />
         {dirIntensity > 0 && (
@@ -5422,7 +5467,17 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           : postFX
         } />
         <CameraWaterWatcher volsRef={waterPostFXRef} onChange={setActiveWaterFX} />
+        </XR>
       </Canvas>
+      {/* VR 진입 버튼 — 헤드셋 지원 시에만. 로컬 전용(다른 유저 영향 X). */}
+      {vrSupported && (
+        <button
+          onClick={() => xrStore.enterVR()}
+          style={{ position: 'fixed', bottom: 18, left: '50%', transform: 'translateX(-50%)', zIndex: 16777290,
+            background: 'rgba(99,102,241,0.92)', color: '#fff', border: 'none', borderRadius: 10,
+            padding: '10px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,0,0,0.35)' }}
+        >🥽 VR로 입장</button>
+      )}
       {/* UI Renderer — Screen Space HTML overlay (Phase 1).
           customObjects + uiOverrides merge: 호스트가 ui.set/show/hide 한 결과를 비호스트도 같이 봄. */}
       <UIRenderer
