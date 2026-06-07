@@ -1750,11 +1750,33 @@ export function Player({
           if (posT.y > surf + 0.6) continue;   // 수면 위 공중이면 부력 안 걸림 (점프로 탈출 가능)
           inBuoyancy = true;
           if (bv.mode === 'swim') {
-            let vy = vel.y * 0.5;                       // 물 저항(중력 약화)
-            if (jump) vy = 3.0;                         // Space 상승
-            else if (isCrouch || isProne) vy = -3.0;    // 앉기/엎드리기 = 하강
-            if (posT.y > surf && vy > 0) vy = 0;        // 수면 위로는 안 솟음
-            body.current.setLinvel({ x: mx * SPEED * 0.7, y: vy, z: mz * SPEED * 0.7 }, true);
+            // ── 서브노티카식 자유 수영 — 시선 방향(상하 포함) 3D 이동 + 물 저항(관성) ──
+            const cosV = Math.cos(_mob.camV), sinV = Math.sin(_mob.camV);
+            let dx = 0, dy = 0, dz = 0;
+            if (forward)  { dx += -sinH * cosV; dy += -sinV; dz += -cosH * cosV; }  // 시선 정면(보는 쪽으로 잠수/상승)
+            if (backward) { dx +=  sinH * cosV; dy +=  sinV; dz +=  cosH * cosV; }
+            if (left)     { dx += -cosH;                     dz +=  sinH; }          // 좌우는 수평 스트레이프
+            if (right)    { dx +=  cosH;                     dz += -sinH; }
+            if (jump)              dy += 1;                                          // Space = 추가 상승
+            if (isCrouch || isProne) dy -= 1;                                        // 앉기/엎드리기 = 추가 하강
+            if (!inputLocked && _mob.moveTouch.active) {                             // 모바일 조이스틱(수평)
+              const jy = -_mob.moveTouch.y, jx = _mob.moveTouch.x;
+              dx += (-sinH * cosV) * jy + cosH * jx; dy += (-sinV) * jy; dz += (-cosH * cosV) * jy + (-sinH) * jx;
+            }
+            const swimSpeed = SPEED * 0.7;
+            const dl = Math.hypot(dx, dy, dz);
+            const tvx = dl > 0 ? (dx / dl) * swimSpeed : 0;
+            const tvy = dl > 0 ? (dy / dl) * swimSpeed : 0;
+            const tvz = dl > 0 ? (dz / dl) * swimSpeed : 0;
+            // 물 저항: 목표 속도로 부드럽게 수렴(관성). 입력 없으면 천천히 감속 → 둥실 글라이드.
+            const k = 1 - Math.exp(-4 * dt);
+            let nvy = vel.y + (tvy - vel.y) * k;
+            if (posT.y > surf && nvy > 0) nvy = 0;                                   // 수면 위로는 안 솟음
+            body.current.setLinvel({
+              x: vel.x + (tvx - vel.x) * k,
+              y: nvy,
+              z: vel.z + (tvz - vel.z) * k,
+            }, true);
           } else {                                       // float — 수면으로 스프링 복원
             const vy = (surf - posT.y) * bv.strength;
             body.current.setLinvel({ x: mx * SPEED, y: Math.max(-6, Math.min(6, vy)), z: mz * SPEED }, true);
