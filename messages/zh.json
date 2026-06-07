@@ -1620,7 +1620,16 @@
     "animRun": "跑",
     "animJump": "跳",
     "animFall": "下落",
-    "animCrouch": "蹲"
+    "animCrouch": "蹲",
+    "animWalkBwd": "后退走",
+    "animWalkLeft": "左移",
+    "animWalkRight": "右移",
+    "animRunBwd": "后退跑",
+    "animJumpLoop": "跳跃中(空中)",
+    "animJumpLand": "落地",
+    "animCrouchWalk": "蹲走",
+    "animProne": "趴下",
+    "animProneMove": "匍匐移动"
   },
   "Assets": {
     "title": "资源库",

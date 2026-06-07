@@ -48,13 +48,23 @@ interface AppearanceV2 {
 }
 
 /** 캐릭터가 직접 바꿀 수 있는 핵심 이동 슬롯 (라벨). 나머지는 fallback chain 으로 자동 대체됨. */
+// 전체 15 슬롯 (lib/character/humanoid.ts ANIM_SLOTS 와 1:1). 비우면 운영자 기본 사용.
 const CORE_ANIM_BIND: ReadonlyArray<{ slot: string; labelKey: string }> = [
   { slot: 'idle',        labelKey: 'animIdle' },
   { slot: 'walk_fwd',    labelKey: 'animWalk' },
+  { slot: 'walk_bwd',    labelKey: 'animWalkBwd' },
+  { slot: 'walk_left',   labelKey: 'animWalkLeft' },
+  { slot: 'walk_right',  labelKey: 'animWalkRight' },
   { slot: 'run_fwd',     labelKey: 'animRun' },
+  { slot: 'run_bwd',     labelKey: 'animRunBwd' },
   { slot: 'jump_start',  labelKey: 'animJump' },
+  { slot: 'jump_loop',   labelKey: 'animJumpLoop' },
+  { slot: 'jump_land',   labelKey: 'animJumpLand' },
   { slot: 'fall',        labelKey: 'animFall' },
   { slot: 'crouch_idle', labelKey: 'animCrouch' },
+  { slot: 'crouch_walk', labelKey: 'animCrouchWalk' },
+  { slot: 'prone_idle',  labelKey: 'animProne' },
+  { slot: 'prone_move',  labelKey: 'animProneMove' },
 ];
 
 export default function CharacterPage() {

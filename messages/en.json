@@ -1620,7 +1620,16 @@
     "animRun": "Run",
     "animJump": "Jump",
     "animFall": "Fall",
-    "animCrouch": "Crouch"
+    "animCrouch": "Crouch",
+    "animWalkBwd": "Walk Back",
+    "animWalkLeft": "Strafe Left",
+    "animWalkRight": "Strafe Right",
+    "animRunBwd": "Run Back",
+    "animJumpLoop": "Jump (Air)",
+    "animJumpLand": "Land",
+    "animCrouchWalk": "Crouch Move",
+    "animProne": "Prone",
+    "animProneMove": "Prone Move"
   },
   "Assets": {
     "title": "Asset Library",

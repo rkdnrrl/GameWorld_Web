@@ -1640,7 +1640,16 @@
     "animRun": "달리기",
     "animJump": "점프",
     "animFall": "낙하",
-    "animCrouch": "앉기"
+    "animCrouch": "앉기",
+    "animWalkBwd": "뒤로 걷기",
+    "animWalkLeft": "왼쪽 이동",
+    "animWalkRight": "오른쪽 이동",
+    "animRunBwd": "뒤로 달리기",
+    "animJumpLoop": "점프 중(공중)",
+    "animJumpLand": "착지",
+    "animCrouchWalk": "앉아 이동",
+    "animProne": "엎드리기",
+    "animProneMove": "엎드려 이동"
   },
   "Assets": {
     "title": "에셋 라이브러리",

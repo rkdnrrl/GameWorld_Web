@@ -1620,7 +1620,16 @@
     "animRun": "走り",
     "animJump": "ジャンプ",
     "animFall": "落下",
-    "animCrouch": "しゃがみ"
+    "animCrouch": "しゃがみ",
+    "animWalkBwd": "後ろ歩き",
+    "animWalkLeft": "左移動",
+    "animWalkRight": "右移動",
+    "animRunBwd": "後ろ走り",
+    "animJumpLoop": "ジャンプ中(空中)",
+    "animJumpLand": "着地",
+    "animCrouchWalk": "しゃがみ移動",
+    "animProne": "伏せ",
+    "animProneMove": "伏せ移動"
   },
   "Assets": {
     "title": "アセットライブラリ",
