@@ -2497,14 +2497,12 @@ function SimCameraNear({ near }: { near: number }) {
   return null;
 }
 
-function SimScene({ objects, transforms, myAssets, player, gameApi, onUnderwater }: {
+function SimScene({ objects, transforms, myAssets, player, gameApi }: {
   objects: MapObject[];
   transforms: SimTransforms;
   myAssets: Asset[];
   /** 게임 로직 레이어 — 스크립트의 game/ui/world.playSound 가 이 API 로 들어감. */
   gameApi: import('@/lib/world/gameRuntime').JsGameAPI;
-  /** 시뮬 플레이어 잠수 상태 변화 → 메인의 underwaterOnly 후처리 토글 */
-  onUnderwater?: (on: boolean) => void;
   /** 시뮬레이션 플레이어 — 본인 캐릭터로 직접 플레이 (월드와 동일). null 이면 플레이어 없음. */
   player?: {
     character: Record<string, unknown>;
@@ -2546,9 +2544,6 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, onUnderwater
     const merged = objects.map(o => { const t = transforms[o.id]; return t ? { ...o, position: t.pos, scale: t.scl } : o; });
     simBuoyancyRef.current = computeBuoyancyVolumes(merged);
   }, [objects, transforms]);
-  // 시뮬 플레이어 잠수 상태 — underwaterOnly 후처리용 (시뮬 종료 시 false 로 리셋).
-  const simUnderwaterRef = useRef<{ on: boolean; color: string; density: number }>({ on: false, color: '#1e88e5', density: 0.08 });
-  useEffect(() => () => { onUnderwater?.(false); }, [onUnderwater]);
   const spawnRef = useRef<[number, number, number]>([0, 4, 0]);
   useEffect(() => { if (player?.spawnPos) spawnRef.current = player.spawnPos; }, [player?.spawnPos]);
   // per-player 제어 명령을 시뮬 플레이어에 적용 (시뮬은 단일 플레이어라 항상 로컬).
@@ -3062,7 +3057,6 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, onUnderwater
           onMove={() => {}}
           localPoseRef={simPlayerPoseRef}
           buoyancyRef={simBuoyancyRef}
-          underwaterRef={simUnderwaterRef}
           inputLocked={player.freeCam}
           cameraControlEnabled={!player.freeCam}
           hideHeadOverride={false}
@@ -3087,7 +3081,6 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, onUnderwater
           spawnRef={spawnRef}
         />
       )}
-      {player && <UnderwaterWatcher stateRef={simUnderwaterRef} onToggle={on => onUnderwater?.(on)} />}
       {/* 게임 컴포넌트 런타임 (시뮬용) — NPC AI 추적/공격, Damage AOE 주기. WorldCanvas 와 동일 로직. */}
       <SimGameComponentTick allObjects={allObjects} scriptBodyRefs={scriptBodyRefs}
         npcAttackRef={npcAttackRef} npcPatrolRef={npcPatrolRef}
@@ -3769,12 +3762,28 @@ function PostFXZoneWatcher({ zones, onZone }: { zones: PostFXZone[]; onZone: (i:
   return null;
 }
 
-/** 시뮬 플레이어 잠수 상태(ref.on) 변화를 React state 로 전달 — underwaterOnly 후처리용. */
-function UnderwaterWatcher({ stateRef, onToggle }: { stateRef: React.MutableRefObject<{ on: boolean }>; onToggle: (on: boolean) => void }) {
+/** 카메라가 보이는 물 부피(수면~바닥) 안이면 onChange(true) — underwaterOnly 후처리를 카메라 기준 트리거. */
+function CameraWaterWatcher({ volsRef, onChange }: { volsRef: React.MutableRefObject<BuoyancyVolume[]>; onChange: (inWater: boolean) => void }) {
+  const { camera } = useThree();
   const last = useRef(false);
-  useFrame(() => {
-    const on = stateRef.current.on;
-    if (on !== last.current) { last.current = on; onToggle(on); }
+  useFrame((rtState) => {
+    const vols = volsRef.current;
+    const p = camera.position;
+    const wt = rtState.clock.elapsedTime;
+    let inW = false;
+    for (let i = 0; i < vols.length; i++) {
+      const bv = vols[i];
+      if (Math.abs(p.x - bv.cx) > bv.hx || Math.abs(p.z - bv.cz) > bv.hz) continue;
+      let surf = bv.cy + bv.offset;
+      if (bv.waveStrength) {
+        const lx = bv.hx ? (p.x - bv.cx) / (2 * bv.hx) : 0;
+        const ly = bv.hz ? -(p.z - bv.cz) / (2 * bv.hz) : 0;
+        const a = 0.04 * bv.waveStrength;
+        surf += Math.sin(lx * 5 * bv.waveFreq + wt * 2 * bv.waveSpeed) * a + Math.cos(ly * 5 * bv.waveFreq + wt * 1.5 * bv.waveSpeed) * a;
+      }
+      if (p.y <= surf && p.y >= bv.cy - bv.scaleY) { inW = true; break; }
+    }
+    if (inW !== last.current) { last.current = inW; onChange(inW); }
   });
   return null;
 }
@@ -4279,9 +4288,11 @@ export default function StudioCanvas() {
   }, [objects, gravityY, jumpPower]);
   // 후처리 볼륨 — postProcess 컴포넌트 설정 (편집/시뮬 공통)
   const postFX = useMemo(() => derivePostFX(objects), [objects]);
-  // 물에 잠겼을 때만 적용 후처리 (underwaterOnly) — SimScene 시뮬 플레이어 잠수 상태로 판정.
+  // 물에 잠겼을 때만 적용 후처리 (underwaterOnly) — 카메라가 보이는 물 부피 안인지로 판정 (편집·시뮬 공통).
   const underwaterPostFX = useMemo(() => derivePostFXUnderwater(objects), [objects]);
   const [simUnderwater, setSimUnderwater] = useState(false);
+  const studioWaterVolsRef = useRef<BuoyancyVolume[]>([]);
+  useEffect(() => { studioWaterVolsRef.current = computeBuoyancyVolumes(objects); }, [objects]);
   // 영역(zone) 후처리 — 편집/시뮬 카메라가 그 박스 안이면 해당 볼륨 미리보기.
   const postFXZones = useMemo(() => collectPostFXZones(objects), [objects]);
   const [activePostFXZone, setActivePostFXZone] = useState(-1);
@@ -7713,7 +7724,6 @@ export default function StudioCanvas() {
                     spawnPos: simSpawn.pos,
                     spawnRotY: simSpawn.rotY,
                   } : undefined}
-                  onUnderwater={setSimUnderwater}
                 />
                 {/* 비디오 리모컨 — videoRemote 컴포넌트 오브젝트 위치에 3D 조작 패널 (시뮬 중) */}
                 {simObjs
@@ -7880,6 +7890,7 @@ export default function StudioCanvas() {
           {simulating && <PerfManager cullDistance={400} />}
           <CameraRefCapture cameraRef={cameraRef} />
           <PostFXZoneWatcher zones={postFXZones} onZone={setActivePostFXZone} />
+          <CameraWaterWatcher volsRef={studioWaterVolsRef} onChange={setSimUnderwater} />
           {/* World Space UI — canvas.space === 'world' 인 UI 오브젝트를 3D 공간에 렌더 */}
           <UIWorldRenderer
             objects={(simulating ? simObjs : objects).filter(o => o.kind === 'ui' && o.ui).map(o => ({

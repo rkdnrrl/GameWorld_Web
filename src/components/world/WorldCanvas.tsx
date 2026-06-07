@@ -1195,6 +1195,38 @@ function UnderwaterFog({ stateRef, onToggle }: {
   return null;
 }
 
+/** 카메라가 보이는 물 부피(수면~바닥) 안에 있으면 onChange(true). 3인칭에서도 카메라 기준으로 수중 후처리 트리거. */
+function CameraWaterWatcher({ volsRef, onChange }: {
+  volsRef: React.MutableRefObject<BuoyancyVolume[]>;
+  onChange: (inWater: boolean) => void;
+}) {
+  const { camera } = useThree();
+  const last = useRef(false);
+  useFrame((rtState) => {
+    const vols = volsRef.current;
+    const p = camera.position;
+    const wt = rtState.clock.elapsedTime;
+    let inW = false;
+    for (let i = 0; i < vols.length; i++) {
+      const bv = vols[i];
+      if (Math.abs(p.x - bv.cx) > bv.hx || Math.abs(p.z - bv.cz) > bv.hz) continue;
+      // 수면 Y = WaterMesh 와 동일 파도 공식 (카메라 xz 에서 평가)
+      let surf = bv.cy + bv.offset;
+      if (bv.waveStrength) {
+        const lx = bv.hx ? (p.x - bv.cx) / (2 * bv.hx) : 0;
+        const ly = bv.hz ? -(p.z - bv.cz) / (2 * bv.hz) : 0;
+        const a = 0.04 * bv.waveStrength;
+        surf += Math.sin(lx * 5 * bv.waveFreq + wt * 2 * bv.waveSpeed) * a
+              + Math.cos(ly * 5 * bv.waveFreq + wt * 1.5 * bv.waveSpeed) * a;
+      }
+      const bottom = bv.cy - bv.scaleY;   // 보이는 물 부피: 수면(cy)에서 바닥(cy - 수심)까지
+      if (p.y <= surf && p.y >= bottom) { inW = true; break; }
+    }
+    if (inW !== last.current) { last.current = inW; onChange(inW); }
+  });
+  return null;
+}
+
 function MapLoadingOverlay() {
   const { active, progress, loaded, total, item } = useProgress();
   const [visible, setVisible] = useState(true);
@@ -3494,6 +3526,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // 수중 화면효과 — Player 가 잠수 상태를 ref 에 기록, UnderwaterFog 가 scene.fog 적용, DOM 오버레이로 틴트.
   const underwaterRef = useRef<{ on: boolean; color: string; density: number }>({ on: false, color: '#1e88e5', density: 0.08 });
   const [underwaterTint, setUnderwaterTint] = useState<string | null>(null);
+  // 카메라가 보이는 물 부피 안인지 — 수중 후처리(underwaterOnly)를 카메라 기준으로 트리거.
+  const [cameraInWater, setCameraInWater] = useState(false);
   // 스폰 포인트 — 여러 개 있으면 랜덤 선택. 없으면 기본 [0, 4, 0].
   const spawnObjects = (customObjects ?? []).filter((o: UserMapObject) => o.kind === 'spawn' && !o.hidden);
   // 컴포넌트 마운트 시 1회만 픽 (재렌더 시 점프 방지) — useMemo with stable dep
@@ -5380,11 +5414,12 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           onValueChange={(_id, script, value) => execUiButtonScript(script, gameRuntime.api, value)}
         />
         <PostFX s={
-          (underwaterTint !== null && underwaterPostFX.enabled) ? underwaterPostFX
+          (cameraInWater && underwaterPostFX.enabled) ? underwaterPostFX
           : (activePostFXZone >= 0 && postFXZones[activePostFXZone]) ? postFXZones[activePostFXZone].s
           : postFX
         } />
         <UnderwaterFog stateRef={underwaterRef} onToggle={setUnderwaterTint} />
+        <CameraWaterWatcher volsRef={buoyancyVolsRef} onChange={setCameraInWater} />
       </Canvas>
       {/* UI Renderer — Screen Space HTML overlay (Phase 1).
           customObjects + uiOverrides merge: 호스트가 ui.set/show/hide 한 결과를 비호스트도 같이 봄. */}
