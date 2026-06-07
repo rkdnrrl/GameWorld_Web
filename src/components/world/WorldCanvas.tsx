@@ -1503,7 +1503,7 @@ export function Player({
             const fy = -Math.sin(_mob.camV);
             const fz = -Math.cos(_mob.camH) * Math.cos(_mob.camV);
             const ray = new rapier.Ray({ x: camPos.x, y: camPos.y, z: camPos.z }, { x: fx, y: fy, z: fz });
-            const hit = rWorld.castRay(ray, 4.0, true, undefined, undefined, undefined, body.current ?? undefined);
+            const hit = rWorld.castRay(ray, 4.0, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, body.current ?? undefined);
             if (hit) {
               const hitBody = hit.collider?.parent();
               if (hitBody && scriptBodyRefs) {
@@ -1600,7 +1600,7 @@ export function Player({
       // Pass 1 — rapier castRay (기존 방식, scriptBodyRefs 매칭)
       try {
         const ray = new rapier.Ray({ x: camPos.x, y: camPos.y, z: camPos.z }, { x: fwd.x, y: fwd.y, z: fwd.z });
-        const hit = rWorld.castRay(ray, 15.0, true, undefined, undefined, undefined, body.current ?? undefined);
+        const hit = rWorld.castRay(ray, 15.0, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, body.current ?? undefined);
         const hitBody = hit?.collider?.parent();
         if (hitBody && scriptBodyRefs) {
           for (const [id, ref] of scriptBodyRefs.current) {
@@ -2112,7 +2112,7 @@ export function Player({
           const fy = -Math.sin(_mob.camV);
           const fz = -Math.cos(_mob.camH) * Math.cos(_mob.camV);
           const ray = new rapier.Ray({ x: cam.x, y: cam.y, z: cam.z }, { x: fx, y: fy, z: fz });
-          const hit = rWorld.castRay(ray, 4.0, true, undefined, undefined, undefined, body.current ?? undefined);
+          const hit = rWorld.castRay(ray, 4.0, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, body.current ?? undefined);
           if (hit) {
             const hb = hit.collider?.parent();
             if (hb) {
