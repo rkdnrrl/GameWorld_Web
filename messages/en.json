@@ -1113,6 +1113,7 @@
       "btn_delete": "Delete",
       "placeholder_drag_object_from_tree": "Drag object from scene tree",
       "placeholder_drag_asset_or_url": "Drag an asset or paste URL",
+      "advanced_settings": "Advanced",
       "msg_no_components": "No components",
       "tooltip_collapse": "Collapse",
       "tooltip_expand": "Expand",

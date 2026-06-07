@@ -33,7 +33,7 @@ import StudioShortcutsModal from './StudioShortcutsModal';
 import ScriptComponentsModal from './ScriptComponentsModal';
 import ScriptAssetEditor from '@/components/assets/ScriptAssetEditor';
 import { MAP_APPLY_EVENT } from '@/lib/assets/kinds/map';
-import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, computeBuoyancyVolumes, type ComponentInstance, type ComponentType, type BuoyancyVolume } from '@/lib/world/components';
+import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, computeBuoyancyVolumes, type ComponentInstance, type ComponentType, type BuoyancyVolume, type ComponentPropDef } from '@/lib/world/components';
 import { Player, type PlayerControl } from '@/components/world/WorldCanvas';
 
 const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', water: '물', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광', spawn: '스폰 포인트', empty: '빈 오브젝트' };
@@ -350,7 +350,8 @@ function ComponentsSection({
             name={def.name}
             onRemove={() => removeComponent(idx)}
           >
-            {def.props?.map(p => {
+            {(() => {
+            const renderField = (p: ComponentPropDef) => {
               const val = c.props?.[p.key] ?? p.default;
               // 미디어 리모컨의 target prop — 리스트 UI (각 row 클릭 시 그 오브젝트 선택, × 로 삭제, 드래그 드롭으로 추가)
               if (def.type === 'videoRemote' && p.key === 'target') {
@@ -489,7 +490,24 @@ function ComponentsSection({
                     style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 6px', borderRadius: 4, outline: 'none' }} />
                 </label>
               );
-            })}
+            };
+            const allP = def.props ?? [];
+            const basics = allP.filter(p => p.group !== 'advanced');
+            const advs = allP.filter(p => p.group === 'advanced');
+            return (
+              <>
+                {basics.map(renderField)}
+                {advs.length > 0 && (
+                  <details style={{ marginTop: 6, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 4 }}>
+                    <summary style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.55)', cursor: 'pointer', userSelect: 'none', listStyle: 'none', padding: '2px 0' }}>
+                      ⚙ {tCanvas("advanced_settings")}
+                    </summary>
+                    <div style={{ paddingLeft: 2 }}>{advs.map(renderField)}</div>
+                  </details>
+                )}
+              </>
+            );
+            })()}
           </ComponentCard>
         );
       })}

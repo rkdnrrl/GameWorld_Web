@@ -35,6 +35,7 @@ export interface ComponentPropDef {
   max?: number;
   step?: number;
   options?: string[];  // type=enum 일 때 선택지
+  group?: 'basic' | 'advanced';   // 인스펙터 그룹 (기본=basic, advanced=접이식 고급 섹션)
 }
 
 export interface ComponentDef {
@@ -113,22 +114,31 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     type: 'postProcess',
     name: 'PostProcess 볼륨 (후처리)',
     icon: '🎬',
-    description: '언리얼식 후처리 볼륨. 빈 오브젝트에 부착해 화면 효과(발광/비네팅/색수차/밝기·대비/피사계심도/톤매핑) 조절. 여러 개면 첫 번째만 적용. 편집·시뮬·플레이 모두 반영.',
+    description: '언리얼식 후처리 볼륨. 빈 오브젝트에 부착해 화면 효과 조절. zone 켜면 영역 안에서만, 끄면 전역. 여러 전역 볼륨이면 첫 번째만. 편집·시뮬·플레이 모두 반영.',
     props: [
-      { key: 'enabled',        label: '활성화',                 type: 'boolean', default: true },
-      { key: 'zone',           label: '이 오브젝트 영역 안에서만 적용 (크기=영역, 끄면 전역)', type: 'boolean', default: false },
-      { key: 'bloom',          label: 'Bloom 발광',             type: 'boolean', default: true },
-      { key: 'bloomIntensity', label: '발광 세기',              type: 'number', default: 0.6,  min: 0, max: 3,    step: 0.05 },
-      { key: 'bloomThreshold', label: '발광 임계값',            type: 'number', default: 0.85, min: 0, max: 1,    step: 0.05 },
-      { key: 'vignette',       label: '비네팅 (0=끔)',          type: 'number', default: 0.3,  min: 0, max: 1,    step: 0.05 },
-      { key: 'chromatic',      label: '색수차 (0=끔)',          type: 'number', default: 0,    min: 0, max: 0.01, step: 0.0005 },
-      { key: 'brightness',     label: '밝기',                   type: 'number', default: 0,    min: -0.5, max: 0.5, step: 0.02 },
-      { key: 'contrast',       label: '대비',                   type: 'number', default: 0,    min: -0.5, max: 0.5, step: 0.02 },
-      { key: 'dof',            label: '피사계심도(DOF)',         type: 'boolean', default: false },
-      { key: 'dofFocus',       label: 'DOF 초점거리',           type: 'number', default: 0.02, min: 0, max: 1,    step: 0.005 },
-      { key: 'dofFocalLength', label: 'DOF 초점길이',           type: 'number', default: 0.05, min: 0, max: 1,    step: 0.005 },
-      { key: 'dofBokeh',       label: 'DOF 보케 크기',          type: 'number', default: 2,    min: 0, max: 10,   step: 0.5 },
-      { key: 'toneMapping',    label: 'ACES 톤매핑',            type: 'boolean', default: false },
+      // ── 간단 ──
+      { key: 'enabled',        label: '활성화',                 type: 'boolean', default: true,  group: 'basic' },
+      { key: 'zone',           label: '이 오브젝트 영역 안에서만 적용 (크기=영역, 끄면 전역)', type: 'boolean', default: false, group: 'basic' },
+      { key: 'brightness',     label: '밝기',                   type: 'number', default: 0,    min: -0.5, max: 0.5, step: 0.02, group: 'basic' },
+      { key: 'contrast',       label: '대비',                   type: 'number', default: 0,    min: -0.5, max: 0.5, step: 0.02, group: 'basic' },
+      { key: 'saturation',     label: '채도 (-1=흑백 ~ +1=쨍)', type: 'number', default: 0,    min: -1, max: 1,   step: 0.05, group: 'basic' },
+      { key: 'bloom',          label: 'Bloom 발광',             type: 'boolean', default: true, group: 'basic' },
+      { key: 'bloomIntensity', label: '발광 세기',              type: 'number', default: 0.6,  min: 0, max: 3,    step: 0.05, group: 'basic' },
+      { key: 'vignette',       label: '비네팅 (가장자리 어둠, 0=끔)', type: 'number', default: 0.3, min: 0, max: 1, step: 0.05, group: 'basic' },
+      // ── 고급 ──
+      { key: 'bloomThreshold', label: '발광 임계값',            type: 'number', default: 0.85, min: 0, max: 1,    step: 0.05, group: 'advanced' },
+      { key: 'hue',            label: '색조 (Hue, 라디안 0~6.28)', type: 'number', default: 0, min: 0, max: 6.28, step: 0.05, group: 'advanced' },
+      { key: 'sepia',          label: '세피아 톤',              type: 'boolean', default: false, group: 'advanced' },
+      { key: 'grayscale',      label: '흑백',                   type: 'boolean', default: false, group: 'advanced' },
+      { key: 'chromatic',      label: '색수차 (0=끔)',          type: 'number', default: 0,    min: 0, max: 0.01, step: 0.0005, group: 'advanced' },
+      { key: 'grain',          label: '필름 노이즈 (0=끔)',     type: 'number', default: 0,    min: 0, max: 1,    step: 0.02, group: 'advanced' },
+      { key: 'scanline',       label: 'CRT 스캔라인 (0=끔)',    type: 'number', default: 0,    min: 0, max: 2,    step: 0.05, group: 'advanced' },
+      { key: 'pixelate',       label: '픽셀화 (0=끔, 픽셀 크기)', type: 'number', default: 0,  min: 0, max: 16,   step: 1, group: 'advanced' },
+      { key: 'dof',            label: '피사계심도(DOF)',         type: 'boolean', default: false, group: 'advanced' },
+      { key: 'dofFocus',       label: 'DOF 초점거리',           type: 'number', default: 0.02, min: 0, max: 1,    step: 0.005, group: 'advanced' },
+      { key: 'dofFocalLength', label: 'DOF 초점길이',           type: 'number', default: 0.05, min: 0, max: 1,    step: 0.005, group: 'advanced' },
+      { key: 'dofBokeh',       label: 'DOF 보케 크기',          type: 'number', default: 2,    min: 0, max: 10,   step: 0.5, group: 'advanced' },
+      { key: 'toneMapping',    label: 'ACES 톤매핑',            type: 'boolean', default: false, group: 'advanced' },
     ],
   },
   {

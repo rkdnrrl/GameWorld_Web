@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import {
   EffectComposer, Bloom, Vignette, ChromaticAberration, BrightnessContrast, DepthOfField, ToneMapping,
+  HueSaturation, Noise, Pixelation, Scanline, Sepia, ColorAverage,
 } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
 import { findComponent, getProp, type ComponentInstance } from '@/lib/world/components';
@@ -21,6 +22,12 @@ export interface PostFXSettings {
   vignette: number;          // 0 = off
   chromatic: number;         // 0 = off
   brightness: number; contrast: number;
+  saturation: number; hue: number;       // 색 보정 (saturation -1..1, hue 라디안)
+  grain: number;             // 필름 노이즈 0 = off
+  pixelate: number;          // 픽셀화 0 = off (픽셀 크기)
+  scanline: number;          // CRT 스캔라인 0 = off (밀도)
+  sepia: boolean;            // 세피아 톤
+  grayscale: boolean;        // 흑백
   dof: boolean; dofFocus: number; dofFocalLength: number; dofBokeh: number;
   toneMapping: boolean;
 }
@@ -28,6 +35,7 @@ export interface PostFXSettings {
 const OFF: PostFXSettings = {
   enabled: false, bloom: false, bloomIntensity: 0, bloomThreshold: 0,
   vignette: 0, chromatic: 0, brightness: 0, contrast: 0,
+  saturation: 0, hue: 0, grain: 0, pixelate: 0, scanline: 0, sepia: false, grayscale: false,
   dof: false, dofFocus: 0, dofFocalLength: 0, dofBokeh: 0, toneMapping: false,
 };
 
@@ -41,6 +49,13 @@ function settingsFromInst(inst: ComponentInstance): PostFXSettings {
     chromatic:      getProp(inst, 'chromatic', 0),
     brightness:     getProp(inst, 'brightness', 0),
     contrast:       getProp(inst, 'contrast', 0),
+    saturation:     getProp(inst, 'saturation', 0),
+    hue:            getProp(inst, 'hue', 0),
+    grain:          getProp(inst, 'grain', 0),
+    pixelate:       getProp(inst, 'pixelate', 0),
+    scanline:       getProp(inst, 'scanline', 0),
+    sepia:          getProp(inst, 'sepia', false),
+    grayscale:      getProp(inst, 'grayscale', false),
     dof:            getProp(inst, 'dof', false),
     dofFocus:       getProp(inst, 'dofFocus', 0.02),
     dofFocalLength: getProp(inst, 'dofFocalLength', 0.05),
@@ -91,9 +106,16 @@ export default function PostFX({ s }: { s: PostFXSettings }) {
   const fx: React.ReactElement[] = [];
   // DOF 는 먼저(깊이 기반)
   if (s.dof) fx.push(<DepthOfField key="dof" focusDistance={s.dofFocus} focalLength={s.dofFocalLength} bokehScale={s.dofBokeh} />);
+  if (s.pixelate > 0) fx.push(<Pixelation key="px" granularity={s.pixelate} />);
+  // 색 보정
+  if (s.brightness !== 0 || s.contrast !== 0) fx.push(<BrightnessContrast key="bc" brightness={s.brightness} contrast={s.contrast} />);
+  if (s.saturation !== 0 || s.hue !== 0) fx.push(<HueSaturation key="hs" hue={s.hue} saturation={s.saturation} />);
+  if (s.grayscale) fx.push(<ColorAverage key="gray" />);
+  if (s.sepia) fx.push(<Sepia key="sep" intensity={1} />);
   if (s.bloom && s.bloomIntensity > 0) fx.push(<Bloom key="bloom" intensity={s.bloomIntensity} luminanceThreshold={s.bloomThreshold} luminanceSmoothing={0.9} mipmapBlur />);
   if (s.chromatic > 0) fx.push(<ChromaticAberration key="ca" offset={new THREE.Vector2(s.chromatic, s.chromatic)} />);
-  if (s.brightness !== 0 || s.contrast !== 0) fx.push(<BrightnessContrast key="bc" brightness={s.brightness} contrast={s.contrast} />);
+  if (s.scanline > 0) fx.push(<Scanline key="sl" density={s.scanline} />);
+  if (s.grain > 0) fx.push(<Noise key="noise" premultiply opacity={s.grain} />);
   if (s.vignette > 0) fx.push(<Vignette key="vig" offset={0.3} darkness={s.vignette} />);
   if (s.toneMapping) fx.push(<ToneMapping key="tm" mode={ToneMappingMode.ACES_FILMIC} />);
 

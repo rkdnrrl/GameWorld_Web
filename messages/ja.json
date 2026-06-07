@@ -1113,6 +1113,7 @@
       "btn_delete": "削除",
       "placeholder_drag_object_from_tree": "シーンツリーからオブジェクトをドラッグ OK",
       "placeholder_drag_asset_or_url": "アセットをドラッグ または URL",
+      "advanced_settings": "詳細設定",
       "msg_no_components": "コンポーネントなし",
       "tooltip_collapse": "折りたたむ",
       "tooltip_expand": "展開",
