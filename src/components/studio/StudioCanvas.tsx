@@ -11,7 +11,7 @@ import { getKind } from '@/lib/assets/registry';
 import '@/lib/assets/kinds'; // kind 핸들러(Thumbnail/Preview) 등록 — 사이드이펙트
 import AssetPreviewModal from '@/components/assets/AssetPreviewModal';
 import type { Asset as RegistryAsset } from '@/lib/assets/types';
-import PostFX, { derivePostFX } from '@/lib/world/PostFX';
+import PostFX, { derivePostFX, collectPostFXZones, type PostFXZone } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { devLog } from '@/lib/devLog';
 import { PerfManager } from '@/lib/world/PerfManager';
@@ -3692,6 +3692,25 @@ function CameraRefCapture({ cameraRef }: { cameraRef: React.MutableRefObject<THR
   return null;
 }
 
+/** 스튜디오 — 편집/시뮬 카메라가 후처리 존(영역) 박스 안에 들어가면 그 볼륨 미리보기. */
+function PostFXZoneWatcher({ zones, onZone }: { zones: PostFXZone[]; onZone: (i: number) => void }) {
+  const { camera } = useThree();
+  const last = useRef(-1);
+  const zonesRef = useRef(zones);
+  zonesRef.current = zones;
+  useFrame(() => {
+    const p = camera.position;
+    const zs = zonesRef.current;
+    let zi = -1;
+    for (let i = 0; i < zs.length; i++) {
+      const z = zs[i];
+      if (Math.abs(p.x - z.cx) <= z.hx && Math.abs(p.y - z.cy) <= z.hy && Math.abs(p.z - z.cz) <= z.hz) { zi = i; break; }
+    }
+    if (zi !== last.current) { last.current = zi; onZone(zi); }
+  });
+  return null;
+}
+
 /** Three.js 캔버스 캡처 함수를 외부 ref에 등록 */
 function CanvasCapture({ captureFnRef }: { captureFnRef: React.MutableRefObject<(() => string | null) | null> }) {
   const { gl } = useThree();
@@ -4192,6 +4211,9 @@ export default function StudioCanvas() {
   }, [objects, gravityY, jumpPower]);
   // 후처리 볼륨 — postProcess 컴포넌트 설정 (편집/시뮬 공통)
   const postFX = useMemo(() => derivePostFX(objects), [objects]);
+  // 영역(zone) 후처리 — 편집/시뮬 카메라가 그 박스 안이면 해당 볼륨 미리보기.
+  const postFXZones = useMemo(() => collectPostFXZones(objects), [objects]);
+  const [activePostFXZone, setActivePostFXZone] = useState(-1);
   // 썸네일 캡처 함수 (Canvas 내부에서 등록)
   const captureFnRef = useRef<(() => string | null) | null>(null);
   const cameraRef    = useRef<THREE.Camera | null>(null);
@@ -7785,6 +7807,7 @@ export default function StudioCanvas() {
               스튜디오는 별도 graphics 옵션 X — 큰 맵 미리보기용 보수적 값(400m). */}
           {simulating && <PerfManager cullDistance={400} />}
           <CameraRefCapture cameraRef={cameraRef} />
+          <PostFXZoneWatcher zones={postFXZones} onZone={setActivePostFXZone} />
           {/* World Space UI — canvas.space === 'world' 인 UI 오브젝트를 3D 공간에 렌더 */}
           <UIWorldRenderer
             objects={(simulating ? simObjs : objects).filter(o => o.kind === 'ui' && o.ui).map(o => ({
@@ -7797,7 +7820,7 @@ export default function StudioCanvas() {
           onValueChange={simulating ? (_id, script, value) => execUiButtonScript(script, simGameRuntime.api, value) : undefined}
           onLocalValueChange={(id, patch) => setObjects(prev => prev.map(o => o.id === id && o.ui ? { ...o, ui: { ...o.ui, ...patch } } : o))}
           />
-          <PostFX s={postFX} />
+          <PostFX s={activePostFXZone >= 0 && postFXZones[activePostFXZone] ? postFXZones[activePostFXZone].s : postFX} />
         </Canvas>
 
         {/* UI Renderer — Screen Space HTML overlay (Phase 1). 편집 모드에선 editMode=true.
