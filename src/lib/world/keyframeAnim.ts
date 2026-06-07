@@ -71,6 +71,32 @@ export function sampleKeyframeAnim(anim: KeyframeAnim | undefined, time: number)
   return { position: last.position, rotation: last.rotation, scale: last.scale };
 }
 
+// 부모 종속 오브젝트용 — 샘플된 로컬 TRS 를 부모 월드행렬과 합성해 target(Object3D)에 적용.
+// parentWorld 없으면 로컬값을 그대로 월드로 적용(루트). (재사용 임시 객체)
+const _km = new THREE.Matrix4();
+const _kp = new THREE.Vector3(), _kq = new THREE.Quaternion(), _ks = new THREE.Vector3(), _ke = new THREE.Euler();
+export function applySampledTRS(target: THREE.Object3D, s: SampledTRS, parentWorld?: THREE.Matrix4 | null): void {
+  if (parentWorld) {
+    _kq.setFromEuler(_ke.set(s.rotation[0], s.rotation[1], s.rotation[2], 'XYZ'));
+    _km.compose(_kp.set(s.position[0], s.position[1], s.position[2]), _kq, _ks.set(s.scale[0], s.scale[1], s.scale[2]));
+    _km.premultiply(parentWorld);
+    _km.decompose(target.position, target.quaternion, target.scale);
+  } else {
+    target.position.set(s.position[0], s.position[1], s.position[2]);
+    target.rotation.set(s.rotation[0], s.rotation[1], s.rotation[2]);
+    target.scale.set(s.scale[0], s.scale[1], s.scale[2]);
+  }
+}
+
+// 키네마틱 바디용 — 합성된 월드 위치/회전(quaternion)을 out 객체에 채움.
+const _ktmp = new THREE.Object3D();
+export function composeSampledWorld(s: SampledTRS, parentWorld: THREE.Matrix4 | null,
+  outPos: { x: number; y: number; z: number }, outQuat: { x: number; y: number; z: number; w: number }): void {
+  applySampledTRS(_ktmp, s, parentWorld);
+  outPos.x = _ktmp.position.x; outPos.y = _ktmp.position.y; outPos.z = _ktmp.position.z;
+  outQuat.x = _ktmp.quaternion.x; outQuat.y = _ktmp.quaternion.y; outQuat.z = _ktmp.quaternion.z; outQuat.w = _ktmp.quaternion.w;
+}
+
 /** 정상화 — keys 를 t 오름차순 정렬, duration 보정. */
 export function normalizeKeyframeAnim(anim: KeyframeAnim): KeyframeAnim {
   const keys = [...anim.keys].sort((a, b) => a.t - b.t);

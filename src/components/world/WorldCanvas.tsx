@@ -6,7 +6,7 @@ import { Physics, RigidBody, CapsuleCollider, CuboidCollider, useRapier } from '
 import { createXRStore, XR, XROrigin, useXRInputSourceState, useXR } from '@react-three/xr';
 import { devLog } from '@/lib/devLog';
 import { findLipSyncTarget, readAnalyserLevel, smoothLevel, applyLipSync, ANALYSER_BUFFER_SIZE, type LipSyncTarget } from '@/lib/world/lipSync';
-import { sampleKeyframeAnim } from '@/lib/world/keyframeAnim';
+import { sampleKeyframeAnim, applySampledTRS, composeSampledWorld } from '@/lib/world/keyframeAnim';
 
 /** Rapier 강체 — 우리가 호출하는 메서드만 추린 미니 인터페이스 (버전 무관) */
 interface RapierBodyApi {
@@ -27,6 +27,9 @@ import { PlacementGhostMesh } from './PlacementGhostMesh';
 
 /** animStateRef 가 없을 때 fallback — 항상 idle. */
 const FALLBACK_IDLE_REF: React.RefObject<AnimState> = { current: 'idle' as AnimState };
+/** 키프레임 키네마틱 바디 구동용 재사용 임시 객체 */
+const _kfPos = { x: 0, y: 0, z: 0 };
+const _kfQuat = { x: 0, y: 0, z: 0, w: 1 };
 import type { ChatBubble, RemotePlayer, PlayerPose } from '@/lib/world/useGameSocket';
 import type { GraphicsSettings } from '@/lib/world/graphicsSettings';
 import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
@@ -1220,15 +1223,20 @@ function VRLocomotion({ localPoseRef }: { localPoseRef?: React.MutableRefObject<
   const { camera } = useThree();
   const originRef = useRef<THREE.Group>(null);
   const eRef = useRef(new THREE.Euler(0, 0, 0, 'YXZ'));
+  const qRef = useRef(new THREE.Quaternion());
   const triggerHeld = useRef(false);
+  const rigYawRef = useRef(0);       // 스냅턴 누적 회전(라디안)
+  const snapArmedRef = useRef(true); // 스틱 중앙 복귀해야 다음 스냅 허용
   useEffect(() => {
     _mob.xr = !!session;
+    rigYawRef.current = 0;
     return () => { _mob.xr = false; _mob.moveTouch.active = false; _mob.moveTouch.x = 0; _mob.moveTouch.y = 0; };
   }, [session]);
   useFrame(() => {
     if (!session) return;
-    // 헤드셋 yaw/pitch → camH/camV (이동·grab 방향이 보는 쪽 기준)
-    eRef.current.setFromQuaternion(camera.quaternion);
+    // 헤드셋 월드 yaw/pitch → camH/camV (rig 스냅턴 회전 포함). 이동·grab 방향이 실제 보는 쪽 기준.
+    camera.getWorldQuaternion(qRef.current);
+    eRef.current.setFromQuaternion(qRef.current);
     _mob.camH = eRef.current.y;
     _mob.camV = -eRef.current.x;
     // 왼쪽 컨트롤러 썸스틱 → moveTouch (기존 이동 로직이 소비)
@@ -1237,7 +1245,17 @@ function VRLocomotion({ localPoseRef }: { localPoseRef?: React.MutableRefObject<
     const ax = Number(stick?.xAxis ?? 0), ay = Number(stick?.yAxis ?? 0);
     if (Math.hypot(ax, ay) > 0.15) { _mob.moveTouch.active = true; _mob.moveTouch.x = ax; _mob.moveTouch.y = ay; }
     else if (_mob.moveTouch.active) { _mob.moveTouch.active = false; _mob.moveTouch.x = 0; _mob.moveTouch.y = 0; }
-    // 오른쪽 트리거 → 잡기/놓기 (기존 E 키 grab 재사용 = 보는 쪽으로 grab)
+    // 오른쪽 썸스틱 X → 스냅 턴 (30°씩, 중앙 복귀해야 재발동) — VR 멀미 완화 표준 방식
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rstick = (right as any)?.gamepad?.['xr-standard-thumbstick'];
+    const rx = Number(rstick?.xAxis ?? 0);
+    if (Math.abs(rx) > 0.7 && snapArmedRef.current) {
+      rigYawRef.current -= Math.sign(rx) * (Math.PI / 6);
+      snapArmedRef.current = false;
+    } else if (Math.abs(rx) < 0.3) {
+      snapArmedRef.current = true;
+    }
+    // 오른쪽 트리거 → 잡기 / 놓기+던지기 (기존 E 키 grab 재사용 = 보는 쪽). 2번째 당김 = 던지기.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const trig = (right as any)?.gamepad?.['xr-standard-trigger'];
     const pressed = (trig?.state === 'pressed') || Number(trig?.button ?? 0) > 0.6;
@@ -1247,9 +1265,12 @@ function VRLocomotion({ localPoseRef }: { localPoseRef?: React.MutableRefObject<
     } else if (!pressed && triggerHeld.current) {
       triggerHeld.current = false;
     }
-    // XROrigin 을 플레이어 발밑에 — 헤드셋이 내 캐릭터 위치/높이에 오도록
+    // XROrigin 을 플레이어 발밑 + 스냅턴 회전 적용 — 헤드셋이 내 캐릭터 위치/높이/방향에 오도록
     const p = localPoseRef?.current;
-    if (originRef.current && p) originRef.current.position.set(p.x, p.y - 0.9, p.z);
+    if (originRef.current) {
+      if (p) originRef.current.position.set(p.x, p.y - 0.9, p.z);
+      originRef.current.rotation.y = rigYawRef.current;
+    }
   });
   return <XROrigin ref={originRef} />;
 }
@@ -1575,6 +1596,16 @@ export function Player({
         if (grabbedIdRef.current) {
           // release
           const released = grabbedIdRef.current;
+          // VR: 놓을 때 보는 방향으로 던지기 (트리거 2번째 당김 = 던지기). 데스크탑은 마우스 클릭이 던짐.
+          if (_mob.xr) {
+            const gb = scriptBodyRefs?.current.get(released)?.body.current;
+            if (gb) {
+              const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
+              const fy = -Math.sin(_mob.camV);
+              const fz = -Math.cos(_mob.camH) * Math.cos(_mob.camV);
+              gb.applyImpulse({ x: fx * 8, y: fy * 8 + 1.5, z: fz * 8 }, true);
+            }
+          }
           grabbedIdRef.current = null;
           grabbedStateRef?.current.delete(released);
           onGrabRelease?.(released);
@@ -2824,20 +2855,24 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
   // 월드 밖으로 일정 이상 떨어진 동적 오브젝트 → 원위치로 복귀 (플레이어 추락 복구와 동일).
   // 스폰 높이 기준 OBJ_FALL_RESET 만큼 아래로 떨어지면 위치·속도·회전 리셋.
   useFrame((rtState, dt) => {
-    // 키프레임 애니메이션 — 타임라인대로 움직임 (autoplay).
+    // 키프레임 애니메이션 — 타임라인대로 움직임 (autoplay). 부모 종속이면 부모 월드행렬과 합성.
     const kf = obj.keyframeAnim;
     if (kf?.autoplay && kf.keys?.length) {
       const s = sampleKeyframeAnim(kf, rtState.clock.elapsedTime);
       if (s) {
+        // 부모 그룹의 월드행렬 (부모가 움직여도 따라감). 루트면 null.
+        let parentWorld: THREE.Matrix4 | null = null;
+        if (obj.parentId) {
+          const pg = scriptBodyRefs?.current.get(obj.parentId)?.group.current;
+          if (pg) { pg.updateMatrixWorld(); parentWorld = pg.matrixWorld; }
+        }
         if (isKinematicAnim && bodyRef.current?.setNextKinematicTranslation) {
           // 충돌하는 이동 플랫폼 — 키네마틱 바디로 위치/회전 구동 (스케일은 콜라이더 고정이라 미적용).
-          bodyRef.current.setNextKinematicTranslation({ x: s.position[0], y: s.position[1], z: s.position[2] });
-          const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(s.rotation[0], s.rotation[1], s.rotation[2]));
-          bodyRef.current.setNextKinematicRotation?.({ x: q.x, y: q.y, z: q.z, w: q.w });
+          composeSampledWorld(s, parentWorld, _kfPos, _kfQuat);
+          bodyRef.current.setNextKinematicTranslation(_kfPos);
+          bodyRef.current.setNextKinematicRotation?.(_kfQuat);
         } else if (physics === 'none' && groupRef.current) {
-          groupRef.current.position.set(s.position[0], s.position[1], s.position[2]);
-          groupRef.current.rotation.set(s.rotation[0], s.rotation[1], s.rotation[2]);
-          groupRef.current.scale.set(s.scale[0], s.scale[1], s.scale[2]);
+          applySampledTRS(groupRef.current, s, parentWorld);
         }
       }
     }

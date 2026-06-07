@@ -34,7 +34,7 @@ import ScriptComponentsModal from './ScriptComponentsModal';
 import ScriptAssetEditor from '@/components/assets/ScriptAssetEditor';
 import { MAP_APPLY_EVENT } from '@/lib/assets/kinds/map';
 import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, computeBuoyancyVolumes, type ComponentInstance, type ComponentType, type BuoyancyVolume, type ComponentPropDef } from '@/lib/world/components';
-import { sampleKeyframeAnim, normalizeKeyframeAnim, type KeyframeAnim, type KeyFrame } from '@/lib/world/keyframeAnim';
+import { sampleKeyframeAnim, normalizeKeyframeAnim, applySampledTRS, composeSampledWorld, type KeyframeAnim, type KeyFrame } from '@/lib/world/keyframeAnim';
 import { Player, type PlayerControl } from '@/components/world/WorldCanvas';
 
 const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', water: '물', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광', spawn: '스폰 포인트', empty: '빈 오브젝트' };
@@ -215,6 +215,10 @@ interface Asset {
 
 /** assetUrl → 모델 내장 애니메이션 클립 이름 목록. AssetMesh 가 로드 시 채움. Animator 인스펙터 드롭다운용. */
 const _assetClipCache = new Map<string, string[]>();
+/** 키프레임 시뮬 키네마틱 + 편집 미리보기 합성용 재사용 임시 객체 */
+const _simKfPos = { x: 0, y: 0, z: 0 };
+const _simKfQuat = { x: 0, y: 0, z: 0, w: 1 };
+const _kfPreviewObj = new THREE.Object3D();
 
 /* ── Unity 스타일 컴포넌트 섹션 (인스펙터) ──
    부착된 컴포넌트 카드 + "+ 컴포넌트 추가" 버튼. 각 카드는 props 편집 input 포함. */
@@ -2337,14 +2341,29 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
 
   // 월드 밖으로 일정 이상 떨어진 동적 오브젝트 → 원위치로 복귀 + 물 부력
   useFrame((rtState, dt) => {
-    // 키프레임 애니메이션 — 시뮬 중 비물리 오브젝트를 타임라인대로 움직임.
+    // 키프레임 애니메이션 — 시뮬 중 타임라인대로 움직임. 콜라이더 있으면 키네마틱 바디(충돌 플랫폼).
     const kf = obj.keyframeAnim;
-    if (kf?.autoplay && groupRef.current && kf.keys?.length) {
+    if (kf?.autoplay && kf.keys?.length) {
       const s = sampleKeyframeAnim(kf, rtState.clock.elapsedTime);
       if (s) {
-        groupRef.current.position.set(s.position[0], s.position[1], s.position[2]);
-        groupRef.current.rotation.set(s.rotation[0], s.rotation[1], s.rotation[2]);
-        groupRef.current.scale.set(s.scale[0], s.scale[1], s.scale[2]);
+        const hasCollider = !!obj.components?.find(c => c.type === 'collider');
+        const isDyn2 = (() => { const pc = obj.components?.find(c => c.type === 'physics'); return pc ? String(pc.props?.mode ?? 'fixed') === 'dynamic' : obj.physics === 'dynamic'; })();
+        const kine = hasCollider && !isDyn2;
+        // 부모 그룹 월드행렬 (부모 종속 오브젝트 합성)
+        let parentWorld: THREE.Matrix4 | null = null;
+        if (obj.parentId) {
+          const pg = scriptBodyRefs.current.get(obj.parentId)?.group.current;
+          if (pg) { pg.updateMatrixWorld(); parentWorld = pg.matrixWorld; }
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const kb = bodyRef.current as any;
+        if (kine && kb?.setNextKinematicTranslation) {
+          composeSampledWorld(s, parentWorld, _simKfPos, _simKfQuat);
+          kb.setNextKinematicTranslation(_simKfPos);
+          kb.setNextKinematicRotation?.(_simKfQuat);
+        } else if (groupRef.current) {
+          applySampledTRS(groupRef.current, s, parentWorld);
+        }
       }
     }
     const b = bodyRef.current;
@@ -2477,8 +2496,11 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
   if (phys === 'none' && !colliderComp) {
     return <group ref={groupRef} position={t.pos} rotation={t.rot} scale={t.scl}>{mesh}</group>;
   }
-  // 콜라이더만 있고 physics 가 없으면 고정(fixed) 바디로 만들어 충돌만 시킴
-  const bodyType: 'fixed' | 'dynamic' = phys === 'dynamic' ? 'dynamic' : 'fixed';
+  // 콜라이더만 있고 physics 가 없으면 고정(fixed) 바디. 키프레임+콜라이더면 키네마틱(충돌하는 이동 플랫폼).
+  const kfAuto = !!obj.keyframeAnim?.autoplay && !!obj.keyframeAnim?.keys?.length;
+  const isKinematicAnim = kfAuto && phys !== 'dynamic' && !!colliderComp;
+  const bodyType: 'fixed' | 'dynamic' | 'kinematicPosition' =
+    isKinematicAnim ? 'kinematicPosition' : (phys === 'dynamic' ? 'dynamic' : 'fixed');
   if (colliderComp && colliderBox) {
     return (
       <RigidBody ref={bodyRef} type={bodyType} colliders={false} userData={{ objectId: obj.id }}
@@ -5881,8 +5903,18 @@ export default function StudioCanvas() {
   // 평탄 렌더용 — 오브젝트의 월드 TRS 계산 (부모 체인 합성). empty 도 일반 자식처럼 부모를 따름.
   // spawn 은 플레이어 스폰 기준점이라 월드 절대값을 유지(부모 합성 X) → 플레이/시뮬의 스폰 위치와 일치.
   function worldTRSFor(o: MapObject): { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] } {
-    // 키프레임 미리보기 중이면 그 포즈로 덮어씀 (재생/스크럽)
-    if (kfPreview && kfPreview.id === o.id) return { p: kfPreview.p, r: kfPreview.r, s: kfPreview.s };
+    // 키프레임 미리보기 중이면 그 포즈로 덮어씀 (재생/스크럽). 부모 종속이면 부모 월드행렬과 합성.
+    if (kfPreview && kfPreview.id === o.id) {
+      if (o.parentId && o.kind !== 'spawn') {
+        const pm = computeWorldMatrix(o.parentId, objects);
+        applySampledTRS(_kfPreviewObj, { position: kfPreview.p, rotation: kfPreview.r, scale: kfPreview.s }, pm);
+        const e = new THREE.Euler().setFromQuaternion(_kfPreviewObj.quaternion, 'XYZ');
+        return { p: [_kfPreviewObj.position.x, _kfPreviewObj.position.y, _kfPreviewObj.position.z],
+                 r: [e.x, e.y, e.z],
+                 s: [_kfPreviewObj.scale.x, _kfPreviewObj.scale.y, _kfPreviewObj.scale.z] };
+      }
+      return { p: kfPreview.p, r: kfPreview.r, s: kfPreview.s };
+    }
     if (!o.parentId || o.kind === 'spawn') {
       return { p: o.position, r: o.rotation, s: o.scale };
     }
