@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -89,6 +89,18 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'strength',  label: '강도 (물결 높이)', type: 'number', default: 1, min: 0, max: 10, step: 0.1 },
       { key: 'speed',     label: '속도',             type: 'number', default: 1, min: 0, max: 5,  step: 0.1 },
       { key: 'frequency', label: '촘촘함 (잔물결)',  type: 'number', default: 1, min: 0.2, max: 4, step: 0.1 },
+    ],
+  },
+  {
+    type: 'buoyancy',
+    name: '부력 (수영/물에 뜨기)',
+    icon: '🛟',
+    description: '물(water) 에 부착. 캐릭터가 물에 들어가면 수면을 따라 떠오르고 웨이브 따라 출렁임. 모드: float=수면에 떠서 부유(가라앉지 않음), swim=Space 상승/앉기 하강으로 자유 수영. ※ 트리거(센서) 켠 Collider 필요.',
+    props: [
+      { key: 'mode',      label: '모드 (float=떠다님 / swim=자유수영)', type: 'enum', default: 'float', options: ['float', 'swim'] },
+      { key: 'strength',  label: '부력 세기 (수면 복원 강도)',          type: 'number', default: 6, min: 1, max: 15, step: 0.5 },
+      { key: 'waveBob',   label: '웨이브 따라 출렁임',                  type: 'boolean', default: true },
+      { key: 'offset',    label: '뜨는 높이 보정 (+위 / -아래)',        type: 'number', default: 0, min: -2, max: 2, step: 0.05 },
     ],
   },
   {
@@ -255,4 +267,47 @@ export function findComponent(
   type: ComponentType,
 ): ComponentInstance | undefined {
   return components?.find(c => c.type === type);
+}
+
+/** 부력 볼륨 — 플레이어 물리(수영/뜨기)가 매 프레임 참조하는 물 영역. */
+export interface BuoyancyVolume {
+  cx: number; cz: number;   // 중심 x,z (world)
+  hx: number; hz: number;   // 반-범위 x,z
+  surfaceY: number;         // 수면 Y
+  mode: 'float' | 'swim';
+  strength: number;         // 수면 복원(스프링) 세기
+  offset: number;           // 뜨는 높이 보정
+  waveAmp: number;          // 웨이브 진폭 (0=출렁 없음)
+  waveSpeed: number;
+}
+
+/** water + buoyancy 컴포넌트가 있는 오브젝트들에서 부력 볼륨 목록 계산. */
+export function computeBuoyancyVolumes(
+  objects: Array<{ kind?: string; position?: number[]; scale?: number[]; components?: ComponentInstance[]; hidden?: boolean }> | undefined | null,
+): BuoyancyVolume[] {
+  const out: BuoyancyVolume[] = [];
+  for (const o of objects || []) {
+    if (o.kind !== 'water' || o.hidden) continue;
+    const b = (o.components || []).find(c => c.type === 'buoyancy');
+    if (!b) continue;
+    const pos = o.position || [0, 0, 0];
+    const scl = o.scale || [1, 1, 1];
+    const p = (b.props || {}) as Record<string, unknown>;
+    const w = (o.components || []).find(c => c.type === 'wave');
+    const wp = (w?.props || {}) as Record<string, unknown>;
+    const waveStr = w ? Number(wp.strength ?? 1) : 0;
+    out.push({
+      cx: Number(pos[0]) || 0,
+      cz: Number(pos[2]) || 0,
+      hx: Math.abs(Number(scl[0]) || 1) / 2,
+      hz: Math.abs(Number(scl[2]) || 1) / 2,
+      surfaceY: Number(pos[1]) || 0,
+      mode: p.mode === 'swim' ? 'swim' : 'float',
+      strength: Number(p.strength ?? 6),
+      offset: Number(p.offset ?? 0),
+      waveAmp: p.waveBob === false ? 0 : waveStr * 0.04 * (Math.abs(Number(scl[1]) || 1)),
+      waveSpeed: w ? Number(wp.speed ?? 1) : 1,
+    });
+  }
+  return out;
 }

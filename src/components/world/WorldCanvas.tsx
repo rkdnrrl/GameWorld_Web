@@ -30,6 +30,7 @@ import { PerfManager } from '@/lib/world/PerfManager';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
+import { computeBuoyancyVolumes, type BuoyancyVolume } from '@/lib/world/components';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UI_SYNC_EVENT, DATA_SYNC_EVENT, type UiData } from '@/lib/world/uiObjects';
@@ -1244,6 +1245,7 @@ export function Player({
   spawnPos = [0, 4, 0],
   spawnRotY = 0,
   localPoseRef,
+  buoyancyRef,
   portalRef,
   onPortalEnter,
   firstPersonFov = 75,
@@ -1291,6 +1293,8 @@ export function Player({
   spawnRotY?: number;
   /** 매 프레임 로컬 플레이어 위치/방향 보고 (포탈 생성 위치 계산용) */
   localPoseRef?: React.MutableRefObject<{ x: number; y: number; z: number; rotY: number }>;
+  /** 부력 볼륨 — 물에 뜨기/수영 물리. 물(water)+buoyancy 컴포넌트에서 계산. */
+  buoyancyRef?: React.MutableRefObject<import('@/lib/world/components').BuoyancyVolume[]>;
   /** 현재 열린 포탈 (없으면 null). 플레이어가 닿으면 onPortalEnter 호출 */
   portalRef?: React.MutableRefObject<PortalState | null>;
   onPortalEnter?: (worldId: string) => void;
@@ -1321,6 +1325,7 @@ export function Player({
 
   /* 직접 DOM 키 추적 — KeyboardControls 컨텍스트 문제 우회 */
   const keys = useRef(new Set<string>());
+  const buoyancyClock = useRef(0);   // 부력 웨이브 위상 누적
 
   const isLocked = useRef(false);
   const lastSend = useRef(0);
@@ -1725,6 +1730,32 @@ export function Player({
       if (len > 0) { mx /= len; mz /= len; }
       body.current.setLinvel({ x: mx * SPEED, y: vel.y, z: mz * SPEED }, true);
 
+      // ── 부력 (물에 뜨기 / 자유 수영) ──
+      let inBuoyancy = false;
+      const bvs = buoyancyRef?.current;
+      if (bvs && bvs.length) {
+        buoyancyClock.current += dt;
+        for (let bi = 0; bi < bvs.length; bi++) {
+          const bv = bvs[bi];
+          if (Math.abs(posT.x - bv.cx) > bv.hx || Math.abs(posT.z - bv.cz) > bv.hz) continue;
+          const bob = bv.waveAmp ? bv.waveAmp * Math.sin(buoyancyClock.current * bv.waveSpeed) : 0;
+          const surf = bv.surfaceY + bob + bv.offset;
+          if (posT.y > surf + 0.6) continue;   // 수면 위 공중이면 부력 안 걸림 (점프로 탈출 가능)
+          inBuoyancy = true;
+          if (bv.mode === 'swim') {
+            let vy = vel.y * 0.5;                       // 물 저항(중력 약화)
+            if (jump) vy = 3.0;                         // Space 상승
+            else if (isCrouch || isProne) vy = -3.0;    // 앉기/엎드리기 = 하강
+            if (posT.y > surf && vy > 0) vy = 0;        // 수면 위로는 안 솟음
+            body.current.setLinvel({ x: mx * SPEED * 0.7, y: vy, z: mz * SPEED * 0.7 }, true);
+          } else {                                       // float — 수면으로 스프링 복원
+            const vy = (surf - posT.y) * bv.strength;
+            body.current.setLinvel({ x: mx * SPEED, y: Math.max(-6, Math.min(6, vy)), z: mz * SPEED }, true);
+          }
+          break;
+        }
+      }
+
       // 지면 체크 — 자기 RigidBody 제외 (제외 없으면 캡슐 내부 → TOI=0 → 항상 onGround=true)
       const ray = new rapier.Ray({ x: posT.x, y: posT.y, z: posT.z }, { x: 0, y: -1, z: 0 });
       const hit = rWorld.castRay(ray, 1.3, true, undefined, undefined, undefined, body.current ?? undefined);
@@ -1734,7 +1765,7 @@ export function Player({
       const jumpJustPressed = (jump && !jumpPrev.current) || _mob.jumpQueued;
       jumpPrev.current = jump;
       _mob.jumpQueued = false;
-      if (jumpJustPressed && onGround && !isCrouch && !isProne) {
+      if (jumpJustPressed && onGround && !isCrouch && !isProne && !inBuoyancy) {
         // 점프력 = 맵 설정 (기본 7 m/s → 약 1.1m @ 중력 -22)
         body.current.setLinvel({ x: vel.x, y: jumpOverrideRef.current ?? jumpPower, z: vel.z }, true);
         const _t = Date.now();
@@ -3320,6 +3351,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const objectsById = useMemo(() => new Map((customObjects ?? []).map(o => [o.id, o])), [customObjects]);
   // 후처리 볼륨 — postProcess 컴포넌트 설정
   const postFX = useMemo(() => derivePostFX(customObjects ?? []), [customObjects]);
+  // 부력 볼륨 — water + buoyancy 컴포넌트. Player 가 매 프레임 참조해 수영/뜨기 물리 적용.
+  const buoyancyVolsRef = useRef<BuoyancyVolume[]>([]);
+  useEffect(() => { buoyancyVolsRef.current = computeBuoyancyVolumes(customObjects ?? []); }, [customObjects]);
   // 스폰 포인트 — 여러 개 있으면 랜덤 선택. 없으면 기본 [0, 4, 0].
   const spawnObjects = (customObjects ?? []).filter((o: UserMapObject) => o.kind === 'spawn' && !o.hidden);
   // 컴포넌트 마운트 시 1회만 픽 (재렌더 시 점프 방지) — useMemo with stable dep
@@ -5154,7 +5188,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={handleObjectClick} playerCtlRef={playerCtlRef} spawnRef={spawnRef} getAnalyser={voice.getMyAnalyser} />
+            <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} buoyancyRef={buoyancyVolsRef} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={handleObjectClick} playerCtlRef={playerCtlRef} spawnRef={spawnRef} getAnalyser={voice.getMyAnalyser} />
             {placementGhost && <PlacementGhostMesh ghost={placementGhost} localPoseRef={localPoseRef} />}
             {Object.values(players).map((p) => (
               <RemotePlayerMesh

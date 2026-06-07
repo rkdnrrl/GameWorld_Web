@@ -33,7 +33,7 @@ import StudioShortcutsModal from './StudioShortcutsModal';
 import ScriptComponentsModal from './ScriptComponentsModal';
 import ScriptAssetEditor from '@/components/assets/ScriptAssetEditor';
 import { MAP_APPLY_EVENT } from '@/lib/assets/kinds/map';
-import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, type ComponentInstance, type ComponentType } from '@/lib/world/components';
+import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, computeBuoyancyVolumes, type ComponentInstance, type ComponentType, type BuoyancyVolume } from '@/lib/world/components';
 import { Player, type PlayerControl } from '@/components/world/WorldCanvas';
 
 const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', water: '물', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광', spawn: '스폰 포인트', empty: '빈 오브젝트' };
@@ -2487,6 +2487,12 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
   const playerCtlRef = useRef<PlayerControl | null>(null);
   // 시뮬 플레이어 실시간 위치 — Player 가 매 frame 갱신. world.getPlayers() 가 본인 위치 반환용 (높이 체크 등).
   const simPlayerPoseRef = useRef<{ x: number; y: number; z: number; rotY: number }>({ x: 0, y: 0, z: 0, rotY: 0 });
+  // 부력 볼륨 — water + buoyancy 컴포넌트. 시뮬 Player 가 수영/뜨기 물리에 사용. transforms 반영.
+  const simBuoyancyRef = useRef<BuoyancyVolume[]>([]);
+  useEffect(() => {
+    const merged = objects.map(o => { const t = transforms[o.id]; return t ? { ...o, position: t.pos, scale: t.scl } : o; });
+    simBuoyancyRef.current = computeBuoyancyVolumes(merged);
+  }, [objects, transforms]);
   const spawnRef = useRef<[number, number, number]>([0, 4, 0]);
   useEffect(() => { if (player?.spawnPos) spawnRef.current = player.spawnPos; }, [player?.spawnPos]);
   // per-player 제어 명령을 시뮬 플레이어에 적용 (시뮬은 단일 플레이어라 항상 로컬).
@@ -2999,6 +3005,7 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
           character={player.character}
           onMove={() => {}}
           localPoseRef={simPlayerPoseRef}
+          buoyancyRef={simBuoyancyRef}
           inputLocked={player.freeCam}
           cameraControlEnabled={!player.freeCam}
           hideHeadOverride={false}
