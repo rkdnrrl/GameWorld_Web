@@ -118,6 +118,7 @@ export function collectPostFXZones(
     if (o.hidden) continue;
     const inst = findComponent(o.components, 'postProcess');
     if (!inst || !getProp(inst, 'zone', false)) continue;
+    if (getProp(inst, 'underwaterOnly', false)) continue;   // 잠수 전용은 박스(zone)로 잡지 않음
     const pos = o.position || [0, 0, 0];
     const scl = o.scale || [1, 1, 1];
     out.push({
