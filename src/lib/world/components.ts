@@ -269,16 +269,18 @@ export function findComponent(
   return components?.find(c => c.type === type);
 }
 
-/** 부력 볼륨 — 플레이어 물리(수영/뜨기)가 매 프레임 참조하는 물 영역. */
+/** 부력 볼륨 — 플레이어 물리(수영/뜨기)가 매 프레임 참조하는 물 영역.
+ *  웨이브 표면 높이는 WaterMesh 정점 변위와 동일 공식으로 캐릭터 위치에서 계산. */
 export interface BuoyancyVolume {
-  cx: number; cz: number;   // 중심 x,z (world)
-  hx: number; hz: number;   // 반-범위 x,z
-  surfaceY: number;         // 수면 Y
+  cx: number; cy: number; cz: number;   // 중심 (cy = 수면 base Y)
+  hx: number; hz: number;               // 반-범위 x,z (= scale/2)
+  scaleY: number;                       // 그룹 Y 스케일 (웨이브 변위 → world Y 매핑)
   mode: 'float' | 'swim';
-  strength: number;         // 수면 복원(스프링) 세기
-  offset: number;           // 뜨는 높이 보정
-  waveAmp: number;          // 웨이브 진폭 (0=출렁 없음)
+  strength: number;                     // 수면 복원(스프링) 세기
+  offset: number;                       // 뜨는 높이 보정
+  waveStrength: number;                 // 웨이브 강도 (0=출렁 없음). WaterMesh 와 동일 a=0.04*strength
   waveSpeed: number;
+  waveFreq: number;
 }
 
 /** water + buoyancy 컴포넌트가 있는 오브젝트들에서 부력 볼륨 목록 계산. */
@@ -295,18 +297,19 @@ export function computeBuoyancyVolumes(
     const p = (b.props || {}) as Record<string, unknown>;
     const w = (o.components || []).find(c => c.type === 'wave');
     const wp = (w?.props || {}) as Record<string, unknown>;
-    const waveStr = w ? Number(wp.strength ?? 1) : 0;
     out.push({
       cx: Number(pos[0]) || 0,
+      cy: Number(pos[1]) || 0,
       cz: Number(pos[2]) || 0,
       hx: Math.abs(Number(scl[0]) || 1) / 2,
       hz: Math.abs(Number(scl[2]) || 1) / 2,
-      surfaceY: Number(pos[1]) || 0,
+      scaleY: Math.abs(Number(scl[1]) || 1),
       mode: p.mode === 'swim' ? 'swim' : 'float',
       strength: Number(p.strength ?? 6),
       offset: Number(p.offset ?? 0),
-      waveAmp: p.waveBob === false ? 0 : waveStr * 0.04 * (Math.abs(Number(scl[1]) || 1)),
+      waveStrength: p.waveBob === false || !w ? 0 : Number(wp.strength ?? 1),
       waveSpeed: w ? Number(wp.speed ?? 1) : 1,
+      waveFreq: w ? Number(wp.frequency ?? 1) : 1,
     });
   }
   return out;

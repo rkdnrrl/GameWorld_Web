@@ -1325,7 +1325,6 @@ export function Player({
 
   /* 직접 DOM 키 추적 — KeyboardControls 컨텍스트 문제 우회 */
   const keys = useRef(new Set<string>());
-  const buoyancyClock = useRef(0);   // 부력 웨이브 위상 누적
 
   const isLocked = useRef(false);
   const lastSend = useRef(0);
@@ -1648,7 +1647,7 @@ export function Player({
     _mob.pinch.active = false; _mob.pinch.id2 = -1;
   }, [inputLocked]);
 
-  useFrame((_, dt) => {
+  useFrame((rtState, dt) => {
     /* ── oneShot 완료 sentinel 처리 — emote 해제 ── */
     if (animStateRef.current === '__done__') {
       emoteSlotRef.current = null;
@@ -1734,12 +1733,20 @@ export function Player({
       let inBuoyancy = false;
       const bvs = buoyancyRef?.current;
       if (bvs && bvs.length) {
-        buoyancyClock.current += dt;
+        const wt = rtState.clock.elapsedTime;   // WaterMesh 와 동일 시계 (위상 일치)
         for (let bi = 0; bi < bvs.length; bi++) {
           const bv = bvs[bi];
           if (Math.abs(posT.x - bv.cx) > bv.hx || Math.abs(posT.z - bv.cz) > bv.hz) continue;
-          const bob = bv.waveAmp ? bv.waveAmp * Math.sin(buoyancyClock.current * bv.waveSpeed) : 0;
-          const surf = bv.surfaceY + bob + bv.offset;
+          // 수면 Y = WaterMesh 정점 변위와 동일 공식을 캐릭터 위치(lx,ly)에서 평가.
+          let surf = bv.cy + bv.offset;
+          if (bv.waveStrength) {
+            const lx = bv.hx ? (posT.x - bv.cx) / (2 * bv.hx) : 0;
+            const ly = bv.hz ? -(posT.z - bv.cz) / (2 * bv.hz) : 0;
+            const a = 0.04 * bv.waveStrength;
+            const disp = Math.sin(lx * 5 * bv.waveFreq + wt * 2 * bv.waveSpeed) * a
+                       + Math.cos(ly * 5 * bv.waveFreq + wt * 1.5 * bv.waveSpeed) * a;
+            surf += disp * bv.scaleY;
+          }
           if (posT.y > surf + 0.6) continue;   // 수면 위 공중이면 부력 안 걸림 (점프로 탈출 가능)
           inBuoyancy = true;
           if (bv.mode === 'swim') {
