@@ -1142,6 +1142,30 @@ function ShadowUpdateThrottle({ hz = 30 }: { hz?: number }) {
 /* ── 맵 로딩 오버레이 ──
    텍스처/모델이 다 로드될 때까지 진행률 바를 보여주고, 완료되면 사라진다.
    drei useProgress 가 Three.js DefaultLoadingManager 를 추적 (Canvas 밖 DOM 에서도 동작). */
+/** 수중 화면효과 — 잠수 시 scene.fog 를 물 색으로 부드럽게 적용 (Canvas 안). */
+function UnderwaterFog({ stateRef, onToggle }: {
+  stateRef: React.MutableRefObject<{ on: boolean; color: string; density: number }>;
+  onToggle: (color: string | null) => void;
+}) {
+  const { scene } = useThree();
+  const cur = useRef(0);
+  const wasOn = useRef(false);
+  useFrame((_, dt) => {
+    const st = stateRef.current;
+    cur.current += ((st.on ? 1 : 0) - cur.current) * Math.min(1, dt * 6);  // 부드러운 전환
+    if (cur.current < 0.003) {
+      if (scene.fog) scene.fog = null;
+    } else {
+      let f = scene.fog as THREE.FogExp2 | null;
+      if (!(f instanceof THREE.FogExp2)) { f = new THREE.FogExp2(st.color, 0); scene.fog = f; }
+      f.color.set(st.color);
+      f.density = Math.max(0, st.density) * cur.current;
+    }
+    if (st.on !== wasOn.current) { wasOn.current = st.on; onToggle(st.on ? st.color : null); }
+  });
+  return null;
+}
+
 function MapLoadingOverlay() {
   const { active, progress, loaded, total, item } = useProgress();
   const [visible, setVisible] = useState(true);
@@ -1246,6 +1270,7 @@ export function Player({
   spawnRotY = 0,
   localPoseRef,
   buoyancyRef,
+  underwaterRef,
   portalRef,
   onPortalEnter,
   firstPersonFov = 75,
@@ -1295,6 +1320,8 @@ export function Player({
   localPoseRef?: React.MutableRefObject<{ x: number; y: number; z: number; rotY: number }>;
   /** 부력 볼륨 — 물에 뜨기/수영 물리. 물(water)+buoyancy 컴포넌트에서 계산. */
   buoyancyRef?: React.MutableRefObject<import('@/lib/world/components').BuoyancyVolume[]>;
+  /** 수중 상태 — 잠수 시 화면 후처리(안개/틴트)용. Player 가 매 frame 갱신. */
+  underwaterRef?: React.MutableRefObject<{ on: boolean; color: string; density: number }>;
   /** 현재 열린 포탈 (없으면 null). 플레이어가 닿으면 onPortalEnter 호출 */
   portalRef?: React.MutableRefObject<PortalState | null>;
   onPortalEnter?: (worldId: string) => void;
@@ -1749,6 +1776,8 @@ export function Player({
           }
           if (posT.y > surf + 0.6) continue;   // 수면 위 공중이면 부력 안 걸림 (점프로 탈출 가능)
           inBuoyancy = true;
+          // 수중 화면효과(안개/틴트) — 머리가 수면 아래로 잠겼을 때만 ON.
+          if (underwaterRef) underwaterRef.current = { on: posT.y < surf - 0.2, color: bv.fogColor, density: bv.fogDensity };
           if (bv.mode === 'swim') {
             // ── 자유 수영 — 컴포넌트 옵션(속도/저항/시선수영)으로 조작감 조절 ──
             const swimSpeed = SPEED * 0.7 * bv.swimSpeed;
@@ -1796,6 +1825,8 @@ export function Player({
           break;
         }
       }
+      // 물 영역 밖이면 수중 효과 해제
+      if (!inBuoyancy && underwaterRef && underwaterRef.current.on) underwaterRef.current.on = false;
 
       // 지면 체크 — 자기 RigidBody 제외 (제외 없으면 캡슐 내부 → TOI=0 → 항상 onGround=true)
       const ray = new rapier.Ray({ x: posT.x, y: posT.y, z: posT.z }, { x: 0, y: -1, z: 0 });
@@ -3395,6 +3426,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // 부력 볼륨 — water + buoyancy 컴포넌트. Player 가 매 프레임 참조해 수영/뜨기 물리 적용.
   const buoyancyVolsRef = useRef<BuoyancyVolume[]>([]);
   useEffect(() => { buoyancyVolsRef.current = computeBuoyancyVolumes(customObjects ?? []); }, [customObjects]);
+  // 수중 화면효과 — Player 가 잠수 상태를 ref 에 기록, UnderwaterFog 가 scene.fog 적용, DOM 오버레이로 틴트.
+  const underwaterRef = useRef<{ on: boolean; color: string; density: number }>({ on: false, color: '#1e88e5', density: 0.08 });
+  const [underwaterTint, setUnderwaterTint] = useState<string | null>(null);
   // 스폰 포인트 — 여러 개 있으면 랜덤 선택. 없으면 기본 [0, 4, 0].
   const spawnObjects = (customObjects ?? []).filter((o: UserMapObject) => o.kind === 'spawn' && !o.hidden);
   // 컴포넌트 마운트 시 1회만 픽 (재렌더 시 점프 방지) — useMemo with stable dep
@@ -5248,7 +5282,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               // worldId 없음 (기본 월드) → 데모 섬
               <Island />
             )}
-            {mapReady && <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} buoyancyRef={buoyancyVolsRef} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={handleObjectClick} playerCtlRef={playerCtlRef} spawnRef={spawnRef} getAnalyser={voice.getMyAnalyser} />}
+            {mapReady && <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} buoyancyRef={buoyancyVolsRef} underwaterRef={underwaterRef} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={handleObjectClick} playerCtlRef={playerCtlRef} spawnRef={spawnRef} getAnalyser={voice.getMyAnalyser} />}
             {placementGhost && <PlacementGhostMesh ghost={placementGhost} localPoseRef={localPoseRef} />}
             {Object.values(players).map((p) => (
               <RemotePlayerMesh
@@ -5281,6 +5315,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           onValueChange={(_id, script, value) => execUiButtonScript(script, gameRuntime.api, value)}
         />
         <PostFX s={postFX} />
+        <UnderwaterFog stateRef={underwaterRef} onToggle={setUnderwaterTint} />
       </Canvas>
       {/* UI Renderer — Screen Space HTML overlay (Phase 1).
           customObjects + uiOverrides merge: 호스트가 ui.set/show/hide 한 결과를 비호스트도 같이 봄. */}
@@ -5298,6 +5333,10 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         onValueChange={(_id, script, value) => execUiButtonScript(script, gameRuntime.api, value)}
       />
       <MapLoadingOverlay />
+      {/* 수중 틴트 — 잠수 시 물 색 오버레이 (fog 와 함께 수중 느낌) */}
+      {underwaterTint && (
+        <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', background: underwaterTint, opacity: 0.28, mixBlendMode: 'multiply', transition: 'opacity 0.45s ease', zIndex: 6 }} />
+      )}
     </>
   );
 }
