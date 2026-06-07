@@ -98,6 +98,8 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     description: '물(water) 에 부착. 캐릭터가 물에 들어가면 수면을 따라 떠오르고 웨이브 따라 출렁임. 모드: float=수면에 떠서 부유(가라앉지 않음), swim=Space 상승/앉기 하강으로 자유 수영. ※ 트리거(센서) 켠 Collider 필요.',
     props: [
       { key: 'mode',      label: '모드 (float=떠다님 / swim=자유수영)', type: 'enum', default: 'float', options: ['float', 'swim'] },
+      { key: 'swimIdleAnim', label: '수영 애니 — 정지 (애니 에셋 URL, 콜라이더 불필요)', type: 'string', default: '' },
+      { key: 'swimMoveAnim', label: '수영 애니 — 이동 (애니 에셋 URL)',           type: 'string', default: '' },
       { key: 'lookSwim',  label: '시선 방향 수영 (서브노티카식, swim 전용)', type: 'boolean', default: true },
       { key: 'swimSpeed', label: '수영 속도 (swim 전용)',              type: 'number', default: 1, min: 0.2, max: 3, step: 0.1 },
       { key: 'drag',      label: '물 저항 (낮을수록 미끄러지듯 관성↑, swim 전용)', type: 'number', default: 4, min: 1, max: 12, step: 0.5 },
@@ -281,6 +283,8 @@ export interface BuoyancyVolume {
   hx: number; hz: number;               // 반-범위 x,z (= scale/2)
   scaleY: number;                       // 그룹 Y 스케일 (웨이브 변위 → world Y 매핑)
   mode: 'float' | 'swim';
+  swimIdle: string;                     // 물 안 정지 시 재생할 애니 URL ('' = 없음). 콜라이더/트리거 불필요.
+  swimMove: string;                     // 물 안 이동 시 재생할 애니 URL ('' = 없음)
   lookSwim: boolean;                    // swim: true=시선방향 3D(서브노티카) / false=수평+상하키
   swimSpeed: number;                    // swim 속도 배수
   drag: number;                         // swim 물저항(관성) 계수 — 낮을수록 미끄러짐
@@ -315,6 +319,8 @@ export function computeBuoyancyVolumes(
       hz: Math.abs(Number(scl[2]) || 1) / 2,
       scaleY: Math.abs(Number(scl[1]) || 1),
       mode: p.mode === 'swim' ? 'swim' : 'float',
+      swimIdle: String(p.swimIdleAnim ?? ''),
+      swimMove: String(p.swimMoveAnim ?? ''),
       lookSwim: p.lookSwim !== false,
       swimSpeed: Number(p.swimSpeed ?? 1),
       drag: Number(p.drag ?? 4),

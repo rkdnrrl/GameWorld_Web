@@ -1358,6 +1358,7 @@ export function Player({
   /* 직접 DOM 키 추적 — KeyboardControls 컨텍스트 문제 우회 */
   const keys = useRef(new Set<string>());
   const lastPostFXZone = useRef(-1);   // 현재 들어가 있는 후처리 존 인덱스 (-1=없음)
+  const swimAnimRef = useRef<'idle' | 'move' | null>(null);   // 부력 수영 애니 상태 (콜라이더 없이 물 안 판정)
 
   const isLocked = useRef(false);
   const lastSend = useRef(0);
@@ -1784,6 +1785,15 @@ export function Player({
           inBuoyancy = true;
           // 수중 화면효과(안개/틴트) — 머리가 수면 아래로 잠겼을 때만 ON.
           if (underwaterRef) underwaterRef.current = { on: posT.y < surf - 0.2, color: bv.fogColor, density: bv.fogDensity };
+          // 수영 애니 — 콜라이더/트리거 없이 물 안(범위) 판정만으로 재생. 이동/정지 자동.
+          if (bv.swimIdle || bv.swimMove) {
+            const swimMoving = forward || backward || left || right || jump || isCrouch || isProne || _mob.moveTouch.active;
+            const want = swimMoving ? 'move' : 'idle';
+            if (want !== swimAnimRef.current) {
+              swimAnimRef.current = want;
+              emoteSlotRef.current = (want === 'move' ? bv.swimMove : bv.swimIdle) || null;
+            }
+          }
           if (bv.mode === 'swim') {
             // ── 자유 수영 — 컴포넌트 옵션(속도/저항/시선수영)으로 조작감 조절 ──
             const swimSpeed = SPEED * 0.7 * bv.swimSpeed;
@@ -1831,8 +1841,9 @@ export function Player({
           break;
         }
       }
-      // 물 영역 밖이면 수중 효과 해제
+      // 물 영역 밖이면 수중 효과 + 수영 애니 해제
       if (!inBuoyancy && underwaterRef && underwaterRef.current.on) underwaterRef.current.on = false;
+      if (!inBuoyancy && swimAnimRef.current !== null) { swimAnimRef.current = null; emoteSlotRef.current = null; }
 
       // 영역(zone) 후처리 — 플레이어가 들어간 박스 인덱스를 변경 시에만 보고
       if (postFXZonesRef && onPostFXZone) {
