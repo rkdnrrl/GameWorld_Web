@@ -219,6 +219,16 @@ const _assetClipCache = new Map<string, string[]>();
 const _simKfPos = { x: 0, y: 0, z: 0 };
 const _simKfQuat = { x: 0, y: 0, z: 0, w: 1 };
 const _kfPreviewObj = new THREE.Object3D();
+/** (x,y,z)가 물(buoyancy) 부피 안이면 잠긴 깊이(m), 아니면 0. 스크립트 world.isUnderwater/getDepth 용. */
+function studioWaterDepthAt(vols: BuoyancyVolume[] | undefined, x: number, y: number, z: number): number {
+  if (!vols) return 0;
+  for (const bv of vols) {
+    if (Math.abs(x - bv.cx) > bv.hx || Math.abs(z - bv.cz) > bv.hz) continue;
+    const surf = bv.cy + bv.offset;
+    if (y <= surf && y >= bv.cy - bv.scaleY) return surf - y;
+  }
+  return 0;
+}
 
 /* ── Unity 스타일 컴포넌트 섹션 (인스펙터) ──
    부착된 컴포넌트 카드 + "+ 컴포넌트 추가" 버튼. 각 카드는 props 편집 input 포함. */
@@ -2888,6 +2898,9 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
         playEmoteLocal: (slot, durationSec) => playerCtlRef.current?.setEmote(slot, durationSec),
         isPlayerId: (id) => id === '__sim_player__' || id === 'player',
         controlPlayer: (_id, cmd) => applyPlayerCmd(cmd),   // 시뮬은 단일 플레이어 — 항상 로컬
+        getMyPlayer: () => { const p = simPlayerPoseRef.current; return player ? { id: 'player', username: '나', x: p.x, y: p.y, z: p.z } : null; },
+        isUnderwater: () => { const p = simPlayerPoseRef.current; return studioWaterDepthAt(simBuoyancyRef.current, p.x, p.y, p.z) > 0; },
+        getDepth: () => { const p = simPlayerPoseRef.current; return studioWaterDepthAt(simBuoyancyRef.current, p.x, p.y, p.z); },
       };
 
       // 스튜디오엔 네트워크 없음 — no-op
@@ -3016,6 +3029,9 @@ function SimScene({ objects, transforms, myAssets, player, gameApi }: {
       setPlayerJump: (p) => playerCtlRef.current?.setJump(p),
       isPlayerId: (id) => id === '__sim_player__' || id === 'player',
       controlPlayer: (_id, cmd) => applyPlayerCmd(cmd),   // 시뮬은 단일 플레이어 — 항상 로컬
+      getMyPlayer: () => { const p = simPlayerPoseRef.current; return player ? { id: 'player', username: '나', x: p.x, y: p.y, z: p.z } : null; },
+      isUnderwater: () => { const p = simPlayerPoseRef.current; return studioWaterDepthAt(simBuoyancyRef.current, p.x, p.y, p.z) > 0; },
+      getDepth: () => { const p = simPlayerPoseRef.current; return studioWaterDepthAt(simBuoyancyRef.current, p.x, p.y, p.z); },
     };
     const netAPI2: import('@/lib/world/jsRuntime').JsNetAPI = { sendAll: () => {}, sendTo: () => {} };
 

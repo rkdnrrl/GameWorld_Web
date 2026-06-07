@@ -28,6 +28,8 @@ import type { JsGameAPI } from './gameRuntime';
  *   world.teleport(x,y,z) / world.respawn() / world.setSpawn(x,y,z)  — 플레이어 이동·리스폰·체크포인트
  *   world.setSpeed(mult) / world.setJump(power)  — (로컬) 플레이어 이동속도·점프력
  *   world.isPlayer(id) / world.teleportPlayer(id,x,y,z) / world.respawnPlayer(id) / world.setSpawnFor(id,x,y,z)  — 특정 플레이어(트리거 other) 제어, 멀티 라우팅
+ *   world.getMyPlayer() → {id,username,x,y,z} 본인 위치 / world.isUnderwater() / world.getDepth()  — 물속 판정·수심(산소 게이지 등)
+ *   inv.add(name, qty=1) / inv.consume(name, qty=1)→bool / inv.count(name) / inv.list() / inv.clear()  — 인벤토리(플레이어 개인·영구)
  *   game.get(key, default?) / game.set(key, value) / game.add(key, n=1)  — 전역 게임 상태(점수·체력 등)
  *   ui.text(id, text, {x,y,size,color,bg,align}) / ui.bar(id, value, max, {x,y,color,bg})  — 화면 HUD
  *   ui.image(id, url, {x,y,w,h}) / ui.clear(id) / ui.clearAll()
@@ -912,6 +914,12 @@ export interface JsWorldAPI {
   controlPlayer?(id: string, cmd: Record<string, unknown>): void;
   /** 로컬 플레이어 이모트(커스텀 애니메이션) 재생. slot=null 이면 해제. durationSec 후 자동 해제. */
   playEmoteLocal?(slot: string | null, durationSec?: number): void;
+  /** 본인(로컬) 플레이어 정보 — 위치 등. getPlayers 와 달리 "나"를 바로 집어줌. */
+  getMyPlayer?(): JsPlayerInfo | null;
+  /** 본인이 물(water + buoyancy) 부피 안에 잠겨 있는지. */
+  isUnderwater?(): boolean;
+  /** 본인이 잠긴 깊이(수면~머리, m). 물 밖이면 0. */
+  getDepth?(): number;
 }
 
 export interface JsNetAPI {
@@ -1070,6 +1078,12 @@ export class JsScript {
           if (id == null) worldApi.playEmoteLocal?.(null);
           else worldApi.controlPlayer?.(String(id), { t: 'emote', slot: null });
         },
+        // world.getMyPlayer() → {id, username, x, y, z} 본인 위치 (없으면 null)
+        getMyPlayer: () => worldApi.getMyPlayer ? worldApi.getMyPlayer() : null,
+        // world.isUnderwater() → 본인이 물 속인지 (산소 게이지 등에 사용)
+        isUnderwater: () => worldApi.isUnderwater ? worldApi.isUnderwater() : false,
+        // world.getDepth() → 잠긴 깊이(m). 물 밖이면 0.
+        getDepth: () => worldApi.getDepth ? worldApi.getDepth() : 0,
       };
       // world.time을 항상 최신 값으로 → getter처럼 동작
       Object.defineProperty(world, 'time', {
@@ -1140,6 +1154,34 @@ export class JsScript {
         all: () => gameApi?.dataAll?.(shared) ?? {},
       });
       const data = { ...makeDataApi(false), shared: makeDataApi(true) };
+
+      // ── 인벤토리 (플레이어 개인, 영구) — data.* 위에 이름→개수 맵으로 저장 ──
+      // inv.add("titanium", 2) / inv.consume("titanium", 1) → 부족하면 false / inv.count("titanium")
+      const INV_KEY = '__inv__';
+      const invRead = (): Record<string, number> => {
+        const v = gameApi?.dataGet?.(INV_KEY, false);
+        return (v && typeof v === 'object') ? { ...(v as Record<string, number>) } : {};
+      };
+      const inv = {
+        count: (name: unknown) => { const m = invRead(); return Number(m[String(name)] || 0); },
+        add: (name: unknown, qty?: unknown) => {
+          const m = invRead(); const k = String(name);
+          const next = Math.max(0, (Number(m[k] || 0)) + numOr(qty, 1));
+          if (next === 0) delete m[k]; else m[k] = next;
+          gameApi?.dataSet?.(INV_KEY, m, false);
+          return next;
+        },
+        consume: (name: unknown, qty?: unknown) => {
+          const m = invRead(); const k = String(name); const need = numOr(qty, 1);
+          if ((Number(m[k] || 0)) < need) return false;
+          const next = Number(m[k]) - need;
+          if (next <= 0) delete m[k]; else m[k] = next;
+          gameApi?.dataSet?.(INV_KEY, m, false);
+          return true;
+        },
+        list: () => Object.entries(invRead()).map(([name, qty]) => ({ name, qty: Number(qty) })),
+        clear: () => { gameApi?.dataSet?.(INV_KEY, {}, false); },
+      };
 
       const MathLib = {
         sin: Math.sin, cos: Math.cos, tan: Math.tan, atan: Math.atan, atan2: Math.atan2,
@@ -1293,7 +1335,7 @@ export class JsScript {
       };
 
       this.interp = new Interpreter({
-        self, world, net, game, ui, data, api,
+        self, world, net, game, ui, data, inv, api,
         Math: MathLib,
         console: console_,
         print,

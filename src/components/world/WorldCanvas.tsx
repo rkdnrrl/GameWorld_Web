@@ -30,6 +30,17 @@ const FALLBACK_IDLE_REF: React.RefObject<AnimState> = { current: 'idle' as AnimS
 /** 키프레임 키네마틱 바디 구동용 재사용 임시 객체 */
 const _kfPos = { x: 0, y: 0, z: 0 };
 const _kfQuat = { x: 0, y: 0, z: 0, w: 1 };
+
+/** (x,y,z)가 물(buoyancy) 부피 안이면 잠긴 깊이(수면-머리, m), 아니면 0. 스크립트 world.isUnderwater/getDepth 용. */
+function waterDepthAt(vols: BuoyancyVolume[] | undefined, x: number, y: number, z: number): number {
+  if (!vols) return 0;
+  for (const bv of vols) {
+    if (Math.abs(x - bv.cx) > bv.hx || Math.abs(z - bv.cz) > bv.hz) continue;
+    const surf = bv.cy + bv.offset;
+    if (y <= surf && y >= bv.cy - bv.scaleY) return surf - y;
+  }
+  return 0;
+}
 import type { ChatBubble, RemotePlayer, PlayerPose } from '@/lib/world/useGameSocket';
 import type { GraphicsSettings } from '@/lib/world/graphicsSettings';
 import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
@@ -4923,6 +4934,13 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         if (id === playerId || id === 'player' || id === '__sim_player__') applyPlayerCmd(cmd);
         else sendScriptEvent?.('__pctl__', '__pctl__', cmd, id);
       },
+      // ── 본인 위치 / 물속 판정 / 수심 (서브노티카식 산소 등 유저 스크립트용) ──
+      getMyPlayer: () => {
+        const lp = localPoseRef.current;
+        return { id: 'player', username: '나', x: lp.x, y: lp.y, z: lp.z };
+      },
+      isUnderwater: () => { const lp = localPoseRef.current; return waterDepthAt(buoyancyVolsRef.current, lp.x, lp.y, lp.z) > 0; },
+      getDepth: () => { const lp = localPoseRef.current; return waterDepthAt(buoyancyVolsRef.current, lp.x, lp.y, lp.z); },
     };
 
     // 메인 스크립트 (obj.script) VM 생성
