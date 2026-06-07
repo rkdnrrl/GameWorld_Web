@@ -1939,8 +1939,8 @@ export function Player({
           { x: p.x, y: lookY, z: p.z },
           { x: ox * ir, y: oy * ir, z: oz * ir },
         );
-        // 자기 캡슐 제외. solid=true. 벽까지 거리(timeOfImpact) 안에서 막힘.
-        const hit = rWorld.castRay(ray, fullLen, true, undefined, undefined, undefined, body.current ?? undefined);
+        // 자기 캡슐 제외 + 센서(트리거) 제외 — 물 트리거 콜라이더를 벽으로 오인해 카메라가 당겨지는 버그 방지.
+        const hit = rWorld.castRay(ray, fullLen, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, body.current ?? undefined);
         if (hit) {
           const margin = 0.35;                                   // 벽에서 살짝 떨어뜨려 클리핑 방지
           const allowed = Math.max(0.35, hit.timeOfImpact - margin);
