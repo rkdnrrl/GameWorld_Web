@@ -1972,6 +1972,7 @@
     "noMessages": "메시지가 없습니다.",
     "inputPlaceholder": "메시지 입력…",
     "send": "보내기",
+    "close": "닫기",
     "loginRequired": "로그인이 필요합니다.",
     "deletedUser": "(탈퇴한 사용자)"
   },

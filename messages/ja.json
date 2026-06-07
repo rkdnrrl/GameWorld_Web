@@ -1952,6 +1952,7 @@
     "noMessages": "メッセージがありません。",
     "inputPlaceholder": "メッセージを入力…",
     "send": "送信",
+    "close": "閉じる",
     "loginRequired": "ログインが必要です。",
     "deletedUser": "(退会したユーザー)"
   },

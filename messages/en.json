@@ -1952,6 +1952,7 @@
     "noMessages": "No messages.",
     "inputPlaceholder": "Type a message…",
     "send": "Send",
+    "close": "Close",
     "loginRequired": "Login required.",
     "deletedUser": "(deleted user)"
   },

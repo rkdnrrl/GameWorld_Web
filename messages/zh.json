@@ -1952,6 +1952,7 @@
     "noMessages": "没有消息。",
     "inputPlaceholder": "输入消息…",
     "send": "发送",
+    "close": "关闭",
     "loginRequired": "需要登录。",
     "deletedUser": "(已注销用户)"
   },

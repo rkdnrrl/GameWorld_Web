@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { api, session, ApiError } from '@/lib/api';
 import { SupporterBadge } from '@/components/SupporterBadge';
+import { DmChatModal } from '@/components/world/DmChatModal';
 import type { RemotePlayer } from '@/lib/world/useGameSocket';
 
 interface FullProfile {
@@ -53,6 +54,7 @@ export function RemotePlayerInfoPanel({
   const [friendState, setFriendState] = useState<'self' | 'none' | 'pending_sent' | 'pending_received' | 'accepted' | 'blocked' | null>(null);
   const [friendshipId, setFriendshipId] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  const [dmConvId, setDmConvId] = useState<string | null>(null);   // DM 모달 (페이지 이동 대신)
 
   useEffect(() => {
     let cancelled = false;
@@ -88,7 +90,7 @@ export function RemotePlayerInfoPanel({
     setBusy(true);
     try {
       const d = await api.openConversation(tk, profile.id);
-      router.push(`/messages/${d.conversation.id}`);
+      setDmConvId(d.conversation.id);   // 페이지 이동 대신 모달 열기
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'open dm failed');
     } finally { setBusy(false); }
@@ -286,6 +288,15 @@ export function RemotePlayerInfoPanel({
           <p style={{ padding: 14, textAlign: 'center', opacity: 0.5, fontSize: 12 }}>{t('thatsYou')}</p>
         )}
       </div>
+
+      {/* DM 채팅 모달 — 페이지 이동 없이 오버레이 */}
+      {dmConvId && profile && (
+        <DmChatModal
+          conversationId={dmConvId}
+          other={{ username: profile.username, profileImageUrl: profile.profileImageUrl, iconEmoji: profile.iconEmoji, themeColor: profile.themeColor }}
+          onClose={() => setDmConvId(null)}
+        />
+      )}
     </>
   );
 }
