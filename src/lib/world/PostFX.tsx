@@ -32,6 +32,30 @@ class TintEffectImpl extends Effect {
   }
 }
 const Tint = wrapEffect(TintEffectImpl);
+
+/** 일렁임 — 화면 UV를 sin 파동으로 흔들어 수중/열기 같은 왜곡 효과 (amount=강도). */
+class WobbleEffectImpl extends Effect {
+  constructor({ amount = 0, speed = 1, frequency = 8 }: { amount?: number; speed?: number; frequency?: number } = {}) {
+    super(
+      'WobbleEffect',
+      `uniform float uAmt; uniform float uSpd; uniform float uFreq; uniform float uTime;
+       void mainUv(inout vec2 uv){
+         uv.x += sin(uv.y * uFreq + uTime * uSpd) * uAmt;
+         uv.y += cos(uv.x * uFreq + uTime * uSpd * 0.8) * uAmt;
+       }`,
+      { uniforms: new Map<string, THREE.Uniform>([
+        ['uAmt', new THREE.Uniform(amount)],
+        ['uSpd', new THREE.Uniform(speed)],
+        ['uFreq', new THREE.Uniform(frequency)],
+        ['uTime', new THREE.Uniform(0)],
+      ]) },
+    );
+  }
+  update(_renderer: unknown, _input: unknown, dt: number) {
+    const u = this.uniforms.get('uTime'); if (u) u.value += dt;
+  }
+}
+const Wobble = wrapEffect(WobbleEffectImpl);
 import { findComponent, getProp, type ComponentInstance } from '@/lib/world/components';
 
 export interface PostFXSettings {
@@ -41,6 +65,7 @@ export interface PostFXSettings {
   chromatic: number;         // 0 = off
   brightness: number; contrast: number;
   tintColor: string; tintStrength: number;   // 색상 틴트 (화면을 이 색으로 물들임, 0=끔)
+  wobble: number;            // 일렁임(화면 왜곡) 강도 0 = off
   saturation: number; hue: number;       // 색 보정 (saturation -1..1, hue 라디안)
   grain: number;             // 필름 노이즈 0 = off
   pixelate: number;          // 픽셀화 0 = off (픽셀 크기)
@@ -54,7 +79,7 @@ export interface PostFXSettings {
 const OFF: PostFXSettings = {
   enabled: false, bloom: false, bloomIntensity: 0, bloomThreshold: 0,
   vignette: 0, chromatic: 0, brightness: 0, contrast: 0,
-  tintColor: '#ffffff', tintStrength: 0,
+  tintColor: '#ffffff', tintStrength: 0, wobble: 0,
   saturation: 0, hue: 0, grain: 0, pixelate: 0, scanline: 0, sepia: false, grayscale: false,
   dof: false, dofFocus: 0, dofFocalLength: 0, dofBokeh: 0, toneMapping: false,
 };
@@ -71,6 +96,7 @@ function settingsFromInst(inst: ComponentInstance): PostFXSettings {
     contrast:       getProp(inst, 'contrast', 0),
     tintColor:      getProp(inst, 'tintColor', '#ffffff'),
     tintStrength:   getProp(inst, 'tintStrength', 0),
+    wobble:         getProp(inst, 'wobble', 0),
     saturation:     getProp(inst, 'saturation', 0),
     hue:            getProp(inst, 'hue', 0),
     grain:          getProp(inst, 'grain', 0),
@@ -160,6 +186,7 @@ export default function PostFX({ s }: { s: PostFXSettings }) {
   if (!s.enabled) return null;
 
   const fx: React.ReactElement[] = [];
+  if (s.wobble > 0) fx.push(<Wobble key="wob" amount={s.wobble} speed={1.2} frequency={9} />);
   if (s.pixelate > 0) fx.push(<Pixelation key="px" granularity={s.pixelate} />);
   // 색 보정
   if (s.brightness !== 0 || s.contrast !== 0) fx.push(<BrightnessContrast key="bc" brightness={s.brightness} contrast={s.contrast} />);

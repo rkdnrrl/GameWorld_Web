@@ -132,6 +132,7 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'sepia',          label: '세피아 톤',              type: 'boolean', default: false, group: 'advanced' },
       { key: 'grayscale',      label: '흑백',                   type: 'boolean', default: false, group: 'advanced' },
       { key: 'chromatic',      label: '색수차 (0=끔)',          type: 'number', default: 0,    min: 0, max: 0.01, step: 0.0005, group: 'advanced' },
+      { key: 'wobble',         label: '일렁임 (수중·열기 왜곡, 0=끔)', type: 'number', default: 0, min: 0, max: 0.03, step: 0.002, group: 'advanced' },
       { key: 'grain',          label: '필름 노이즈 (0=끔)',     type: 'number', default: 0,    min: 0, max: 1,    step: 0.02, group: 'advanced' },
       { key: 'scanline',       label: 'CRT 스캔라인 (0=끔)',    type: 'number', default: 0,    min: 0, max: 2,    step: 0.05, group: 'advanced' },
       { key: 'pixelate',       label: '픽셀화 (0=끔, 픽셀 크기)', type: 'number', default: 0,  min: 0, max: 16,   step: 1, group: 'advanced' },
