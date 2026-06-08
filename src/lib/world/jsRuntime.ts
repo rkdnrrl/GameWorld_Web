@@ -950,6 +950,7 @@ export interface JsWorldAPI {
   setGravityEnabled?(on: boolean): void;
   isGrounded?(): boolean;
   getCameraDir?(): { x: number; y: number; z: number };
+  getCameraPos?(): { x: number; y: number; z: number };
   raycast?(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxDist: number):
     { hit: boolean; distance: number; x: number; y: number; z: number; nx: number; ny: number; nz: number; id: string | null };
   getMoveInput?(): { forward: boolean; backward: boolean; left: boolean; right: boolean; jump: boolean; sprint: boolean; mouseDown: boolean };
@@ -1192,6 +1193,8 @@ export class JsScript {
         setGravity: (on: unknown) => worldApi.setGravityEnabled?.(!!on),
         isGrounded: () => worldApi.isGrounded ? worldApi.isGrounded() : false,
         getCameraDir: () => worldApi.getCameraDir ? worldApi.getCameraDir() : { x: 0, y: 0, z: -1 },
+        // world.getCameraPos() — 실제 1인칭 카메라 위치. raycast 원점으로 쓰면 크로스헤어와 정확히 맞음.
+        getCameraPos: () => worldApi.getCameraPos ? worldApi.getCameraPos() : { x: 0, y: 0, z: 0 },
         // world.raycast(ox,oy,oz, dx,dy,dz, maxDist) → {hit, distance, x,y,z, id} 벽/등반표면 감지
         raycast: (ox: unknown, oy: unknown, oz: unknown, dx: unknown, dy: unknown, dz: unknown, maxDist: unknown) =>
           worldApi.raycast ? worldApi.raycast(Number(ox) || 0, Number(oy) || 0, Number(oz) || 0, Number(dx) || 0, Number(dy) || 0, Number(dz) || 0, Number(maxDist) || 5)

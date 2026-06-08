@@ -3117,6 +3117,7 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
         setGravityEnabled: (on) => playerCtlRef.current?.setGravityEnabled(on),
         isGrounded: () => playerCtlRef.current?.isGrounded() ?? false,
         getCameraDir: () => playerCtlRef.current?.getCameraDir() ?? { x: 0, y: 0, z: -1 },
+      getCameraPos: () => playerCtlRef.current?.getCameraPos() ?? { x: 0, y: 0, z: 0 },
         raycast: (ox, oy, oz, dx, dy, dz, maxDist) => playerCtlRef.current?.raycast(ox, oy, oz, dx, dy, dz, maxDist) ?? { hit: false, distance: 0, x: 0, y: 0, z: 0, nx: 0, ny: 0, nz: 0, id: null },
       };
 
@@ -3259,6 +3260,7 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
       setGravityEnabled: (on) => playerCtlRef.current?.setGravityEnabled(on),
       isGrounded: () => playerCtlRef.current?.isGrounded() ?? false,
       getCameraDir: () => playerCtlRef.current?.getCameraDir() ?? { x: 0, y: 0, z: -1 },
+      getCameraPos: () => playerCtlRef.current?.getCameraPos() ?? { x: 0, y: 0, z: 0 },
       raycast: (ox, oy, oz, dx, dy, dz, maxDist) => playerCtlRef.current?.raycast(ox, oy, oz, dx, dy, dz, maxDist) ?? { hit: false, distance: 0, x: 0, y: 0, z: 0, nx: 0, ny: 0, nz: 0, id: null },
       getMoveInput: () => playerCtlRef.current?.getMoveInput() ?? { forward: false, backward: false, left: false, right: false, jump: false, sprint: false, mouseDown: false },
       getKeys: () => playerCtlRef.current?.getKeys() ?? [],

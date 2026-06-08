@@ -1381,6 +1381,8 @@ export interface PlayerControl {
   isGrounded: () => boolean;
   /** 카메라(시선) 정면 방향 단위벡터. */
   getCameraDir: () => { x: number; y: number; z: number };
+  /** 실제 카메라 월드 위치 (1인칭 눈 위치). raycast 원점으로 쓰면 크로스헤어와 정확히 일치. */
+  getCameraPos: () => { x: number; y: number; z: number };
   /** 레이캐스트 — (ox,oy,oz)에서 (dx,dy,dz) 방향으로 maxDist 까지. 벽/등반표면 감지용. nx,ny,nz=표면 법선. */
   raycast: (ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxDist: number) =>
     { hit: boolean; distance: number; x: number; y: number; z: number; nx: number; ny: number; nz: number; id: string | null };
@@ -1576,6 +1578,8 @@ export function Player({
         const fz = -Math.cos(_mob.camH) * Math.cos(_mob.camV);
         return { x: fx, y: fy, z: fz };
       },
+      // 실제 렌더 카메라 위치 (1인칭 눈) — raycast 원점으로 쓰면 크로스헤어와 정확히 맞음
+      getCameraPos: () => ({ x: camera.position.x, y: camera.position.y, z: camera.position.z }),
       raycast: (ox, oy, oz, dx, dy, dz, maxDist) => {
         try {
           const len = Math.hypot(dx, dy, dz) || 1;
@@ -5306,6 +5310,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       setGravityEnabled: (on) => playerCtlRef.current?.setGravityEnabled(on),
       isGrounded: () => playerCtlRef.current?.isGrounded() ?? false,
       getCameraDir: () => playerCtlRef.current?.getCameraDir() ?? { x: 0, y: 0, z: -1 },
+      getCameraPos: () => playerCtlRef.current?.getCameraPos() ?? { x: 0, y: 0, z: 0 },
       raycast: (ox, oy, oz, dx, dy, dz, maxDist) => playerCtlRef.current?.raycast(ox, oy, oz, dx, dy, dz, maxDist) ?? { hit: false, distance: 0, x: 0, y: 0, z: 0, nx: 0, ny: 0, nz: 0, id: null },
       getMoveInput: () => playerCtlRef.current?.getMoveInput() ?? { forward: false, backward: false, left: false, right: false, jump: false, sprint: false, mouseDown: false },
       getKeys: () => playerCtlRef.current?.getKeys() ?? [],
