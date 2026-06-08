@@ -931,11 +931,12 @@ export interface JsWorldAPI {
   isGrounded?(): boolean;
   getCameraDir?(): { x: number; y: number; z: number };
   raycast?(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxDist: number):
-    { hit: boolean; distance: number; x: number; y: number; z: number; id: string | null };
+    { hit: boolean; distance: number; x: number; y: number; z: number; nx: number; ny: number; nz: number; id: string | null };
   getMoveInput?(): { forward: boolean; backward: boolean; left: boolean; right: boolean; jump: boolean; sprint: boolean; mouseDown: boolean };
   setJumpEnabled?(on: boolean): void;
   setRunEnabled?(on: boolean): void;
   setHandTarget?(side: 'left' | 'right', x: number | null, y?: number, z?: number): void;
+  setBodyTilt?(pitch: number, roll: number): void;
 }
 
 export interface JsNetAPI {
@@ -1111,7 +1112,7 @@ export class JsScript {
         // world.raycast(ox,oy,oz, dx,dy,dz, maxDist) → {hit, distance, x,y,z, id} 벽/등반표면 감지
         raycast: (ox: unknown, oy: unknown, oz: unknown, dx: unknown, dy: unknown, dz: unknown, maxDist: unknown) =>
           worldApi.raycast ? worldApi.raycast(Number(ox) || 0, Number(oy) || 0, Number(oz) || 0, Number(dx) || 0, Number(dy) || 0, Number(dz) || 0, Number(maxDist) || 5)
-            : { hit: false, distance: 0, x: 0, y: 0, z: 0, id: null },
+            : { hit: false, distance: 0, x: 0, y: 0, z: 0, nx: 0, ny: 0, nz: 0, id: null },
         // world.getMoveInput() → {forward,backward,left,right,jump,sprint} 현재 누른 이동키 (등반 "W 눌렀나" 판정)
         getMoveInput: () => worldApi.getMoveInput ? worldApi.getMoveInput() : { forward: false, backward: false, left: false, right: false, jump: false, sprint: false, mouseDown: false },
         // world.setCanJump(false) / world.setCanRun(false) — 스태미나 0 일 때 점프·달리기 차단
@@ -1125,6 +1126,8 @@ export class JsScript {
         },
         // world.clearHandTarget("left") — 손 IK 해제 (애니 복귀)
         clearHandTarget: (side: unknown) => worldApi.setHandTarget?.(String(side) === 'right' ? 'right' : 'left', null),
+        // world.setBodyTilt(pitch, roll) — 몸 기울이기(라디안). 등반 시 벽 기울기 반영. 0,0=수직.
+        setBodyTilt: (pitch: unknown, roll: unknown) => worldApi.setBodyTilt?.(Number(pitch) || 0, Number(roll) || 0),
       };
       // world.time을 항상 최신 값으로 → getter처럼 동작
       Object.defineProperty(world, 'time', {

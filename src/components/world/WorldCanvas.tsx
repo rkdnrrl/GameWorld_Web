@@ -1376,9 +1376,9 @@ export interface PlayerControl {
   isGrounded: () => boolean;
   /** 카메라(시선) 정면 방향 단위벡터. */
   getCameraDir: () => { x: number; y: number; z: number };
-  /** 레이캐스트 — (ox,oy,oz)에서 (dx,dy,dz) 방향으로 maxDist 까지. 벽/등반표면 감지용. */
+  /** 레이캐스트 — (ox,oy,oz)에서 (dx,dy,dz) 방향으로 maxDist 까지. 벽/등반표면 감지용. nx,ny,nz=표면 법선. */
   raycast: (ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxDist: number) =>
-    { hit: boolean; distance: number; x: number; y: number; z: number; id: string | null };
+    { hit: boolean; distance: number; x: number; y: number; z: number; nx: number; ny: number; nz: number; id: string | null };
   /** 현재 이동 입력(WASD/방향키/모바일 조이스틱/점프/좌클릭). 등반 등에서 "전진키 눌렀나"·"좌클릭 중인가" 판정용. */
   getMoveInput: () => { forward: boolean; backward: boolean; left: boolean; right: boolean; jump: boolean; sprint: boolean; mouseDown: boolean };
   /** 점프 가능 여부 — false 면 Space 눌러도 점프 안 됨 (스태미나 소진 등). */
@@ -1387,6 +1387,8 @@ export interface PlayerControl {
   setRunEnabled: (on: boolean) => void;
   /** 손 IK 타깃 설정 — 손을 월드 좌표로 (등반 grip). xyz=null 이면 해제(애니 복귀). */
   setHandTarget: (side: 'left' | 'right', x: number | null, y?: number, z?: number) => void;
+  /** 몸 기울이기 (라디안) — pitch=앞뒤 lean, roll=좌우 lean. 등반 시 벽 기울기 반영. 0,0=수직. */
+  setBodyTilt: (pitch: number, roll: number) => void;
 }
 
 /* ── 로컬 플레이어 컨트롤러 ─────────────── */
@@ -1496,6 +1498,7 @@ export function Player({
   const runEnabledRef   = useRef(true);         // world.setCanRun — 스태미나 소진 시 달리기 차단
   const mouseDownRef    = useRef(false);        // 좌클릭 누름 상태 (world.isMouseDown — 등반 grab 등)
   const handTargetRef   = useRef<import('./HumanoidMesh').HandTargets>({ left: null, right: null });  // 손 IK 타깃 (등반 grip)
+  const bodyTiltRef     = useRef({ pitch: 0, roll: 0 });   // world.setBodyTilt — 등반 시 벽 기울기만큼 몸 기울임
   const mesh      = useRef<THREE.Group>(null);
   /** humanoid char 로드 후 head bone — 1인칭 카메라 Y 추적용 */
   const headBoneRef = useRef<THREE.Object3D | null>(null);
@@ -1570,15 +1573,16 @@ export function Player({
         try {
           const len = Math.hypot(dx, dy, dz) || 1;
           const ray = new rapier.Ray({ x: ox, y: oy, z: oz }, { x: dx / len, y: dy / len, z: dz / len });
-          const hit = rWorld.castRay(ray, Math.max(0.01, maxDist), true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, body.current ?? undefined);
-          if (!hit) return { hit: false, distance: 0, x: 0, y: 0, z: 0, id: null };
+          const hit = rWorld.castRayAndGetNormal(ray, Math.max(0.01, maxDist), true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, body.current ?? undefined);
+          if (!hit) return { hit: false, distance: 0, x: 0, y: 0, z: 0, nx: 0, ny: 0, nz: 0, id: null };
           const d = hit.timeOfImpact;
           const hx = ox + (dx / len) * d, hy = oy + (dy / len) * d, hz = oz + (dz / len) * d;
+          const n = hit.normal || { x: 0, y: 0, z: 0 };
           let id: string | null = null;
           const hb = hit.collider?.parent();
           if (hb && scriptBodyRefs) for (const [oid, ref] of scriptBodyRefs.current) { if (ref.body.current === hb) { id = oid; break; } }
-          return { hit: true, distance: d, x: hx, y: hy, z: hz, id };
-        } catch { return { hit: false, distance: 0, x: 0, y: 0, z: 0, id: null }; }
+          return { hit: true, distance: d, x: hx, y: hy, z: hz, nx: n.x, ny: n.y, nz: n.z, id };
+        } catch { return { hit: false, distance: 0, x: 0, y: 0, z: 0, nx: 0, ny: 0, nz: 0, id: null }; }
       },
       getMoveInput: () => {
         const k = keys.current;
@@ -1599,6 +1603,10 @@ export function Player({
         const t = handTargetRef.current;
         const v = (x == null) ? null : [Number(x) || 0, Number(y) || 0, Number(z) || 0] as [number, number, number];
         if (side === 'left') t.left = v; else t.right = v;
+      },
+      setBodyTilt: (pitch, roll) => {
+        bodyTiltRef.current.pitch = Number.isFinite(pitch) ? pitch : 0;
+        bodyTiltRef.current.roll  = Number.isFinite(roll)  ? roll  : 0;
       },
     };
     return () => { if (playerCtlRef) playerCtlRef.current = null; };
@@ -2123,6 +2131,7 @@ export function Player({
 
       // 캐릭터 회전 — 1인칭은 항상 카메라 방향, 3인칭은 이동 방향 (엎드림/앉기 포함).
       if (mesh.current) {
+        mesh.current.rotation.order = 'YXZ';   // yaw(Y) 먼저 → pitch(X)/roll(Z) 가 바라보는 기준
         if (cameraMode === 'first') {
           // FP: 캐릭터 몸이 항상 카메라 보는 방향과 일치 (즉시 동기). 엎드린 상태에서도 같이 돎.
           mesh.current.rotation.y = _mob.camH + Math.PI;
@@ -2131,6 +2140,11 @@ export function Player({
           const target = Math.atan2(mx, mz);
           mesh.current.rotation.y = lerpAngle(mesh.current.rotation.y, target, Math.min(1, 12 * dt));
         }
+        // 몸 기울이기 (world.setBodyTilt) — 등반 시 벽 기울기만큼 lean. pitch=앞뒤, roll=좌우.
+        const tt = bodyTiltRef.current;
+        const k = Math.min(1, 10 * dt);
+        mesh.current.rotation.x += (tt.pitch - mesh.current.rotation.x) * k;
+        mesh.current.rotation.z += (tt.roll  - mesh.current.rotation.z) * k;
       }
 
       // 현재 애니메이션 상태 결정 — 13슬롯 (idle, walk×4, run×2, jump×3, fall, crouch×2).
@@ -5076,11 +5090,12 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       setGravityEnabled: (on) => playerCtlRef.current?.setGravityEnabled(on),
       isGrounded: () => playerCtlRef.current?.isGrounded() ?? false,
       getCameraDir: () => playerCtlRef.current?.getCameraDir() ?? { x: 0, y: 0, z: -1 },
-      raycast: (ox, oy, oz, dx, dy, dz, maxDist) => playerCtlRef.current?.raycast(ox, oy, oz, dx, dy, dz, maxDist) ?? { hit: false, distance: 0, x: 0, y: 0, z: 0, id: null },
+      raycast: (ox, oy, oz, dx, dy, dz, maxDist) => playerCtlRef.current?.raycast(ox, oy, oz, dx, dy, dz, maxDist) ?? { hit: false, distance: 0, x: 0, y: 0, z: 0, nx: 0, ny: 0, nz: 0, id: null },
       getMoveInput: () => playerCtlRef.current?.getMoveInput() ?? { forward: false, backward: false, left: false, right: false, jump: false, sprint: false, mouseDown: false },
       setJumpEnabled: (on) => playerCtlRef.current?.setJumpEnabled(on),
       setRunEnabled: (on) => playerCtlRef.current?.setRunEnabled(on),
       setHandTarget: (side, x, y, z) => playerCtlRef.current?.setHandTarget(side, x, y, z),
+      setBodyTilt: (pitch, roll) => playerCtlRef.current?.setBodyTilt(pitch, roll),
     };
 
     // 메인 스크립트 (obj.script) VM 생성

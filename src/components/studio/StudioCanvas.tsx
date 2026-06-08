@@ -2938,7 +2938,7 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
         setGravityEnabled: (on) => playerCtlRef.current?.setGravityEnabled(on),
         isGrounded: () => playerCtlRef.current?.isGrounded() ?? false,
         getCameraDir: () => playerCtlRef.current?.getCameraDir() ?? { x: 0, y: 0, z: -1 },
-        raycast: (ox, oy, oz, dx, dy, dz, maxDist) => playerCtlRef.current?.raycast(ox, oy, oz, dx, dy, dz, maxDist) ?? { hit: false, distance: 0, x: 0, y: 0, z: 0, id: null },
+        raycast: (ox, oy, oz, dx, dy, dz, maxDist) => playerCtlRef.current?.raycast(ox, oy, oz, dx, dy, dz, maxDist) ?? { hit: false, distance: 0, x: 0, y: 0, z: 0, nx: 0, ny: 0, nz: 0, id: null },
       };
 
       // 스튜디오엔 네트워크 없음 — no-op
@@ -3076,11 +3076,12 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
       setGravityEnabled: (on) => playerCtlRef.current?.setGravityEnabled(on),
       isGrounded: () => playerCtlRef.current?.isGrounded() ?? false,
       getCameraDir: () => playerCtlRef.current?.getCameraDir() ?? { x: 0, y: 0, z: -1 },
-      raycast: (ox, oy, oz, dx, dy, dz, maxDist) => playerCtlRef.current?.raycast(ox, oy, oz, dx, dy, dz, maxDist) ?? { hit: false, distance: 0, x: 0, y: 0, z: 0, id: null },
+      raycast: (ox, oy, oz, dx, dy, dz, maxDist) => playerCtlRef.current?.raycast(ox, oy, oz, dx, dy, dz, maxDist) ?? { hit: false, distance: 0, x: 0, y: 0, z: 0, nx: 0, ny: 0, nz: 0, id: null },
       getMoveInput: () => playerCtlRef.current?.getMoveInput() ?? { forward: false, backward: false, left: false, right: false, jump: false, sprint: false, mouseDown: false },
       setJumpEnabled: (on) => playerCtlRef.current?.setJumpEnabled(on),
       setRunEnabled: (on) => playerCtlRef.current?.setRunEnabled(on),
       setHandTarget: (side, x, y, z) => playerCtlRef.current?.setHandTarget(side, x, y, z),
+      setBodyTilt: (pitch, roll) => playerCtlRef.current?.setBodyTilt(pitch, roll),
     };
     const netAPI2: import('@/lib/world/jsRuntime').JsNetAPI = { sendAll: () => {}, sendTo: () => {} };
 
