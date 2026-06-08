@@ -147,9 +147,10 @@ export async function loadHumanoid(url: string, opts: HumanoidLoadOptions = {}):
         map: mat.map ?? null,
         color: mat.color?.clone?.() ?? new THREE.Color(0xffffff),
         normalMap: mat.normalMap ?? null,
-        emissive: mat.emissive?.clone?.() ?? new THREE.Color(0x000000),
-        emissiveMap: mat.emissiveMap ?? null,
-        emissiveIntensity: typeof mat.emissiveIntensity === 'number' ? mat.emissiveIntensity : 1,
+        // emissive 미보존 — MToon 머티리얼의 emissive(머리·얼굴 등)가 빛 없이 빛나는 원인.
+        // 빛에만 반응하도록 발광 0. (발광 눈 등은 별도 기능으로 필요 시 추가)
+        emissive: new THREE.Color(0x000000),
+        emissiveIntensity: 0,
         roughness: 0.85,
         metalness: 0,
         side: mat.side ?? THREE.FrontSide,
