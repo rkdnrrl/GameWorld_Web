@@ -3080,6 +3080,7 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
       getMoveInput: () => playerCtlRef.current?.getMoveInput() ?? { forward: false, backward: false, left: false, right: false, jump: false, sprint: false, mouseDown: false },
       setJumpEnabled: (on) => playerCtlRef.current?.setJumpEnabled(on),
       setRunEnabled: (on) => playerCtlRef.current?.setRunEnabled(on),
+      setHandTarget: (side, x, y, z) => playerCtlRef.current?.setHandTarget(side, x, y, z),
     };
     const netAPI2: import('@/lib/world/jsRuntime').JsNetAPI = { sendAll: () => {}, sendTo: () => {} };
 

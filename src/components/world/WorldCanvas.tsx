@@ -672,7 +672,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
  * 새 appearance v2: { modelUrl, scale, offsetY, manualBoneMap }
  * 운영자 등록 마스터 클립 url 은 GLOBAL_CLIP_URLS 에서 받음 (T9 에서 운영자 API 정리 예정).
  */
-function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneShotOverride, hideHead = false, getAnalyser, headBoneRef }: {
+function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneShotOverride, hideHead = false, getAnalyser, headBoneRef, handTargetRef }: {
   appearance: Record<string, unknown>;
   animStateRef?: React.RefObject<AnimState>;
   castShadow?: boolean;
@@ -681,6 +681,8 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneSh
   getAnalyser?: () => AnalyserNode | undefined;
   /** 본인 player 1인칭 카메라용 — humanoid char 로드 시 head bone 채워줌 */
   headBoneRef?: React.MutableRefObject<THREE.Object3D | null>;
+  /** 손 IK 타깃 ref (등반 grip) — 본인 player 만 전달. */
+  handTargetRef?: React.MutableRefObject<import('./HumanoidMesh').HandTargets>;
 }) {
   const modelUrl     = appearance.modelUrl as string | undefined;
   const userScale    = Number(appearance.scale ?? appearance.modelScale ?? 1.0) || 1.0;
@@ -702,6 +704,7 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneSh
         castShadow={castShadow}
         userScale={userScale}
         offsetY={offsetY}
+        handTargetRef={handTargetRef}
         onLoaded={headBoneRef ? (char) => { headBoneRef.current = char.bones.head ?? null; } : undefined}
       />
     );
@@ -1382,6 +1385,8 @@ export interface PlayerControl {
   setJumpEnabled: (on: boolean) => void;
   /** 달리기 가능 여부 — false 면 Shift 눌러도 달리기 속도 안 됨 (걷기로 제한). */
   setRunEnabled: (on: boolean) => void;
+  /** 손 IK 타깃 설정 — 손을 월드 좌표로 (등반 grip). xyz=null 이면 해제(애니 복귀). */
+  setHandTarget: (side: 'left' | 'right', x: number | null, y?: number, z?: number) => void;
 }
 
 /* ── 로컬 플레이어 컨트롤러 ─────────────── */
@@ -1490,6 +1495,7 @@ export function Player({
   const jumpEnabledRef  = useRef(true);         // world.setCanJump — 스태미나 소진 시 점프 차단
   const runEnabledRef   = useRef(true);         // world.setCanRun — 스태미나 소진 시 달리기 차단
   const mouseDownRef    = useRef(false);        // 좌클릭 누름 상태 (world.isMouseDown — 등반 grab 등)
+  const handTargetRef   = useRef<import('./HumanoidMesh').HandTargets>({ left: null, right: null });  // 손 IK 타깃 (등반 grip)
   const mesh      = useRef<THREE.Group>(null);
   /** humanoid char 로드 후 head bone — 1인칭 카메라 Y 추적용 */
   const headBoneRef = useRef<THREE.Object3D | null>(null);
@@ -1589,6 +1595,11 @@ export function Player({
       },
       setJumpEnabled: (on) => { jumpEnabledRef.current = !!on; },
       setRunEnabled:  (on) => { runEnabledRef.current = !!on; },
+      setHandTarget: (side, x, y, z) => {
+        const t = handTargetRef.current;
+        const v = (x == null) ? null : [Number(x) || 0, Number(y) || 0, Number(z) || 0] as [number, number, number];
+        if (side === 'left') t.left = v; else t.right = v;
+      },
     };
     return () => { if (playerCtlRef) playerCtlRef.current = null; };
   }, [playerCtlRef]);
@@ -2393,7 +2404,7 @@ export function Player({
       {/* 1인칭에서도 본인 메쉬 표시 — 아래 보면 다리/몸 보임.
           머리는 hideHead 로 본 스케일 0 / 블록 머리 미렌더 처리 */}
       <group ref={mesh} position={[0, PLAYER_MESH_Y, 0]}>
-        <CharacterMesh appearance={appearance} animStateRef={animStateRef} emoteOneShotOverride={emoteOneShotOverride} hideHead={hideHeadOverride ?? (cameraMode === 'first')} getAnalyser={getAnalyser} headBoneRef={headBoneRef} />
+        <CharacterMesh appearance={appearance} animStateRef={animStateRef} emoteOneShotOverride={emoteOneShotOverride} hideHead={hideHeadOverride ?? (cameraMode === 'first')} getAnalyser={getAnalyser} headBoneRef={headBoneRef} handTargetRef={handTargetRef} />
       </group>
       {bubble && (
         <Html position={[0, 1.95, 0]} center>
@@ -5049,6 +5060,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       getMoveInput: () => playerCtlRef.current?.getMoveInput() ?? { forward: false, backward: false, left: false, right: false, jump: false, sprint: false, mouseDown: false },
       setJumpEnabled: (on) => playerCtlRef.current?.setJumpEnabled(on),
       setRunEnabled: (on) => playerCtlRef.current?.setRunEnabled(on),
+      setHandTarget: (side, x, y, z) => playerCtlRef.current?.setHandTarget(side, x, y, z),
     };
 
     // 메인 스크립트 (obj.script) VM 생성

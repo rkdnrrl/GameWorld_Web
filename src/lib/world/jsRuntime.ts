@@ -935,6 +935,7 @@ export interface JsWorldAPI {
   getMoveInput?(): { forward: boolean; backward: boolean; left: boolean; right: boolean; jump: boolean; sprint: boolean; mouseDown: boolean };
   setJumpEnabled?(on: boolean): void;
   setRunEnabled?(on: boolean): void;
+  setHandTarget?(side: 'left' | 'right', x: number | null, y?: number, z?: number): void;
 }
 
 export interface JsNetAPI {
@@ -1116,6 +1117,14 @@ export class JsScript {
         // world.setCanJump(false) / world.setCanRun(false) — 스태미나 0 일 때 점프·달리기 차단
         setCanJump: (on: unknown) => worldApi.setJumpEnabled?.(!!on),
         setCanRun: (on: unknown) => worldApi.setRunEnabled?.(!!on),
+        // world.setHandTarget("left", x,y,z) — 손을 월드 좌표로 (등반 grip IK). xyz 생략/null 이면 해제.
+        setHandTarget: (side: unknown, x?: unknown, y?: unknown, z?: unknown) => {
+          const s = String(side) === 'right' ? 'right' : 'left';
+          if (x == null) worldApi.setHandTarget?.(s, null);
+          else worldApi.setHandTarget?.(s, Number(x) || 0, Number(y) || 0, Number(z) || 0);
+        },
+        // world.clearHandTarget("left") — 손 IK 해제 (애니 복귀)
+        clearHandTarget: (side: unknown) => worldApi.setHandTarget?.(String(side) === 'right' ? 'right' : 'left', null),
       };
       // world.time을 항상 최신 값으로 → getter처럼 동작
       Object.defineProperty(world, 'time', {

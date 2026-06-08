@@ -16,6 +16,10 @@ import { createHumanoidCharacter, type HumanoidCharacter } from '@/lib/character
 import { loadAnimationSource, retargetWithSkeletonUtils, normalizeClipToHumanoidNames, retargetClipToHumanoid, type AnimationSource } from '@/lib/character/humanoidAnimation';
 import { ANIM_SLOTS, ANIM_SLOT_LEGACY_ALIAS, type AnimSlot } from '@/lib/character/humanoid';
 import { createHumanoidFootIK, type HumanoidFootIK } from '@/lib/character/humanoidFootIK';
+import { createHumanoidHandIK, type HumanoidHandIK } from '@/lib/character/humanoidHandIK';
+
+/** 손 IK 타깃 ref 형태 — 스크립트(world.setHandTarget)가 채움. null=미적용. */
+export type HandTargets = { left: [number, number, number] | null; right: [number, number, number] | null };
 import { loadVRMA, vrmaToClip, vrmaToUniversalClip, fbxToVrmClip } from '@/lib/character/vrmAnimation';
 
 function getExt(url: string): string {
@@ -166,6 +170,8 @@ export interface HumanoidMeshProps {
   userScale?: number;
   /** 로드 완료 시 콜백 — character page 가 진단/매칭 결과 받음 */
   onLoaded?: (char: HumanoidCharacter) => void;
+  /** 손 IK 타깃 ref — 제공되면 매 프레임 손을 그 월드 좌표로 (등반 grip). null=미적용. */
+  handTargetRef?: React.MutableRefObject<HandTargets>;
 }
 
 /** 단일 캐시 — 같은 url 요청 중복 로드 방지. dispose 는 페이지 unmount 시 안 함 (캐시) */
@@ -183,7 +189,7 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
   const {
     url, manualBoneMap, clipUrls, animStateRef, getAnalyser,
     hideHead = false, castShadow = true, enableLookAt = true, enableFootIK = false,
-    targetHeight = 1.8, offsetY = 0, userScale = 1, onLoaded,
+    targetHeight = 1.8, offsetY = 0, userScale = 1, onLoaded, handTargetRef,
   } = props;
 
   const { gl, camera, scene } = useThree();
@@ -195,6 +201,9 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
   // char 가 바뀌면 (url 변경 등) compileReady reset → LoadingEffect 다시 표시
   useEffect(() => { if (!char) setCompileReady(false); }, [char]);
   const footIKRef = useRef<HumanoidFootIK | null>(null);
+  const handIKRef = useRef<HumanoidHandIK | null>(null);
+  const handTmpL = useRef(new THREE.Vector3());
+  const handTmpR = useRef(new THREE.Vector3());
   /** 캐릭터 인스턴스 추적 — 바뀌면 reset. */
   const lastCharForCrouchRef = useRef<HumanoidCharacter | null>(null);
   /** LOD frame counter — 거리별 mixer.update skip 용. */
@@ -506,6 +515,13 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     return () => { footIKRef.current = null; };
   }, [char, enableFootIK]);
 
+  // Hand IK — handTargetRef 제공 시 솔버 생성 (등반 grip 등 스크립트 제어).
+  useEffect(() => {
+    if (!char || !handTargetRef) { handIKRef.current = null; return; }
+    handIKRef.current = createHumanoidHandIK(char.bones);
+    return () => { handIKRef.current = null; };
+  }, [char, handTargetRef]);
+
   // analyser 매 frame buffer (성능)
   const lipSyncBuf = useMemo(() => new Uint8Array(32), []);
   // on-demand URL emote 로딩 추적 — 같은 URL 중복 로드 방지. (캐릭터당 1 set)
@@ -639,6 +655,14 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     //    hips position strip 만 신뢰. 떠/박힘은 운영자 페이지의 offsetY 슬라이더로 캐릭터별 조정.
     if (footIKRef.current?.enabled) {
       try { footIKRef.current.update(scene); } catch { /* noop — IK 실패해도 캐릭터는 계속 */ }
+    }
+    // 6) Hand IK — 스크립트가 setHandTarget 으로 넣은 손 타깃으로 팔 굽힘 (등반 grip). 애니 포즈 위에 덮어씀.
+    const hik = handIKRef.current;
+    if (hik?.enabled && handTargetRef) {
+      const t = handTargetRef.current;
+      hik.leftTarget  = t.left  ? handTmpL.current.set(t.left[0],  t.left[1],  t.left[2])  : null;
+      hik.rightTarget = t.right ? handTmpR.current.set(t.right[0], t.right[1], t.right[2]) : null;
+      if (hik.leftTarget || hik.rightTarget) { try { hik.update(); } catch { /* noop */ } }
     }
   });
 
