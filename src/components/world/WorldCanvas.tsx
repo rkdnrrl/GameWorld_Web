@@ -1588,6 +1588,8 @@ export function Player({
           let id: string | null = null;
           const hb = hit.collider?.parent();
           if (hb && scriptBodyRefs) for (const [oid, ref] of scriptBodyRefs.current) { if (ref.body.current === hb) { id = oid; break; } }
+          // scriptBodyRefs 미등록(복셀 청크·런타임 spawn 등) → rapier 바디 userData.objectId 폴백
+          if (!id && hb) { const ud = (hb as { userData?: { objectId?: string } }).userData; if (ud && typeof ud.objectId === 'string') id = ud.objectId; }
           return { hit: true, distance: d, x: hx, y: hy, z: hz, nx: n.x, ny: n.y, nz: n.z, id };
         } catch { return { hit: false, distance: 0, x: 0, y: 0, z: 0, nx: 0, ny: 0, nz: 0, id: null }; }
       },
@@ -1855,6 +1857,11 @@ export function Player({
               return true;
             }
           }
+        }
+        // 복셀 청크 등 scriptBodyRefs 미등록 바디 → rapier 바디 userData.objectId 로 클릭 대상 식별
+        if (hitBody) {
+          const ud = (hitBody as { userData?: { objectId?: string } }).userData;
+          if (ud && typeof ud.objectId === 'string') { onObjectClick?.(ud.objectId); return true; }
         }
       } catch { /* Rapier 초기화 중 무시 */ }
 
@@ -4893,8 +4900,11 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // 권위적으로 실행하고, 비호스트면 호스트로 전달(__click__)해 호스트가 실행 → broadcast.
   const handleObjectClick = useCallback((objId: string) => {
     triggerClickBurst(objId);
-    if (isHostRef.current) {
-      luaScripts.current.get(objId)?.callClick(playerId);
+    const vm = luaScripts.current.get(objId);
+    // LOCAL_PLAYER 스크립트는 각 클라가 본인 클릭을 로컬 실행(모든 유저가 각자 파기 등).
+    // 그 외(호스트 권위 스크립트)는 호스트만 실행, 비호스트는 호스트로 전달.
+    if (vm?.isLocalPlayer || isHostRef.current) {
+      vm?.callClick(playerId);
       componentScripts.current.get(objId)?.forEach(({ vm }) => vm.callClick(playerId));
     } else if (hostId) {
       sendScriptEvent?.(objId, '__click__', {}, hostId);
