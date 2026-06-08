@@ -21,6 +21,7 @@ import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
 import { CarvedMesh, type CsgCut } from '@/lib/world/CarvedMesh';
+import { VoxelTerrainMesh } from '@/lib/world/VoxelTerrainMesh';
 import { TerrainSculptMesh, type TerrainTool } from '@/lib/world/TerrainSculptMesh';
 import { makeFlatTerrain, generateNoiseTerrain, type TerrainData } from '@/lib/world/terrain';
 import { makeDefaultUiData, parseAiUiRoot, AI_UI_PROMPT_GUIDE, type UiElementType, type UiData, type RectTransform, type AiUiRoot } from '@/lib/world/uiObjects';
@@ -40,8 +41,8 @@ import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, computeBuoyanc
 import { sampleKeyframeAnim, normalizeKeyframeAnim, applySampledTRS, composeSampledWorld, type KeyframeAnim, type KeyFrame } from '@/lib/world/keyframeAnim';
 import { Player, type PlayerControl } from '@/components/world/WorldCanvas';
 
-const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', water: '물', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광', spawn: '스폰 포인트', empty: '빈 오브젝트' };
-const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲', pointlight: '💡', spotlight: '🔦', dirlight: '☀', spawn: '🎯', empty: '🔵' };
+const KIND_LABELS: Record<string, string> = { cube: '큐브', sphere: '구체', cylinder: '실린더', plane: '평면', water: '물', asset: '에셋', pointlight: '포인트 라이트', spotlight: '스폿 라이트', dirlight: '방향광', spawn: '스폰 포인트', empty: '빈 오브젝트', terrain: '지형', voxel: '복셀 지형' };
+const KIND_ICONS:  Record<string, string> = { cube: '📦', sphere: '⚪', cylinder: '🥫', plane: '▭', asset: '🎲', pointlight: '💡', spotlight: '🔦', dirlight: '☀', spawn: '🎯', empty: '🔵', terrain: '🗻', voxel: '⛏' };
 /** 레이어 0~9 색상 — 유니티 식 (0=Default, 1~9 사용자 레이어). 트리 배지 + 패널 색칠 공용. */
 const LAYER_COLORS: Record<number, string> = { 0: '#475569', 1: '#ef4444', 2: '#f97316', 3: '#eab308', 4: '#22c55e', 5: '#14b8a6', 6: '#3b82f6', 7: '#8b5cf6', 8: '#ec4899', 9: '#64748b' };
 
@@ -198,6 +199,8 @@ interface MapObject {
   terrain?: import('@/lib/world/terrain').TerrainData;
   // CSG 절삭 (kind === 'cube' 일 때) — 깎여서 구멍/홈 생김
   csgCuts?: import('@/lib/world/CarvedMesh').CsgCut[];
+  // 복셀 지형 (kind === 'voxel' 일 때) — 아스트로니어식 파기/쌓기
+  voxel?: import('@/lib/world/voxelVolume').VoxelVolumeData;
   // Sound 오브젝트 (kind === 'sound' 일 때만) — 위치 기반 사운드
   soundUrl?: string;        // 오디오 파일 URL
   soundVolume?: number;     // 0~1
@@ -1678,6 +1681,20 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false, scul
     );
   }
 
+  // 복셀 지형 (아스트로니어식) — 에디트 미리보기
+  if (obj.kind === 'voxel' && obj.voxel) {
+    return (
+      <group
+        position={noTransform ? undefined : obj.position}
+        rotation={noTransform ? undefined : obj.rotation}
+        scale={noTransform ? undefined : obj.scale}
+        onPointerDown={handle}
+        userData={noTransform ? undefined : { id: obj.id }}>
+        <VoxelTerrainMesh data={obj.voxel} color={obj.materialColor || obj.color || '#7a6b55'} castShadow receiveShadow />
+      </group>
+    );
+  }
+
   // CSG 깎인 큐브 — 구멍/홈 파인 메시 (에디트 미리보기)
   if (obj.kind === 'cube' && obj.csgCuts && obj.csgCuts.length > 0) {
     return (
@@ -2488,6 +2505,15 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
       <RigidBody ref={bodyRef} type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
         position={t.pos} rotation={[0, 0, 0]} scale={t.scl ?? obj.scale}>
         <TerrainMesh terrain={obj.terrain} castShadow={false} receiveShadow />
+      </RigidBody>
+    );
+  }
+  // 복셀 지형 (아스트로니어식) — 시뮬: trimesh 콜라이더로 걸어다님
+  if (obj.kind === 'voxel' && obj.voxel) {
+    return (
+      <RigidBody ref={bodyRef} type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
+        position={t.pos} rotation={t.rot ?? obj.rotation} scale={t.scl ?? obj.scale}>
+        <VoxelTerrainMesh data={obj.voxel} color={obj.materialColor || obj.color || '#7a6b55'} castShadow receiveShadow />
       </RigidBody>
     );
   }
@@ -5531,6 +5557,28 @@ export default function StudioCanvas() {
     setStudioMode('scene');
   }
 
+  // 복셀 지형 (아스트로니어식) — 파고/쌓을 수 있는 흙덩이. base: solid=바위, flat=평지, noise=언덕
+  function addVoxel(base: 'solid' | 'flat' | 'noise' = 'noise') {
+    const id = `voxel_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const size = 16;
+    const voxel: import('@/lib/world/voxelVolume').VoxelVolumeData = {
+      res: 32, size, seed: Math.floor(Math.random() * 1000), base,
+      ground: base === 'flat' || base === 'noise' ? -size * 0.15 : 0,
+      deforms: [],
+    };
+    setObjects(prev => {
+      const next: MapObject[] = [...prev, {
+        id, kind: 'voxel', label: tCanvas("default_label_voxel_terrain"),
+        position: [0, size / 2, 0], rotation: [0, 0, 0], scale: [1, 1, 1],
+        color: '#7a6b55', voxel,
+      }];
+      pushHistory(next);
+      return next;
+    });
+    setSelectedId(id);
+    setStudioMode('scene');
+  }
+
   function addEmpty() {
     const id = `obj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const label = makeLabel('empty');
@@ -7122,6 +7170,14 @@ export default function StudioCanvas() {
           <button onClick={() => addTerrain('noise')} title={tCanvas("tooltip_add_terrain_noise")}
             style={{ background: 'rgba(132,204,22,0.14)', border: '1px solid rgba(132,204,22,0.45)', borderRadius: 5, color: '#d9f99d', fontSize: 10, padding: '6px 4px', cursor: 'pointer', fontWeight: 700 }}>
             {tCanvas("btn_add_terrain_noise")}
+          </button>
+          <button onClick={() => addVoxel('noise')} title={tCanvas("tooltip_add_voxel")}
+            style={{ background: 'rgba(180,120,80,0.18)', border: '1px solid rgba(180,120,80,0.5)', borderRadius: 5, color: '#f0d0b0', fontSize: 10, padding: '6px 4px', cursor: 'pointer', fontWeight: 700 }}>
+            {tCanvas("btn_add_voxel")}
+          </button>
+          <button onClick={() => addVoxel('solid')} title={tCanvas("tooltip_add_voxel_rock")}
+            style={{ background: 'rgba(180,120,80,0.18)', border: '1px solid rgba(180,120,80,0.5)', borderRadius: 5, color: '#f0d0b0', fontSize: 10, padding: '6px 4px', cursor: 'pointer', fontWeight: 700 }}>
+            {tCanvas("btn_add_voxel_rock")}
           </button>
         </div>
         {/* 🌊 물(바다/호수) 추가 — 반투명 수면 + 웨이브 */}

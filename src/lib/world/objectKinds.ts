@@ -21,6 +21,8 @@ export const OBJECT_KINDS = [
   'spawn', 'empty', 'ui', 'terrain', 'sound',
   // 특수 시각 효과
   'water', 'portal', 'particle',
+  // 복셀 지형 (아스트로니어식 파기/쌓기)
+  'voxel',
 ] as const;
 
 export type ObjectKind = typeof OBJECT_KINDS[number];

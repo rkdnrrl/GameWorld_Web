@@ -50,6 +50,7 @@ import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
 import { generateNoiseTerrain } from '@/lib/world/terrain';
 import { CarvedMesh } from '@/lib/world/CarvedMesh';
+import { VoxelTerrainMesh } from '@/lib/world/VoxelTerrainMesh';
 import { computeBuoyancyVolumes, type BuoyancyVolume } from '@/lib/world/components';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
@@ -2751,6 +2752,8 @@ interface UserMapObject {
   terrain?: import('@/lib/world/terrain').TerrainData;
   /** CSG 절삭 목록 (kind === 'cube' 일 때) — 깎여서 구멍/홈 생김. */
   csgCuts?: import('@/lib/world/CarvedMesh').CsgCut[];
+  /** 복셀 지형 (kind === 'voxel' 일 때) — 아스트로니어식 파기/쌓기. */
+  voxel?: import('@/lib/world/voxelVolume').VoxelVolumeData;
   assetUrl?: string;
   position: [number, number, number];
   rotation: [number, number, number];
@@ -2953,6 +2956,15 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
       <RigidBody type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
         position={rPos} rotation={[0, 0, 0]} scale={rScale}>
         <TerrainMesh terrain={obj.terrain} castShadow={false} receiveShadow />
+      </RigidBody>
+    );
+  }
+  // 복셀 지형 (아스트로니어식) — 마칭큐브 메시 + trimesh 콜라이더. 걸어다님.
+  if (obj.kind === 'voxel' && obj.voxel) {
+    return (
+      <RigidBody type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
+        position={rPos} rotation={rRot} scale={rScale}>
+        <VoxelTerrainMesh data={obj.voxel} color={obj.materialColor || obj.color || '#7a6b55'} castShadow receiveShadow />
       </RigidBody>
     );
   }
