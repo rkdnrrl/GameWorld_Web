@@ -165,6 +165,7 @@ export async function loadHumanoid(url: string, opts: HumanoidLoadOptions = {}):
       const m = c as THREE.Mesh;
       if (!m.isMesh) return;
       m.castShadow = true;
+      m.receiveShadow = true;   // 그림자 받기 — 천장/벽이 방향광을 가리면 캐릭터도 어두워짐(밀폐 공간)
       const mats = Array.isArray(m.material) ? m.material : [m.material];
       const out = mats.map((mat) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -216,7 +217,7 @@ export async function loadHumanoid(url: string, opts: HumanoidLoadOptions = {}):
     });
     gltf.scene.traverse((c) => {
       const m = c as THREE.Mesh;
-      if (m.isMesh) { m.frustumCulled = false; m.castShadow = true; }
+      if (m.isMesh) { m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true; }
     });
     const { boneByName, morphTargets } = collectBonesAndMorphs(gltf.scene);
     const bones = buildBoneMap(boneByName, opts.manualBoneMap);
@@ -237,7 +238,7 @@ export async function loadHumanoid(url: string, opts: HumanoidLoadOptions = {}):
     });
     fbx.traverse((c) => {
       const m = c as THREE.Mesh;
-      if (m.isMesh) { m.frustumCulled = false; m.castShadow = true; }
+      if (m.isMesh) { m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true; }
     });
     const { boneByName, morphTargets } = collectBonesAndMorphs(fbx);
     const bones = buildBoneMap(boneByName, opts.manualBoneMap);
