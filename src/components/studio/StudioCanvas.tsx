@@ -2508,10 +2508,10 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
       </RigidBody>
     );
   }
-  // 복셀 지형 (아스트로니어식) — 시뮬: trimesh 콜라이더로 걸어다님
+  // 복셀 지형 (아스트로니어식) — 시뮬: trimesh 콜라이더로 걸어다님. 변형 수로 key → 콜라이더 재빌드
   if (obj.kind === 'voxel' && obj.voxel) {
     return (
-      <RigidBody ref={bodyRef} type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
+      <RigidBody key={`vox-${obj.id}-${obj.voxel.deforms.length}`} ref={bodyRef} type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
         position={t.pos} rotation={t.rot ?? obj.rotation} scale={t.scl ?? obj.scale}>
         <VoxelTerrainMesh data={obj.voxel} color={obj.materialColor || obj.color || '#7a6b55'} castShadow receiveShadow />
       </RigidBody>
@@ -2731,6 +2731,8 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
   const [runtimeObjects, setRuntimeObjects] = useState<MapObject[]>([]);
   // 런타임 깎기(world.carve) override — objectId → 절삭 목록. 저장본/런타임 둘 다 csgCuts 병합.
   const [simCarveOverrides, setSimCarveOverrides] = useState<Record<string, CsgCut[]>>({});
+  // 런타임 복셀 변형(world.dig/build) override — 시뮬용
+  const [simVoxelDeforms, setSimVoxelDeforms] = useState<Record<string, import('@/lib/world/voxelVolume').VoxelDeform[]>>({});
   const runtimeObjectsRef = useRef<MapObject[]>([]);
   useEffect(() => { runtimeObjectsRef.current = runtimeObjects; }, [runtimeObjects]);
   // ── 게임 컴포넌트 런타임 store (WorldCanvas 와 동일 패턴 — 시뮬에서도 작동) ──
@@ -2864,6 +2866,25 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
     setSimCarveOverrides(prev => ({ ...prev, [id]: [...(prev[id] || []), cut] }));
   }, []);
 
+  // 복셀 파기/쌓기 (시뮬) — 월드 좌표 → 복셀 로컬 변환 후 변형 추가
+  const digVoxel = useCallback((id: string, opts: { x?: number; y?: number; z?: number; r?: number; dig?: boolean }): void => {
+    if (!id) return;
+    const o = allObjectsRef.current.find(ob => ob.id === id && ob.kind === 'voxel');
+    if (!o || !o.voxel) return;
+    const r = Math.max(0.2, Number(opts.r) || 1.5);
+    const sx = o.scale[0] || 1, sy = o.scale[1] || 1, sz = o.scale[2] || 1;
+    const m = new THREE.Matrix4().compose(
+      new THREE.Vector3(o.position[0], o.position[1], o.position[2]),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(o.rotation[0], o.rotation[1], o.rotation[2])),
+      new THREE.Vector3(sx, sy, sz),
+    );
+    const p = new THREE.Vector3(Number(opts.x) || 0, Number(opts.y) || 0, Number(opts.z) || 0).applyMatrix4(m.invert());
+    const def: import('@/lib/world/voxelVolume').VoxelDeform = {
+      x: p.x, y: p.y, z: p.z, r: r / ((sx + sy + sz) / 3), dig: opts.dig !== false,
+    };
+    setSimVoxelDeforms(prev => ({ ...prev, [id]: [...(prev[id] || []), def] }));
+  }, []);
+
   const destroyObject = useCallback((id: string) => {
     setRuntimeObjects(prev => prev.filter(o => o.id !== id));
     scriptBodyRefs.current.delete(id);
@@ -2872,11 +2893,17 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
 
   // 렌더 대상: 원본 + 런타임 spawn된 것
   const allObjects = useMemo(() => {
-    const base = [...objects, ...runtimeObjects];
-    if (Object.keys(simCarveOverrides).length === 0) return base;
-    return base.map(o => simCarveOverrides[o.id]
-      ? { ...o, csgCuts: [...(o.csgCuts || []), ...simCarveOverrides[o.id]] } : o);
-  }, [objects, runtimeObjects, simCarveOverrides]);
+    let base = [...objects, ...runtimeObjects];
+    if (Object.keys(simCarveOverrides).length > 0) {
+      base = base.map(o => simCarveOverrides[o.id]
+        ? { ...o, csgCuts: [...(o.csgCuts || []), ...simCarveOverrides[o.id]] } : o);
+    }
+    if (Object.keys(simVoxelDeforms).length > 0) {
+      base = base.map(o => (o.voxel && simVoxelDeforms[o.id])
+        ? { ...o, voxel: { ...o.voxel, deforms: [...o.voxel.deforms, ...simVoxelDeforms[o.id]] } } : o);
+    }
+    return base;
+  }, [objects, runtimeObjects, simCarveOverrides, simVoxelDeforms]);
   // parent transform propagation 용 ref — useFrame 안에서 최신 list 접근
   const allObjectsRef = useRef<MapObject[]>([]);
   useEffect(() => { allObjectsRef.current = allObjects; }, [allObjects]);
@@ -3068,6 +3095,8 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
         },
         spawnTerrain: (params) => spawnTerrain(params),
         carve: (id, opts) => carveObject(id, opts),
+        dig: (id, opts) => digVoxel(id, { ...opts, dig: true }),
+        build: (id, opts) => digVoxel(id, { ...opts, dig: false }),
         // 스튜디오 시뮬은 단일 클라 — 본인 = 항상 호스트
         isHost: () => true,
         runtimeCount: () => runtimeObjectsRef.current.length,
@@ -3210,6 +3239,8 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
       },
       spawnTerrain: (params) => spawnTerrain(params),
         carve: (id, opts) => carveObject(id, opts),
+        dig: (id, opts) => digVoxel(id, { ...opts, dig: true }),
+        build: (id, opts) => digVoxel(id, { ...opts, dig: false }),
       isHost: () => true,
       runtimeCount: () => runtimeObjectsRef.current.length,
       teleportLocal: (x, y, z) => playerCtlRef.current?.teleport(x, y, z),

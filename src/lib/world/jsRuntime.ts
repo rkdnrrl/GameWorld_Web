@@ -913,6 +913,10 @@ export interface JsWorldAPI {
   spawnTerrain?(params: { seed?: number; size?: number; segments?: number; amplitude?: number; scale?: number; baseColor?: string; x?: number; y?: number; z?: number; id?: string }): string;
   /** 런타임 깎기 — 큐브(id)에 절삭 추가 + 멀티 동기화. pos 기본 로컬(-0.5~0.5), world=true 면 월드 좌표 변환. */
   carve?(id: string, opts: { shape?: 'box' | 'sphere' | 'cylinder'; x?: number; y?: number; z?: number; size?: number; world?: boolean }): void;
+  /** 복셀 지형 파기 — 월드 좌표(보통 raycast hit)에 구 모양으로 파기 + 멀티 동기화. */
+  dig?(id: string, opts: { x?: number; y?: number; z?: number; r?: number }): void;
+  /** 복셀 지형 쌓기 — 월드 좌표에 흙/돌 채우기 + 멀티 동기화. */
+  build?(id: string, opts: { x?: number; y?: number; z?: number; r?: number }): void;
   /** 본인이 호스트(가장 일찍 입장한 활성 플레이어)인지. 스튜디오 시뮬에선 항상 true. */
   isHost?(): boolean;
   /** 현재 씬에 있는 런타임(spawn) 오브젝트 개수 — "이미 spawn 됐는지" 가드로 사용. */
@@ -1101,6 +1105,23 @@ export class JsScript {
             z: o.z != null ? Number(o.z) : undefined,
             size: o.size != null ? Number(o.size) : undefined,
             world: o.world === true,
+          });
+        },
+        // world.dig("ground1", { x:hit.x, y:hit.y, z:hit.z, r:1.5 }) — 복셀 지형 파기(아스트로니어식).
+        // 보통 raycast hit 좌표를 그대로 넘김. r=구 반경. 멀티 동기화·콜라이더 재빌드.
+        dig: (id: unknown, opts?: Record<string, unknown>) => {
+          const o = (opts && typeof opts === 'object') ? opts : {};
+          worldApi.dig?.(String(id), {
+            x: o.x != null ? Number(o.x) : undefined, y: o.y != null ? Number(o.y) : undefined,
+            z: o.z != null ? Number(o.z) : undefined, r: o.r != null ? Number(o.r) : undefined,
+          });
+        },
+        // world.build("ground1", { x, y, z, r }) — 복셀 지형에 흙/돌 쌓기.
+        build: (id: unknown, opts?: Record<string, unknown>) => {
+          const o = (opts && typeof opts === 'object') ? opts : {};
+          worldApi.build?.(String(id), {
+            x: o.x != null ? Number(o.x) : undefined, y: o.y != null ? Number(o.y) : undefined,
+            z: o.z != null ? Number(o.z) : undefined, r: o.r != null ? Number(o.r) : undefined,
           });
         },
         // 본인이 호스트인지 — 멀티에서 중복 spawn/sound 등 방지용
