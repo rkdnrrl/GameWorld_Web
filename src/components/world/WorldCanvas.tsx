@@ -2142,7 +2142,7 @@ export function Player({
         }
         // 몸 기울이기 (world.setBodyTilt) — 등반 시 벽 기울기만큼 lean. pitch=앞뒤, roll=좌우.
         const tt = bodyTiltRef.current;
-        const k = Math.min(1, 10 * dt);
+        const k = Math.min(1, 20 * dt);   // 빠른 추적 — 벽 기울기에 바로 붙음
         mesh.current.rotation.x += (tt.pitch - mesh.current.rotation.x) * k;
         mesh.current.rotation.z += (tt.roll  - mesh.current.rotation.z) * k;
       }
