@@ -7,7 +7,7 @@
  * 로컬 좌표: 볼륨 중심이 원점(0,0,0). 범위 [-half, +half], half = size/2.
  */
 
-import { marchingCubes, type MarchResult } from './marchingCubes';
+import { marchingCubes, type MarchResult, type CellBounds } from './marchingCubes';
 
 /** 파기/쌓기 편집 1개 — 볼륨 로컬 좌표(중심 0) 기준 구. */
 export interface VoxelDeform {
@@ -108,12 +108,12 @@ export function createField(data: VoxelVolumeData): Float32Array {
   return field;
 }
 
-/** 밀도장 → 월드 스케일·중심 정렬된 삼각 메시 정점. */
-export function fieldToGeometry(field: Float32Array, data: VoxelVolumeData): MarchResult {
+/** 밀도장 → 월드 스케일·중심 정렬된 삼각 메시 정점. bounds 주면 그 셀 영역만(청크). */
+export function fieldToGeometry(field: Float32Array, data: VoxelVolumeData, bounds?: CellBounds): MarchResult {
   const n = data.res + 1;
   const vs = data.size / data.res;
   const half = data.size / 2;
-  const mc = marchingCubes(field, n, n, n, 0);
+  const mc = marchingCubes(field, n, n, n, 0, bounds);
   // marchingCubes 정점은 격자 인덱스 단위 → voxelSize 스케일 + 중심 정렬
   const p = mc.positions;
   for (let i = 0; i < p.length; i += 3) {
@@ -122,4 +122,18 @@ export function fieldToGeometry(field: Float32Array, data: VoxelVolumeData): Mar
     p[i + 2] = p[i + 2] * vs - half;
   }
   return mc;
+}
+
+/** 변형(구)이 영향을 주는 셀 인덱스 범위(AABB). 청크 dirty 판정용. */
+export function deformCellRange(data: VoxelVolumeData, d: VoxelDeform): CellBounds {
+  const vs = data.size / data.res;
+  const half = data.size / 2;
+  const toIdx = (c: number) => (c + half) / vs;
+  const cx = toIdx(d.x), cy = toIdx(d.y), cz = toIdx(d.z);
+  const ri = d.r / vs + 1;
+  return {
+    x0: Math.floor(cx - ri), x1: Math.ceil(cx + ri),
+    y0: Math.floor(cy - ri), y1: Math.ceil(cy + ri),
+    z0: Math.floor(cz - ri), z1: Math.ceil(cz + ri),
+  };
 }

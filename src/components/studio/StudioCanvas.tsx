@@ -22,6 +22,7 @@ import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
 import { CarvedMesh, type CsgCut } from '@/lib/world/CarvedMesh';
 import { VoxelTerrainMesh } from '@/lib/world/VoxelTerrainMesh';
+import { ChunkedVoxelTerrain } from '@/lib/world/ChunkedVoxelTerrain';
 import { TerrainSculptMesh, type TerrainTool } from '@/lib/world/TerrainSculptMesh';
 import { makeFlatTerrain, generateNoiseTerrain, type TerrainData } from '@/lib/world/terrain';
 import { makeDefaultUiData, parseAiUiRoot, AI_UI_PROMPT_GUIDE, type UiElementType, type UiData, type RectTransform, type AiUiRoot } from '@/lib/world/uiObjects';
@@ -2508,13 +2509,12 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
       </RigidBody>
     );
   }
-  // 복셀 지형 (아스트로니어식) — 시뮬: trimesh 콜라이더로 걸어다님. 변형 수로 key → 콜라이더 재빌드
+  // 복셀 지형 (아스트로니어식) — 시뮬: 청크별 trimesh 콜라이더. 파기 시 닿은 청크만 재빌드.
   if (obj.kind === 'voxel' && obj.voxel) {
     return (
-      <RigidBody key={`vox-${obj.id}-${obj.voxel.deforms.length}`} ref={bodyRef} type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
-        position={t.pos} rotation={t.rot ?? obj.rotation} scale={t.scl ?? obj.scale}>
-        <VoxelTerrainMesh data={obj.voxel} color={obj.materialColor || obj.color || '#7a6b55'} castShadow receiveShadow />
-      </RigidBody>
+      <ChunkedVoxelTerrain objectId={obj.id} data={obj.voxel}
+        position={t.pos} rotation={t.rot ?? obj.rotation} scale={t.scl ?? obj.scale}
+        color={obj.materialColor || obj.color || '#7a6b55'} />
     );
   }
 

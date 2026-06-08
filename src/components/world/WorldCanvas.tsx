@@ -50,7 +50,7 @@ import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
 import { generateNoiseTerrain } from '@/lib/world/terrain';
 import { CarvedMesh } from '@/lib/world/CarvedMesh';
-import { VoxelTerrainMesh } from '@/lib/world/VoxelTerrainMesh';
+import { ChunkedVoxelTerrain } from '@/lib/world/ChunkedVoxelTerrain';
 import { computeBuoyancyVolumes, type BuoyancyVolume } from '@/lib/world/components';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
@@ -2959,14 +2959,12 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
       </RigidBody>
     );
   }
-  // 복셀 지형 (아스트로니어식) — 마칭큐브 메시 + trimesh 콜라이더. 걸어다님.
-  // key 에 변형 수 포함 → 파기/쌓기마다 RigidBody remount 로 trimesh 콜라이더 재빌드.
+  // 복셀 지형 (아스트로니어식) — 청크별 마칭큐브 메시 + trimesh 콜라이더. 파기 시 닿은 청크만 재빌드.
   if (obj.kind === 'voxel' && obj.voxel) {
     return (
-      <RigidBody key={`vox-${obj.id}-${obj.voxel.deforms.length}`} type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
-        position={rPos} rotation={rRot} scale={rScale}>
-        <VoxelTerrainMesh data={obj.voxel} color={obj.materialColor || obj.color || '#7a6b55'} castShadow receiveShadow />
-      </RigidBody>
+      <ChunkedVoxelTerrain objectId={obj.id} data={obj.voxel}
+        position={rPos} rotation={rRot} scale={rScale}
+        color={obj.materialColor || obj.color || '#7a6b55'} />
     );
   }
   // CSG 깎인 큐브 — 구멍/홈 파인 메시 + trimesh 콜라이더 (깎인 모양대로 충돌). 정적 권장.

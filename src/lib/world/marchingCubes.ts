@@ -82,19 +82,25 @@ export interface MarchResult {
   count: number;             // 정점 개수
 }
 
+/** 메시화할 셀 영역 (반열린 [x0,x1) 등). 청크 부분 재메시용. 셀 i 는 샘플 i,i+1 사용 → x1 ≤ nx-1. */
+export interface CellBounds { x0: number; y0: number; z0: number; x1: number; y1: number; z1: number; }
+
 /**
  * 밀도장(field) → iso-surface 삼각 메시 정점.
  * field 길이 = nx*ny*nz. 셀은 (nx-1)*(ny-1)*(nz-1). 좌표는 격자 인덱스 단위(0..n-1).
- * 호출부에서 voxelSize/origin 으로 스케일·이동.
+ * 호출부에서 voxelSize/origin 으로 스케일·이동. bounds 주면 그 셀 영역만 메시화(청크).
  */
-export function marchingCubes(field: Float32Array, nx: number, ny: number, nz: number, iso = 0): MarchResult {
+export function marchingCubes(field: Float32Array, nx: number, ny: number, nz: number, iso = 0, bounds?: CellBounds): MarchResult {
   const out: number[] = [];
   const at = (x: number, y: number, z: number) => field[x + y * nx + z * nx * ny];
   const edgeV: number[] = new Array(36); // 12 모서리 × xyz
+  const x0 = bounds ? Math.max(0, bounds.x0) : 0, x1 = bounds ? Math.min(nx - 1, bounds.x1) : nx - 1;
+  const y0 = bounds ? Math.max(0, bounds.y0) : 0, y1 = bounds ? Math.min(ny - 1, bounds.y1) : ny - 1;
+  const z0 = bounds ? Math.max(0, bounds.z0) : 0, z1 = bounds ? Math.min(nz - 1, bounds.z1) : nz - 1;
 
-  for (let z = 0; z < nz - 1; z++) {
-    for (let y = 0; y < ny - 1; y++) {
-      for (let x = 0; x < nx - 1; x++) {
+  for (let z = z0; z < z1; z++) {
+    for (let y = y0; y < y1; y++) {
+      for (let x = x0; x < x1; x++) {
         // 8 코너 밀도 + cubeindex
         let cubeIndex = 0;
         const val: number[] = new Array(8);
