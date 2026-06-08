@@ -1381,6 +1381,8 @@ export interface PlayerControl {
     { hit: boolean; distance: number; x: number; y: number; z: number; nx: number; ny: number; nz: number; id: string | null };
   /** 현재 이동 입력(WASD/방향키/모바일 조이스틱/점프/좌클릭). 등반 등에서 "전진키 눌렀나"·"좌클릭 중인가" 판정용. */
   getMoveInput: () => { forward: boolean; backward: boolean; left: boolean; right: boolean; jump: boolean; sprint: boolean; mouseDown: boolean };
+  /** 현재 눌린 키 코드 집합 (예: 'KeyE','KeyF','Digit1'). 상호작용·손전등·핫바 등 스크립트 입력용. */
+  getKeys: () => string[];
   /** 점프 가능 여부 — false 면 Space 눌러도 점프 안 됨 (스태미나 소진 등). */
   setJumpEnabled: (on: boolean) => void;
   /** 달리기 가능 여부 — false 면 Shift 눌러도 달리기 속도 안 됨 (걷기로 제한). */
@@ -1597,6 +1599,7 @@ export function Player({
           mouseDown: mouseDownRef.current,
         };
       },
+      getKeys: () => Array.from(keys.current),
       setJumpEnabled: (on) => { jumpEnabledRef.current = !!on; },
       setRunEnabled:  (on) => { runEnabledRef.current = !!on; },
       setHandTarget: (side, x, y, z, nx, ny, nz) => {
@@ -5096,6 +5099,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       getCameraDir: () => playerCtlRef.current?.getCameraDir() ?? { x: 0, y: 0, z: -1 },
       raycast: (ox, oy, oz, dx, dy, dz, maxDist) => playerCtlRef.current?.raycast(ox, oy, oz, dx, dy, dz, maxDist) ?? { hit: false, distance: 0, x: 0, y: 0, z: 0, nx: 0, ny: 0, nz: 0, id: null },
       getMoveInput: () => playerCtlRef.current?.getMoveInput() ?? { forward: false, backward: false, left: false, right: false, jump: false, sprint: false, mouseDown: false },
+      getKeys: () => playerCtlRef.current?.getKeys() ?? [],
       setJumpEnabled: (on) => playerCtlRef.current?.setJumpEnabled(on),
       setRunEnabled: (on) => playerCtlRef.current?.setRunEnabled(on),
       setHandTarget: (side, x, y, z, nx, ny, nz) => playerCtlRef.current?.setHandTarget(side, x, y, z, nx, ny, nz),
