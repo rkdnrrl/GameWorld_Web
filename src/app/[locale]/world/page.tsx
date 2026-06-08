@@ -53,11 +53,14 @@ export default function WorldPage() {
   const tg = useTranslations('Games');
   const th = useTranslations('Header');
   const tw = useTranslations('Worlds');
+  const ts = useTranslations('Session');
+  const [inviteCopied, setInviteCopied] = useState(false);
   const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const worldIdParam = searchParams.get('id');
   const sessionIdParam = searchParams.get('s'); // 세션 id — 같은 worldId 안의 분리된 DO 인스턴스
+  const isPrivateParam = searchParams.get('p') === '1'; // 비공개 세션 — 공개 목록에 안 뜸 (코드/링크로만)
   const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
   // 운영자가 지정한 홈허브 worldId. undefined = 로딩 중, null = 미지정, string = 홈허브 id.
@@ -485,6 +488,7 @@ export default function WorldPage() {
   const { players, posesRef, chatLog, chatBubbles, connected, sendMove, sendChat, sendScriptEvent, sendObjectStates, sendObjClaim, sendObjRelease, sendObjSpawn, sendObjDestroy, sendSceneRegister, hostId, socketRef } = useGameSocket({
     worldId: worldSocketKey,
     sessionId: effectiveSessionId || 'pending',
+    isPrivate: isPrivateParam && !isPersonalMode,   // 비공개 세션만 (개인 홈허브 제외)
     playerId: userId,
     username,
     character: character ?? {},
@@ -927,16 +931,39 @@ export default function WorldPage() {
 
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+      {/* 비공개 세션 — 초대 링크 복사 버튼 (호스트/참가자 모두, 친구 초대용) */}
+      {isPrivateParam && !isPersonalMode && effectiveSessionId && (
+        <button
+          type="button"
+          onClick={() => {
+            try {
+              navigator.clipboard.writeText(window.location.href);
+              setInviteCopied(true);
+              setTimeout(() => setInviteCopied(false), 2000);
+            } catch { /* clipboard 차단 환경 — 무시 */ }
+          }}
+          style={{
+            position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 9000, padding: '7px 14px', borderRadius: 999,
+            background: inviteCopied ? 'rgba(34,197,94,0.9)' : 'rgba(99,102,241,0.9)',
+            border: '1px solid rgba(255,255,255,0.25)', color: '#fff',
+            fontSize: 12, fontWeight: 700, cursor: 'pointer', backdropFilter: 'blur(6px)',
+          }}
+        >
+          🔒 {inviteCopied ? ts('inviteCopied') : ts('inviteCopy', { code: effectiveSessionId })}
+        </button>
+      )}
       {showSessionPicker && (
         <SessionPicker
           worldId={effectiveWorldId!}
           worldName={worldName}
           maxPlayersDefault={worldMaxPlayers}
-          onPick={(sid) => {
+          onPick={(sid, opts) => {
             // URL 갱신 + 풀 리로드. next-intl router 의 query string 갱신이 불완전해서
             // useSearchParams 가 안 바뀌는 케이스 있음 → location.assign 으로 확실히 reconnect.
             const url = new URL(window.location.href);
             url.searchParams.set('s', sid);
+            if (opts?.private) url.searchParams.set('p', '1'); else url.searchParams.delete('p');
             window.location.assign(url.toString());
           }}
         />
@@ -948,13 +975,14 @@ export default function WorldPage() {
           worldName={pickerForWorld.name}
           maxPlayersDefault={50}
           onClose={() => setPickerForWorld(null)}
-          onPick={(sid) => {
+          onPick={(sid, opts) => {
             // 현재 맵+현재 세션과 동일하면 리로드 없이 닫기만.
             if (pickerForWorld.id === (worldIdParam || '') && sid === effectiveSessionId) {
               setPickerForWorld(null);
               return;
             }
-            window.location.assign(`/${locale}/world?id=${encodeURIComponent(pickerForWorld.id)}&s=${encodeURIComponent(sid)}`);
+            const priv = opts?.private ? '&p=1' : '';
+            window.location.assign(`/${locale}/world?id=${encodeURIComponent(pickerForWorld.id)}&s=${encodeURIComponent(sid)}${priv}`);
           }}
         />
       )}

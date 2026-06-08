@@ -18,7 +18,7 @@ interface Props {
   worldId:    string;
   worldName?: string;
   maxPlayersDefault?: number;
-  onPick: (sessionId: string) => void;
+  onPick: (sessionId: string, opts?: { private?: boolean }) => void;
   onClose?: () => void;
 }
 
@@ -41,9 +41,17 @@ export default function SessionPicker({ worldId, worldName, maxPlayersDefault = 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [worldId]);
 
+  const [code, setCode] = useState('');
+
   const createNew = () => {
-    const id = generateSessionId();
-    onPick(id);
+    onPick(generateSessionId());
+  };
+  const createPrivate = () => {
+    onPick(generateSessionId(), { private: true });
+  };
+  const joinByCode = () => {
+    const c = code.trim().toUpperCase();
+    if (c) onPick(c);
   };
 
   return (
@@ -71,20 +79,65 @@ export default function SessionPicker({ worldId, worldName, maxPlayersDefault = 
           <div style={{ fontSize: 12, opacity: 0.6, marginTop: 2 }}>{t('subtitle')}</div>
         </div>
 
-        {/* 새 세션 만들기 */}
-        <div style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <button
-            type="button"
-            onClick={createNew}
-            style={{
-              width: '100%', padding: '11px 14px', borderRadius: 10,
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-              border: 'none', color: '#fff',
-              fontSize: 14, fontWeight: 700, cursor: 'pointer',
-            }}
-          >
-            ✨ {t('createNew')}
-          </button>
+        {/* 새 세션 만들기 (공개 / 비공개) */}
+        <div style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={createNew}
+              style={{
+                flex: 1, padding: '11px 14px', borderRadius: 10,
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                border: 'none', color: '#fff',
+                fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              ✨ {t('createNew')}
+            </button>
+            <button
+              type="button"
+              onClick={createPrivate}
+              title={t('privateHint')}
+              style={{
+                flex: 1, padding: '11px 14px', borderRadius: 10,
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.16)', color: '#fff',
+                fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              🔒 {t('createPrivate')}
+            </button>
+          </div>
+
+          {/* 코드로 참가 (초대받은 사람) */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              value={code}
+              onChange={e => setCode(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') joinByCode(); }}
+              placeholder={t('codePlaceholder')}
+              maxLength={6}
+              style={{
+                flex: 1, padding: '9px 12px', borderRadius: 8,
+                background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.14)',
+                color: '#fff', fontSize: 14, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase',
+              }}
+            />
+            <button
+              type="button"
+              onClick={joinByCode}
+              disabled={!code.trim()}
+              style={{
+                padding: '9px 16px', borderRadius: 8,
+                background: code.trim() ? 'rgba(99,102,241,0.85)' : 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.14)', color: '#fff',
+                fontSize: 13, fontWeight: 700, cursor: code.trim() ? 'pointer' : 'not-allowed',
+                opacity: code.trim() ? 1 : 0.5, whiteSpace: 'nowrap',
+              }}
+            >
+              {t('joinByCode')}
+            </button>
+          </div>
         </div>
 
         {/* 세션 리스트 */}

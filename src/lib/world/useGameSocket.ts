@@ -89,6 +89,8 @@ interface Options {
   worldId: string;
   /** 같은 worldId 안에서 분리된 세션 (DO 인스턴스). 미지정 시 "main" */
   sessionId?: string;
+  /** 비공개 세션 — 공개 목록에서 제외 (코드/링크 아는 사람만 참가) */
+  isPrivate?: boolean;
   playerId: string;
   username: string;
   character: Record<string, unknown>;
@@ -106,7 +108,7 @@ interface Options {
   onObjSpawnRejected?: (reason: string, id?: string) => void;
 }
 
-export function useGameSocket({ worldId, sessionId = 'main', playerId, username, character, enabled, onScriptEvent, onObjectStates, onObjectOwnership, onObjSpawn, onObjDestroy, onSceneSnapshot, onObjSpawnRejected }: Options) {
+export function useGameSocket({ worldId, sessionId = 'main', isPrivate = false, playerId, username, character, enabled, onScriptEvent, onObjectStates, onObjectOwnership, onObjSpawn, onObjDestroy, onSceneSnapshot, onObjSpawnRejected }: Options) {
   const onScriptEventRef     = useRef(onScriptEvent);
   const onObjectStatesRef    = useRef(onObjectStates);
   const onObjectOwnershipRef = useRef(onObjectOwnership);
@@ -140,7 +142,7 @@ export function useGameSocket({ worldId, sessionId = 'main', playerId, username,
       try { ws.current.close(); } catch {}
     }
 
-    const sock = new WebSocket(`${wsBase}/_alp/world-ws?worldId=${encodeURIComponent(worldId)}&sessionId=${encodeURIComponent(sessionId)}`);
+    const sock = new WebSocket(`${wsBase}/_alp/world-ws?worldId=${encodeURIComponent(worldId)}&sessionId=${encodeURIComponent(sessionId)}${isPrivate ? '&private=1' : ''}`);
     ws.current = sock;
 
     sock.onopen = () => {
@@ -276,7 +278,7 @@ export function useGameSocket({ worldId, sessionId = 'main', playerId, username,
       if (mySessionId !== sessionIdRef.current) return;
       sock.close();
     };
-  }, [worldId, sessionId, playerId, username, character, enabled]);
+  }, [worldId, sessionId, isPrivate, playerId, username, character, enabled]);
 
   useEffect(() => {
     sessionIdRef.current += 1;
