@@ -2276,7 +2276,8 @@ export function Player({
           const fdx = Math.sin(rotY), fdz = Math.cos(rotY);
           const wray = new rapier.Ray({ x: headPos.x, y: headPos.y, z: headPos.z }, { x: fdx, y: 0, z: fdz });
           const wh = rWorld.castRay(wray, 0.5, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, body.current ?? undefined);
-          if (wh) fwdOff = Math.max(0, Math.min(0.15, wh.timeOfImpact - 0.17 - 0.06));   // near + 여유
+          // 벽 거리 - near(0.17) - 여유(0.12). 벽이 아주 가까우면 음수(카메라 뒤로 당김)까지 허용.
+          if (wh) fwdOff = Math.max(-0.25, Math.min(0.15, wh.timeOfImpact - 0.17 - 0.12));
         } catch { /* noop */ }
         camX = headPos.x + Math.sin(rotY) * fwdOff;
         camY = headPos.y + 0.05;
