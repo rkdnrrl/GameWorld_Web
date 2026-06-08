@@ -571,7 +571,12 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
       if (_cullVec.distanceToSquared(cam) > SKIN_UPDATE_DIST2) skipMixer = true;
     }
     if (!skipMixer) mixer.current.update(dt);
-    // 머리 mesh 는 카메라 위치 자체가 head bone 안쪽이라 자연 face-cull. scale 0 처리 안 함.
+    // 1인칭(hideHead) — 머리뼈를 0 으로 스케일해 머리/머리카락 확실히 숨김.
+    // (카메라가 벽 근접으로 머리 뒤까지 당겨져도 머리 geometry 가 없어 안 보임. 뼈 원점은 그대로라 카메라 위치 영향 X.)
+    if (headBone.current) {
+      if (hideHead) { if (headBone.current.scale.x > 0.5) headBone.current.scale.setScalar(0.0001); }
+      else if (headBone.current.scale.x < 0.5) headBone.current.scale.setScalar(1);
+    }
     // 발 위치 자동 보정 — smooth (30%) 추적 + parent scale 보정 (drift world units → local units).
     if (footBones.current.length && obj && !skipMixer) {
       const root = obj as THREE.Object3D;
