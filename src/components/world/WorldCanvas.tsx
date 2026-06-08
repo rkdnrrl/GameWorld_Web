@@ -1360,6 +1360,22 @@ export interface PlayerControl {
   setJump: (power: number) => void;
   /** 이모트(커스텀 애니메이션) 재생. slot=null 이면 해제(idle 복귀). durationSec 주면 그 후 자동 해제. */
   setEmote: (slot: string | null, durationSec?: number) => void;
+  // ── 직접 제어 API (등반·제트팩·그래플 등 유저 스크립트용) ──
+  /** 수동 제어 모드 — true 면 엔진의 WASD/점프/중력 이동을 멈추고 스크립트가 setVelocity 로 직접 구동. */
+  setManualControl: (on: boolean) => void;
+  /** 플레이어 속도 설정 (m/s). 수동 모드에서 매 프레임 호출해 등반 등 구현. */
+  setVelocity: (x: number, y: number, z: number) => void;
+  /** 현재 플레이어 속도. */
+  getVelocity: () => { x: number; y: number; z: number };
+  /** 중력 on/off (벽에 붙어 있을 때 off). */
+  setGravityEnabled: (on: boolean) => void;
+  /** 발이 땅(또는 표면)에 닿아 있는지. */
+  isGrounded: () => boolean;
+  /** 카메라(시선) 정면 방향 단위벡터. */
+  getCameraDir: () => { x: number; y: number; z: number };
+  /** 레이캐스트 — (ox,oy,oz)에서 (dx,dy,dz) 방향으로 maxDist 까지. 벽/등반표면 감지용. */
+  raycast: (ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxDist: number) =>
+    { hit: boolean; distance: number; x: number; y: number; z: number; id: string | null };
 }
 
 /* ── 로컬 플레이어 컨트롤러 ─────────────── */
@@ -1463,6 +1479,8 @@ export function Player({
   const body      = useRef<any>(null);
   const speedMulRef     = useRef(1);            // world.setSpeed — 이동 속도 배수
   const jumpOverrideRef = useRef<number | null>(null);  // world.setJump — 점프력 덮어쓰기 (null=맵 기본)
+  const manualMoveRef   = useRef(false);        // world.setControl('manual') — 스크립트 직접 제어 모드
+  const groundedRef     = useRef(false);        // 매 프레임 접지 여부 (world.isGrounded)
   const mesh      = useRef<THREE.Group>(null);
   /** humanoid char 로드 후 head bone — 1인칭 카메라 Y 추적용 */
   const headBoneRef = useRef<THREE.Object3D | null>(null);
@@ -1501,6 +1519,36 @@ export function Player({
         if (slot && durationSec && durationSec > 0) {
           emoteTimerRef.current = setTimeout(() => { emoteSlotRef.current = null; emoteTimerRef.current = null; }, durationSec * 1000);
         }
+      },
+      setManualControl: (on: boolean) => {
+        manualMoveRef.current = !!on;
+        if (!on) { try { body.current?.setGravityScale(1, true); } catch { /* noop */ } }
+      },
+      setVelocity: (x: number, y: number, z: number) => {
+        try { body.current?.setLinvel({ x: Number(x) || 0, y: Number(y) || 0, z: Number(z) || 0 }, true); } catch { /* noop */ }
+      },
+      getVelocity: () => { try { const v = body.current?.linvel(); return v ? { x: v.x, y: v.y, z: v.z } : { x: 0, y: 0, z: 0 }; } catch { return { x: 0, y: 0, z: 0 }; } },
+      setGravityEnabled: (on: boolean) => { try { body.current?.setGravityScale(on ? 1 : 0, true); } catch { /* noop */ } },
+      isGrounded: () => groundedRef.current,
+      getCameraDir: () => {
+        const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
+        const fy = -Math.sin(_mob.camV);
+        const fz = -Math.cos(_mob.camH) * Math.cos(_mob.camV);
+        return { x: fx, y: fy, z: fz };
+      },
+      raycast: (ox, oy, oz, dx, dy, dz, maxDist) => {
+        try {
+          const len = Math.hypot(dx, dy, dz) || 1;
+          const ray = new rapier.Ray({ x: ox, y: oy, z: oz }, { x: dx / len, y: dy / len, z: dz / len });
+          const hit = rWorld.castRay(ray, Math.max(0.01, maxDist), true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, body.current ?? undefined);
+          if (!hit) return { hit: false, distance: 0, x: 0, y: 0, z: 0, id: null };
+          const d = hit.timeOfImpact;
+          const hx = ox + (dx / len) * d, hy = oy + (dy / len) * d, hz = oz + (dz / len) * d;
+          let id: string | null = null;
+          const hb = hit.collider?.parent();
+          if (hb && scriptBodyRefs) for (const [oid, ref] of scriptBodyRefs.current) { if (ref.body.current === hb) { id = oid; break; } }
+          return { hit: true, distance: d, x: hx, y: hy, z: hz, id };
+        } catch { return { hit: false, distance: 0, x: 0, y: 0, z: 0, id: null }; }
       },
     };
     return () => { if (playerCtlRef) playerCtlRef.current = null; };
@@ -1890,11 +1938,12 @@ export function Player({
 
       const len = Math.sqrt(mx * mx + mz * mz);
       if (len > 0) { mx /= len; mz /= len; }
-      body.current.setLinvel({ x: mx * SPEED, y: vel.y, z: mz * SPEED }, true);
+      // 수동 제어 모드(world.setControl('manual')) — 스크립트가 setVelocity 로 직접 구동. 엔진 walk 속도 skip.
+      if (!manualMoveRef.current) body.current.setLinvel({ x: mx * SPEED, y: vel.y, z: mz * SPEED }, true);
 
-      // ── 부력 (물에 뜨기 / 자유 수영) ──
+      // ── 부력 (물에 뜨기 / 자유 수영) ── 수동 모드면 skip (스크립트가 제어)
       let inBuoyancy = false;
-      const bvs = buoyancyRef?.current;
+      const bvs = manualMoveRef.current ? null : buoyancyRef?.current;
       if (bvs && bvs.length) {
         const wt = rtState.clock.elapsedTime;   // WaterMesh 와 동일 시계 (위상 일치)
         for (let bi = 0; bi < bvs.length; bi++) {
@@ -1989,12 +2038,13 @@ export function Player({
       const ray = new rapier.Ray({ x: posT.x, y: posT.y, z: posT.z }, { x: 0, y: -1, z: 0 });
       const hit = rWorld.castRay(ray, 1.3, true, undefined, undefined, undefined, body.current ?? undefined);
       const onGround = !!(hit && hit.timeOfImpact < 0.7);
+      groundedRef.current = onGround;   // world.isGrounded() 용
 
-      // 점프: Space가 새로 눌렸을 때만 1번 (앉기/엎드리기 중엔 점프 금지)
+      // 점프: Space가 새로 눌렸을 때만 1번 (앉기/엎드리기 중엔 점프 금지). 수동 모드면 엔진 점프 skip.
       const jumpJustPressed = (jump && !jumpPrev.current) || _mob.jumpQueued;
       jumpPrev.current = jump;
       _mob.jumpQueued = false;
-      if (jumpJustPressed && onGround && !isCrouch && !isProne && !inBuoyancy) {
+      if (jumpJustPressed && onGround && !isCrouch && !isProne && !inBuoyancy && !manualMoveRef.current) {
         // 점프력 = 맵 설정 (기본 7 m/s → 약 1.1m @ 중력 -22)
         body.current.setLinvel({ x: vel.x, y: jumpOverrideRef.current ?? jumpPower, z: vel.z }, true);
         const _t = Date.now();
@@ -4949,6 +4999,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       },
       isUnderwater: () => { const lp = localPoseRef.current; return waterDepthAt(buoyancyVolsRef.current, lp.x, lp.y, lp.z) > 0; },
       getDepth: () => { const lp = localPoseRef.current; return waterDepthAt(buoyancyVolsRef.current, lp.x, lp.y, lp.z); },
+      // ── 직접 제어 — Player 핸들(playerCtlRef)로 위임 (등반·제트팩 등) ──
+      setManualControl: (on) => playerCtlRef.current?.setManualControl(on),
+      setVelocity: (x, y, z) => playerCtlRef.current?.setVelocity(x, y, z),
+      getVelocity: () => playerCtlRef.current?.getVelocity() ?? { x: 0, y: 0, z: 0 },
+      setGravityEnabled: (on) => playerCtlRef.current?.setGravityEnabled(on),
+      isGrounded: () => playerCtlRef.current?.isGrounded() ?? false,
+      getCameraDir: () => playerCtlRef.current?.getCameraDir() ?? { x: 0, y: 0, z: -1 },
+      raycast: (ox, oy, oz, dx, dy, dz, maxDist) => playerCtlRef.current?.raycast(ox, oy, oz, dx, dy, dz, maxDist) ?? { hit: false, distance: 0, x: 0, y: 0, z: 0, id: null },
     };
 
     // 메인 스크립트 (obj.script) VM 생성

@@ -2932,6 +2932,13 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
         getMyPlayer: () => { const p = simPlayerPoseRef.current; return player ? { id: 'player', username: '나', x: p.x, y: p.y, z: p.z } : null; },
         isUnderwater: () => { const p = simPlayerPoseRef.current; return studioWaterDepthAt(simBuoyancyRef.current, p.x, p.y, p.z) > 0; },
         getDepth: () => { const p = simPlayerPoseRef.current; return studioWaterDepthAt(simBuoyancyRef.current, p.x, p.y, p.z); },
+        setManualControl: (on) => playerCtlRef.current?.setManualControl(on),
+        setVelocity: (x, y, z) => playerCtlRef.current?.setVelocity(x, y, z),
+        getVelocity: () => playerCtlRef.current?.getVelocity() ?? { x: 0, y: 0, z: 0 },
+        setGravityEnabled: (on) => playerCtlRef.current?.setGravityEnabled(on),
+        isGrounded: () => playerCtlRef.current?.isGrounded() ?? false,
+        getCameraDir: () => playerCtlRef.current?.getCameraDir() ?? { x: 0, y: 0, z: -1 },
+        raycast: (ox, oy, oz, dx, dy, dz, maxDist) => playerCtlRef.current?.raycast(ox, oy, oz, dx, dy, dz, maxDist) ?? { hit: false, distance: 0, x: 0, y: 0, z: 0, id: null },
       };
 
       // 스튜디오엔 네트워크 없음 — no-op
@@ -3063,6 +3070,13 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
       getMyPlayer: () => { const p = simPlayerPoseRef.current; return player ? { id: 'player', username: '나', x: p.x, y: p.y, z: p.z } : null; },
       isUnderwater: () => { const p = simPlayerPoseRef.current; return studioWaterDepthAt(simBuoyancyRef.current, p.x, p.y, p.z) > 0; },
       getDepth: () => { const p = simPlayerPoseRef.current; return studioWaterDepthAt(simBuoyancyRef.current, p.x, p.y, p.z); },
+      setManualControl: (on) => playerCtlRef.current?.setManualControl(on),
+      setVelocity: (x, y, z) => playerCtlRef.current?.setVelocity(x, y, z),
+      getVelocity: () => playerCtlRef.current?.getVelocity() ?? { x: 0, y: 0, z: 0 },
+      setGravityEnabled: (on) => playerCtlRef.current?.setGravityEnabled(on),
+      isGrounded: () => playerCtlRef.current?.isGrounded() ?? false,
+      getCameraDir: () => playerCtlRef.current?.getCameraDir() ?? { x: 0, y: 0, z: -1 },
+      raycast: (ox, oy, oz, dx, dy, dz, maxDist) => playerCtlRef.current?.raycast(ox, oy, oz, dx, dy, dz, maxDist) ?? { hit: false, distance: 0, x: 0, y: 0, z: 0, id: null },
     };
     const netAPI2: import('@/lib/world/jsRuntime').JsNetAPI = { sendAll: () => {}, sendTo: () => {} };
 

@@ -29,6 +29,8 @@ import type { JsGameAPI } from './gameRuntime';
  *   world.setSpeed(mult) / world.setJump(power)  — (로컬) 플레이어 이동속도·점프력
  *   world.isPlayer(id) / world.teleportPlayer(id,x,y,z) / world.respawnPlayer(id) / world.setSpawnFor(id,x,y,z)  — 특정 플레이어(트리거 other) 제어, 멀티 라우팅
  *   world.getMyPlayer() → {id,username,x,y,z} 본인 위치 / world.isUnderwater() / world.getDepth()  — 물속 판정·수심(산소 게이지 등)
+ *   world.setControl("manual"|"auto") / world.setVelocity(x,y,z) / world.getVelocity() / world.setGravity(on) / world.isGrounded()  — 직접 이동 제어(등반·제트팩)
+ *   world.getCameraDir() → {x,y,z} 시선 / world.raycast(ox,oy,oz, dx,dy,dz, maxDist) → {hit,distance,x,y,z,id}  — 벽/표면 감지
  *   inv.add(name, qty=1) / inv.consume(name, qty=1)→bool / inv.count(name) / inv.list() / inv.clear()  — 인벤토리(플레이어 개인·영구)
  *   game.get(key, default?) / game.set(key, value) / game.add(key, n=1)  — 전역 게임 상태(점수·체력 등)
  *   ui.text(id, text, {x,y,size,color,bg,align}) / ui.bar(id, value, max, {x,y,color,bg})  — 화면 HUD
@@ -920,6 +922,15 @@ export interface JsWorldAPI {
   isUnderwater?(): boolean;
   /** 본인이 잠긴 깊이(수면~머리, m). 물 밖이면 0. */
   getDepth?(): number;
+  // ── 직접 제어 (등반·제트팩·그래플 등) ──
+  setManualControl?(on: boolean): void;
+  setVelocity?(x: number, y: number, z: number): void;
+  getVelocity?(): { x: number; y: number; z: number };
+  setGravityEnabled?(on: boolean): void;
+  isGrounded?(): boolean;
+  getCameraDir?(): { x: number; y: number; z: number };
+  raycast?(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxDist: number):
+    { hit: boolean; distance: number; x: number; y: number; z: number; id: string | null };
 }
 
 export interface JsNetAPI {
@@ -1084,6 +1095,18 @@ export class JsScript {
         isUnderwater: () => worldApi.isUnderwater ? worldApi.isUnderwater() : false,
         // world.getDepth() → 잠긴 깊이(m). 물 밖이면 0.
         getDepth: () => worldApi.getDepth ? worldApi.getDepth() : 0,
+        // ── 직접 제어 (등반·제트팩·그래플 등) ──
+        // world.setControl("manual") → 엔진 이동 멈춤, setVelocity 로 직접 구동. "auto" 로 복귀.
+        setControl: (mode: unknown) => worldApi.setManualControl?.(String(mode) === 'manual'),
+        setVelocity: (x: unknown, y: unknown, z: unknown) => worldApi.setVelocity?.(Number(x) || 0, Number(y) || 0, Number(z) || 0),
+        getVelocity: () => worldApi.getVelocity ? worldApi.getVelocity() : { x: 0, y: 0, z: 0 },
+        setGravity: (on: unknown) => worldApi.setGravityEnabled?.(!!on),
+        isGrounded: () => worldApi.isGrounded ? worldApi.isGrounded() : false,
+        getCameraDir: () => worldApi.getCameraDir ? worldApi.getCameraDir() : { x: 0, y: 0, z: -1 },
+        // world.raycast(ox,oy,oz, dx,dy,dz, maxDist) → {hit, distance, x,y,z, id} 벽/등반표면 감지
+        raycast: (ox: unknown, oy: unknown, oz: unknown, dx: unknown, dy: unknown, dz: unknown, maxDist: unknown) =>
+          worldApi.raycast ? worldApi.raycast(Number(ox) || 0, Number(oy) || 0, Number(oz) || 0, Number(dx) || 0, Number(dy) || 0, Number(dz) || 0, Number(maxDist) || 5)
+            : { hit: false, distance: 0, x: 0, y: 0, z: 0, id: null },
       };
       // world.time을 항상 최신 값으로 → getter처럼 동작
       Object.defineProperty(world, 'time', {
