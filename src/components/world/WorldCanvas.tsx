@@ -49,6 +49,7 @@ import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
 import { generateNoiseTerrain } from '@/lib/world/terrain';
+import { CarvedMesh } from '@/lib/world/CarvedMesh';
 import { computeBuoyancyVolumes, type BuoyancyVolume } from '@/lib/world/components';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
@@ -2748,6 +2749,8 @@ interface UserMapObject {
   ui?: import('@/lib/world/uiObjects').UiData;
   /** Terrain heightmap (kind === 'terrain' 일 때만) */
   terrain?: import('@/lib/world/terrain').TerrainData;
+  /** CSG 절삭 목록 (kind === 'cube' 일 때) — 깎여서 구멍/홈 생김. */
+  csgCuts?: import('@/lib/world/CarvedMesh').CsgCut[];
   assetUrl?: string;
   position: [number, number, number];
   rotation: [number, number, number];
@@ -2950,6 +2953,15 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
       <RigidBody type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
         position={rPos} rotation={[0, 0, 0]} scale={rScale}>
         <TerrainMesh terrain={obj.terrain} castShadow={false} receiveShadow />
+      </RigidBody>
+    );
+  }
+  // CSG 깎인 큐브 — 구멍/홈 파인 메시 + trimesh 콜라이더 (깎인 모양대로 충돌). 정적 권장.
+  if (obj.kind === 'cube' && obj.csgCuts && obj.csgCuts.length > 0) {
+    return (
+      <RigidBody type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
+        position={rPos} rotation={rRot} scale={rScale}>
+        <CarvedMesh cuts={obj.csgCuts} color={obj.materialColor || obj.color || '#ffffff'} castShadow receiveShadow />
       </RigidBody>
     );
   }

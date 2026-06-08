@@ -24,7 +24,8 @@
     "posthog-js": "^1.379.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "three": "^0.184.0"
+    "three": "^0.184.0",
+    "three-bvh-csg": "^0.0.16"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -20,6 +20,7 @@ import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
+import { CarvedMesh, type CsgCut } from '@/lib/world/CarvedMesh';
 import { TerrainSculptMesh, type TerrainTool } from '@/lib/world/TerrainSculptMesh';
 import { makeFlatTerrain, generateNoiseTerrain, type TerrainData } from '@/lib/world/terrain';
 import { makeDefaultUiData, parseAiUiRoot, AI_UI_PROMPT_GUIDE, type UiElementType, type UiData, type RectTransform, type AiUiRoot } from '@/lib/world/uiObjects';
@@ -195,6 +196,8 @@ interface MapObject {
   ui?: import('@/lib/world/uiObjects').UiData;
   // Terrain 데이터 (kind === 'terrain' 일 때만) — heightmap 기반 지면
   terrain?: import('@/lib/world/terrain').TerrainData;
+  // CSG 절삭 (kind === 'cube' 일 때) — 깎여서 구멍/홈 생김
+  csgCuts?: import('@/lib/world/CarvedMesh').CsgCut[];
   // Sound 오브젝트 (kind === 'sound' 일 때만) — 위치 기반 사운드
   soundUrl?: string;        // 오디오 파일 URL
   soundVolume?: number;     // 0~1
@@ -1671,6 +1674,20 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false, scul
         onPointerDown={handle}
         userData={noTransform ? undefined : { id: obj.id }}>
         <TerrainMesh terrain={obj.terrain} selected={selected} castShadow={false} receiveShadow />
+      </group>
+    );
+  }
+
+  // CSG 깎인 큐브 — 구멍/홈 파인 메시 (에디트 미리보기)
+  if (obj.kind === 'cube' && obj.csgCuts && obj.csgCuts.length > 0) {
+    return (
+      <group
+        position={noTransform ? undefined : obj.position}
+        rotation={noTransform ? undefined : obj.rotation}
+        scale={noTransform ? undefined : obj.scale}
+        onPointerDown={handle}
+        userData={noTransform ? undefined : { id: obj.id }}>
+        <CarvedMesh cuts={obj.csgCuts} color={obj.materialColor || obj.color || '#ffffff'} castShadow receiveShadow />
       </group>
     );
   }
@@ -4398,6 +4415,10 @@ export default function StudioCanvas() {
   const [sceneFilter, setSceneFilter] = useState<'all' | 'shapes' | 'lights' | 'assets' | 'scripted'>('all');
   // 인스펙터 탭
   const [inspTab, setInspTab] = useState<'transform' | 'material'>('transform');
+  // 큐브 깎기(CSG) 도구 상태
+  const [carveShape, setCarveShape] = useState<CsgCut['shape']>('sphere');
+  const [carveSize, setCarveSize] = useState(0.4);
+  const [carvePos, setCarvePos] = useState<[number, number, number]>([0, 0, 0]);
   // 데스크톱 좌/우 패널 접기 (모바일은 기존 studioMode 토글 사용)
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
@@ -7762,6 +7783,49 @@ export default function StudioCanvas() {
 
               {/* ── 재질 탭 — 색상 / 재질 / 텍스처 — 조명에서는 숨김 ── */}
               {inspTab === 'material' && selected.kind !== 'pointlight' && selected.kind !== 'spotlight' && selected.kind !== 'dirlight' && <>
+              {/* 🔪 큐브 깎기 (CSG) — 도형을 빼서 구멍/홈 */}
+              {selected.kind === 'cube' && (
+                <div style={{ marginBottom: 10, padding: 8, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.22)', borderRadius: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 6 }}>🔪 {t('carveTitle')}</div>
+                  <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+                    {(['sphere', 'box', 'cylinder'] as const).map(s => (
+                      <button key={s} onClick={() => setCarveShape(s)}
+                        style={{ flex: 1, padding: '4px', borderRadius: 5, border: 'none', fontSize: 10, cursor: 'pointer', background: carveShape === s ? '#6366f1' : 'rgba(255,255,255,0.06)', color: '#fff' }}>
+                        {s === 'sphere' ? t('carveSphere') : s === 'box' ? t('carveBox') : t('carveCylinder')}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 10, opacity: 0.6, marginBottom: 3 }}>{t('carveSize')} {carveSize.toFixed(2)}</div>
+                  <input type="range" min={0.1} max={1.2} step={0.05} value={carveSize} onChange={e => setCarveSize(Number(e.target.value))} style={{ width: '100%', marginBottom: 6 }} />
+                  <div style={{ fontSize: 10, opacity: 0.6, marginBottom: 3 }}>{t('carvePos')}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, marginBottom: 6 }}>
+                    {[0, 1, 2].map(i => (
+                      <input key={i} type="number" min={-0.7} max={0.7} step={0.05} value={carvePos[i]}
+                        onChange={e => { const v = Number(e.target.value) || 0; setCarvePos(p => { const n = [...p] as [number, number, number]; n[i] = v; return n; }); }}
+                        style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 5px', borderRadius: 4, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => {
+                      const cut: CsgCut = { shape: carveShape, pos: [...carvePos] as [number, number, number], size: [carveSize, carveSize, carveSize] };
+                      setObjects(prev => { const next = prev.map(o => o.id === selected.id ? { ...o, csgCuts: [...(o.csgCuts || []), cut] } : o); pushHistory(next); return next; });
+                    }}
+                    style={{ width: '100%', padding: '6px', borderRadius: 6, border: 'none', background: '#6366f1', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', marginBottom: 6 }}>
+                    ➖ {t('carveAdd')}
+                  </button>
+                  {selected.csgCuts && selected.csgCuts.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {selected.csgCuts.map((c, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, background: 'rgba(255,255,255,0.04)', borderRadius: 4, padding: '3px 6px' }}>
+                          <span style={{ flex: 1 }}>{c.shape} ({c.pos.map(n => n.toFixed(1)).join(', ')})</span>
+                          <button onClick={() => setObjects(prev => { const next = prev.map(o => o.id === selected.id ? { ...o, csgCuts: (o.csgCuts || []).filter((_, k) => k !== i) } : o); pushHistory(next); return next; })}
+                            style={{ background: 'rgba(239,68,68,0.6)', border: 'none', color: '#fff', borderRadius: 4, fontSize: 9, padding: '1px 5px', cursor: 'pointer' }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <button type="button" onClick={() => setMatPanelOpen(v => !v)}
                 style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 600, marginBottom: matPanelOpen ? 8 : 10 }}>
                 {t('inspMatPanelTitle')} {matPanelOpen ? '▲' : '▼'}
