@@ -3078,6 +3078,8 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
       getCameraDir: () => playerCtlRef.current?.getCameraDir() ?? { x: 0, y: 0, z: -1 },
       raycast: (ox, oy, oz, dx, dy, dz, maxDist) => playerCtlRef.current?.raycast(ox, oy, oz, dx, dy, dz, maxDist) ?? { hit: false, distance: 0, x: 0, y: 0, z: 0, id: null },
       getMoveInput: () => playerCtlRef.current?.getMoveInput() ?? { forward: false, backward: false, left: false, right: false, jump: false, sprint: false },
+      setJumpEnabled: (on) => playerCtlRef.current?.setJumpEnabled(on),
+      setRunEnabled: (on) => playerCtlRef.current?.setRunEnabled(on),
     };
     const netAPI2: import('@/lib/world/jsRuntime').JsNetAPI = { sendAll: () => {}, sendTo: () => {} };
 

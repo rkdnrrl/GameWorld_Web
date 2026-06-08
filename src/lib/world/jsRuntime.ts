@@ -933,6 +933,8 @@ export interface JsWorldAPI {
   raycast?(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxDist: number):
     { hit: boolean; distance: number; x: number; y: number; z: number; id: string | null };
   getMoveInput?(): { forward: boolean; backward: boolean; left: boolean; right: boolean; jump: boolean; sprint: boolean };
+  setJumpEnabled?(on: boolean): void;
+  setRunEnabled?(on: boolean): void;
 }
 
 export interface JsNetAPI {
@@ -1111,6 +1113,9 @@ export class JsScript {
             : { hit: false, distance: 0, x: 0, y: 0, z: 0, id: null },
         // world.getMoveInput() → {forward,backward,left,right,jump,sprint} 현재 누른 이동키 (등반 "W 눌렀나" 판정)
         getMoveInput: () => worldApi.getMoveInput ? worldApi.getMoveInput() : { forward: false, backward: false, left: false, right: false, jump: false, sprint: false },
+        // world.setCanJump(false) / world.setCanRun(false) — 스태미나 0 일 때 점프·달리기 차단
+        setCanJump: (on: unknown) => worldApi.setJumpEnabled?.(!!on),
+        setCanRun: (on: unknown) => worldApi.setRunEnabled?.(!!on),
       };
       // world.time을 항상 최신 값으로 → getter처럼 동작
       Object.defineProperty(world, 'time', {

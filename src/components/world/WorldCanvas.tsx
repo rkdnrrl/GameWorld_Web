@@ -1378,6 +1378,10 @@ export interface PlayerControl {
     { hit: boolean; distance: number; x: number; y: number; z: number; id: string | null };
   /** 현재 이동 입력(WASD/방향키/모바일 조이스틱/점프). 등반 등에서 "전진키 눌렀나" 판정용. */
   getMoveInput: () => { forward: boolean; backward: boolean; left: boolean; right: boolean; jump: boolean; sprint: boolean };
+  /** 점프 가능 여부 — false 면 Space 눌러도 점프 안 됨 (스태미나 소진 등). */
+  setJumpEnabled: (on: boolean) => void;
+  /** 달리기 가능 여부 — false 면 Shift 눌러도 달리기 속도 안 됨 (걷기로 제한). */
+  setRunEnabled: (on: boolean) => void;
 }
 
 /* ── 로컬 플레이어 컨트롤러 ─────────────── */
@@ -1483,6 +1487,8 @@ export function Player({
   const jumpOverrideRef = useRef<number | null>(null);  // world.setJump — 점프력 덮어쓰기 (null=맵 기본)
   const manualMoveRef   = useRef(false);        // world.setControl('manual') — 스크립트 직접 제어 모드
   const groundedRef     = useRef(false);        // 매 프레임 접지 여부 (world.isGrounded)
+  const jumpEnabledRef  = useRef(true);         // world.setCanJump — 스태미나 소진 시 점프 차단
+  const runEnabledRef   = useRef(true);         // world.setCanRun — 스태미나 소진 시 달리기 차단
   const mesh      = useRef<THREE.Group>(null);
   /** humanoid char 로드 후 head bone — 1인칭 카메라 Y 추적용 */
   const headBoneRef = useRef<THREE.Object3D | null>(null);
@@ -1564,6 +1570,8 @@ export function Player({
           sprint:   k.has('ShiftLeft') || _mob.sprint,
         };
       },
+      setJumpEnabled: (on) => { jumpEnabledRef.current = !!on; },
+      setRunEnabled:  (on) => { runEnabledRef.current = !!on; },
     };
     return () => { if (playerCtlRef) playerCtlRef.current = null; };
   }, [playerCtlRef]);
@@ -1888,7 +1896,7 @@ export function Player({
       const left     = k.has('KeyA') || k.has('ArrowLeft');
       const right    = k.has('KeyD') || k.has('ArrowRight');
       const jump     = k.has('Space');
-      const sprint   = k.has('ShiftLeft') || _mob.sprint;
+      const sprint   = (k.has('ShiftLeft') || _mob.sprint) && runEnabledRef.current;   // 스태미나 0 이면 달리기 차단
       const vel  = body.current.linvel();
       const posT = body.current.translation();
 
@@ -2058,7 +2066,7 @@ export function Player({
       const jumpJustPressed = (jump && !jumpPrev.current) || _mob.jumpQueued;
       jumpPrev.current = jump;
       _mob.jumpQueued = false;
-      if (jumpJustPressed && onGround && !isCrouch && !isProne && !inBuoyancy && !manualMoveRef.current) {
+      if (jumpJustPressed && onGround && !isCrouch && !isProne && !inBuoyancy && !manualMoveRef.current && jumpEnabledRef.current) {
         // 점프력 = 맵 설정 (기본 7 m/s → 약 1.1m @ 중력 -22)
         body.current.setLinvel({ x: vel.x, y: jumpOverrideRef.current ?? jumpPower, z: vel.z }, true);
         const _t = Date.now();
@@ -5022,6 +5030,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       getCameraDir: () => playerCtlRef.current?.getCameraDir() ?? { x: 0, y: 0, z: -1 },
       raycast: (ox, oy, oz, dx, dy, dz, maxDist) => playerCtlRef.current?.raycast(ox, oy, oz, dx, dy, dz, maxDist) ?? { hit: false, distance: 0, x: 0, y: 0, z: 0, id: null },
       getMoveInput: () => playerCtlRef.current?.getMoveInput() ?? { forward: false, backward: false, left: false, right: false, jump: false, sprint: false },
+      setJumpEnabled: (on) => playerCtlRef.current?.setJumpEnabled(on),
+      setRunEnabled: (on) => playerCtlRef.current?.setRunEnabled(on),
     };
 
     // 메인 스크립트 (obj.script) VM 생성
