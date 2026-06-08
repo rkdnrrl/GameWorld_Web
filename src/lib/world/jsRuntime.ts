@@ -1497,6 +1497,20 @@ export class JsScript {
     }
   }
 
+  private _local: boolean | null = null;
+  /**
+   * "각 플레이어 로컬 실행" 선언 여부. 스크립트 최상위에 `let LOCAL_PLAYER = true;` 가 있으면
+   * 호스트뿐 아니라 모든 클라가 자기 플레이어 기준으로 onUpdate 를 실행한다(등반·무게·인벤토리 등
+   * 플레이어 본인만 제어하는 스크립트용). 공유 오브젝트/적 AI 는 이 플래그 없이 호스트 전용 유지.
+   */
+  get isLocalPlayer(): boolean {
+    if (this._local !== null) return this._local;
+    if (!this.ready || !this.interp) return false;   // init 전 — 캐시하지 않음
+    try { this._local = !!(this.interp.globalEnv.has('LOCAL_PLAYER') && this.interp.globalEnv.get('LOCAL_PLAYER')); }
+    catch { this._local = false; }
+    return this._local;
+  }
+
   callUpdate(dt: number): void {
     if (!this.ready || !this.interp) return;
     try {

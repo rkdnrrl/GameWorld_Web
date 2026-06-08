@@ -812,13 +812,15 @@ function LuaUpdateLoop({
 }) {
   useFrame((_, dt) => {
     worldElapsed.current += dt;
-    // 스크립트 onUpdate 는 호스트만 실행 (권위). 비호스트는 호스트가 broadcast 한
-    // 오브젝트 상태를 sync 로 받아 반영 → 모두에게 동일한 결과. (호스트 바뀌면 새 호스트가 이어받음)
-    if (isHost) {
-      for (const vm of luaScripts.current.values()) vm.callUpdate(dt);
-      // 유저 정의 컴포넌트 VM 들도 매 프레임 onUpdate
-      for (const arr of componentScripts.current.values()) {
-        for (const { vm } of arr) vm.callUpdate(dt);
+    // 스크립트 onUpdate: 공유 오브젝트/적 AI 는 호스트만 실행(권위) → 결과 broadcast.
+    // 단, 'let LOCAL_PLAYER = true;' 선언 스크립트(등반·무게·인벤토리 등 본인만 제어)는
+    // 모든 클라가 자기 플레이어 기준으로 로컬 실행 → 4인 협동에서 각자 독립 동작.
+    for (const vm of luaScripts.current.values()) {
+      if (isHost || vm.isLocalPlayer) vm.callUpdate(dt);
+    }
+    for (const arr of componentScripts.current.values()) {
+      for (const { vm } of arr) {
+        if (isHost || vm.isLocalPlayer) vm.callUpdate(dt);
       }
     }
 
