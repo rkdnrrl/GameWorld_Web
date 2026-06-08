@@ -2005,7 +2005,9 @@ export function Player({
           const nh = rWorld.castRayAndGetNormal(nray, 1.5, true, undefined, undefined, undefined, body.current ?? undefined);
           if (nh && nh.normal && nh.timeOfImpact < 1.3) {
             const ny = nh.normal.y;        // 1=평지, 0=수직벽
-            if (ny > 0.05 && ny < 0.6) {   // cos(약 53°) 보다 가파르면 — 걷기 무시, 내리막으로 미끄러짐
+            // cos(약 68°) 보다 가팔라야 미끄러짐. 그 이하(완만~중간 경사)는 걸어다닐 수 있음.
+            // → 등반으로 가파른 면을 올라간 뒤 곡선 윗부분은 걷게 됨(미끄러져 안 떨어짐).
+            if (ny > 0.05 && ny < 0.37) {
               const nl = Math.hypot(nh.normal.x, nh.normal.z) || 1;
               walkX = (nh.normal.x / nl) * 4;   // normal 의 수평 성분 = 내리막 방향
               walkZ = (nh.normal.z / nl) * 4;
