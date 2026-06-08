@@ -108,6 +108,7 @@ export async function createHumanoidCharacter(
 
   // 머리 본 — 1인칭 hideHead
   const headNode = bones.head ?? null;
+  let headHidden = false;   // 1인칭 머리 숨김 상태 — 매 프레임 재적용(애니/vrm.update 가 스케일 되돌리는 것 방지)
 
   // hips 본 + rest pose local Y 캡처 — 애니메이션이 캐릭터를 위로 띄우는 것 방지 (crouch 등).
   // mixer 적용 후 hips.position.y > restHipsLocalY 면 clamp. 아래로는 (앉기·바운싱) 허용.
@@ -171,6 +172,7 @@ export async function createHumanoidCharacter(
     },
     setExpression: (name, value) => lipSync.setExpression(name, value),
     setHeadVisible: (visible) => {
+      headHidden = !visible;
       if (!headNode) return;
       headNode.scale.setScalar(visible ? 1 : 0.001);
     },
@@ -181,6 +183,8 @@ export async function createHumanoidCharacter(
         try { vrm.update(Math.min(dt, 0.05)); } catch { /* noop */ }
       }
       mixer.update(dt);
+      // 1인칭 머리 숨김 재적용 — 달리기 등 애니메이션 본 트랙/vrm.update 가 머리뼈 스케일을 1로 되돌리는 걸 매 프레임 덮어씀.
+      if (headHidden && headNode) headNode.scale.setScalar(0.001);
       // hips Y clamp — 애니메이션이 rest pose 위로 hips 를 올리는 경우 차단 (crouch 등이 위로 뜨는 버그).
       // 아래로 (앉기·바운싱) 는 영향 없음.
       if (hipsBone && hipsBone.position.y > restHipsLocalY) {
