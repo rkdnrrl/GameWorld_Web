@@ -1376,8 +1376,8 @@ export interface PlayerControl {
   /** 레이캐스트 — (ox,oy,oz)에서 (dx,dy,dz) 방향으로 maxDist 까지. 벽/등반표면 감지용. */
   raycast: (ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxDist: number) =>
     { hit: boolean; distance: number; x: number; y: number; z: number; id: string | null };
-  /** 현재 이동 입력(WASD/방향키/모바일 조이스틱/점프). 등반 등에서 "전진키 눌렀나" 판정용. */
-  getMoveInput: () => { forward: boolean; backward: boolean; left: boolean; right: boolean; jump: boolean; sprint: boolean };
+  /** 현재 이동 입력(WASD/방향키/모바일 조이스틱/점프/좌클릭). 등반 등에서 "전진키 눌렀나"·"좌클릭 중인가" 판정용. */
+  getMoveInput: () => { forward: boolean; backward: boolean; left: boolean; right: boolean; jump: boolean; sprint: boolean; mouseDown: boolean };
   /** 점프 가능 여부 — false 면 Space 눌러도 점프 안 됨 (스태미나 소진 등). */
   setJumpEnabled: (on: boolean) => void;
   /** 달리기 가능 여부 — false 면 Shift 눌러도 달리기 속도 안 됨 (걷기로 제한). */
@@ -1489,6 +1489,7 @@ export function Player({
   const groundedRef     = useRef(false);        // 매 프레임 접지 여부 (world.isGrounded)
   const jumpEnabledRef  = useRef(true);         // world.setCanJump — 스태미나 소진 시 점프 차단
   const runEnabledRef   = useRef(true);         // world.setCanRun — 스태미나 소진 시 달리기 차단
+  const mouseDownRef    = useRef(false);        // 좌클릭 누름 상태 (world.isMouseDown — 등반 grab 등)
   const mesh      = useRef<THREE.Group>(null);
   /** humanoid char 로드 후 head bone — 1인칭 카메라 Y 추적용 */
   const headBoneRef = useRef<THREE.Object3D | null>(null);
@@ -1512,6 +1513,21 @@ export function Player({
   // 마운트 시 1회 — 카메라 H 회전을 스폰 포인트의 Y 회전으로 (마운트 후엔 마우스로 자유)
   useEffect(() => { _mob.camH = spawnRotY; /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
   // 스크립트 world.teleport/respawn/setSpeed/setJump 용 — 자기 제어 함수를 등록.
+  // 좌클릭 누름 추적 (world.isMouseDown) — 등반 grab 등 유저 스크립트용.
+  useEffect(() => {
+    const down = (e: PointerEvent) => { if (e.button === 0) mouseDownRef.current = true; };
+    const up   = (e: PointerEvent) => { if (e.button === 0) mouseDownRef.current = false; };
+    const clear = () => { mouseDownRef.current = false; };
+    window.addEventListener('pointerdown', down);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('blur', clear);
+    return () => {
+      window.removeEventListener('pointerdown', down);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('blur', clear);
+    };
+  }, []);
+
   useEffect(() => {
     if (!playerCtlRef) return;
     playerCtlRef.current = {
@@ -1568,6 +1584,7 @@ export function Player({
           right:    k.has('KeyD') || k.has('ArrowRight') || (mt.active && mt.x >  0.3),
           jump:     k.has('Space') || _mob.jumpQueued,
           sprint:   k.has('ShiftLeft') || _mob.sprint,
+          mouseDown: mouseDownRef.current,
         };
       },
       setJumpEnabled: (on) => { jumpEnabledRef.current = !!on; },
@@ -5029,7 +5046,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       isGrounded: () => playerCtlRef.current?.isGrounded() ?? false,
       getCameraDir: () => playerCtlRef.current?.getCameraDir() ?? { x: 0, y: 0, z: -1 },
       raycast: (ox, oy, oz, dx, dy, dz, maxDist) => playerCtlRef.current?.raycast(ox, oy, oz, dx, dy, dz, maxDist) ?? { hit: false, distance: 0, x: 0, y: 0, z: 0, id: null },
-      getMoveInput: () => playerCtlRef.current?.getMoveInput() ?? { forward: false, backward: false, left: false, right: false, jump: false, sprint: false },
+      getMoveInput: () => playerCtlRef.current?.getMoveInput() ?? { forward: false, backward: false, left: false, right: false, jump: false, sprint: false, mouseDown: false },
       setJumpEnabled: (on) => playerCtlRef.current?.setJumpEnabled(on),
       setRunEnabled: (on) => playerCtlRef.current?.setRunEnabled(on),
     };
