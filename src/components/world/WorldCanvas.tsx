@@ -2285,13 +2285,15 @@ export function Player({
         const rotY = mesh.current?.rotation.y ?? 0;
         // 벽 뚫림 방지 — 머리에서 보는(몸) 방향으로 레이. 벽이 가까우면 카메라 전진 오프셋을 줄여
         // near 평면(0.17)이 벽 안으로 넘어가지 않게 한다. 벽 없으면 기본 0.15.
+        // ⚠️ 하한 0.05 — 카메라를 머리뼈 뒤로(음수) 빼면 머리·머리카락이 카메라 앞으로 나와 보임
+        //    (달리며 벽에 붙을 때 머리 보이는 버그). 머리는 항상 카메라 뒤/near 안에 둬서 가린다.
         let fwdOff = 0.15;
         try {
           const fdx = Math.sin(rotY), fdz = Math.cos(rotY);
           const wray = new rapier.Ray({ x: headPos.x, y: headPos.y, z: headPos.z }, { x: fdx, y: 0, z: fdz });
           const wh = rWorld.castRay(wray, 0.5, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, body.current ?? undefined);
-          // 벽 거리 - near(0.17) - 여유(0.12). 벽이 아주 가까우면 음수(카메라 뒤로 당김)까지 허용.
-          if (wh) fwdOff = Math.max(-0.25, Math.min(0.15, wh.timeOfImpact - 0.17 - 0.12));
+          // 벽 거리 - near(0.17) - 여유(0.12). 머리 뒤로는 안 빼므로 하한 0.05.
+          if (wh) fwdOff = Math.max(0.05, Math.min(0.15, wh.timeOfImpact - 0.17 - 0.12));
         } catch { /* noop */ }
         camX = headPos.x + Math.sin(rotY) * fwdOff;
         camY = headPos.y + 0.05;
