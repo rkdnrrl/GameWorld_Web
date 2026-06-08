@@ -15,6 +15,7 @@ import { RigidBody } from '@react-three/rapier';
 import {
   createBaseField, applyDeformToField, fieldToGeometry, deformCellRange, type VoxelVolumeData,
 } from './voxelVolume';
+import { applyVoxelColors } from './VoxelTerrainMesh';
 
 type Tri = [number, number, number];
 
@@ -54,7 +55,8 @@ export function ChunkedVoxelTerrain({
     const mc = fieldToGeometry(field, data, bounds);
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(mc.positions, 3));
-    g.computeVertexNormals();
+    g.setAttribute('normal', new THREE.BufferAttribute(mc.normals, 3));   // 밀도장 그래디언트 법선(청크 경계 매끄러움)
+    applyVoxelColors(g, data);
     return g;
   }
 
@@ -119,7 +121,7 @@ export function ChunkedVoxelTerrain({
         <RigidBody key={`${objectId}-${idx}-${ch.ver}`} type="fixed" colliders="trimesh"
           userData={{ objectId }} position={position} rotation={rotation} scale={scale}>
           <mesh geometry={ch.geo} castShadow receiveShadow>
-            <meshStandardMaterial color={color} roughness={roughness} metalness={0} />
+            <meshStandardMaterial vertexColors color="#ffffff" roughness={roughness} metalness={0} />
           </mesh>
         </RigidBody>
       ) : null)}

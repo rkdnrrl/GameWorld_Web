@@ -9,14 +9,32 @@
 
 import { useMemo, useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { createField, fieldToGeometry, type VoxelVolumeData } from './voxelVolume';
+import { createField, fieldToGeometry, voxelPalette, type VoxelVolumeData } from './voxelVolume';
+
+/** 깊이별 층 색을 정점 색으로 입힘 (위=잔디 → 아래=바위). 파면 아래 층이 드러남. */
+export function applyVoxelColors(geo: THREE.BufferGeometry, data: VoxelVolumeData): void {
+  const pos = geo.getAttribute('position');
+  if (!pos) return;
+  const n = pos.count;
+  const palette = voxelPalette(data).map(h => new THREE.Color(h));
+  const half = data.size / 2, size = data.size || 1;
+  const colors = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    let t = (half - pos.getY(i)) / size;   // 0=꼭대기, 1=바닥
+    if (t < 0) t = 0; else if (t > 0.999) t = 0.999;
+    const c = palette[Math.min(palette.length - 1, Math.floor(t * palette.length))];
+    colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+}
 
 export function buildVoxelGeometry(data: VoxelVolumeData): THREE.BufferGeometry {
   const field = createField(data);
   const mc = fieldToGeometry(field, data);
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(mc.positions, 3));
-  geo.computeVertexNormals();
+  geo.setAttribute('normal', new THREE.BufferAttribute(mc.normals, 3));   // 밀도장 그래디언트 법선
+  applyVoxelColors(geo, data);
   return geo;
 }
 
@@ -46,7 +64,7 @@ export function VoxelTerrainMesh({
 
   return (
     <mesh geometry={geometry} castShadow={castShadow} receiveShadow={receiveShadow}>
-      <meshStandardMaterial color={color} roughness={roughness} metalness={0} />
+      <meshStandardMaterial vertexColors color="#ffffff" roughness={roughness} metalness={0} />
     </mesh>
   );
 }

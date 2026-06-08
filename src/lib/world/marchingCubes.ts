@@ -79,6 +79,7 @@ const TRI_TABLE: number[][] = [
 
 export interface MarchResult {
   positions: Float32Array;   // non-indexed 삼각형 정점 (xyz...)
+  normals: Float32Array;     // 정점 법선 (밀도장 그래디언트 → 청크 경계 매끄러움)
   count: number;             // 정점 개수
 }
 
@@ -92,8 +93,33 @@ export interface CellBounds { x0: number; y0: number; z0: number; x1: number; y1
  */
 export function marchingCubes(field: Float32Array, nx: number, ny: number, nz: number, iso = 0, bounds?: CellBounds): MarchResult {
   const out: number[] = [];
+  const nrm: number[] = [];
   const at = (x: number, y: number, z: number) => field[x + y * nx + z * nx * ny];
+  // 밀도장 trilinear 샘플 (정수 격자 경계 클램프) — 법선 그래디언트용
+  const sample = (x: number, y: number, z: number): number => {
+    if (x < 0) x = 0; else if (x > nx - 1) x = nx - 1;
+    if (y < 0) y = 0; else if (y > ny - 1) y = ny - 1;
+    if (z < 0) z = 0; else if (z > nz - 1) z = nz - 1;
+    const x0 = Math.floor(x), y0 = Math.floor(y), z0 = Math.floor(z);
+    const x1 = Math.min(nx - 1, x0 + 1), y1 = Math.min(ny - 1, y0 + 1), z1 = Math.min(nz - 1, z0 + 1);
+    const fx = x - x0, fy = y - y0, fz = z - z0;
+    const c00 = at(x0, y0, z0) * (1 - fx) + at(x1, y0, z0) * fx;
+    const c10 = at(x0, y1, z0) * (1 - fx) + at(x1, y1, z0) * fx;
+    const c01 = at(x0, y0, z1) * (1 - fx) + at(x1, y0, z1) * fx;
+    const c11 = at(x0, y1, z1) * (1 - fx) + at(x1, y1, z1) * fx;
+    return (c00 * (1 - fy) + c10 * fy) * (1 - fz) + (c01 * (1 - fy) + c11 * fy) * fz;
+  };
+  // 정점에서의 표면 법선 = 밀도 그래디언트 정규화 (공기 방향=양수 → 바깥). 전역 field 라 청크 경계 매끄러움.
+  const gradN = (x: number, y: number, z: number): [number, number, number] => {
+    let gx = sample(x + 1, y, z) - sample(x - 1, y, z);
+    let gy = sample(x, y + 1, z) - sample(x, y - 1, z);
+    let gz = sample(x, y, z + 1) - sample(x, y, z - 1);
+    const len = Math.hypot(gx, gy, gz) || 1;
+    gx /= len; gy /= len; gz /= len;
+    return [gx, gy, gz];
+  };
   const edgeV: number[] = new Array(36); // 12 모서리 × xyz
+  const edgeN: number[] = new Array(36); // 12 모서리 법선
   const x0 = bounds ? Math.max(0, bounds.x0) : 0, x1 = bounds ? Math.min(nx - 1, bounds.x1) : nx - 1;
   const y0 = bounds ? Math.max(0, bounds.y0) : 0, y1 = bounds ? Math.min(ny - 1, bounds.y1) : ny - 1;
   const z0 = bounds ? Math.max(0, bounds.z0) : 0, z1 = bounds ? Math.min(nz - 1, bounds.z1) : nz - 1;
@@ -120,19 +146,23 @@ export function marchingCubes(field: Float32Array, nx: number, ny: number, nz: n
           const va = val[a], vb = val[b];
           let t = (iso - va) / (vb - va);
           if (!isFinite(t)) t = 0.5;
-          edgeV[e * 3] = x + ca[0] + (cb[0] - ca[0]) * t;
-          edgeV[e * 3 + 1] = y + ca[1] + (cb[1] - ca[1]) * t;
-          edgeV[e * 3 + 2] = z + ca[2] + (cb[2] - ca[2]) * t;
+          const vx = x + ca[0] + (cb[0] - ca[0]) * t;
+          const vy = y + ca[1] + (cb[1] - ca[1]) * t;
+          const vz = z + ca[2] + (cb[2] - ca[2]) * t;
+          edgeV[e * 3] = vx; edgeV[e * 3 + 1] = vy; edgeV[e * 3 + 2] = vz;
+          const gn = gradN(vx, vy, vz);
+          edgeN[e * 3] = gn[0]; edgeN[e * 3 + 1] = gn[1]; edgeN[e * 3 + 2] = gn[2];
         }
         const tris = TRI_TABLE[cubeIndex];
         for (let i = 0; i < tris.length; i += 3) {
           for (let k = 0; k < 3; k++) {
             const e = tris[i + k];
             out.push(edgeV[e * 3], edgeV[e * 3 + 1], edgeV[e * 3 + 2]);
+            nrm.push(edgeN[e * 3], edgeN[e * 3 + 1], edgeN[e * 3 + 2]);
           }
         }
       }
     }
   }
-  return { positions: new Float32Array(out), count: out.length / 3 };
+  return { positions: new Float32Array(out), normals: new Float32Array(nrm), count: out.length / 3 };
 }

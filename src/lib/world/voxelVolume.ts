@@ -23,7 +23,16 @@ export interface VoxelVolumeData {
   base: 'flat' | 'noise' | 'solid';
   ground?: number;   // flat/noise 표면 높이 (로컬 y, 기본 0)
   amp?: number;      // noise 진폭 (기본 size*0.15)
+  /** 깊이별 층 색 (위→아래). 없으면 base 별 기본값. 파면 아래 층이 드러남. */
+  palette?: string[];
   deforms: VoxelDeform[];
+}
+
+/** 깊이별 층 색 (위→아래). 잔디→흙→바위 / 바위 음영. */
+export function voxelPalette(data: VoxelVolumeData): string[] {
+  if (data.palette && data.palette.length) return data.palette;
+  if (data.base === 'solid') return ['#8a8278', '#6f6f76', '#56565c'];   // 바위 층
+  return ['#6a9a4a', '#8a7355', '#6f6f76'];                              // 잔디 → 흙 → 바위
 }
 
 /** 값 노이즈 (marchingCubes 지형과 무관한 단순 2D) — 결정적. */

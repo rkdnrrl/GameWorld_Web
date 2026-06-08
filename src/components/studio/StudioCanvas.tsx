@@ -5594,7 +5594,7 @@ export default function StudioCanvas() {
     const size = 16;
     const voxel: import('@/lib/world/voxelVolume').VoxelVolumeData = {
       res: 32, size, seed: Math.floor(Math.random() * 1000), base,
-      ground: base === 'flat' || base === 'noise' ? -size * 0.15 : 0,
+      ground: base === 'flat' || base === 'noise' ? size * 0.28 : 0,  // 표면을 위쪽에 → 잔디층, 아래로 파면 흙·바위
       deforms: [],
     };
     setObjects(prev => {
