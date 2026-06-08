@@ -2269,9 +2269,18 @@ export function Player({
         headBone.updateMatrixWorld(true);
         const headPos = headBone.getWorldPosition(_tmpHeadVec);
         const rotY = mesh.current?.rotation.y ?? 0;
-        camX = headPos.x + Math.sin(rotY) * 0.15;
+        // 벽 뚫림 방지 — 머리에서 보는(몸) 방향으로 레이. 벽이 가까우면 카메라 전진 오프셋을 줄여
+        // near 평면(0.17)이 벽 안으로 넘어가지 않게 한다. 벽 없으면 기본 0.15.
+        let fwdOff = 0.15;
+        try {
+          const fdx = Math.sin(rotY), fdz = Math.cos(rotY);
+          const wray = new rapier.Ray({ x: headPos.x, y: headPos.y, z: headPos.z }, { x: fdx, y: 0, z: fdz });
+          const wh = rWorld.castRay(wray, 0.5, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, body.current ?? undefined);
+          if (wh) fwdOff = Math.max(0, Math.min(0.15, wh.timeOfImpact - 0.17 - 0.06));   // near + 여유
+        } catch { /* noop */ }
+        camX = headPos.x + Math.sin(rotY) * fwdOff;
         camY = headPos.y + 0.05;
-        camZ = headPos.z + Math.cos(rotY) * 0.15;
+        camZ = headPos.z + Math.cos(rotY) * fwdOff;
       } else {
         const modelScale = Number((character?.appearance as Record<string, unknown> | undefined)?.modelScale) || 1.0;
         camX = p.x; camZ = p.z;
