@@ -55,7 +55,7 @@ export function VoxelTerrainMesh({
 
   return (
     <mesh geometry={geometry} castShadow={castShadow} receiveShadow={receiveShadow}>
-      <meshStandardMaterial vertexColors color="#ffffff" roughness={roughness} metalness={0} />
+      <meshStandardMaterial vertexColors color="#ffffff" roughness={roughness} metalness={0} side={THREE.DoubleSide} />
     </mesh>
   );
 }

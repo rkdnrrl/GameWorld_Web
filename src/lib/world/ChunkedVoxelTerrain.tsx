@@ -91,7 +91,7 @@ export function ChunkedVoxelTerrain({
         <RigidBody key={`${objectId}-${idx}-${ch.ver}`} type="fixed" colliders="trimesh"
           userData={{ objectId }} position={position} rotation={rotation} scale={scale}>
           <mesh geometry={ch.geo} castShadow receiveShadow>
-            <meshStandardMaterial vertexColors color="#ffffff" roughness={roughness} metalness={0} />
+            <meshStandardMaterial vertexColors color="#ffffff" roughness={roughness} metalness={0} side={THREE.DoubleSide} />
           </mesh>
         </RigidBody>
       ) : null)}
