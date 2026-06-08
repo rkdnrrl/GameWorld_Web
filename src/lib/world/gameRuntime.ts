@@ -78,6 +78,8 @@ export interface GameRuntimeStore {
   getHud(): Map<string, HudElement>;
   /** HUD 변경 알림 구독 (GameHud 재렌더용). 해제 함수 반환. */
   subscribe(listener: () => void): () => void;
+  /** HUD 버전 — hudSet/clear 마다 증가. GameHud 가 RAF 폴링으로 매 프레임 갱신 판단 (입력 중 re-render 굶음 방지). */
+  getHudVersion(): number;
   /** 시뮬레이션 시작/종료 시 상태·HUD 초기화. */
   reset(): void;
   // ── 멀티 동기화 (월드 호스트만 사용; 스튜디오 시뮬은 안 씀) ──
@@ -123,8 +125,9 @@ export function createGameRuntime(opts?: {
   const sharedData = new Map<string, unknown>();
   const listeners = new Set<() => void>();
   let dirty = false;
+  let hudVersion = 0;   // hudSet/clear 마다 증가 — GameHud RAF 폴링용
   let hudClickHandler: ((id: string) => void) | null = null;
-  const notify = () => { for (const l of listeners) l(); };
+  const notify = () => { hudVersion++; for (const l of listeners) l(); };
 
   const playLocal = (url: string, o?: { volume?: number; loop?: boolean }) => {
     if (!url || typeof window === 'undefined') return;
@@ -167,6 +170,7 @@ export function createGameRuntime(opts?: {
     api,
     getHud: () => hud,
     subscribe: (l) => { listeners.add(l); return () => { listeners.delete(l); }; },
+    getHudVersion: () => hudVersion,
     reset: () => { state.clear(); hud.clear(); dirty = true; notify(); },
     clickHud: (id) => { hudClickHandler?.(String(id)); },
     setHudClickHandler: (fn) => { hudClickHandler = fn; },

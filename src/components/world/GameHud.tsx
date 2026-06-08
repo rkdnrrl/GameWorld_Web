@@ -6,11 +6,24 @@
  *  - 스튜디오: position:relative 인 뷰포트 컨테이너 안
  */
 import { useEffect, useReducer, type CSSProperties } from 'react';
+import { flushSync } from 'react-dom';
 import type { GameRuntimeStore, HudElement } from '@/lib/world/gameRuntime';
 
 export default function GameHud({ runtime }: { runtime: GameRuntimeStore }) {
   const [, force] = useReducer((x: number) => x + 1, 0);
-  useEffect(() => runtime.subscribe(force), [runtime]);
+  // RAF 폴링 + flushSync — 카메라 회전 등 연속 입력 중 React 가 re-render 를 미뤄
+  // HUD(체력·스태미나 바)가 멈추는 문제 해결. 버전 바뀐 프레임만 동기 렌더.
+  useEffect(() => {
+    let raf = 0; let mounted = true; let last = -1;
+    const loop = () => {
+      if (!mounted) return;
+      const v = runtime.getHudVersion();
+      if (v !== last) { last = v; flushSync(() => force()); }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => { mounted = false; cancelAnimationFrame(raf); };
+  }, [runtime]);
   const hud = runtime.getHud();
   if (hud.size === 0) return null;
   return (
