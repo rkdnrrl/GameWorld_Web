@@ -38,6 +38,10 @@ export interface HudElement {
   color?: string;     // 글자색 / 바 채움색
   bg?: string;        // 배경(text) / 바 트랙색(bar)
   align?: 'left' | 'center' | 'right';
+  /** 자동 제거까지 시간(초). 카운트다운·"승리!"·"+10점" 같은 일시 메시지용. 스크립트가 넘김. */
+  duration?: number;
+  /** 로컬 만료 시각(ms, performance.now 기준). hudSet 이 duration 으로 계산. 비호스트엔 안 넘김. */
+  expireAt?: number;
 }
 
 /** 멀티 동기화용 — 호스트가 전원에게 보내는 상태+HUD 전체 스냅샷. */
@@ -95,6 +99,8 @@ export interface GameRuntimeStore {
   playRemoteSound(url: string, opts?: { volume?: number; loop?: boolean }): void;
   /** UI 버튼 클릭 — GameHud 가 호출 → 등록된 핸들러(스크립트 onUiClick 디스패치)로 라우팅. */
   clickHud(id: string): void;
+  /** duration 만료된 HUD 요소 제거 (GameHud RAF 가 매 프레임 호출). 호스트가 제거 → 스냅샷으로 비호스트도 사라짐. */
+  pruneExpired(): void;
   /** 버튼 클릭 핸들러 등록 (호스트 캔버스가 모든 스크립트 VM 의 onUiClick 으로 연결). */
   setHudClickHandler(fn: ((id: string) => void) | null): void;
   /** 맵 데이터 캐시 — 호스트가 서버에서 load 후 한 번에 채움 (scope 별). */
@@ -147,7 +153,12 @@ export function createGameRuntime(opts?: {
       state.set(k, v); dirty = true;
       return v;
     },
-    hudSet: (el) => { hud.set(el.id, el); dirty = true; notify(); },
+    hudSet: (el) => {
+      if (typeof el.duration === 'number' && el.duration > 0) {
+        el.expireAt = (typeof performance !== 'undefined' ? performance.now() : 0) + el.duration * 1000;
+      }
+      hud.set(el.id, el); dirty = true; notify();
+    },
     hudClear: (id) => { if (hud.delete(id)) { dirty = true; notify(); } },
     hudClearAll: () => { if (hud.size) { hud.clear(); dirty = true; notify(); } },
     playSound: (url, o) => { playLocal(String(url), o); opts?.onSound?.(String(url), o); },
@@ -174,6 +185,12 @@ export function createGameRuntime(opts?: {
     reset: () => { state.clear(); hud.clear(); dirty = true; notify(); },
     clickHud: (id) => { hudClickHandler?.(String(id)); },
     setHudClickHandler: (fn) => { hudClickHandler = fn; },
+    pruneExpired: () => {
+      const now = (typeof performance !== 'undefined' ? performance.now() : 0);
+      let changed = false;
+      for (const [id, el] of hud) { if (el.expireAt && now >= el.expireAt) { hud.delete(id); changed = true; } }
+      if (changed) { dirty = true; notify(); }
+    },
     isDirty: () => dirty,
     markDirty: () => { dirty = true; },
     takeSnapshot: () => { dirty = false; return { state: [...state.entries()], hud: [...hud.values()] }; },
@@ -181,7 +198,8 @@ export function createGameRuntime(opts?: {
       state.clear();
       for (const [k, v] of snap.state || []) state.set(k, v);
       hud.clear();
-      for (const el of snap.hud || []) if (el && el.id) hud.set(el.id, el);
+      // 비호스트는 호스트 시계 기준 expireAt 을 못 쓰므로 제거 — 호스트가 prune 후 재broadcast 로 사라짐.
+      for (const el of snap.hud || []) if (el && el.id) { const e = { ...el }; delete e.expireAt; hud.set(el.id, e); }
       notify();
     },
     playRemoteSound: (url, o) => playLocal(String(url), o),

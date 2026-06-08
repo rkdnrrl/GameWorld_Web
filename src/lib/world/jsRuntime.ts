@@ -1194,7 +1194,20 @@ export class JsScript {
             size: o.size != null ? Number(o.size) : undefined,
             color: o.color != null ? String(o.color) : undefined,
             bg: o.bg != null ? String(o.bg) : undefined,
+            duration: o.duration != null ? Number(o.duration) : undefined,   // 초 후 자동 제거
             align: (o.align === 'left' || o.align === 'right') ? o.align : 'center' });
+        },
+        // ui.announce("승리!", {color:"#fbbf24", duration:2.5}) — 화면 중앙 큰 메시지, 시간 지나면 자동 사라짐.
+        // 카운트다운("3","2","1"), 결과("승리!"/"패배"), 점수 팝업 등 게임 흐름 UI 용.
+        announce: (text: unknown, opts?: Record<string, unknown>) => {
+          const o = (opts && typeof opts === 'object') ? opts : {};
+          gameApi?.hudSet({ id: String(o.id != null ? o.id : '__announce__'), type: 'text', text: String(text),
+            x: numOr(o.x, 0.5), y: numOr(o.y, 0.42),
+            size: o.size != null ? Number(o.size) : 56,
+            color: o.color != null ? String(o.color) : '#fff',
+            bg: o.bg != null ? String(o.bg) : undefined,
+            duration: o.duration != null ? Number(o.duration) : 2.0,
+            align: 'center' });
         },
         bar: (id: unknown, value: unknown, max?: unknown, opts?: Record<string, unknown>) => {
           const o = (opts && typeof opts === 'object') ? opts : {};

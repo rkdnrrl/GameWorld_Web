@@ -17,6 +17,7 @@ export default function GameHud({ runtime }: { runtime: GameRuntimeStore }) {
     let raf = 0; let mounted = true; let last = -1;
     const loop = () => {
       if (!mounted) return;
+      runtime.pruneExpired();   // duration 만료된 HUD(카운트다운·승리 메시지) 제거 → 버전 bump
       const v = runtime.getHudVersion();
       if (v !== last) { last = v; flushSync(() => force()); }
       raf = requestAnimationFrame(loop);
