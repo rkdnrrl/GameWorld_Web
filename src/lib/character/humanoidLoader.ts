@@ -137,22 +137,44 @@ export async function loadHumanoid(url: string, opts: HumanoidLoadOptions = {}):
 
     // VRM 0.x → 1.0 좌표계 정렬 (1.0 모델에선 noop)
     try { vrmMod.VRMUtils.rotateVRM0(vrm); } catch { /* noop */ }
-    // transparent → alphaTest 변환: VRM 의 hair/eyelash 등 transparent mesh 가 카메라 변화 시
-    // 매 frame depth sort 비용 발생. alphaTest 면 opaque queue 에서 처리 → sort 비용 0.
-    // 시각: alpha 부드러움 → binary cutoff (가장자리 약간 거칠), fps 향상.
+    // MToon(애니 툰 셰이더) → MeshStandardMaterial(물리 PBR) 변환.
+    //   - MToon 은 비-PBR 툰 셰이더라 빛이 없어도 shade 색으로 항상 밝게 보임("빛 없이 빛남").
+    //     PBR 로 바꾸면 빛 없으면 어두워지고/빛 있으면 밝아짐 = 조명에 정상 반응 + fps 약간 개선.
+    //   - 텍스처/색/노멀/emissive(눈 등 발광부) 보존. transparent → alphaTest (depth sort 비용 0).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const toStandard = (mat: any): THREE.Material => {
+      const std = new THREE.MeshStandardMaterial({
+        map: mat.map ?? null,
+        color: mat.color?.clone?.() ?? new THREE.Color(0xffffff),
+        normalMap: mat.normalMap ?? null,
+        emissive: mat.emissive?.clone?.() ?? new THREE.Color(0x000000),
+        emissiveMap: mat.emissiveMap ?? null,
+        emissiveIntensity: typeof mat.emissiveIntensity === 'number' ? mat.emissiveIntensity : 1,
+        roughness: 0.85,
+        metalness: 0,
+        side: mat.side ?? THREE.FrontSide,
+      });
+      std.name = mat.name;
+      if (mat.transparent) { std.alphaTest = 0.5; std.depthWrite = true; }
+      else if (typeof mat.alphaTest === 'number' && mat.alphaTest > 0) { std.alphaTest = mat.alphaTest; }
+      try { mat.dispose?.(); } catch { /* noop */ }
+      return std;
+    };
     vrm.scene.traverse((c: THREE.Object3D) => {
       const m = c as THREE.Mesh;
       if (!m.isMesh) return;
       m.castShadow = true;
       const mats = Array.isArray(m.material) ? m.material : [m.material];
-      for (const mat of mats) {
+      const out = mats.map((mat) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (mat && (mat as any).isMToonMaterial) return toStandard(mat);
+        // 비-MToon — transparent → alphaTest 만
         if (mat && mat.transparent) {
-          mat.transparent = false;
-          mat.alphaTest = 0.5;
-          mat.depthWrite = true;
-          mat.needsUpdate = true;
+          mat.transparent = false; mat.alphaTest = 0.5; mat.depthWrite = true; mat.needsUpdate = true;
         }
-      }
+        return mat;
+      });
+      m.material = Array.isArray(m.material) ? out : out[0];
     });
 
     const { boneByName, morphTargets } = collectBonesAndMorphs(vrm.scene);
