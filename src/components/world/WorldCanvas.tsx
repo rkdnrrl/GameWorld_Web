@@ -4123,6 +4123,11 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const npcPatrolRef = useRef<Map<string, { tx: number; tz: number; nextAt: number; homeX: number; homeZ: number }>>(new Map());
   // Damage AOE 마지막 발동 시각 (interval 체크)
   const damageAoeRef = useRef<Map<string, number>>(new Map());
+  // Cutter 컴포넌트 — 마지막 깎은 위치 (이동 거리 throttle)
+  const cutterLastRef = useRef<Map<string, { x: number; y: number; z: number }>>(new Map());
+  // carveOverrides 최신 ref (tick 에서 stale state 회피 — 절삭 수 한도 체크)
+  const carveOverridesRef = useRef(carveOverrides);
+  useEffect(() => { carveOverridesRef.current = carveOverrides; }, [carveOverrides]);
   useEffect(() => { runtimeObjectsRef.current = runtimeObjects; }, [runtimeObjects]);
   // parent transform propagation 용 — customObjects + runtime 합쳐서 매 렌더 ref 갱신
   const allObjectsRef = useRef<UserMapObject[]>([]);
@@ -4427,6 +4432,13 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     return id;
   }, [playerId, sendObjSpawn]);
 
+  /** 절삭 1개(CsgCut)를 대상에 적용 + 전원 동기화. carveObject/커터 컴포넌트 공용 경로. */
+  const applyCut = useCallback((targetId: string, cut: import('@/lib/world/CarvedMesh').CsgCut): void => {
+    if (!targetId) return;
+    setCarveOverrides(prev => ({ ...prev, [targetId]: [...(prev[targetId] || []), cut] }));
+    sendScriptEvent?.(targetId, '__carve__', { cut });
+  }, [sendScriptEvent]);
+
   /** 런타임 깎기 — 큐브 오브젝트(id)에 절삭 1개 추가 + 전원 동기화. 깎인 모양대로 충돌체 재빌드.
    *  pos 는 기본 로컬(단위 큐브 -0.5~0.5). opts.world=true 면 월드 좌표를 오브젝트 로컬로 변환(총알 맞은 자리 깎기). */
   const carveObject = useCallback((id: string, opts: {
@@ -4452,9 +4464,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       }
     }
     const cut: import('@/lib/world/CarvedMesh').CsgCut = { shape, pos, size };
-    setCarveOverrides(prev => ({ ...prev, [id]: [...(prev[id] || []), cut] }));
-    sendScriptEvent?.(id, '__carve__', { cut });
-  }, [sendScriptEvent]);
+    applyCut(id, cut);
+  }, [applyCut]);
 
   /** id로 런타임 오브젝트 제거. customObjects(저장된 것)는 안전 상 보호. */
   const destroyObject = useCallback((id: string): void => {
@@ -4650,6 +4661,53 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             }
           }
         }
+      }
+
+      // ── Cutter 컴포넌트 — 지나간 자리 영구 깎기 (호스트 권위, 멀티 동기화) ──
+      const cutters = all.filter(o => o.components?.some(c => c.type === 'cutter'));
+      for (const cutter of cutters) {
+        const comp = cutter.components!.find(c => c.type === 'cutter')!;
+        if (comp.props?.enabled === false) continue;
+        const cBody = scriptBodyRefs.current.get(cutter.id)?.group?.current;
+        if (!cBody) continue;
+        const cp = cBody.getWorldPosition(new THREE.Vector3());
+        // 이동 거리 throttle — step 만큼 움직였을 때만 깎음 (정지 시 누적 방지)
+        const step = Math.max(0.05, Number(comp.props?.step ?? 0.3));
+        const last = cutterLastRef.current.get(cutter.id);
+        if (last) {
+          const dx = cp.x - last.x, dy = cp.y - last.y, dz = cp.z - last.z;
+          if (dx * dx + dy * dy + dz * dz < step * step) continue;
+        }
+        // 대상 큐브 — target 지정 우선, 비우면 가장 가까운 깎을 수 있는 큐브
+        const tok = String(comp.props?.target ?? '').trim();
+        let target: UserMapObject | undefined;
+        if (tok) {
+          target = all.find(o => o.id === tok || o.label === tok);
+        } else {
+          let bestD = Infinity;
+          for (const o of all) {
+            if (o.kind !== 'cube' || o.id === cutter.id) continue;
+            const tb = scriptBodyRefs.current.get(o.id)?.group?.current; if (!tb) continue;
+            const d = tb.getWorldPosition(new THREE.Vector3()).distanceToSquared(cp);
+            if (d < bestD) { bestD = d; target = o; }
+          }
+        }
+        if (!target || target.kind !== 'cube') continue;
+        const maxCuts = Math.max(1, Number(comp.props?.maxCuts ?? 40));
+        if ((carveOverridesRef.current[target.id]?.length ?? 0) >= maxCuts) { cutterLastRef.current.set(cutter.id, { x: cp.x, y: cp.y, z: cp.z }); continue; }
+        const tBody = scriptBodyRefs.current.get(target.id)?.group?.current;
+        if (!tBody) continue;
+        // 커터/대상의 live world matrix → 상대행렬 → 대상 단위공간의 CsgCut (박스, 비균일 크기, 회전 포함)
+        cBody.updateWorldMatrix(true, false);
+        tBody.updateWorldMatrix(true, false);
+        const rel = new THREE.Matrix4().copy(tBody.matrixWorld).invert().multiply(cBody.matrixWorld);
+        const rp = new THREE.Vector3(), rq = new THREE.Quaternion(), rs = new THREE.Vector3();
+        rel.decompose(rp, rq, rs);
+        cutterLastRef.current.set(cutter.id, { x: cp.x, y: cp.y, z: cp.z });
+        // 겹침 가드 — 단위 큐브(±0.5) + 커터 반경 밖이면 깎을 게 없음 (CSG 낭비 방지)
+        if (Math.abs(rp.x) > 0.5 + rs.x * 0.5 + 0.05 || Math.abs(rp.y) > 0.5 + rs.y * 0.5 + 0.05 || Math.abs(rp.z) > 0.5 + rs.z * 0.5 + 0.05) continue;
+        const re = new THREE.Euler().setFromQuaternion(rq);
+        applyCut(target.id, { shape: 'box', pos: [rp.x, rp.y, rp.z], size: [rs.x, rs.y, rs.z], rot: [re.x, re.y, re.z] });
       }
 
       const npcs = all.filter(o => o.components?.some(c => c.type === 'npc'));

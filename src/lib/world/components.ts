@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -47,6 +47,18 @@ export interface ComponentDef {
 }
 
 export const COMPONENT_DEFS: ComponentDef[] = [
+  {
+    type: 'cutter',
+    name: 'Cutter (커터 — 지나가며 깎기)',
+    icon: '🔪',
+    description: '이 박스가 지나간 자리를 대상 큐브에서 영구히 깎아낸다(홈/슬릿). 박스의 크기·회전이 절단 단면. 스튜디오 드래그·애니메이션·게임 중 이동 어느 방식이든 동작. 대상은 깎을 수 있는 큐브(kind=cube). target 비우면 가장 가까운 큐브 자동.',
+    props: [
+      { key: 'target',  label: '대상 큐브 (id/이름, 비우면 자동)', type: 'string',  default: '' },
+      { key: 'enabled', label: '활성 (enabled)',                 type: 'boolean', default: true },
+      { key: 'step',    label: '깎기 간격 (m, 작을수록 촘촘·무거움)', type: 'number',  default: 0.3, min: 0.05, max: 2, step: 0.05 },
+      { key: 'maxCuts', label: '최대 절삭 수 (성능 한도)',          type: 'number',  default: 40,  min: 1,    max: 120, step: 1, group: 'advanced' },
+    ],
+  },
   {
     type: 'worldPhysics',
     name: 'World Physics (맵 중력)',

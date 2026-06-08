@@ -2854,6 +2854,62 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
   // parent transform propagation 용 ref — useFrame 안에서 최신 list 접근
   const allObjectsRef = useRef<MapObject[]>([]);
   useEffect(() => { allObjectsRef.current = allObjects; }, [allObjects]);
+
+  // ── Cutter 컴포넌트 (시뮬) — 박스가 지나간 자리를 대상 큐브에서 영구 깎기 ──
+  const simCutterLast = useRef<Map<string, { x: number; y: number; z: number }>>(new Map());
+  const simCutterAccum = useRef(0);
+  useFrame((_s, dt) => {
+    simCutterAccum.current += dt;
+    if (simCutterAccum.current < 0.08) return;   // ~12Hz throttle
+    simCutterAccum.current = 0;
+    const all = allObjectsRef.current;
+    const cutters = all.filter(o => o.components?.some(c => c.type === 'cutter'));
+    if (cutters.length === 0) return;
+    const matOf = (o: MapObject) => {
+      const t = transforms[o.id];
+      const p = t?.pos ?? o.position, r = t?.rot ?? o.rotation, s = t?.scl ?? o.scale;
+      return new THREE.Matrix4().compose(
+        new THREE.Vector3(p[0], p[1], p[2]),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(r[0], r[1], r[2])),
+        new THREE.Vector3(s[0] || 1, s[1] || 1, s[2] || 1));
+    };
+    for (const cutter of cutters) {
+      const comp = cutter.components!.find(c => c.type === 'cutter')!;
+      if (comp.props?.enabled === false) continue;
+      const cpos = transforms[cutter.id]?.pos ?? cutter.position;
+      const step = Math.max(0.05, Number(comp.props?.step ?? 0.3));
+      const last = simCutterLast.current.get(cutter.id);
+      if (last) {
+        const dx = cpos[0] - last.x, dy = cpos[1] - last.y, dz = cpos[2] - last.z;
+        if (dx * dx + dy * dy + dz * dz < step * step) continue;
+      }
+      const tok = String(comp.props?.target ?? '').trim();
+      let target: MapObject | undefined;
+      if (tok) target = all.find(o => o.id === tok || o.label === tok);
+      else {
+        let bd = Infinity;
+        for (const o of all) {
+          if (o.kind !== 'cube' || o.id === cutter.id) continue;
+          const tp = transforms[o.id]?.pos ?? o.position;
+          const d = (tp[0] - cpos[0]) ** 2 + (tp[1] - cpos[1]) ** 2 + (tp[2] - cpos[2]) ** 2;
+          if (d < bd) { bd = d; target = o; }
+        }
+      }
+      if (!target || target.kind !== 'cube') continue;
+      const tgt = target;
+      const maxCuts = Math.max(1, Number(comp.props?.maxCuts ?? 40));
+      simCutterLast.current.set(cutter.id, { x: cpos[0], y: cpos[1], z: cpos[2] });
+      if ((simCarveOverrides[tgt.id]?.length ?? 0) >= maxCuts) continue;
+      const rel = new THREE.Matrix4().copy(matOf(tgt)).invert().multiply(matOf(cutter));
+      const rp = new THREE.Vector3(), rq = new THREE.Quaternion(), rs = new THREE.Vector3();
+      rel.decompose(rp, rq, rs);
+      if (Math.abs(rp.x) > 0.5 + rs.x * 0.5 + 0.05 || Math.abs(rp.y) > 0.5 + rs.y * 0.5 + 0.05 || Math.abs(rp.z) > 0.5 + rs.z * 0.5 + 0.05) continue;
+      const re = new THREE.Euler().setFromQuaternion(rq);
+      const cut: CsgCut = { shape: 'box', pos: [rp.x, rp.y, rp.z], size: [rs.x, rs.y, rs.z], rot: [re.x, re.y, re.z] };
+      setSimCarveOverrides(prev => ({ ...prev, [tgt.id]: [...(prev[tgt.id] || []), cut] }));
+    }
+  });
+
   // VM 재생성 키 — 원본 objects 의 script + components 변경 추적
   const scriptsKey = objects.map(o => o.id + '|' + (o.script ?? '') + '|' + JSON.stringify(o.components ?? []) + '|' + JSON.stringify(o.scriptVars ?? {})).join(',');
 
