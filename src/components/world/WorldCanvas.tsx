@@ -1386,7 +1386,7 @@ export interface PlayerControl {
   /** 달리기 가능 여부 — false 면 Shift 눌러도 달리기 속도 안 됨 (걷기로 제한). */
   setRunEnabled: (on: boolean) => void;
   /** 손 IK 타깃 설정 — 손을 월드 좌표로 (등반 grip). xyz=null 이면 해제(애니 복귀). */
-  setHandTarget: (side: 'left' | 'right', x: number | null, y?: number, z?: number) => void;
+  setHandTarget: (side: 'left' | 'right', x: number | null, y?: number, z?: number, nx?: number, ny?: number, nz?: number) => void;
   /** 몸 기울이기 (라디안) — pitch=앞뒤 lean, roll=좌우 lean. 등반 시 벽 기울기 반영. 0,0=수직. */
   setBodyTilt: (pitch: number, roll: number) => void;
 }
@@ -1497,7 +1497,7 @@ export function Player({
   const jumpEnabledRef  = useRef(true);         // world.setCanJump — 스태미나 소진 시 점프 차단
   const runEnabledRef   = useRef(true);         // world.setCanRun — 스태미나 소진 시 달리기 차단
   const mouseDownRef    = useRef(false);        // 좌클릭 누름 상태 (world.isMouseDown — 등반 grab 등)
-  const handTargetRef   = useRef<import('./HumanoidMesh').HandTargets>({ left: null, right: null });  // 손 IK 타깃 (등반 grip)
+  const handTargetRef   = useRef<import('./HumanoidMesh').HandTargets>({ left: null, right: null, leftN: null, rightN: null });  // 손 IK 타깃 (등반 grip)
   const bodyTiltRef     = useRef({ pitch: 0, roll: 0 });   // world.setBodyTilt — 등반 시 벽 기울기만큼 몸 기울임
   const mesh      = useRef<THREE.Group>(null);
   /** humanoid char 로드 후 head bone — 1인칭 카메라 Y 추적용 */
@@ -1599,10 +1599,12 @@ export function Player({
       },
       setJumpEnabled: (on) => { jumpEnabledRef.current = !!on; },
       setRunEnabled:  (on) => { runEnabledRef.current = !!on; },
-      setHandTarget: (side, x, y, z) => {
+      setHandTarget: (side, x, y, z, nx, ny, nz) => {
         const t = handTargetRef.current;
         const v = (x == null) ? null : [Number(x) || 0, Number(y) || 0, Number(z) || 0] as [number, number, number];
-        if (side === 'left') t.left = v; else t.right = v;
+        // 노멀 제공 시 손을 벽에 맞춰 회전 (벽 뚫림 방지)
+        const n = (x == null || nx == null) ? null : [Number(nx) || 0, Number(ny) || 0, Number(nz) || 0] as [number, number, number];
+        if (side === 'left') { t.left = v; t.leftN = n; } else { t.right = v; t.rightN = n; }
       },
       setBodyTilt: (pitch, roll) => {
         bodyTiltRef.current.pitch = Number.isFinite(pitch) ? pitch : 0;
@@ -5096,7 +5098,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       getMoveInput: () => playerCtlRef.current?.getMoveInput() ?? { forward: false, backward: false, left: false, right: false, jump: false, sprint: false, mouseDown: false },
       setJumpEnabled: (on) => playerCtlRef.current?.setJumpEnabled(on),
       setRunEnabled: (on) => playerCtlRef.current?.setRunEnabled(on),
-      setHandTarget: (side, x, y, z) => playerCtlRef.current?.setHandTarget(side, x, y, z),
+      setHandTarget: (side, x, y, z, nx, ny, nz) => playerCtlRef.current?.setHandTarget(side, x, y, z, nx, ny, nz),
       setBodyTilt: (pitch, roll) => playerCtlRef.current?.setBodyTilt(pitch, roll),
     };
 

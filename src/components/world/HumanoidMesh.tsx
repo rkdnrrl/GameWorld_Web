@@ -19,7 +19,13 @@ import { createHumanoidFootIK, type HumanoidFootIK } from '@/lib/character/human
 import { createHumanoidHandIK, type HumanoidHandIK } from '@/lib/character/humanoidHandIK';
 
 /** 손 IK 타깃 ref 형태 — 스크립트(world.setHandTarget)가 채움. null=미적용. */
-export type HandTargets = { left: [number, number, number] | null; right: [number, number, number] | null };
+export type HandTargets = {
+  left: [number, number, number] | null;
+  right: [number, number, number] | null;
+  /** 잡은 벽면 노멀 (월드). 있으면 손을 벽에 맞춰 회전 (벽 뚫림 방지). */
+  leftN?: [number, number, number] | null;
+  rightN?: [number, number, number] | null;
+};
 import { loadVRMA, vrmaToClip, vrmaToUniversalClip, fbxToVrmClip } from '@/lib/character/vrmAnimation';
 
 function getExt(url: string): string {
@@ -204,6 +210,8 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
   const handIKRef = useRef<HumanoidHandIK | null>(null);
   const handTmpL = useRef(new THREE.Vector3());
   const handTmpR = useRef(new THREE.Vector3());
+  const handNmpL = useRef(new THREE.Vector3());
+  const handNmpR = useRef(new THREE.Vector3());
   /** 캐릭터 인스턴스 추적 — 바뀌면 reset. */
   const lastCharForCrouchRef = useRef<HumanoidCharacter | null>(null);
   /** LOD frame counter — 거리별 mixer.update skip 용. */
@@ -662,6 +670,8 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
       const t = handTargetRef.current;
       hik.leftTarget  = t.left  ? handTmpL.current.set(t.left[0],  t.left[1],  t.left[2])  : null;
       hik.rightTarget = t.right ? handTmpR.current.set(t.right[0], t.right[1], t.right[2]) : null;
+      hik.leftNormal  = t.leftN  ? handNmpL.current.set(t.leftN[0],  t.leftN[1],  t.leftN[2])  : null;
+      hik.rightNormal = t.rightN ? handNmpR.current.set(t.rightN[0], t.rightN[1], t.rightN[2]) : null;
       if (hik.leftTarget || hik.rightTarget) { try { hik.update(); } catch { /* noop */ } }
     }
   });

@@ -28,14 +28,53 @@ export interface HumanoidHandIK {
   /** 손 target (월드 좌표). null 이면 그 손 IK 미적용. */
   leftTarget: THREE.Vector3 | null;
   rightTarget: THREE.Vector3 | null;
+  /** 잡은 벽면 노멀 (월드). 있으면 손을 벽에 맞춰 회전 (손가락이 벽 안쪽으로 안 뚫게). */
+  leftNormal: THREE.Vector3 | null;
+  rightNormal: THREE.Vector3 | null;
   update: () => void;
 }
 
 const TMP_V1 = new THREE.Vector3();
 const TMP_V2 = new THREE.Vector3();
 const TMP_V3 = new THREE.Vector3();
+const TMP_V4 = new THREE.Vector3();
+const TMP_V5 = new THREE.Vector3();
 const TMP_Q1 = new THREE.Quaternion();
 const TMP_Q2 = new THREE.Quaternion();
+const TMP_Q3 = new THREE.Quaternion();
+const TMP_Q4 = new THREE.Quaternion();
+const TMP_Q5 = new THREE.Quaternion();
+
+/**
+ * 손을 벽면에 맞춰 회전 — 솔브 후 호출. 손가락(전완 연장 방향)이 벽 안쪽을 향하던 걸
+ * 벽면을 따라 위로 향하게 돌려서 손이 벽을 뚫지 않게 한다. 리그 독립적(기하만 사용).
+ */
+function orientHandToWall(chain: ArmChain, normal: THREE.Vector3, smoothing: number): void {
+  const { lower, hand } = chain;
+  if (!hand.parent) return;
+  lower.updateMatrixWorld(true);   // 솔브로 바뀐 팔 포즈 반영
+
+  const lowerPos = lower.getWorldPosition(TMP_V1);
+  const handPos = hand.getWorldPosition(TMP_V2);
+  const cur = TMP_V3.subVectors(handPos, lowerPos);   // 손이 현재 향하는 방향(전완 연장 ≈ 손가락)
+  if (cur.lengthSq() < 1e-8) return;
+  cur.normalize();
+
+  // 원하는 손가락 방향 = up 을 벽 평면에 투영(벽면 따라 위로). 벽이 수평이면 노멀 바깥으로 fallback.
+  const nn = TMP_V4.copy(normal).normalize();
+  const desired = TMP_V5.set(0, 1, 0);
+  desired.addScaledVector(nn, -desired.dot(nn));   // up - (up·n)n
+  if (desired.lengthSq() < 1e-6) desired.copy(nn);
+  desired.normalize();
+
+  // cur → desired 회전을 손 월드 쿼터니언 앞에 곱해 적용
+  const deltaQ = TMP_Q3.setFromUnitVectors(cur, desired);
+  const handWorldQ = hand.getWorldQuaternion(TMP_Q4);
+  const newWorldQ = deltaQ.multiply(handWorldQ);             // deltaQ * handWorldQ (deltaQ 이 mutate 됨)
+  const parentQinv = hand.parent.getWorldQuaternion(TMP_Q5).invert();
+  const localQ = parentQinv.multiply(newWorldQ);            // 부모 로컬로 변환 (parentQinv mutate)
+  hand.quaternion.slerp(localQ, smoothing);
+}
 
 function buildArmChain(
   upper: THREE.Object3D | undefined,
@@ -124,10 +163,22 @@ export function createHumanoidHandIK(
     smoothing: 0.5,
     leftTarget: null,
     rightTarget: null,
+    leftNormal: null,
+    rightNormal: null,
     update() {
       if (!this.enabled) return;
-      if (leftChain && this.leftTarget)  { try { solveArm(leftChain, this.leftTarget, this.smoothing); } catch { /* noop */ } }
-      if (rightChain && this.rightTarget) { try { solveArm(rightChain, this.rightTarget, this.smoothing); } catch { /* noop */ } }
+      if (leftChain && this.leftTarget) {
+        try {
+          solveArm(leftChain, this.leftTarget, this.smoothing);
+          if (this.leftNormal) orientHandToWall(leftChain, this.leftNormal, this.smoothing);
+        } catch { /* noop */ }
+      }
+      if (rightChain && this.rightTarget) {
+        try {
+          solveArm(rightChain, this.rightTarget, this.smoothing);
+          if (this.rightNormal) orientHandToWall(rightChain, this.rightNormal, this.smoothing);
+        } catch { /* noop */ }
+      }
     },
   };
 }
