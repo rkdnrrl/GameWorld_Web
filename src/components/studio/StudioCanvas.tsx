@@ -20,6 +20,7 @@ import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
+import { TerrainSculptMesh, type TerrainTool } from '@/lib/world/TerrainSculptMesh';
 import { makeFlatTerrain, generateNoiseTerrain, type TerrainData } from '@/lib/world/terrain';
 import { makeDefaultUiData, parseAiUiRoot, AI_UI_PROMPT_GUIDE, type UiElementType, type UiData, type RectTransform, type AiUiRoot } from '@/lib/world/uiObjects';
 import { UiInspector } from './UiInspector';
@@ -1580,13 +1581,17 @@ function WaterMesh({ color, selected, strength = 1, speed = 1, frequency = 1, sc
 }
 
 /* ── 단일 오브젝트 렌더링 ────────────────── */
-function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
+function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false, sculpt, worldPos }: {
   obj: MapObject;
   selected: boolean;
   onClick: () => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   assetConfig?: any;
   noTransform?: boolean;
+  /** 터레인 조각 설정 — 활성이고 이 터레인이 선택됐을 때 sculpt 메시로 교체. */
+  sculpt?: { tool: import('@/lib/world/TerrainSculptMesh').TerrainTool; radius: number; strength: number; onCommit: (heights: number[]) => void; onActiveChange?: (a: boolean) => void };
+  /** 터레인 조각 좌표 변환용 월드 위치 (SceneNode wpos). */
+  worldPos?: [number, number, number];
 }) {
   const ref = useRef<THREE.Mesh>(null);
   const handle = (e: { stopPropagation: () => void; button?: number }) => {
@@ -1643,6 +1648,20 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false }: {
   // 데이터에 obj.terrain 이 없으면 (마이그레이션 안 된 옛 데이터) 렌더 X — null 반환.
   if (obj.kind === 'terrain') {
     if (!obj.terrain) return null;
+    // 조각 도구 활성 + 이 터레인 선택 → 브러시로 지형 올리고/내리기 (TerrainMesh 대신).
+    if (sculpt?.tool && selected) {
+      return (
+        <group
+          position={noTransform ? undefined : obj.position}
+          rotation={noTransform ? undefined : obj.rotation}
+          scale={noTransform ? undefined : obj.scale}
+          userData={noTransform ? undefined : { id: obj.id }}>
+          <TerrainSculptMesh terrain={obj.terrain} worldPos={worldPos ?? obj.position}
+            tool={sculpt.tool} radius={sculpt.radius} strength={sculpt.strength}
+            onCommit={sculpt.onCommit} onActiveChange={sculpt.onActiveChange} />
+        </group>
+      );
+    }
     return (
       <group
         position={noTransform ? undefined : obj.position}
@@ -2004,7 +2023,7 @@ function SpotLightWithTarget({ color, intensity, distance, angle, penumbra, cast
 }
 
 /* ── 씬 노드 (부모→자식 재귀 렌더링) ─────── */
-function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onObjectClick, myAssets }: {
+function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onObjectClick, myAssets, sculpt }: {
   obj: MapObject;
   wpos: [number, number, number];
   wrot: [number, number, number];
@@ -2014,6 +2033,8 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
   onObjectClick: (id: string) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   myAssets: any[];
+  /** 터레인 조각 설정 (선택 터레인일 때만 전달). */
+  sculpt?: { tool: TerrainTool; radius: number; strength: number; onCommit: (heights: number[]) => void; onActiveChange?: (a: boolean) => void };
 }) {
   const isSelected = obj.id === selectedId || multiSelectedIds.has(obj.id);
   // 평탄(flat) 렌더 — 각 오브젝트를 자기 "월드 TRS" 로 직접 렌더. 중첩 group 을 안 쓰므로
@@ -2080,7 +2101,7 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
   return (
     /* userData.id는 이 group에 → TransformControls이 이 group(월드 TRS)을 조작 */
     <group position={wpos} rotation={effectiveRot} scale={wscale} userData={{ id: obj.id }}>
-      <Mesh3D obj={obj} selected={isSelected} onClick={() => onObjectClick(obj.id)} assetConfig={assetConfig} noTransform />
+      <Mesh3D obj={obj} selected={isSelected} onClick={() => onObjectClick(obj.id)} assetConfig={assetConfig} noTransform sculpt={isSelected ? sculpt : undefined} worldPos={wpos} />
       {isSelected && colliderComp && (
         <mesh userData={{ __collider: true }} raycast={() => null}
           position={[
@@ -4173,6 +4194,16 @@ export default function StudioCanvas() {
   // 키프레임 타임라인 — 편집 미리보기 포즈 오버라이드 (선택 오브젝트의 worldTRS 를 일시 대체)
   const [kfPreview, setKfPreview] = useState<{ id: string; p: [number,number,number]; r: [number,number,number]; s: [number,number,number] } | null>(null);
   const [showTimeline, setShowTimeline] = useState(false);
+  // 터레인 조각(sculpt) — 도구/브러시. tool=null 이면 비활성(일반 선택/이동).
+  const [terrainTool, setTerrainTool] = useState<TerrainTool | null>(null);
+  const [brushSize, setBrushSize] = useState(5);
+  const [brushStrength, setBrushStrength] = useState(0.3);
+  const [sculptDragging, setSculptDragging] = useState(false);
+  // 선택이 터레인이 아니면 조각 도구 해제 (카메라 잠금 방지).
+  useEffect(() => {
+    const sel = objects.find(o => o.id === selectedId);
+    if (terrainTool && (!sel || sel.kind !== 'terrain')) setTerrainTool(null);
+  }, [selectedId, objects, terrainTool]);
   // 시뮬레이션
   const [simulating, setSimulating] = useState(false);
   // 게임 로직 레이어(시뮬용) — 스크립트의 game/ui/world.playSound 가 들어오고 <GameHud> 가 그림.
@@ -5200,6 +5231,7 @@ export default function StudioCanvas() {
     setSimCameraMode('first');
     setSimCamView('follow');
     simGameRuntime.reset();   // 게임 상태·HUD 초기화 후 시작
+    setTerrainTool(null);     // 지형 조각 도구 해제 (시뮬 중 카메라 잠금 방지)
     setSimulating(true);
   }
 
@@ -8039,6 +8071,14 @@ export default function StudioCanvas() {
                     selectedId={selectedId}
                     multiSelectedIds={multiSelectedIds}
                     myAssets={myAssets}
+                    sculpt={(terrainTool && obj.kind === 'terrain' && obj.id === selectedId) ? {
+                      tool: terrainTool, radius: brushSize, strength: brushStrength,
+                      onCommit: (heights) => {
+                        pushHistory(objects);
+                        setObjects(prev => prev.map(o => o.id === obj.id && o.terrain ? { ...o, terrain: { ...o.terrain, heights } } : o));
+                      },
+                      onActiveChange: setSculptDragging,
+                    } : undefined}
                     onObjectClick={id => {
                       // 뷰포트 다중 선택은 Ctrl+클릭 (트리 다중과 일관성). Shift 는 카메라 가속 우선.
                       if (ctrlHeldRef.current) {
@@ -8124,7 +8164,7 @@ export default function StudioCanvas() {
             <>
               <OrbitControls
                 ref={orbitRef}
-                enabled={orbitEnabled}
+                enabled={orbitEnabled && !terrainTool}
                 makeDefault
                 enableZoom={true}
                 // 모바일: 1손가락 회전 + 2손가락 핀치줌/팬. 데스크톱: 좌클릭은 선택/마키용으로 비움, 가운데=팬.
@@ -8261,6 +8301,34 @@ export default function StudioCanvas() {
                 />
               )}
             </>
+          );
+        })()}
+
+        {/* 터레인 조각(sculpt) 도구 — 선택한 터레인 지형 올리고/내리기 (유니티/언리얼식 브러시) */}
+        {!simulating && (() => {
+          const selObj = objects.find(o => o.id === selectedId);
+          if (!selObj || selObj.kind !== 'terrain') return null;
+          const tools: { id: TerrainTool; label: string }[] = [
+            { id: 'raise', label: '⛰️ 올리기' }, { id: 'lower', label: '🕳️ 내리기' },
+            { id: 'smooth', label: '🌫️ 부드럽게' }, { id: 'flatten', label: '▭ 평탄화' },
+          ];
+          return (
+            <div style={{ position: 'fixed', left: '50%', bottom: 16, transform: 'translateX(-50%)', zIndex: 51,
+              display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'center',
+              background: 'rgba(20,20,28,0.94)', border: '1px solid #333', borderRadius: 12, padding: '8px 14px',
+              color: '#eee', font: '12px sans-serif', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
+              <strong style={{ color: '#a5b4fc' }}>🏔️ 지형 조각</strong>
+              {tools.map(tl => (
+                <button key={tl.id} onClick={() => setTerrainTool(t => t === tl.id ? null : tl.id)}
+                  style={{ padding: '5px 10px', borderRadius: 7, border: 'none', cursor: 'pointer', fontWeight: 700,
+                    background: terrainTool === tl.id ? '#6366f1' : 'rgba(255,255,255,0.08)', color: '#fff' }}>{tl.label}</button>
+              ))}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>크기
+                <input type="range" min={1} max={20} step={0.5} value={brushSize} onChange={e => setBrushSize(Number(e.target.value))} style={{ width: 90 }} />{brushSize}m</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>세기
+                <input type="range" min={0.05} max={1.5} step={0.05} value={brushStrength} onChange={e => setBrushStrength(Number(e.target.value))} style={{ width: 80 }} />{brushStrength.toFixed(2)}</label>
+              {terrainTool && <span style={{ color: '#86efac' }}>지형 위를 드래그하세요</span>}
+            </div>
           );
         })()}
 
