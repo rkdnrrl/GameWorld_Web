@@ -2103,7 +2103,8 @@ export function Player({
       // 지면 체크 — 자기 RigidBody 제외 (제외 없으면 캡슐 내부 → TOI=0 → 항상 onGround=true)
       const ray = new rapier.Ray({ x: posT.x, y: posT.y, z: posT.z }, { x: 0, y: -1, z: 0 });
       const hit = rWorld.castRay(ray, 1.3, true, undefined, undefined, undefined, body.current ?? undefined);
-      const onGround = !!(hit && hit.timeOfImpact < 0.7);
+      // 캡슐 바닥(중심에서 0.63 아래) + 여유 버퍼 — 살짝 떠도 접지로 인정(coyote/snap). 0.7 은 버퍼가 너무 좁아 경사·미끄럼에서 낙하 애니 깜빡임.
+      const onGround = !!(hit && hit.timeOfImpact < 0.9);
       groundedRef.current = onGround;   // world.isGrounded() 용
 
       // 점프: Space가 새로 눌렸을 때만 1번 (앉기/엎드리기 중엔 점프 금지). 수동 모드면 엔진 점프 skip.
