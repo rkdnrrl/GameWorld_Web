@@ -1989,7 +1989,23 @@ export function Player({
       const len = Math.sqrt(mx * mx + mz * mz);
       if (len > 0) { mx /= len; mz /= len; }
       // 수동 제어 모드(world.setControl('manual')) — 스크립트가 setVelocity 로 직접 구동. 엔진 walk 속도 skip.
-      if (!manualMoveRef.current) body.current.setLinvel({ x: mx * SPEED, y: vel.y, z: mz * SPEED }, true);
+      if (!manualMoveRef.current) {
+        let walkX = mx * SPEED, walkZ = mz * SPEED;
+        // ── 경사면 차단 — 발밑 normal 로 너무 가파르면 못 걸어 올라감(미끄러짐). PEAK 식: 가파른 면은 등반(좌클릭)으로만. ──
+        try {
+          const nray = new rapier.Ray({ x: posT.x, y: posT.y, z: posT.z }, { x: 0, y: -1, z: 0 });
+          const nh = rWorld.castRayAndGetNormal(nray, 1.5, true, undefined, undefined, undefined, body.current ?? undefined);
+          if (nh && nh.normal && nh.timeOfImpact < 1.3) {
+            const ny = nh.normal.y;        // 1=평지, 0=수직벽
+            if (ny > 0.05 && ny < 0.6) {   // cos(약 53°) 보다 가파르면 — 걷기 무시, 내리막으로 미끄러짐
+              const nl = Math.hypot(nh.normal.x, nh.normal.z) || 1;
+              walkX = (nh.normal.x / nl) * 4;   // normal 의 수평 성분 = 내리막 방향
+              walkZ = (nh.normal.z / nl) * 4;
+            }
+          }
+        } catch { /* noop — 경사 판정 실패해도 일반 walk */ }
+        body.current.setLinvel({ x: walkX, y: vel.y, z: walkZ }, true);
+      }
 
       // ── 부력 (물에 뜨기 / 자유 수영) ── 수동 모드면 skip (스크립트가 제어)
       let inBuoyancy = false;
