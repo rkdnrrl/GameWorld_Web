@@ -35,6 +35,32 @@ export function voxelPalette(data: VoxelVolumeData): string[] {
   return ['#6a9a4a', '#8a7355', '#6f6f76'];                              // 잔디 → 흙 → 바위
 }
 
+/** hex → linear RGB (THREE.Color 와 동일한 sRGB→linear 변환). 워커에서 THREE 없이 색 계산용. */
+function srgbToLinear(c: number): number {
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+export function hexToLinearRgb(hex: string): [number, number, number] {
+  let h = hex.replace('#', '');
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  const n = parseInt(h, 16) || 0;
+  return [srgbToLinear(((n >> 16) & 255) / 255), srgbToLinear(((n >> 8) & 255) / 255), srgbToLinear((n & 255) / 255)];
+}
+
+/** 정점 위치(로컬, -half~half) → 깊이별 층 색 Float32Array. 순수(THREE 무관) — 워커·메인 공용. */
+export function computeVoxelColors(positions: Float32Array, data: VoxelVolumeData): Float32Array {
+  const n = positions.length / 3;
+  const pal = voxelPalette(data).map(hexToLinearRgb);
+  const half = data.size / 2, size = data.size || 1;
+  const colors = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    let t = (half - positions[i * 3 + 1]) / size;   // 0=꼭대기, 1=바닥
+    if (t < 0) t = 0; else if (t > 0.999) t = 0.999;
+    const c = pal[Math.min(pal.length - 1, Math.floor(t * pal.length))];
+    colors[i * 3] = c[0]; colors[i * 3 + 1] = c[1]; colors[i * 3 + 2] = c[2];
+  }
+  return colors;
+}
+
 /** 값 노이즈 (marchingCubes 지형과 무관한 단순 2D) — 결정적. */
 function noise2(x: number, z: number, seed: number): number {
   const h = Math.sin(x * 12.9898 + z * 78.233 + seed * 37.71) * 43758.5453;
