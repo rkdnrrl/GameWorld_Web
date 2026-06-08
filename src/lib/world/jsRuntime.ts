@@ -1250,8 +1250,10 @@ export class JsScript {
 
       const MathLib = {
         sin: Math.sin, cos: Math.cos, tan: Math.tan, atan: Math.atan, atan2: Math.atan2,
-        abs: Math.abs, floor: Math.floor, ceil: Math.ceil, round: Math.round,
-        random: Math.random, sqrt: Math.sqrt, pow: Math.pow,
+        asin: Math.asin, acos: Math.acos,
+        abs: Math.abs, floor: Math.floor, ceil: Math.ceil, round: Math.round, sign: Math.sign,
+        random: Math.random, sqrt: Math.sqrt, pow: Math.pow, hypot: Math.hypot,
+        exp: Math.exp, log: Math.log,
         min: Math.min, max: Math.max,
         PI: Math.PI, E: Math.E,
       };
