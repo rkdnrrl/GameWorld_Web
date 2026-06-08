@@ -263,11 +263,17 @@ class Parser {
 
   parseVarDecl(): Node {
     this.pos++; // let/const/var
-    const name = this.eat('IDENT').value;
-    let value = null;
-    if (this.consume('OP', '=')) value = this.parseExpression();
+    // 쉼표로 여러 선언 지원: let a = 1, b = 2, c;
+    const decls: { name: string; value: Node | null }[] = [];
+    do {
+      const name = this.eat('IDENT').value;
+      let value: Node | null = null;
+      if (this.consume('OP', '=')) value = this.parseExpression();
+      decls.push({ name, value });
+    } while (this.consume('PUNCT', ','));
     this.consume('PUNCT', ';');
-    return { type: 'VarDecl', name, value };
+    if (decls.length === 1) return { type: 'VarDecl', name: decls[0].name, value: decls[0].value };
+    return { type: 'VarDeclList', decls };
   }
 
   parseIf(): Node {
@@ -613,6 +619,12 @@ class Interpreter {
       case 'ExprStmt': return this.eval(node.expr, env);
       case 'VarDecl': {
         env.declare(node.name, node.value ? this.eval(node.value, env) : undefined);
+        return undefined;
+      }
+      case 'VarDeclList': {
+        for (const dcl of node.decls as { name: string; value: Node | null }[]) {
+          env.declare(dcl.name, dcl.value ? this.eval(dcl.value, env) : undefined);
+        }
         return undefined;
       }
       case 'FunctionDecl': {
