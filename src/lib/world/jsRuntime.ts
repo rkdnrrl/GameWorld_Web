@@ -31,6 +31,7 @@ import type { JsGameAPI } from './gameRuntime';
  *   world.getMyPlayer() → {id,username,x,y,z} 본인 위치 / world.isUnderwater() / world.getDepth()  — 물속 판정·수심(산소 게이지 등)
  *   world.setControl("manual"|"auto") / world.setVelocity(x,y,z) / world.getVelocity() / world.setGravity(on) / world.isGrounded()  — 직접 이동 제어(등반·제트팩)
  *   world.getCameraDir() → {x,y,z} 시선 / world.raycast(ox,oy,oz, dx,dy,dz, maxDist) → {hit,distance,x,y,z,id}  — 벽/표면 감지
+ *   world.getMoveInput() → {forward,backward,left,right,jump,sprint}  — 현재 누른 이동키 (등반 "W 눌렀나" 판정)
  *   inv.add(name, qty=1) / inv.consume(name, qty=1)→bool / inv.count(name) / inv.list() / inv.clear()  — 인벤토리(플레이어 개인·영구)
  *   game.get(key, default?) / game.set(key, value) / game.add(key, n=1)  — 전역 게임 상태(점수·체력 등)
  *   ui.text(id, text, {x,y,size,color,bg,align}) / ui.bar(id, value, max, {x,y,color,bg})  — 화면 HUD
@@ -931,6 +932,7 @@ export interface JsWorldAPI {
   getCameraDir?(): { x: number; y: number; z: number };
   raycast?(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxDist: number):
     { hit: boolean; distance: number; x: number; y: number; z: number; id: string | null };
+  getMoveInput?(): { forward: boolean; backward: boolean; left: boolean; right: boolean; jump: boolean; sprint: boolean };
 }
 
 export interface JsNetAPI {
@@ -1107,6 +1109,8 @@ export class JsScript {
         raycast: (ox: unknown, oy: unknown, oz: unknown, dx: unknown, dy: unknown, dz: unknown, maxDist: unknown) =>
           worldApi.raycast ? worldApi.raycast(Number(ox) || 0, Number(oy) || 0, Number(oz) || 0, Number(dx) || 0, Number(dy) || 0, Number(dz) || 0, Number(maxDist) || 5)
             : { hit: false, distance: 0, x: 0, y: 0, z: 0, id: null },
+        // world.getMoveInput() → {forward,backward,left,right,jump,sprint} 현재 누른 이동키 (등반 "W 눌렀나" 판정)
+        getMoveInput: () => worldApi.getMoveInput ? worldApi.getMoveInput() : { forward: false, backward: false, left: false, right: false, jump: false, sprint: false },
       };
       // world.time을 항상 최신 값으로 → getter처럼 동작
       Object.defineProperty(world, 'time', {

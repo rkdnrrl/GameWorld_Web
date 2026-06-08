@@ -1376,6 +1376,8 @@ export interface PlayerControl {
   /** 레이캐스트 — (ox,oy,oz)에서 (dx,dy,dz) 방향으로 maxDist 까지. 벽/등반표면 감지용. */
   raycast: (ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxDist: number) =>
     { hit: boolean; distance: number; x: number; y: number; z: number; id: string | null };
+  /** 현재 이동 입력(WASD/방향키/모바일 조이스틱/점프). 등반 등에서 "전진키 눌렀나" 판정용. */
+  getMoveInput: () => { forward: boolean; backward: boolean; left: boolean; right: boolean; jump: boolean; sprint: boolean };
 }
 
 /* ── 로컬 플레이어 컨트롤러 ─────────────── */
@@ -1549,6 +1551,18 @@ export function Player({
           if (hb && scriptBodyRefs) for (const [oid, ref] of scriptBodyRefs.current) { if (ref.body.current === hb) { id = oid; break; } }
           return { hit: true, distance: d, x: hx, y: hy, z: hz, id };
         } catch { return { hit: false, distance: 0, x: 0, y: 0, z: 0, id: null }; }
+      },
+      getMoveInput: () => {
+        const k = keys.current;
+        const mt = _mob.moveTouch;   // 모바일 조이스틱 (y<0 = 전진)
+        return {
+          forward:  k.has('KeyW') || k.has('ArrowUp')    || (mt.active && mt.y < -0.3),
+          backward: k.has('KeyS') || k.has('ArrowDown')  || (mt.active && mt.y >  0.3),
+          left:     k.has('KeyA') || k.has('ArrowLeft')  || (mt.active && mt.x < -0.3),
+          right:    k.has('KeyD') || k.has('ArrowRight') || (mt.active && mt.x >  0.3),
+          jump:     k.has('Space') || _mob.jumpQueued,
+          sprint:   k.has('ShiftLeft') || _mob.sprint,
+        };
       },
     };
     return () => { if (playerCtlRef) playerCtlRef.current = null; };
@@ -5007,6 +5021,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       isGrounded: () => playerCtlRef.current?.isGrounded() ?? false,
       getCameraDir: () => playerCtlRef.current?.getCameraDir() ?? { x: 0, y: 0, z: -1 },
       raycast: (ox, oy, oz, dx, dy, dz, maxDist) => playerCtlRef.current?.raycast(ox, oy, oz, dx, dy, dz, maxDist) ?? { hit: false, distance: 0, x: 0, y: 0, z: 0, id: null },
+      getMoveInput: () => playerCtlRef.current?.getMoveInput() ?? { forward: false, backward: false, left: false, right: false, jump: false, sprint: false },
     };
 
     // 메인 스크립트 (obj.script) VM 생성
