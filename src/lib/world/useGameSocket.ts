@@ -83,6 +83,8 @@ export interface RuntimeObjectSpec {
   grabbable?: boolean;
   parentId?: string;
   label?: string;
+  /** 런타임 지형 생성 파라미터 — heights 배열 대신 시드만 전송, 각 클라가 동일 지형 재생성. */
+  terrainGen?: { seed: number; size: number; segments: number; amplitude: number; scale: number; baseColor: string };
 }
 
 interface Options {

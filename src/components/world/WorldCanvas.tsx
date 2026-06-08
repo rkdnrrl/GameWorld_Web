@@ -48,6 +48,7 @@ import { PerfManager } from '@/lib/world/PerfManager';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
+import { generateNoiseTerrain } from '@/lib/world/terrain';
 import { computeBuoyancyVolumes, type BuoyancyVolume } from '@/lib/world/components';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
@@ -4319,6 +4320,10 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           grabbable: spec.grabbable,
           parentId: spec.parentId,
           label: spec.label,
+          // 런타임 지형 — 시드 파라미터로 동일 heightmap 재생성 (heights 배열 미전송)
+          terrain: spec.terrainGen
+            ? (() => { const tg = spec.terrainGen!; const t = generateNoiseTerrain(tg.size, tg.segments, tg.amplitude, tg.scale, tg.seed); t.baseColor = tg.baseColor; return t; })()
+            : undefined,
         };
         return [...prev, obj];
       });
@@ -4366,6 +4371,37 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       position: obj.position, rotation: obj.rotation, scale: obj.scale,
       color: obj.color, physics: obj.physics,
       material: obj.material, materialColor: obj.materialColor,
+    });
+    return id;
+  }, [playerId, sendObjSpawn]);
+
+  /** 런타임 노이즈 지형 생성 (PEAK 식 랜덤맵). 시드 결정적 → 파라미터만 broadcast, 각 클라가 동일 재생성.
+   *  호스트가 생성하면 전원 동일 지형. id 반환 — 재생성 시 destroyObject(id) 후 다시 호출. */
+  const spawnTerrain = useCallback((params: {
+    seed?: number; size?: number; segments?: number; amplitude?: number; scale?: number; baseColor?: string;
+    x?: number; y?: number; z?: number; id?: string;
+  }): string => {
+    const seed = Number(params.seed) || 1;
+    const size = Number(params.size) || 80;
+    const segments = Math.max(8, Math.min(192, Math.floor(Number(params.segments) || 64)));
+    const amplitude = Number(params.amplitude) || 8;
+    const scale = Number(params.scale) || 0.04;
+    const baseColor = String(params.baseColor || '#5a8a4a');
+    const x = Number(params.x) || 0, y = Number(params.y) || 0, z = Number(params.z) || 0;
+    const id = params.id || `rtterr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const terrain = generateNoiseTerrain(size, segments, amplitude, scale, seed);
+    terrain.baseColor = baseColor;
+    const obj: UserMapObject = {
+      id, kind: 'terrain', terrain,
+      position: [x, y, z], rotation: [0, 0, 0], scale: [1, 1, 1],
+      color: baseColor, physics: 'fixed',
+    };
+    setRuntimeObjects(prev => [...prev.filter(o => o.id !== id), obj]);
+    ownersRef.current.set(id, playerId);
+    sendObjSpawn?.({
+      id, kind: 'terrain', position: [x, y, z], rotation: [0, 0, 0], scale: [1, 1, 1],
+      color: baseColor, physics: 'fixed',
+      terrainGen: { seed, size, segments, amplitude, scale, baseColor },
     });
     return id;
   }, [playerId, sendObjSpawn]);
@@ -5080,6 +5116,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         };
         return makeObjectAPI(id, fallback);
       },
+      spawnTerrain: (params) => spawnTerrain(params),
       isHost: () => isHostRef.current,
       runtimeCount: () => runtimeObjectsRef.current.length,
       // ── 플레이어 제어 (로컬 플레이어 = 호스트/솔로/시뮬) ──

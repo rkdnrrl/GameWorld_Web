@@ -909,6 +909,8 @@ export interface JsWorldAPI {
   findObject?(nameOrId: string): JsObjectAPI | null;
   /** 런타임에 새 오브젝트 생성. 생성된 오브젝트 핸들 반환. */
   spawn?(opts: JsSpawnOpts): JsObjectAPI;
+  /** 런타임 노이즈 지형 생성 (PEAK 식 랜덤맵). 시드 결정적·멀티 동기화. id 반환. */
+  spawnTerrain?(params: { seed?: number; size?: number; segments?: number; amplitude?: number; scale?: number; baseColor?: string; x?: number; y?: number; z?: number; id?: string }): string;
   /** 본인이 호스트(가장 일찍 입장한 활성 플레이어)인지. 스튜디오 시뮬에선 항상 true. */
   isHost?(): boolean;
   /** 현재 씬에 있는 런타임(spawn) 오브젝트 개수 — "이미 spawn 됐는지" 가드로 사용. */
@@ -1068,6 +1070,23 @@ export class JsScript {
         spawn: (opts: JsSpawnOpts | undefined) => {
           const spawned = worldApi.spawn?.(opts ?? {});
           return spawned ? wrapObjectAPI(spawned) : null;
+        },
+        // world.terrain({ seed:42, size:120, amplitude:14, scale:0.03 }) — 랜덤 노이즈 지형(PEAK 식 랜덤맵).
+        // 시드 결정적 → 호스트가 만들면 전원 동일 지형. id 반환. 재생성: world.find(id).destroy() 후 다시 호출.
+        terrain: (opts?: Record<string, unknown>) => {
+          const o = (opts && typeof opts === 'object') ? opts : {};
+          return worldApi.spawnTerrain?.({
+            seed: o.seed != null ? Number(o.seed) : undefined,
+            size: o.size != null ? Number(o.size) : undefined,
+            segments: o.segments != null ? Number(o.segments) : undefined,
+            amplitude: o.amplitude != null ? Number(o.amplitude) : undefined,
+            scale: o.scale != null ? Number(o.scale) : undefined,
+            baseColor: o.baseColor != null ? String(o.baseColor) : undefined,
+            x: o.x != null ? Number(o.x) : undefined,
+            y: o.y != null ? Number(o.y) : undefined,
+            z: o.z != null ? Number(o.z) : undefined,
+            id: o.id != null ? String(o.id) : undefined,
+          }) ?? '';
         },
         // 본인이 호스트인지 — 멀티에서 중복 spawn/sound 등 방지용
         // if (world.isHost()) { world.spawn(...); }

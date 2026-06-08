@@ -2778,6 +2778,23 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
     return id;
   }, []);
 
+  // 런타임 노이즈 지형 (PEAK 식 랜덤맵) — 시뮬용. 시드 결정적.
+  const spawnTerrain = useCallback((params: { seed?: number; size?: number; segments?: number; amplitude?: number; scale?: number; baseColor?: string; x?: number; y?: number; z?: number; id?: string }): string => {
+    const seed = Number(params.seed) || 1;
+    const size = Number(params.size) || 80;
+    const segments = Math.max(8, Math.min(192, Math.floor(Number(params.segments) || 64)));
+    const amplitude = Number(params.amplitude) || 8;
+    const scale = Number(params.scale) || 0.04;
+    const baseColor = String(params.baseColor || '#5a8a4a');
+    const x = Number(params.x) || 0, y = Number(params.y) || 0, z = Number(params.z) || 0;
+    const id = params.id || `rtterr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const terrain = generateNoiseTerrain(size, segments, amplitude, scale, seed);
+    terrain.baseColor = baseColor;
+    const obj: MapObject = { id, kind: 'terrain', terrain, position: [x, y, z], rotation: [0, 0, 0], scale: [1, 1, 1], color: baseColor, physics: 'fixed' };
+    setRuntimeObjects(prev => [...prev.filter(o => o.id !== id), obj]);
+    return id;
+  }, []);
+
   const destroyObject = useCallback((id: string) => {
     setRuntimeObjects(prev => prev.filter(o => o.id !== id));
     scriptBodyRefs.current.delete(id);
@@ -2919,6 +2936,7 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
           };
           return makeObjectAPI(id, fallback);
         },
+        spawnTerrain: (params) => spawnTerrain(params),
         // 스튜디오 시뮬은 단일 클라 — 본인 = 항상 호스트
         isHost: () => true,
         runtimeCount: () => runtimeObjectsRef.current.length,
@@ -3059,6 +3077,7 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
         const id = spawnObject(opts);
         return makeAPIForObj({ ...opts, id } as MapObject);
       },
+      spawnTerrain: (params) => spawnTerrain(params),
       isHost: () => true,
       runtimeCount: () => runtimeObjectsRef.current.length,
       teleportLocal: (x, y, z) => playerCtlRef.current?.teleport(x, y, z),
