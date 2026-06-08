@@ -27,6 +27,7 @@ import { UiInspector } from './UiInspector';
 import { createGameRuntime } from '@/lib/world/gameRuntime';
 import { execUiButtonScript } from '@/lib/world/uiButtonScript';
 import GameHud from '@/components/world/GameHud';
+import WorldDevConsole from '@/components/world/WorldDevConsole';
 import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, VideoScreenCtx, parseYouTubeId, parseUrlKind, normalizeMediaUrl, ImageMaterial, GenericIframeOverlay, VideoRemotePanel, VideoDistanceUpdater, VideoInitialStateApplier, type VideoRegistry, type VideoHandle } from '@/components/world/VideoScreen';
 import AiGuideModal from './AiGuideModal';
 import StudioTopBar from './StudioTopBar';
@@ -8283,6 +8284,8 @@ export default function StudioCanvas() {
 
         {/* 게임 HUD — 스크립트 ui.text/ui.bar 가 그림. 시뮬레이션 중에만 뷰포트 위에 오버레이. */}
         {simulating && <GameHud runtime={simGameRuntime} />}
+        {/* 스크립트 디버그 콘솔 (백틱 ` 키 토글) — 시뮬 중 print/에러 확인 */}
+        {simulating && <WorldDevConsole />}
 
         {/* 1인칭 시뮬레이션 크로스헤어 — follow 모드 + 1인칭일 때만. 월드와 동일 십자가 + 가운데 점.
             위치: 캔버스 영역 중앙 (viewport 중앙 X — 좌측 사이드바 등으로 어긋남). raycast NDC(0,0) 과 일치. */}

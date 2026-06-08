@@ -1449,6 +1449,12 @@
     "popularTags": "인기 태그:",
     "noMatches": "검색 결과가 없습니다."
   },
+  "DevConsole": {
+    "title": "스크립트 콘솔",
+    "lineCount": "{n}줄",
+    "clear": "지우기",
+    "empty": "로그 없음. 스크립트의 print(...) 출력과 에러가 여기 표시됩니다. ` 키로 토글."
+  },
   "Session": {
     "title": "세션 선택",
     "subtitle": "공개 세션에 참여하거나 새로 만드세요",

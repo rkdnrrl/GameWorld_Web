@@ -1449,6 +1449,12 @@
     "popularTags": "Popular tags:",
     "noMatches": "No worlds match your search."
   },
+  "DevConsole": {
+    "title": "Script console",
+    "lineCount": "{n} lines",
+    "clear": "Clear",
+    "empty": "No logs. print(...) output and errors from your scripts show here. Toggle with the ` key."
+  },
   "Session": {
     "title": "Choose a session",
     "subtitle": "Join a public session or start a new one",

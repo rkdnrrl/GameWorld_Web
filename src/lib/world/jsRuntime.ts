@@ -957,19 +957,34 @@ export interface JsNetAPI {
   sendTo(playerId: string, event: string, data: Record<string, unknown>): void;
 }
 
+// ── 월드 디버그 콘솔용 전역 로그 싱크 ──
+// 모든 스크립트 VM 의 print() 출력·에러를 한 곳에 모음. WorldDevConsole 이 읽어 표시.
+export type DevLogEntry = { level: 'log' | 'err'; id: string; msg: string; seq: number };
+const _devLog: DevLogEntry[] = [];
+let _devSeq = 0;
+export function pushDevLog(level: 'log' | 'err', id: string, msg: string): void {
+  _devLog.push({ level, id: String(id || '').slice(0, 8), msg: String(msg), seq: ++_devSeq });
+  if (_devLog.length > 300) _devLog.shift();   // 링버퍼
+}
+export function getDevLogs(): DevLogEntry[] { return _devLog; }
+export function clearDevLogs(): void { _devLog.length = 0; }
+
 export class JsScript {
   private interp: Interpreter | null = null;
   private ready = false;
+  private objId = '';
   private started = false;
   readonly logs: string[] = [];
   readonly errors: string[] = [];
 
   init(source: string, obj: JsObjectAPI, worldApi: JsWorldAPI, netApi: JsNetAPI, props?: Record<string, unknown>, vars?: Record<string, unknown>, gameApi?: JsGameAPI): void {
     try {
+      this.objId = obj.id;   // 에러 로그에 오브젝트 식별용
       const print = (...args: unknown[]) => {
         const line = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
         this.logs.push(line);
         if (this.logs.length > 200) this.logs.shift();
+        pushDevLog('log', obj.id, line);   // 디버그 콘솔로
         // eslint-disable-next-line no-console
         console.log(`[js:${obj.id.slice(0, 8)}]`, line);
       };
@@ -1479,9 +1494,16 @@ export class JsScript {
       this.ready = true;
     } catch (e) {
       const msg = String((e as Error).message ?? e);
-      this.errors.push(msg);
+      this.addError(msg);
       console.error('[JsScript] init error:', msg);
     }
+  }
+
+  /** 에러 누적(중복 제거) + 디버그 콘솔 전역 싱크로 전달. */
+  private addError(msg: string): void {
+    if (this.errors.includes(msg)) return;
+    this.errors.push(msg);
+    pushDevLog('err', this.objId, msg);
   }
 
   /** onStart 명시적 호출. idempotent — 여러 번 불러도 한 번만 실행. */
@@ -1492,7 +1514,7 @@ export class JsScript {
       this.interp.callFunction('onStart', []);
     } catch (e) {
       const msg = String((e as Error).message ?? e);
-      this.errors.push(msg);
+      this.addError(msg);
       console.error('[JsScript] onStart error:', msg);
     }
   }
@@ -1517,10 +1539,8 @@ export class JsScript {
       this.interp.callFunction('onUpdate', [dt]);
     } catch (e) {
       const msg = String((e as Error).message ?? e);
-      if (!this.errors.includes(msg)) {
-        this.errors.push(msg);
-        console.error('[JsScript] onUpdate error:', msg);
-      }
+      if (!this.errors.includes(msg)) console.error('[JsScript] onUpdate error:', msg);
+      this.addError(msg);
     }
   }
 
@@ -1530,7 +1550,7 @@ export class JsScript {
       this.interp.callFunction('onNetEvent', [event, data, fromId]);
     } catch (e) {
       const msg = String((e as Error).message ?? e);
-      if (!this.errors.includes(msg)) this.errors.push(msg);
+      this.addError(msg);
     }
   }
 
@@ -1540,7 +1560,7 @@ export class JsScript {
       this.interp.callFunction('onGrab', [grabberId]);
     } catch (e) {
       const msg = String((e as Error).message ?? e);
-      if (!this.errors.includes(msg)) this.errors.push(msg);
+      this.addError(msg);
     }
   }
 
@@ -1550,7 +1570,7 @@ export class JsScript {
       this.interp.callFunction('onRelease', [grabberId]);
     } catch (e) {
       const msg = String((e as Error).message ?? e);
-      if (!this.errors.includes(msg)) this.errors.push(msg);
+      this.addError(msg);
     }
   }
 
@@ -1572,7 +1592,7 @@ export class JsScript {
       this.interp.callFunction(fnName, args);
     } catch (e) {
       const msg = String((e as Error).message ?? e);
-      if (!this.errors.includes(msg)) this.errors.push(msg);
+      this.addError(msg);
     }
   }
 

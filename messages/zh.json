@@ -1449,6 +1449,12 @@
     "popularTags": "热门标签:",
     "noMatches": "没有匹配的世界。"
   },
+  "DevConsole": {
+    "title": "脚本控制台",
+    "lineCount": "{n} 行",
+    "clear": "清除",
+    "empty": "暂无日志。脚本的 print(...) 输出和错误会显示在这里。按 ` 键切换。"
+  },
   "Session": {
     "title": "选择会话",
     "subtitle": "加入公开会话或创建新会话",

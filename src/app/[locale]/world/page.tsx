@@ -16,6 +16,7 @@ import { ghostFromSpawnPayload, ghostFromPrefab, type PlacementGhost } from '@/l
 const WorldCanvas = dynamic(() => import('@/components/world/WorldCanvas'), { ssr: false });
 const GraphicsPanel = dynamic(() => import('@/components/world/GraphicsPanel'), { ssr: false });
 const SessionPicker = dynamic(() => import('@/components/world/SessionPicker'), { ssr: false });
+const WorldDevConsole = dynamic(() => import('@/components/world/WorldDevConsole'), { ssr: false });
 
 interface MapObject {
   id: string;
@@ -936,6 +937,8 @@ export default function WorldPage() {
 
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+      {/* 스크립트 디버그 콘솔 (백틱 ` 키 토글) — 제작자가 게임 만들 때 print/에러 확인 */}
+      <WorldDevConsole />
       {/* 비공개 세션 — 초대 링크 복사 버튼 (호스트/참가자 모두, 친구 초대용) */}
       {isPrivateParam && !isPersonalMode && effectiveSessionId && (
         <button
