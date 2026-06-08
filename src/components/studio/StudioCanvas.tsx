@@ -4469,6 +4469,7 @@ export default function StudioCanvas() {
   const objCounterRef = useRef<Record<string, number>>({});
   // 공개/비공개
   const [isPublic, setIsPublic] = useState(false);
+  const [isGame, setIsGame] = useState(false);   // 게임으로 표시 — 목록에서 🎮 배지·필터
   // 제작자 지정 게임 캐릭터 ({appearance, name}). null = 플레이어 본인 캐릭터.
   const [gameCharacter, setGameCharacter] = useState<Record<string, unknown> | null>(null);
   const [myCharsForGame, setMyCharsForGame] = useState<Array<{ id: string; name: string; appearance: Record<string, unknown> }> | null>(null);
@@ -4750,6 +4751,7 @@ export default function StudioCanvas() {
         setName(d.world.name);
         setDescription(d.world.description || '');
         setIsPublic(Boolean(d.world.isPublic));
+        setIsGame(Boolean(d.world.isGame));
         setGameCharacter(d.world.gameCharacter && typeof d.world.gameCharacter === 'object' ? d.world.gameCharacter : null);
         // 씬 설정 복원
         const ss = d.world.mapData?.sceneSettings || {};
@@ -6555,7 +6557,7 @@ export default function StudioCanvas() {
 
       // 중력/점프력은 World Physics 컴포넌트가 소스 — 저장 시 sceneSettings 에 반영해 월드 플레이에 적용
       const sceneSettings = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, hdriIntensity, exposure, gravityY: worldPhysics.gravity, jumpPower: worldPhysics.jumpPower };
-      const payload: Record<string, unknown> = { name, description, mapData: { objects, sceneSettings }, isPublic, gameCharacter };
+      const payload: Record<string, unknown> = { name, description, mapData: { objects, sceneSettings }, isPublic, isGame, gameCharacter };
       if (thumbnailUrl) payload.thumbnailUrl = thumbnailUrl;
       const body = JSON.stringify(payload);
       const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` };
@@ -6668,6 +6670,15 @@ export default function StudioCanvas() {
                 background: isPublic ? 'rgba(52,211,153,0.12)' : 'rgba(255,255,255,0.05)',
                 color: isPublic ? '#34d399' : 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}>
               {isPublic ? t('inspPublicYes') : t('inspPublicNo')}
+            </button>
+
+            {/* 게임으로 표시 — 목록에서 🎮 배지·게임 필터로 노출 */}
+            <button type="button" onClick={() => setIsGame(v => !v)}
+              title={t('isGameHint')}
+              style={{ width: '100%', padding: '8px', borderRadius: 8, border: `1px solid ${isGame ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.12)'}`,
+                background: isGame ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.05)',
+                color: isGame ? '#a5b4fc' : 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}>
+              {isGame ? t('isGameYes') : t('isGameNo')}
             </button>
 
             {/* 게임 캐릭터 — 지정 시 입장한 모든 플레이어가 본인 아바타 대신 이 캐릭터로 플레이 */}

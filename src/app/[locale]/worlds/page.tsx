@@ -12,6 +12,7 @@ interface World {
   description: string | null;
   thumbnailUrl: string | null;
   isPublic: boolean;
+  isGame?: boolean;
   playCount: number;
   createdAt: string;
   updatedAt?: string;
@@ -41,6 +42,7 @@ export default function WorldsPage() {
   const [search, setSearch] = useState('');
   const [sort, setSort]     = useState<Sort>('popular');
   const [tagFilter, setTagFilter] = useState<string>(''); // 선택된 태그 (빈 = 전체)
+  const [onlyGames, setOnlyGames] = useState(false);       // 게임만 보기
 
   const token = () => session.getToken() || '';
 
@@ -63,6 +65,7 @@ export default function WorldsPage() {
       const params = new URLSearchParams();
       if (search.trim()) params.set('q', search.trim());
       if (tagFilter)     params.set('tag', tagFilter);
+      if (onlyGames)     params.set('onlyGames', '1');
       params.set('sort', sort);
       fetch(`${API}/api/worlds/public?${params.toString()}`)
         .then(r => r.json())
@@ -70,7 +73,7 @@ export default function WorldsPage() {
         .catch(() => { setPubWorlds([]); setLoading(false); });
     }, 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [search, sort, tagFilter]);
+  }, [search, sort, tagFilter, onlyGames]);
 
   async function togglePublic(w: World) {
     const res = await fetch(`${API}/api/worlds/${w.id}`, {
@@ -193,6 +196,19 @@ export default function WorldsPage() {
                   </button>
                 ))}
               </div>
+
+              {/* 게임만 보기 토글 */}
+              <button
+                onClick={() => setOnlyGames(v => !v)}
+                style={{
+                  padding: '7px 14px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                  border: `1px solid ${onlyGames ? 'rgba(99,102,241,0.6)' : 'rgba(255,255,255,0.1)'}`,
+                  background: onlyGames ? 'rgba(99,102,241,0.85)' : 'rgba(255,255,255,0.04)',
+                  color: onlyGames ? '#fff' : 'rgba(255,255,255,0.55)', whiteSpace: 'nowrap',
+                }}
+              >
+                🎮 {t('onlyGames')}
+              </button>
             </div>
 
             {/* 활성 태그 필터 표시 */}
@@ -272,6 +288,11 @@ export default function WorldsPage() {
                     {w.playCount > 0 && (
                       <span style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', color: '#fff', fontSize: 10, padding: '3px 8px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}>
                         ▶ {w.playCount.toLocaleString()}
+                      </span>
+                    )}
+                    {w.isGame && (
+                      <span style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(99,102,241,0.92)', color: '#fff', fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 3 }}>
+                        🎮 {t('gameBadge')}
                       </span>
                     )}
                   </a>
