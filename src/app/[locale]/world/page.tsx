@@ -86,6 +86,8 @@ export default function WorldPage() {
   const [worldName, setWorldName] = useState<string>('');
 
   const [character, setCharacter] = useState<Record<string, unknown> | null>(null);
+  // 제작자 지정 게임 캐릭터 ({appearance, name}). 설정 시 본인 캐릭터 대신 사용.
+  const [worldGameChar, setWorldGameChar] = useState<Record<string, unknown> | null>(null);
   const [userId, setUserId] = useState('');
   const [username, setUsername] = useState('');
   const [ready, setReady] = useState(false);
@@ -393,6 +395,7 @@ export default function WorldPage() {
     }
     setCustomObjects(null);
     setWorldKind(undefined); // 새 월드 로딩 시작 — picker 노출 결정 보류
+    setWorldGameChar(null);  // 게임 캐릭터 리셋 — 월드 메타 로드 후 재설정
     const tok = session.getToken();
     const headers: Record<string, string> = tok ? { Authorization: `Bearer ${tok}` } : {};
     fetch(`${API}/api/worlds/${effectiveWorldId}`, { headers })
@@ -410,6 +413,8 @@ export default function WorldPage() {
         setWorldKind(k);
         if (typeof d.world.maxPlayers === 'number' && d.world.maxPlayers > 0) setWorldMaxPlayers(d.world.maxPlayers);
         if (typeof d.world.name === 'string') setWorldName(d.world.name);
+        // 제작자 지정 게임 캐릭터 — 있으면 모든 플레이어가 본인 아바타 대신 이걸로 플레이
+        setWorldGameChar(d.world.gameCharacter && typeof d.world.gameCharacter === 'object' ? d.world.gameCharacter : null);
       })
       .catch(() => {
         setCustomObjects([]);
@@ -491,7 +496,7 @@ export default function WorldPage() {
     isPrivate: isPrivateParam && !isPersonalMode,   // 비공개 세션만 (개인 홈허브 제외)
     playerId: userId,
     username,
-    character: character ?? {},
+    character: (worldGameChar || character) ?? {},   // 제작자 지정 캐릭터 있으면 그걸로, 없으면 본인 것
     // 세션 미정이면 connect 안 함 (picker 단계)
     enabled: ready && !!userId && !!effectiveSessionId,
     onScriptEvent: (msg) => {
@@ -989,7 +994,7 @@ export default function WorldPage() {
       <WorldCanvas
         key={worldSocketKey}
         worldId={effectiveWorldId ?? undefined}
-        character={character ?? {}}
+        character={(worldGameChar || character) ?? {}}
         playerId={userId}
         players={players}
         socketRef={socketRef}
