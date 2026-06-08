@@ -2703,6 +2703,8 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
 }) {
   // 런타임 spawn된 오브젝트 (로컬, 시뮬레이션 종료 시 사라짐)
   const [runtimeObjects, setRuntimeObjects] = useState<MapObject[]>([]);
+  // 런타임 깎기(world.carve) override — objectId → 절삭 목록. 저장본/런타임 둘 다 csgCuts 병합.
+  const [simCarveOverrides, setSimCarveOverrides] = useState<Record<string, CsgCut[]>>({});
   const runtimeObjectsRef = useRef<MapObject[]>([]);
   useEffect(() => { runtimeObjectsRef.current = runtimeObjects; }, [runtimeObjects]);
   // ── 게임 컴포넌트 런타임 store (WorldCanvas 와 동일 패턴 — 시뮬에서도 작동) ──
@@ -2812,6 +2814,30 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
     return id;
   }, []);
 
+  // 런타임 깎기(시뮬) — 큐브(id)에 절삭 추가. 시뮬은 단일 클라라 오브젝트 csgCuts 직접 갱신.
+  const carveObject = useCallback((id: string, opts: { shape?: 'box' | 'sphere' | 'cylinder'; x?: number; y?: number; z?: number; size?: number; world?: boolean }): void => {
+    if (!id) return;
+    const shape: CsgCut['shape'] = (opts.shape === 'box' || opts.shape === 'cylinder') ? opts.shape : 'sphere';
+    const sz = Math.max(0.02, Number(opts.size) || 0.4);
+    let pos: [number, number, number] = [Number(opts.x) || 0, Number(opts.y) || 0, Number(opts.z) || 0];
+    let size: [number, number, number] = [sz, sz, sz];
+    if (opts.world) {
+      const o = allObjectsRef.current.find(ob => ob.id === id);
+      if (o) {
+        const m = new THREE.Matrix4().compose(
+          new THREE.Vector3(o.position[0], o.position[1], o.position[2]),
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(o.rotation[0], o.rotation[1], o.rotation[2])),
+          new THREE.Vector3(o.scale[0] || 1, o.scale[1] || 1, o.scale[2] || 1),
+        );
+        const p = new THREE.Vector3(pos[0], pos[1], pos[2]).applyMatrix4(m.invert());
+        pos = [p.x, p.y, p.z];
+        size = [sz / (o.scale[0] || 1), sz / (o.scale[1] || 1), sz / (o.scale[2] || 1)];
+      }
+    }
+    const cut: CsgCut = { shape, pos, size };
+    setSimCarveOverrides(prev => ({ ...prev, [id]: [...(prev[id] || []), cut] }));
+  }, []);
+
   const destroyObject = useCallback((id: string) => {
     setRuntimeObjects(prev => prev.filter(o => o.id !== id));
     scriptBodyRefs.current.delete(id);
@@ -2819,7 +2845,12 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
   }, []);
 
   // 렌더 대상: 원본 + 런타임 spawn된 것
-  const allObjects = useMemo(() => [...objects, ...runtimeObjects], [objects, runtimeObjects]);
+  const allObjects = useMemo(() => {
+    const base = [...objects, ...runtimeObjects];
+    if (Object.keys(simCarveOverrides).length === 0) return base;
+    return base.map(o => simCarveOverrides[o.id]
+      ? { ...o, csgCuts: [...(o.csgCuts || []), ...simCarveOverrides[o.id]] } : o);
+  }, [objects, runtimeObjects, simCarveOverrides]);
   // parent transform propagation 용 ref — useFrame 안에서 최신 list 접근
   const allObjectsRef = useRef<MapObject[]>([]);
   useEffect(() => { allObjectsRef.current = allObjects; }, [allObjects]);
@@ -2954,6 +2985,7 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
           return makeObjectAPI(id, fallback);
         },
         spawnTerrain: (params) => spawnTerrain(params),
+        carve: (id, opts) => carveObject(id, opts),
         // 스튜디오 시뮬은 단일 클라 — 본인 = 항상 호스트
         isHost: () => true,
         runtimeCount: () => runtimeObjectsRef.current.length,
@@ -3095,6 +3127,7 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
         return makeAPIForObj({ ...opts, id } as MapObject);
       },
       spawnTerrain: (params) => spawnTerrain(params),
+        carve: (id, opts) => carveObject(id, opts),
       isHost: () => true,
       runtimeCount: () => runtimeObjectsRef.current.length,
       teleportLocal: (x, y, z) => playerCtlRef.current?.teleport(x, y, z),

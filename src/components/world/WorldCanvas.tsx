@@ -4110,6 +4110,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const lightRefs = useRef<Map<string, THREE.Light>>(new Map());
   // 런타임 동적 생성된 오브젝트 (world.spawn 으로 만들어진 것 — 저장 안 됨, 로컬 전용)
   const [runtimeObjects, setRuntimeObjects] = useState<UserMapObject[]>([]);
+  // 런타임 깎기(world.carve) override — objectId → 추가된 절삭 목록. 저장본/런타임 오브젝트 둘 다 적용.
+  // 메모리 전용(late-join 은 못 받음). 멀티: 깎은 클라가 broadcast → 전원 동일 적용.
+  const [carveOverrides, setCarveOverrides] = useState<Record<string, import('@/lib/world/CarvedMesh').CsgCut[]>>({});
   // 스크립트 콜백에서 stale state 피하려는 최신 ref
   const runtimeObjectsRef = useRef<UserMapObject[]>([]);
   const customObjectsRef = useRef(customObjects);
@@ -4157,6 +4160,12 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         if (!isHostRef.current) return;
         luaScripts.current.get(objectId)?.callClick(fromId);
         componentScripts.current.get(objectId)?.forEach(({ vm }) => vm.callClick(fromId));
+        return;
+      }
+      // 런타임 깎기 동기화 — 다른 클라가 world.carve 한 절삭을 본인도 적용 (보낸 클라는 이미 로컬 반영)
+      if (event === '__carve__') {
+        const d = data as { cut?: import('@/lib/world/CarvedMesh').CsgCut };
+        if (d?.cut) setCarveOverrides(prev => ({ ...prev, [objectId]: [...(prev[objectId] || []), d.cut!] }));
         return;
       }
       // 맵 데이터 변경 동기화 — 호스트가 data.shared.set 한 결과를 비호스트 캐시에 반영.
@@ -4417,6 +4426,35 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     });
     return id;
   }, [playerId, sendObjSpawn]);
+
+  /** 런타임 깎기 — 큐브 오브젝트(id)에 절삭 1개 추가 + 전원 동기화. 깎인 모양대로 충돌체 재빌드.
+   *  pos 는 기본 로컬(단위 큐브 -0.5~0.5). opts.world=true 면 월드 좌표를 오브젝트 로컬로 변환(총알 맞은 자리 깎기). */
+  const carveObject = useCallback((id: string, opts: {
+    shape?: 'box' | 'sphere' | 'cylinder'; x?: number; y?: number; z?: number; size?: number; world?: boolean;
+  }): void => {
+    if (!id) return;
+    const shape = (opts.shape === 'box' || opts.shape === 'cylinder') ? opts.shape : 'sphere';
+    const sz = Math.max(0.02, Number(opts.size) || 0.4);
+    let pos: [number, number, number] = [Number(opts.x) || 0, Number(opts.y) || 0, Number(opts.z) || 0];
+    let size: [number, number, number] = [sz, sz, sz];
+    if (opts.world) {
+      // 월드 좌표 → 오브젝트 로컬 단위 큐브 좌표. 오브젝트의 기준 transform 사용(정적 깎기 대상).
+      const o = allObjectsRef.current.find(ob => ob.id === id);
+      if (o) {
+        const m = new THREE.Matrix4().compose(
+          new THREE.Vector3(o.position[0], o.position[1], o.position[2]),
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(o.rotation[0], o.rotation[1], o.rotation[2])),
+          new THREE.Vector3(o.scale[0] || 1, o.scale[1] || 1, o.scale[2] || 1),
+        );
+        const p = new THREE.Vector3(pos[0], pos[1], pos[2]).applyMatrix4(m.invert());
+        pos = [p.x, p.y, p.z];
+        size = [sz / (o.scale[0] || 1), sz / (o.scale[1] || 1), sz / (o.scale[2] || 1)];
+      }
+    }
+    const cut: import('@/lib/world/CarvedMesh').CsgCut = { shape, pos, size };
+    setCarveOverrides(prev => ({ ...prev, [id]: [...(prev[id] || []), cut] }));
+    sendScriptEvent?.(id, '__carve__', { cut });
+  }, [sendScriptEvent]);
 
   /** id로 런타임 오브젝트 제거. customObjects(저장된 것)는 안전 상 보호. */
   const destroyObject = useCallback((id: string): void => {
@@ -5129,6 +5167,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         return makeObjectAPI(id, fallback);
       },
       spawnTerrain: (params) => spawnTerrain(params),
+      carve: (id, opts) => carveObject(id, opts),
       isHost: () => isHostRef.current,
       runtimeCount: () => runtimeObjectsRef.current.length,
       // ── 플레이어 제어 (로컬 플레이어 = 호스트/솔로/시뮬) ──
@@ -5680,8 +5719,13 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               <>{(() => {
                 const base = [...customObjects, ...runtimeObjects];
                 // 런타임 URL 오버라이드(컨트롤 바에서 변경) 적용 — 오버라이드 없으면 원본 ref 유지(재렌더 방지)
-                const list = Object.keys(videoUrlOverrides).length === 0 ? base
+                let list = Object.keys(videoUrlOverrides).length === 0 ? base
                   : base.map(o => videoUrlOverrides[o.id] !== undefined ? { ...o, videoUrl: videoUrlOverrides[o.id] } : o);
+                // 런타임 깎기(world.carve) 오버라이드 — csgCuts 병합. 깎인 오브젝트만 새 ref(그 큐브만 재렌더)
+                if (Object.keys(carveOverrides).length > 0) {
+                  list = list.map(o => carveOverrides[o.id]
+                    ? { ...o, csgCuts: [...(o.csgCuts || []), ...carveOverrides[o.id]] } : o);
+                }
                 const byId = new Map(list.map(o => [o.id, o]));
                 const meshes = list
                   .filter(o => !o.hidden && o.kind !== 'pointlight' && o.kind !== 'spotlight' && o.kind !== 'dirlight' && o.kind !== 'spawn'

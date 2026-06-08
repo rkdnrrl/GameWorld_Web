@@ -911,6 +911,8 @@ export interface JsWorldAPI {
   spawn?(opts: JsSpawnOpts): JsObjectAPI;
   /** 런타임 노이즈 지형 생성 (PEAK 식 랜덤맵). 시드 결정적·멀티 동기화. id 반환. */
   spawnTerrain?(params: { seed?: number; size?: number; segments?: number; amplitude?: number; scale?: number; baseColor?: string; x?: number; y?: number; z?: number; id?: string }): string;
+  /** 런타임 깎기 — 큐브(id)에 절삭 추가 + 멀티 동기화. pos 기본 로컬(-0.5~0.5), world=true 면 월드 좌표 변환. */
+  carve?(id: string, opts: { shape?: 'box' | 'sphere' | 'cylinder'; x?: number; y?: number; z?: number; size?: number; world?: boolean }): void;
   /** 본인이 호스트(가장 일찍 입장한 활성 플레이어)인지. 스튜디오 시뮬에선 항상 true. */
   isHost?(): boolean;
   /** 현재 씬에 있는 런타임(spawn) 오브젝트 개수 — "이미 spawn 됐는지" 가드로 사용. */
@@ -1087,6 +1089,19 @@ export class JsScript {
             z: o.z != null ? Number(o.z) : undefined,
             id: o.id != null ? String(o.id) : undefined,
           }) ?? '';
+        },
+        // world.carve("wall1", { shape:"sphere", x:0, y:0.2, z:0, size:0.4 }) — 큐브에 구멍 깎기(멀티 동기화).
+        // pos 기본 로컬(단위 큐브 -0.5~0.5). world:true 면 월드 좌표(총알 맞은 자리). 깎인 모양대로 충돌체 재빌드.
+        carve: (id: unknown, opts?: Record<string, unknown>) => {
+          const o = (opts && typeof opts === 'object') ? opts : {};
+          worldApi.carve?.(String(id), {
+            shape: (o.shape === 'box' || o.shape === 'cylinder' || o.shape === 'sphere') ? o.shape : undefined,
+            x: o.x != null ? Number(o.x) : undefined,
+            y: o.y != null ? Number(o.y) : undefined,
+            z: o.z != null ? Number(o.z) : undefined,
+            size: o.size != null ? Number(o.size) : undefined,
+            world: o.world === true,
+          });
         },
         // 본인이 호스트인지 — 멀티에서 중복 spawn/sound 등 방지용
         // if (world.isHost()) { world.spawn(...); }
