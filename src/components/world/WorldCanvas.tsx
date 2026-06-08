@@ -2165,6 +2165,9 @@ export function Player({
           state = `walk_${dir}`;
         }
       }
+      // 매뉴얼 제어(등반 등) 중엔 공중 낙하/점프 애니 대신 idle 유지.
+      // → 떨어지는 것처럼 보이지 않음. emote(playEmote)로 매달림 포즈 지정 시 그게 우선.
+      if (manualMoveRef.current && !emoteSlotRef.current) state = 'idle';
       // 이모트 오버라이드: 활성화 중이면 다른 애니메이션 차단
       if (emoteSlotRef.current) {
         state = emoteSlotRef.current;
