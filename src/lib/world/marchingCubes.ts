@@ -155,8 +155,16 @@ export function marchingCubes(field: Float32Array, nx: number, ny: number, nz: n
         }
         const tris = TRI_TABLE[cubeIndex];
         for (let i = 0; i < tris.length; i += 3) {
-          for (let k = 0; k < 3; k++) {
-            const e = tris[i + k];
+          let e0 = tris[i], e1 = tris[i + 1], e2 = tris[i + 2];
+          // winding 을 그래디언트 법선(바깥 향함)에 맞춰 자동 교정 → 바깥 면이 항상 앞면(backface 컬링 방지).
+          const ax = edgeV[e1 * 3] - edgeV[e0 * 3], ay = edgeV[e1 * 3 + 1] - edgeV[e0 * 3 + 1], az = edgeV[e1 * 3 + 2] - edgeV[e0 * 3 + 2];
+          const bx = edgeV[e2 * 3] - edgeV[e0 * 3], by = edgeV[e2 * 3 + 1] - edgeV[e0 * 3 + 1], bz = edgeV[e2 * 3 + 2] - edgeV[e0 * 3 + 2];
+          const fnx = ay * bz - az * by, fny = az * bx - ax * bz, fnz = ax * by - ay * bx;  // 면 법선(외적)
+          const anx = edgeN[e0 * 3] + edgeN[e1 * 3] + edgeN[e2 * 3];
+          const any_ = edgeN[e0 * 3 + 1] + edgeN[e1 * 3 + 1] + edgeN[e2 * 3 + 1];
+          const anz = edgeN[e0 * 3 + 2] + edgeN[e1 * 3 + 2] + edgeN[e2 * 3 + 2];
+          if (fnx * anx + fny * any_ + fnz * anz < 0) { const tmp = e1; e1 = e2; e2 = tmp; }  // 안쪽 향하면 뒤집기
+          for (const e of [e0, e1, e2]) {
             out.push(edgeV[e * 3], edgeV[e * 3 + 1], edgeV[e * 3 + 2]);
             nrm.push(edgeN[e * 3], edgeN[e * 3 + 1], edgeN[e * 3 + 2]);
           }
