@@ -8297,6 +8297,9 @@ export default function StudioCanvas() {
           <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
           <CanvasPointerEventsKeeper simulating={simulating} />
           <ambientLight intensity={lightAmbient} />
+          {/* 하늘 채움광 (유니티/언리얼식 sky light) — 그림자 속을 하늘색으로 은은히 채워
+              밝음↔검정 하드 경계(이음새)를 부드럽게. 위=하늘색, 아래=지면 반사색. */}
+          <hemisphereLight args={['#dce8ff', '#4a5a3c', 0.6]} />
           {/* CSM 태양 (유니티식 cascade 그림자) — 내장/유저 방향광을 단일 태양으로 대체.
               방향·색·세기는 첫 dirlight 오브젝트가 결정(없으면 기본 각도). 이중 태양은 CsmSun이 내부에서 억제. */}
           {(() => {
