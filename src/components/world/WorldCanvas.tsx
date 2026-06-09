@@ -3249,7 +3249,8 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
 const PrimitiveMesh = React.memo(function PrimitiveMeshImpl({ obj, shape }: { obj: UserMapObject; shape: React.ReactElement }) {
   const material = React.useMemo(() => {
     const mat = buildMaterial(obj, obj.color);
-    if (obj.kind === 'plane') mat.side = THREE.DoubleSide;
+    // 양면 — 큐브로 방/천장을 만들면 안쪽에서 뒷면이 컬링돼 뚫려 보이던 버그(밝은 바깥 비침) 수정. 스튜디오와 동일.
+    mat.side = THREE.DoubleSide;
     return mat;
   }, [obj.material, obj.materialColor, obj.color, obj.textureAlbedo, obj.textureNormal, obj.textureRoughness, obj.textureTilingX, obj.textureTilingY, obj.kind]);
 

@@ -1842,7 +1842,8 @@ function PrimitiveMaterial({ obj, selected }: { obj: MapObject; selected?: boole
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cfgKey]);
 
-  const side = obj.kind === 'plane' ? THREE.DoubleSide : THREE.FrontSide;
+  // 양면(DoubleSide) — 큐브로 방/천장을 만들면 안쪽에서 봤을 때 뒷면이 컬링돼 뚫려 보이던 버그(밝은 바깥이 비침) 수정.
+  const side = THREE.DoubleSide;
   // 선택 표시는 외곽선(Edges)으로 — 표면 색을 cyan 으로 덮지 않아 색 구별 가능.
   void selected;
   if (matRef.current) {
