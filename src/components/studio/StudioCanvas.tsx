@@ -6264,14 +6264,19 @@ export default function StudioCanvas() {
     // selectedId 는 변경 안 함 — 원본 그대로 (기즈모는 원본을 끌고감, 복제본은 제자리).
   }
 
-  /** 오브젝트의 world matrix 계산 (조상을 재귀적으로 곱함) */
+  /** 오브젝트의 world matrix 계산 (조상을 재귀적으로 곱함).
+   *  키프레임 미리보기 중(kfPreviews)이면 그 조상의 애니된 포즈를 로컬로 사용 → 부모 애니가 자식까지 전파됨. */
   function computeWorldMatrix(objId: string, allObjs: MapObject[]): THREE.Matrix4 {
     const obj = allObjs.find(o => o.id === objId);
     if (!obj) return new THREE.Matrix4();
+    const pv = kfPreviews?.[objId];
+    const pos = pv ? pv.p : obj.position;
+    const rot = pv ? pv.r : obj.rotation;
+    const scl = pv ? pv.s : obj.scale;
     const local = new THREE.Matrix4().compose(
-      new THREE.Vector3(...obj.position),
-      new THREE.Quaternion().setFromEuler(new THREE.Euler(...obj.rotation, 'XYZ')),
-      new THREE.Vector3(...obj.scale),
+      new THREE.Vector3(...pos),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot, 'XYZ')),
+      new THREE.Vector3(...scl),
     );
     if (obj.parentId) {
       return computeWorldMatrix(obj.parentId, allObjs).multiply(local);
