@@ -16,7 +16,7 @@ import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { devLog } from '@/lib/devLog';
 import { PerfManager } from '@/lib/world/PerfManager';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
-import { CsmSun, computeSunDir } from '@/lib/world/CsmSun';
+import { computeSunDir } from '@/lib/world/CsmSun';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
@@ -2296,6 +2296,42 @@ function SceneRefCapture({ target }: { target: { current: THREE.Scene | null } }
 
 /* ── 노출(toneMapping) + HDRI IBL 강도 라이브 업데이트
    gl prop / Environment prop 은 초기 마운트만 적용되므로 매 렌더마다 직접 세팅한다. */
+/** 스튜디오 메인 태양광 — 카메라 위치 따라가서 shadow frustum 안에 항상 오브젝트가 들어오게.
+ *  방향은 첫 dirlight 오브젝트(있으면)의 회전, 없으면 기본 각도. 단일 그림자맵(cascade 없음 → 경계 이음새 없음). */
+function FollowingStudioSun({ intensity, dir }: { intensity: number; dir: [number, number, number] }) {
+  const ref = useRef<THREE.DirectionalLight>(null);
+  useFrame((state) => {
+    if (!ref.current) return;
+    const cam = state.camera.position;
+    // dir = 빛이 나아가는 방향. 광원은 그 반대쪽 위에 두고, 타겟은 카메라 앞 dir 방향.
+    ref.current.position.set(cam.x - dir[0] * 40, cam.y - dir[1] * 40, cam.z - dir[2] * 40);
+    ref.current.target.position.set(cam.x + dir[0], cam.y + dir[1], cam.z + dir[2]);
+    ref.current.target.updateMatrixWorld();
+    // 유저 dirlight 억제 — 이 태양이 유일 (이중 태양 방지). 유저 dirlight 는 방향 핸들 역할만.
+    const me = ref.current, tgt = ref.current.target;
+    state.scene.traverse((o) => {
+      const dl = o as THREE.DirectionalLight;
+      if (dl.isDirectionalLight && dl !== me && dl !== tgt) {
+        if (dl.intensity !== 0) dl.intensity = 0;
+        if (dl.castShadow) dl.castShadow = false;
+      }
+    });
+  });
+  return (
+    <directionalLight
+      ref={ref}
+      intensity={intensity}
+      castShadow
+      shadow-mapSize={[4096, 4096]}
+      shadow-camera-left={-50} shadow-camera-right={50}
+      shadow-camera-top={50} shadow-camera-bottom={-50}
+      shadow-camera-near={0.5} shadow-camera-far={200}
+      shadow-bias={-0.0004}
+      shadow-normalBias={0.04}
+    />
+  );
+}
+
 function ExposureUpdater({ exposure, hdriIntensity }: { exposure: number; hdriIntensity: number }) {
   const { gl, scene } = useThree();
   gl.toneMappingExposure = exposure;
@@ -8300,12 +8336,12 @@ export default function StudioCanvas() {
           {/* 하늘 채움광 (유니티/언리얼식 sky light) — 그림자 속을 하늘색으로 은은히 채워
               밝음↔검정 하드 경계(이음새)를 부드럽게. 위=하늘색, 아래=지면 반사색. */}
           <hemisphereLight args={['#dce8ff', '#4a5a3c', 0.6]} />
-          {/* CSM 태양 (유니티식 cascade 그림자) — 내장/유저 방향광을 단일 태양으로 대체.
-              방향·색·세기는 첫 dirlight 오브젝트가 결정(없으면 기본 각도). 이중 태양은 CsmSun이 내부에서 억제. */}
+          {/* 메인 태양 (단일 그림자맵, cascade 없음 → 경계 이음새 없음) — 카메라 추적.
+              방향은 첫 dirlight 오브젝트의 회전(없으면 기본 각도). 유저 dirlight 는 FollowingStudioSun 이 억제(단일 태양). */}
           {(() => {
             const dl = objects.find(o => o.kind === 'dirlight' && !o.hidden);
             const dir = dl ? computeSunDir(dl.rotation) : ([-0.53, -0.80, -0.27] as [number, number, number]);
-            return <CsmSun direction={dir} color={dl?.lightColor || '#ffffff'} intensity={dl?.lightIntensity ?? lightDir} />;
+            return <FollowingStudioSun intensity={dl?.lightIntensity ?? lightDir} dir={dir} />;
           })()}
           {skyEnabled && !hdriBackground && <Sky sunPosition={[20, 10, 10]} />}
           {/* HDRI 환경맵 — 커스텀 URL 우선, 없으면 프리셋, none이면 미사용 */}
