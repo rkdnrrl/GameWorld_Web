@@ -5733,13 +5733,19 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         {lightObjects.map(o => {
           const dist = o.lightDistance ?? 0;
           const shadowFar = dist > 0 ? dist : 100;
-          // 부모(Manager 등) 변환 반영한 월드 위치 — 방향광은 위치→원점 방향으로 비추므로
-          // 부모 변환이 빠지면 빛 방향이 틀어진다(스튜디오와 불일치 → 어두움). 메시와 동일 규약.
+          // 부모(Manager 등) 변환 반영한 월드 위치 — 위치는 그림자 커버리지 중심용.
           const lpos = o.parentId ? computeWorldTRS(o, objectsById).position : o.position;
-          // ref 콜백: 스크립트에서 light.color / light.intensity 직접 제어 가능하게 등록
+          // ref 콜백: 스크립트에서 light.color / light.intensity 직접 제어 가능하게 등록.
+          // dirlight 는 타겟을 자식(로컬 -Y)으로 붙여 "회전"이 방향을 정하게 한다(위치 무관, 스튜디오와 동일 규약).
           const refCb = (light: THREE.Light | null) => {
-            if (light) lightRefs.current.set(o.id, light);
-            else lightRefs.current.delete(o.id);
+            if (light) {
+              lightRefs.current.set(o.id, light);
+              if (o.kind === 'dirlight') {
+                const dl = light as THREE.DirectionalLight;
+                dl.target.position.set(0, -1, 0);
+                if (dl.target.parent !== dl) dl.add(dl.target);
+              }
+            } else lightRefs.current.delete(o.id);
           };
           return o.kind === 'pointlight' ? (
             <pointLight key={o.id} ref={refCb}
@@ -5749,7 +5755,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               shadow-camera-near={0.1} shadow-camera-far={shadowFar} />
           ) : o.kind === 'dirlight' ? (
             <directionalLight key={o.id} ref={refCb}
-              position={lpos} color={o.lightColor || '#ffffff'}
+              position={lpos} rotation={o.rotation} color={o.lightColor || '#ffffff'}
               intensity={o.lightIntensity ?? 1}
               castShadow={o.castShadow ?? false}
               shadow-mapSize={shadowMapSize}

@@ -2082,6 +2082,7 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
       <group position={wpos} rotation={wrot} scale={[1, 1, 1]} userData={{ id: obj.id }}>
         {obj.kind === 'dirlight' && (
           <directionalLight
+            ref={(dl) => { if (dl) { dl.target.position.set(0, -1, 0); if (dl.target.parent !== dl) dl.add(dl.target); } }}
             color={obj.lightColor || '#ffffff'}
             intensity={obj.lightIntensity ?? 1}
             castShadow={obj.castShadow ?? false}
@@ -2480,8 +2481,18 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
   const t = transforms[obj.id] ?? { pos: obj.position, rot: obj.rotation, scl: obj.scale };
 
   const lightRefCb = (light: THREE.Light | null) => {
-    if (light) lightRefs.current.set(obj.id, light);
-    else lightRefs.current.delete(obj.id);
+    if (light) {
+      lightRefs.current.set(obj.id, light);
+      // dirlight: 타겟을 라이트 자식(로컬 -Y)으로 붙여 방향이 "회전"을 따르게 한다.
+      // (기본 타겟은 원점 고정 → 위치만 방향에 영향, 회전은 무시되는 버그. 자식 타겟이면 그 반대.)
+      if (obj.kind === 'dirlight') {
+        const dl = light as THREE.DirectionalLight;
+        dl.target.position.set(0, -1, 0);
+        if (dl.target.parent !== dl) dl.add(dl.target);
+      }
+    } else {
+      lightRefs.current.delete(obj.id);
+    }
   };
 
   // Collider 컴포넌트 (트리거/충돌). 빈 오브젝트(트리거 존 등)도 콜라이더가 있으면 바디를 렌더한다.
@@ -2541,7 +2552,7 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
       shadow-normalBias={0.02} />
   );
   if (obj.kind === 'dirlight') return (
-    <directionalLight ref={lightRefCb} position={t.pos} color={obj.lightColor || '#ffffff'}
+    <directionalLight ref={lightRefCb} position={t.pos} rotation={t.rot ?? obj.rotation} color={obj.lightColor || '#ffffff'}
       intensity={obj.lightIntensity ?? 1} castShadow={obj.castShadow ?? false}
       shadow-mapSize={[2048, 2048]}
       shadow-camera-left={-80} shadow-camera-right={80}
