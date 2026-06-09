@@ -2,7 +2,7 @@
 import React, { Suspense, useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Billboard, Html, Sky, Text, Environment, useProgress, PerformanceMonitor } from '@react-three/drei';
-import { Physics, RigidBody, CapsuleCollider, CuboidCollider, useRapier, CoefficientCombineRule } from '@react-three/rapier';
+import { Physics, RigidBody, CapsuleCollider, CuboidCollider, useRapier, CoefficientCombineRule, type RapierCollider } from '@react-three/rapier';
 import { createXRStore, XR, XROrigin, useXRInputSourceState, useXR } from '@react-three/xr';
 import { devLog } from '@/lib/devLog';
 import { findLipSyncTarget, readAnalyserLevel, smoothLevel, applyLipSync, ANALYSER_BUFFER_SIZE, type LipSyncTarget } from '@/lib/world/lipSync';
@@ -77,6 +77,19 @@ const PLAYER_CAPSULE_HALF_HEIGHT = 0.55;
 const PLAYER_CAPSULE_RADIUS = 0.28;
 const PLAYER_MESH_Y = -(PLAYER_CAPSULE_HALF_HEIGHT + PLAYER_CAPSULE_RADIUS); // = -0.83 (캡슐 바닥 = 발)
 const PLAYER_CAPSULE_BOTTOM = PLAYER_CAPSULE_HALF_HEIGHT + PLAYER_CAPSULE_RADIUS; // 0.83, 카메라/접지에서 사용
+// 자세별 캡슐 halfHeight — 앉기 총높이 ~1.16m, 엎드리기 ~0.76m (서기 1.66m)
+const PLAYER_CROUCH_HALF_HEIGHT = 0.30;
+const PLAYER_PRONE_HALF_HEIGHT  = 0.10;
+type PlayerPosture = 'stand' | 'crouch' | 'prone';
+/** 자세에 맞춰 캡슐 크기 변경. 캡슐 바닥(발)은 그대로 두고 위쪽만 줄임 — 접지 레이/카메라 기준(BOTTOM) 불변. */
+function applyPostureCollider(col: RapierCollider | null, posture: PlayerPosture) {
+  if (!col) return;
+  const h = posture === 'prone' ? PLAYER_PRONE_HALF_HEIGHT
+    : posture === 'crouch' ? PLAYER_CROUCH_HALF_HEIGHT
+    : PLAYER_CAPSULE_HALF_HEIGHT;
+  col.setHalfHeight(h);
+  col.setTranslationWrtParent({ x: 0, y: h - PLAYER_CAPSULE_HALF_HEIGHT, z: 0 });
+}
 
 // 동적 오브젝트가 스폰 높이 기준 이만큼 아래로 떨어지면 원위치로 복귀 (월드 밖 추락 방지)
 const OBJ_FALL_RESET = 50;
@@ -1652,6 +1665,8 @@ export function Player({
   // 토글 키: C(앉기), Z(엎드리기)
   const crouchRef = useRef(false);
   const proneRef  = useRef(false);
+  const colliderRef = useRef<RapierCollider>(null);          // 자세별 캡슐 리사이즈용
+  const colliderPostureRef = useRef<PlayerPosture>('stand');
   /** 모바일 nonce 마지막 값 — 변화 감지하면 키 입력과 동일하게 토글 */
   const mobCrouchPrev = useRef(_mob.crouchNonce);
   const mobPronePrev  = useRef(_mob.proneNonce);
@@ -2002,6 +2017,12 @@ export function Player({
 
       const isCrouch = crouchRef.current;
       const isProne  = proneRef.current;
+      // 자세 변경 시 캡슐 콜라이더 리사이즈 — 앉기/엎드리기로 낮은 곳 통과 가능
+      const posture: PlayerPosture = isProne ? 'prone' : isCrouch ? 'crouch' : 'stand';
+      if (posture !== colliderPostureRef.current) {
+        colliderPostureRef.current = posture;
+        applyPostureCollider(colliderRef.current, posture);
+      }
       // center bone = hips 로 spring 안정화 — 빠른 이동도 자연 흩날림 유지.
       const SPEED    = (isProne ? 1.0 : isCrouch ? 2.5 : sprint ? 7 : 3.5) * speedMulRef.current;
 
@@ -2484,7 +2505,7 @@ export function Player({
         if (objId) onObjCollide?.(String(objId), 'exit');
       }}
     >
-      <CapsuleCollider args={[PLAYER_CAPSULE_HALF_HEIGHT, PLAYER_CAPSULE_RADIUS]} friction={0} frictionCombineRule={CoefficientCombineRule.Min} />
+      <CapsuleCollider ref={colliderRef} args={[PLAYER_CAPSULE_HALF_HEIGHT, PLAYER_CAPSULE_RADIUS]} friction={0} frictionCombineRule={CoefficientCombineRule.Min} />
       {/* 1인칭에서도 본인 메쉬 표시 — 아래 보면 다리/몸 보임.
           머리는 hideHead 로 본 스케일 0 / 블록 머리 미렌더 처리 */}
       <group ref={mesh} position={[0, PLAYER_MESH_Y, 0]}>
@@ -2537,6 +2558,8 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick,
   // 30m 밖이면 visibility off → 카메라 회전 시 비용 큰 절감.
   const nameTagRef = useRef<THREE.Group>(null);
   const personalHiddenRef = useRef(false);   // 퍼스널 스페이스 — 너무 가까우면 아바타 숨김
+  const colliderRef = useRef<RapierCollider>(null);          // 자세별 캡슐 리사이즈용
+  const colliderPostureRef = useRef<PlayerPosture>('stand');
 
   // 매 프레임: kinematic body를 네트워크 위치 + 속도 기반으로 이동
   // - kinematic은 다른 body에 의해 밀려나지 않음 → "공중에 뜨는" 현상 없음
@@ -2545,6 +2568,13 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick,
     const pose = posesRef.current?.get(player.id);
     if (!pose) return;
     animStateRef.current = pose.animState ?? 'idle';
+    // 원격 자세에 맞춰 캡슐 리사이즈 — 로컬과 동일 규칙 (animState 접두사로 판정)
+    const remotePosture: PlayerPosture = animStateRef.current.startsWith('prone') ? 'prone'
+      : animStateRef.current.startsWith('crouch') ? 'crouch' : 'stand';
+    if (remotePosture !== colliderPostureRef.current) {
+      colliderPostureRef.current = remotePosture;
+      applyPostureCollider(colliderRef.current, remotePosture);
+    }
     const body = bodyRef.current;
     if (!body) return;
     // 이름표 거리 cutoff — 30m 밖이면 visibility off. 카메라 회전 시 Billboard quaternion +
@@ -2614,7 +2644,7 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick,
       position={initPos}
       userData={{ playerId: player.id }}
     >
-      <CapsuleCollider args={[PLAYER_CAPSULE_HALF_HEIGHT, PLAYER_CAPSULE_RADIUS]} friction={0} frictionCombineRule={CoefficientCombineRule.Min} />
+      <CapsuleCollider ref={colliderRef} args={[PLAYER_CAPSULE_HALF_HEIGHT, PLAYER_CAPSULE_RADIUS]} friction={0} frictionCombineRule={CoefficientCombineRule.Min} />
       <group
         ref={meshRef}
         position={[0, PLAYER_MESH_Y, 0]}
