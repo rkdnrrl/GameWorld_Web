@@ -5722,7 +5722,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         {/* 조명 — sceneSettings 기반 */}
         <ambientLight intensity={ambientIntensity} />
         {/* 하늘 채움광 (유니티/언리얼식 sky light) — 그림자 속을 하늘색으로 채워 하드 경계 완화. 스튜디오와 동일. */}
-        <hemisphereLight args={['#dce8ff', '#5a6a4a', 0.85]} />
+        <hemisphereLight args={['#dce8ff', '#5a6a4a', 0.5]} />
         {dirIntensity > 0 && (
           <FollowingSunLight
             intensity={dirIntensity}

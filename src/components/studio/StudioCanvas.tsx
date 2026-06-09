@@ -8325,7 +8325,7 @@ export default function StudioCanvas() {
           <ambientLight intensity={lightAmbient} />
           {/* 하늘 채움광 (유니티/언리얼식 sky light) — 그림자 속을 하늘색으로 은은히 채워
               밝음↔검정 하드 경계(이음새)를 부드럽게. 위=하늘색, 아래=지면 반사색. */}
-          <hemisphereLight args={['#dce8ff', '#5a6a4a', 0.85]} />
+          <hemisphereLight args={['#dce8ff', '#5a6a4a', 0.5]} />
           {/* 태양: 하이어라키에 방향광이 있으면 그게 태양 (회전 E=각도, 강도=밝기, 그림자 투영 직접 제어).
               방향광이 하나도 없을 때만 환경 기본 태양(FollowingStudioSun, 태양광 강도 슬라이더)을 켠다. */}
           {objects.some(o => o.kind === 'dirlight' && !o.hidden)
