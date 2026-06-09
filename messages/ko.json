@@ -99,6 +99,9 @@
     "feat3Title": "🎙️ 3D 음성 채팅",
     "feat3Desc": "거리에 따라 자연스럽게 들리는 입체 음향. 진짜 옆에 있는 것처럼 대화하세요.",
     "enterAnyWorld": "🌍 월드 입장",
+    "plazaEnter": "광장 입장",
+    "plazaCount": "{count}명 접속 중",
+    "plazaCountEmpty": "지금 비어있어요 · 첫 입장!",
     "buildYourWorld": "🛠️ 월드 만들기",
     "exploreWorlds": "월드 둘러보기",
     "popularWorlds": "🌟 인기 월드",
@@ -2041,6 +2044,22 @@
     "notAlphaCode": "알파 접속 코드가 아닙니다.",
     "redeemFailed": "코드 확인에 실패했습니다.",
     "logout": "다른 계정으로 로그인"
+  },
+  "OpUserReports": {
+    "title": "플레이어 신고 검토",
+    "subtitle": "월드에서 접수된 플레이어 신고 큐입니다.",
+    "tab_pending": "대기",
+    "tab_resolved": "처리완료",
+    "tab_dismissed": "무시",
+    "tab_all": "전체",
+    "reportedBy": "신고자",
+    "resolve": "처리완료",
+    "dismiss": "무시",
+    "loading": "불러오는 중…",
+    "empty": "신고가 없습니다.",
+    "needLogin": "로그인이 필요합니다.",
+    "loadFailed": "불러오기 실패",
+    "actionFailed": "처리 실패"
   },
   "PlayerPanel": {
     "publicAssets": "공개",

@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import GameCard, { type Game } from "@/components/GameCard";
 import HeroVideoBackground from "@/components/HeroVideoBackground";
+import PlazaButton from "@/components/PlazaButton";
 
 /** 게임 목록에서 숨김 */
 const HIDDEN_GAME_IDS = new Set<string>(["rock-clicker", "alchemy"]);
@@ -57,6 +58,7 @@ export default async function Home() {
             {t("heroSub")}
           </p>
           <div className="flex flex-wrap justify-center gap-3">
+            <PlazaButton />
             <Link
               href="/world"
               className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-7 py-3.5 text-sm font-bold shadow-lg shadow-indigo-900/50 transition hover:bg-indigo-500 hover:shadow-indigo-900/70 active:scale-95 sm:text-base"

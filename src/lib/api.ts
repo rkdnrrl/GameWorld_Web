@@ -318,6 +318,19 @@ export async function listWorldSessions(worldId: string): Promise<WorldSession[]
   }
 }
 
+/** 공용 광장 설정 — 운영자가 지정한 광장 월드 ID + 고정 세션. 미설정 시 worldId=null. */
+export async function getPlazaConfig(): Promise<{ worldId: string | null; sessionId: string }> {
+  const base = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
+  try {
+    const r = await fetch(`${base}/api/site-config/plaza`);
+    if (!r.ok) return { worldId: null, sessionId: 'plaza' };
+    const d = await r.json();
+    return { worldId: d?.worldId || null, sessionId: d?.sessionId || 'plaza' };
+  } catch {
+    return { worldId: null, sessionId: 'plaza' };
+  }
+}
+
 /** 새 세션 id 생성 — 짧고 URL-safe. 친구한테 공유하기 좋게 6자. */
 export function generateSessionId(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 헷갈리는 0/O, 1/I 제외
@@ -1121,6 +1134,20 @@ export const api = {
       method: "POST",
       headers: { ...authHeaders(token), "Content-Type": "application/json" },
       body: JSON.stringify({ userId, reason }),
+    });
+  },
+
+  /** 운영자: 플레이어 신고 큐 */
+  operatorListPlayerReports(token: string, status: 'pending' | 'dismissed' | 'resolved' | 'all' = 'pending') {
+    return request<{ reports: Array<{ id: string; reporterId: string; reportedId: string; reporterName: string | null; reportedName: string | null; reason: string; status: string; createdAt: string }> }>(
+      `/api/operator/user-reports?status=${status}`, { headers: authHeaders(token) });
+  },
+  /** 운영자: 플레이어 신고 처리 */
+  operatorResolvePlayerReport(token: string, id: string, status: 'pending' | 'dismissed' | 'resolved') {
+    return request<{ ok: true }>(`/api/operator/user-reports/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
     });
   },
 

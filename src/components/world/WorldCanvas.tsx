@@ -2536,6 +2536,7 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick,
   // 이름표 거리 cutoff — Billboard + Text(troika SDF) 가 카메라 회전 시 매 frame 갱신.
   // 30m 밖이면 visibility off → 카메라 회전 시 비용 큰 절감.
   const nameTagRef = useRef<THREE.Group>(null);
+  const personalHiddenRef = useRef(false);   // 퍼스널 스페이스 — 너무 가까우면 아바타 숨김
 
   // 매 프레임: kinematic body를 네트워크 위치 + 속도 기반으로 이동
   // - kinematic은 다른 body에 의해 밀려나지 않음 → "공중에 뜨는" 현상 없음
@@ -2589,6 +2590,13 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick,
 
     if (meshRef.current) {
       meshRef.current.rotation.y = lerpAngle(meshRef.current.rotation.y, pose.rotY, Math.min(1, 15 * dt));
+      // 퍼스널 스페이스 — 본인(카메라)에게 수평으로 너무 가까운 아바타는 숨김(얼굴 들이밀기 방지). 히스테리시스로 깜빡임 방지.
+      const cam = state.camera.position;
+      const hdx = cam.x - cur.x, hdz = cam.z - cur.z;
+      const h2 = hdx * hdx + hdz * hdz;
+      if (!personalHiddenRef.current && h2 < 0.45 * 0.45) personalHiddenRef.current = true;
+      else if (personalHiddenRef.current && h2 > 0.75 * 0.75) personalHiddenRef.current = false;
+      if (meshRef.current.visible === personalHiddenRef.current) meshRef.current.visible = !personalHiddenRef.current;
     }
   });
 
