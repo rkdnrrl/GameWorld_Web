@@ -2968,7 +2968,7 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
     return (
       <RigidBody type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
         position={rPos} rotation={[0, 0, 0]} scale={rScale}>
-        <TerrainMesh terrain={obj.terrain} castShadow={false} receiveShadow />
+        <TerrainMesh terrain={obj.terrain} castShadow receiveShadow />
       </RigidBody>
     );
   }

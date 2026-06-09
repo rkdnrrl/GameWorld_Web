@@ -1677,7 +1677,7 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false, scul
         scale={noTransform ? undefined : obj.scale}
         onPointerDown={handle}
         userData={noTransform ? undefined : { id: obj.id }}>
-        <TerrainMesh terrain={obj.terrain} selected={selected} castShadow={false} receiveShadow />
+        <TerrainMesh terrain={obj.terrain} selected={selected} castShadow receiveShadow />
       </group>
     );
   }
@@ -2517,7 +2517,7 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
     return (
       <RigidBody ref={bodyRef} type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
         position={t.pos} rotation={[0, 0, 0]} scale={t.scl ?? obj.scale}>
-        <TerrainMesh terrain={obj.terrain} castShadow={false} receiveShadow />
+        <TerrainMesh terrain={obj.terrain} castShadow receiveShadow />
       </RigidBody>
     );
   }
