@@ -3,7 +3,6 @@ import { getMessages } from "next-intl/server";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import "../globals.css";
-import AlphaGate from "@/components/AlphaGate";
 import BackendConnectionBanner from "@/components/BackendConnectionBanner";
 import FeedbackButton from "@/components/FeedbackButton";
 import FloatingLanguageSwitcher from "@/components/FloatingLanguageSwitcher";
@@ -55,7 +54,6 @@ export default async function LocaleLayout({
           <Header />
           <BackendConnectionBanner enabled={showBackendConnectionBanner} />
           <OnboardingModal />
-          <AlphaGate />
           <FeedbackButton />
           <main className="flex w-full min-w-0 max-w-full flex-1 flex-col overflow-x-hidden">
             {children}

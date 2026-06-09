@@ -2017,16 +2017,6 @@
     "benefits_gold": "个人资料 🏆 徽章 (强调)|每月1万金币奖励|新功能抢先体验|运营优先响应",
     "benefits_legend": "👑 彩虹徽章 (最显眼)|所有黄金权益 + 更多金币|运营 1:1 直通频道|路线图意见优先"
   },
-  "AlphaGate": {
-    "title": "公开 Alpha — 封闭测试",
-    "desc": "AirLivePlay 目前仅对已批准的测试者开放。请输入你的 Alpha 访问码。",
-    "placeholder": "访问码",
-    "enter": "进入",
-    "checking": "确认中…",
-    "notAlphaCode": "不是有效的 Alpha 访问码。",
-    "redeemFailed": "验证访问码失败。",
-    "logout": "用其他账号登录"
-  },
   "Feedback": {
     "button": "反馈",
     "title": "发送反馈",
