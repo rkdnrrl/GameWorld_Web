@@ -16,6 +16,7 @@ import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { devLog } from '@/lib/devLog';
 import { PerfManager } from '@/lib/world/PerfManager';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
+import { computeSunDir } from '@/lib/world/CsmSun';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
@@ -2307,6 +2308,16 @@ function FollowingStudioSun({ intensity, dir }: { intensity: number; dir: [numbe
     ref.current.position.set(cam.x - dir[0] * 40, cam.y - dir[1] * 40, cam.z - dir[2] * 40);
     ref.current.target.position.set(cam.x + dir[0], cam.y + dir[1], cam.z + dir[2]);
     ref.current.target.updateMatrixWorld();
+    // 유저 dirlight 억제 — 이 카메라추적 태양이 유일 그림자 광원(고정위치 dirlight 는 그림자 frustum 이 씬을 못 덮어
+    // 빛이 지형/큐브를 뚫는 문제가 있음). 유저 dirlight 는 방향(회전)·강도 핸들로만 쓰고 실제 빛/그림자는 여기서.
+    const me = ref.current, tgt = ref.current.target;
+    state.scene.traverse((o) => {
+      const dl = o as THREE.DirectionalLight;
+      if (dl.isDirectionalLight && dl !== me && dl !== tgt) {
+        if (dl.intensity !== 0) dl.intensity = 0;
+        if (dl.castShadow) dl.castShadow = false;
+      }
+    });
   });
   return (
     <directionalLight
@@ -8326,11 +8337,14 @@ export default function StudioCanvas() {
           <ambientLight intensity={lightAmbient} />
           {/* 하늘 채움광 제거 — 전역 hemisphere 는 밀폐 공간 안까지 밝혀서(GI 없음) "빛 없는 곳 캄캄" 목표와 충돌.
               야외 그림자 부드럽게 하려면: 방향광을 하나 더(약하게, 반대 각도, 그림자 ON) 추가 — 천장에 막혀 실내는 안 밝아짐. */}
-          {/* 태양: 하이어라키에 방향광이 있으면 그게 태양 (회전 E=각도, 강도=밝기, 그림자 투영 직접 제어).
-              방향광이 하나도 없을 때만 환경 기본 태양(FollowingStudioSun, 태양광 강도 슬라이더)을 켠다. */}
-          {objects.some(o => o.kind === 'dirlight' && !o.hidden)
-            ? null
-            : <FollowingStudioSun intensity={lightDir} dir={[-0.53, -0.80, -0.27]} />}
+          {/* 태양 = 카메라 추적 단일 그림자 광원. 방향은 첫 방향광 오브젝트의 회전(E)이 결정, 강도도 그 오브젝트 강도.
+              방향광 없으면 기본 각도 + 태양광 강도 슬라이더. 카메라 추적이라 그림자 frustum 이 항상 씬을 덮어
+              → 지형/큐브가 빛을 제대로 막음(고정 위치 dirlight 의 frustum 빗나감 문제 해결). */}
+          {(() => {
+            const dl = objects.find(o => o.kind === 'dirlight' && !o.hidden);
+            const dir = dl ? computeSunDir(dl.rotation) : ([-0.53, -0.80, -0.27] as [number, number, number]);
+            return <FollowingStudioSun intensity={dl?.lightIntensity ?? lightDir} dir={dir} />;
+          })()}
           {skyEnabled && !hdriBackground && <Sky sunPosition={[20, 10, 10]} />}
           {/* HDRI 환경맵 — 커스텀 URL 우선, 없으면 프리셋, none이면 미사용 */}
           {hdriUrl.trim() ? (
