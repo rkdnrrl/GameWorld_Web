@@ -1146,6 +1146,18 @@ export const api = {
     });
   },
 
+  /** 데일리 출석 상태 (오늘 받았는지 + 연속일수 + 보상 + 잔액). */
+  getAttendanceStatus(token: string) {
+    return request<{ claimedToday: boolean; streak: number; reward: number; coins: number }>(
+      `/api/attendance/status`, { headers: authHeaders(token) });
+  },
+  /** 데일리 출석 보상 받기. */
+  claimAttendance(token: string) {
+    return request<{ streak: number; reward: number; coins: number }>(`/api/attendance/claim`, {
+      method: "POST", headers: authHeaders(token),
+    });
+  },
+
   /** 운영자: 신고 큐 */
   operatorListAssetReports(token: string, params: { status?: 'pending' | 'dismissed' | 'resolved' | 'all'; page?: number } = {}) {
     const sp = new URLSearchParams();

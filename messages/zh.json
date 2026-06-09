@@ -2041,6 +2041,15 @@
     "failed": "发送失败。",
     "close": "关闭"
   },
+  "DailyCheckIn": {
+    "title": "每日签到奖励",
+    "streak": "连续 {count} 天",
+    "balance": "持有 {coins} 金币",
+    "claim": "领取 {reward} 金币",
+    "claiming": "领取中…",
+    "doneToday": "今天已签到",
+    "comeBack": "明天再来领取！"
+  },
   "PlayerPanel": {
     "publicAssets": "公开",
     "followers": "粉丝",

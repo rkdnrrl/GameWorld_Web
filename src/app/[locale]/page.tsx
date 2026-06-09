@@ -3,6 +3,7 @@ import { Link } from "@/i18n/navigation";
 import GameCard, { type Game } from "@/components/GameCard";
 import HeroVideoBackground from "@/components/HeroVideoBackground";
 import PlazaButton from "@/components/PlazaButton";
+import DailyCheckIn from "@/components/DailyCheckIn";
 
 /** 게임 목록에서 숨김 */
 const HIDDEN_GAME_IDS = new Set<string>(["rock-clicker", "alchemy"]);
@@ -82,6 +83,9 @@ export default async function Home() {
       </section>
 
       <div className="mx-auto max-w-[1280px] px-4 py-12 sm:px-6 sm:py-16">
+
+        {/* ── 데일리 출석 보상 (로그인 유저만) ─────────────── */}
+        <DailyCheckIn />
 
         {/* ── Features (3 카드) — 월드·만들기·음성 ─────────── */}
         <section className="mb-16 grid grid-cols-1 gap-4 sm:grid-cols-3">

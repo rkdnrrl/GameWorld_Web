@@ -2061,6 +2061,15 @@
     "failed": "전송에 실패했습니다.",
     "close": "닫기"
   },
+  "DailyCheckIn": {
+    "title": "오늘의 출석 보상",
+    "streak": "{count}일 연속",
+    "balance": "보유 {coins} 코인",
+    "claim": "{reward} 코인 받기",
+    "claiming": "받는 중…",
+    "doneToday": "오늘 출석 완료",
+    "comeBack": "내일 또 받으러 오세요!"
+  },
   "PlayerPanel": {
     "publicAssets": "공개",
     "followers": "팔로워",

@@ -2041,6 +2041,15 @@
     "failed": "送信に失敗しました。",
     "close": "閉じる"
   },
+  "DailyCheckIn": {
+    "title": "今日のログイン報酬",
+    "streak": "{count}日連続",
+    "balance": "所持 {coins} コイン",
+    "claim": "{reward} コインを受け取る",
+    "claiming": "受け取り中…",
+    "doneToday": "今日は出席済み",
+    "comeBack": "明日もまた来てね！"
+  },
   "PlayerPanel": {
     "publicAssets": "公開",
     "followers": "フォロワー",

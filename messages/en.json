@@ -2041,6 +2041,15 @@
     "failed": "Failed to send.",
     "close": "Close"
   },
+  "DailyCheckIn": {
+    "title": "Daily Reward",
+    "streak": "{count}-day streak",
+    "balance": "{coins} coins",
+    "claim": "Claim {reward} coins",
+    "claiming": "Claiming…",
+    "doneToday": "Checked in today",
+    "comeBack": "Come back tomorrow!"
+  },
   "PlayerPanel": {
     "publicAssets": "Public",
     "followers": "Followers",
