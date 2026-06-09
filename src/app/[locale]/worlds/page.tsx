@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
-import { session } from '@/lib/api';
+import { session, listWorldSessions } from '@/lib/api';
 import CreatorNav from '@/components/creator/CreatorNav';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
@@ -43,6 +43,7 @@ export default function WorldsPage() {
   const [sort, setSort]     = useState<Sort>('popular');
   const [tagFilter, setTagFilter] = useState<string>(''); // 선택된 태그 (빈 = 전체)
   const [onlyGames, setOnlyGames] = useState(false);       // 게임만 보기
+  const [liveCounts, setLiveCounts] = useState<Record<string, number>>({}); // worldId → 현재 접속자 수
 
   const token = () => session.getToken() || '';
 
@@ -74,6 +75,23 @@ export default function WorldsPage() {
     }, 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [search, sort, tagFilter, onlyGames]);
+
+  // 공개 월드 카드의 라이브 접속자 수 — 상위 16개만 폴링(15초)해 비용 제한
+  useEffect(() => {
+    if (tab !== 'public' || publicWorlds.length === 0) return;
+    let on = true;
+    const targets = publicWorlds.slice(0, 16);
+    const run = async () => {
+      const entries = await Promise.all(targets.map(async w => {
+        const sessions = await listWorldSessions(w.id);
+        return [w.id, sessions.reduce((s, x) => s + (x.count || 0), 0)] as const;
+      }));
+      if (on) setLiveCounts(Object.fromEntries(entries));
+    };
+    run();
+    const iv = setInterval(run, 15000);
+    return () => { on = false; clearInterval(iv); };
+  }, [tab, publicWorlds]);
 
   async function togglePublic(w: World) {
     const res = await fetch(`${API}/api/worlds/${w.id}`, {
@@ -280,6 +298,12 @@ export default function WorldsPage() {
                     background: w.thumbnailUrl ? `url(${w.thumbnailUrl}) center/cover` : 'linear-gradient(135deg,#1e293b,#0a0e1a)',
                   }}>
                     {!w.thumbnailUrl && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 50, opacity: 0.5 }}>🌍</div>}
+                    {tab === 'public' && (liveCounts[w.id] ?? 0) > 0 && (
+                      <span style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(16,185,129,0.95)', color: '#fff', fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />
+                        {t('liveCount', { count: liveCounts[w.id] })}
+                      </span>
+                    )}
                     {tab === 'mine' && (
                       <span style={{ position: 'absolute', top: 8, left: 8, background: w.isPublic ? 'rgba(16,185,129,0.9)' : 'rgba(100,116,139,0.85)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 4 }}>
                         {w.isPublic ? t('badgePublic') : t('badgePrivate')}
