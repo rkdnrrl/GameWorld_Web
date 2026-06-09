@@ -48,18 +48,6 @@ export interface ComponentDef {
 
 export const COMPONENT_DEFS: ComponentDef[] = [
   {
-    type: 'cutter',
-    name: 'Cutter (커터 — 지나가며 깎기)',
-    icon: '🔪',
-    description: '이 박스가 지나간 자리를 대상 큐브에서 영구히 깎아낸다(홈/슬릿). 박스의 크기·회전이 절단 단면. 스튜디오 드래그·애니메이션·게임 중 이동 어느 방식이든 동작. 대상은 깎을 수 있는 큐브(kind=cube). target 비우면 가장 가까운 큐브 자동.',
-    props: [
-      { key: 'target',  label: '대상 큐브 (id/이름, 비우면 자동)', type: 'string',  default: '' },
-      { key: 'enabled', label: '활성 (enabled)',                 type: 'boolean', default: true },
-      { key: 'step',    label: '깎기 간격 (m, 작을수록 촘촘·무거움)', type: 'number',  default: 0.3, min: 0.05, max: 2, step: 0.05 },
-      { key: 'maxCuts', label: '최대 절삭 수 (성능 한도)',          type: 'number',  default: 40,  min: 1,    max: 120, step: 1, group: 'advanced' },
-    ],
-  },
-  {
     type: 'worldPhysics',
     name: 'World Physics (맵 중력)',
     icon: '🌍',
@@ -177,20 +165,6 @@ export const COMPONENT_DEFS: ComponentDef[] = [
     description: '1인칭 모드에서 E 키로 잡을 수 있게 함. Physics handle 처럼 카메라 앞을 따라옴. (Physics dynamic 컴포넌트 같이 부착 권장)',
   },
   {
-    type: 'health',
-    name: 'Health (HP)',
-    icon: '❤️',
-    description: '오브젝트에 HP 부여. 데미지 받으면 감소, 0 이면 onDeath 실행 후 destroy (옵션). 스크립트에서 self.heal(n) / self.damage(n) / self.getHp() 호출 가능. damage 컴포넌트 가 닿으면 자동 감소.',
-    props: [
-      { key: 'maxHp',         label: '최대 HP',                  type: 'number',  default: 100, min: 1, max: 100000, step: 1 },
-      { key: 'startHp',       label: '시작 HP (-1=maxHp)',       type: 'number',  default: -1, min: -1, max: 100000, step: 1 },
-      { key: 'invulnTime',    label: '피격 무적 시간 (s)',       type: 'number',  default: 0.3, min: 0, max: 5, step: 0.1 },
-      { key: 'destroyOnDeath', label: '사망 시 자동 제거',         type: 'boolean', default: true },
-      { key: 'team',          label: '팀 (같은 팀끼리 무피해)',   type: 'string',  default: '' },
-      { key: 'onDeathScript', label: 'onDeath 스크립트 (JS)',    type: 'string',  default: '' },
-    ],
-  },
-  {
     type: 'damage',
     name: 'Damage (피해 가하기)',
     icon: '⚔️',
@@ -202,36 +176,6 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'aoeInterval', label: 'AOE 주기 (s, aoe 모드만)',         type: 'number',  default: 1, min: 0.1, max: 60, step: 0.1 },
       { key: 'team',       label: '팀 (대상 team 과 같으면 피해 X)',  type: 'string',  default: '' },
       { key: 'destroyOnHit', label: '히트 후 자동 제거 (발사체용)',   type: 'boolean', default: false },
-    ],
-  },
-  {
-    type: 'flashlight',
-    name: 'Flashlight (손전등)',
-    icon: '🔦',
-    description: '오브젝트 위치에 spotlight 부착 + 카메라(1인칭) 따라가게 옵션. 호러/탐험 게임에 사용. range/angle 로 빔 형태 조절. 토글로 ON/OFF.',
-    props: [
-      { key: 'range',     label: '빔 거리 (m)',                       type: 'number',  default: 15, min: 1, max: 100, step: 0.5 },
-      { key: 'angle',     label: '빔 각도 (degree)',                  type: 'number',  default: 35, min: 5, max: 90, step: 1 },
-      { key: 'intensity', label: '밝기',                              type: 'number',  default: 5, min: 0, max: 50, step: 0.5 },
-      { key: 'color',     label: '색',                                type: 'color',   default: '#fff5dd' },
-      { key: 'followCamera', label: '1인칭 카메라 따라감 (이 오브젝트 잡을 때만)', type: 'boolean', default: true },
-      { key: 'on',        label: '기본 켜짐',                         type: 'boolean', default: true },
-    ],
-  },
-  {
-    type: 'pickup',
-    name: 'Pickup (줍기/스크랩)',
-    icon: '📦',
-    description: '아이템화 — 플레이어가 닿거나 1인칭에서 E 로 줍기. 인벤토리 추가 + 오브젝트 제거 (또는 hidden). 스크랩 가치/무게/타입 지정. 인벤토리 = data 시스템 (data.get("inventory") 배열로 저장).',
-    props: [
-      { key: 'itemKey',    label: '아이템 키 (data 식별자)',   type: 'string',  default: 'item' },
-      { key: 'displayName', label: '표시 이름',                 type: 'string',  default: '아이템' },
-      { key: 'icon',       label: '아이콘 이모지 (선택)',       type: 'string',  default: '📦' },
-      { key: 'value',      label: '가치 (스크랩 가격 등)',      type: 'number',  default: 10, min: 0, max: 1000000, step: 1 },
-      { key: 'weight',     label: '무게 (kg)',                  type: 'number',  default: 1, min: 0, max: 1000, step: 0.1 },
-      { key: 'mode',       label: '줍기 방식 (touch=닿으면 / interact=E 키)', type: 'enum', default: 'interact', options: ['touch', 'interact'] },
-      { key: 'oneShot',    label: '일회성 (줍고 사라짐 / false=계속 줍힘)', type: 'boolean', default: true },
-      { key: 'maxStack',   label: '최대 스택 (인벤토리)',       type: 'number',  default: 99, min: 1, max: 9999, step: 1 },
     ],
   },
   {
