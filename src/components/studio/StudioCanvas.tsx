@@ -38,6 +38,7 @@ import StudioTopBar from './StudioTopBar';
 import StudioShortcutsModal from './StudioShortcutsModal';
 import ScriptComponentsModal from './ScriptComponentsModal';
 import ScriptAssetEditor from '@/components/assets/ScriptAssetEditor';
+import StudioMarketModal from '@/components/studio/StudioMarketModal';
 import { MAP_APPLY_EVENT } from '@/lib/assets/kinds/map';
 import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, computeBuoyancyVolumes, type ComponentInstance, type ComponentType, type BuoyancyVolume, type ComponentPropDef } from '@/lib/world/components';
 import { sampleKeyframeAnim, normalizeKeyframeAnim, applySampledTRS, composeSampledWorld, type KeyframeAnim, type KeyFrame } from '@/lib/world/keyframeAnim';
@@ -4441,6 +4442,7 @@ export default function StudioCanvas() {
   useEffect(() => { silenceConsoleSpam(); }, []);
   const t            = useTranslations('Studio');
   const tCanvas      = useTranslations('Studio.canvas');
+  const tAssets      = useTranslations('Assets');
   const leftSheet    = useSheetDrag(62);
   const rightSheet   = useSheetDrag(62);
   // 우측 인스펙터 너비 (px). 사용자가 좌측 핸들 드래그로 조정 → localStorage 영구.
@@ -4692,6 +4694,7 @@ export default function StudioCanvas() {
   const [savedId, setSavedId]       = useState<string | null>(editingId);
   const [saving, setSaving]         = useState(false);
   const [myAssets, setMyAssets]     = useState<Asset[]>([]);
+  const [showMarket, setShowMarket] = useState(false);   // 마켓플레이스 모달
   const [myWorlds, setMyWorlds]     = useState<MyWorldItem[]>([]);
   const [myWorldsOpen, setMyWorldsOpen] = useState(false);
   const [myWorldsLoading, setMyWorldsLoading] = useState(false);
@@ -4927,13 +4930,14 @@ export default function StudioCanvas() {
     });
   }, []);
 
-  /* 내 에셋 목록 로드 */
-  useEffect(() => {
+  /* 내 에셋 목록 로드 — 마켓 import 후 즉시 동기화에도 재사용. */
+  const loadMyAssets = useCallback(() => {
     fetch(`${API}/api/assets/my`, { headers: { Authorization: `Bearer ${token()}` } })
       .then(r => r.json())
       .then(d => setMyAssets(d.assets || []))
       .catch(() => {});
   }, []);
+  useEffect(() => { loadMyAssets(); }, [loadMyAssets]);
 
   /* 맵 에셋 "현재 맵에 추가" — kinds/map.tsx 의 Preview 가 dispatch 하는 이벤트 listen.
      id 재생성 + parentId 매핑 + 현재 objects 끝에 append. 환경/HDRI 도 함께 적용. */
@@ -9161,8 +9165,26 @@ export default function StudioCanvas() {
             >
               📜 {tCanvas("ctx_new_script")}
             </button>
+            <button
+              type="button"
+              onClick={() => { setShowMarket(true); setAssetCtxMenu(null); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', background: 'none', border: 'none', color: '#fff', fontSize: 12, fontWeight: 600, padding: '9px 11px', borderRadius: 6, cursor: 'pointer' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(129,140,248,0.22)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+            >
+              🛒 {tAssets("marketTitle")}
+            </button>
           </div>
         </>
+      )}
+
+      {/* 마켓플레이스 모달 — 공개 에셋 가져오기 → import 시 myAssets 즉시 동기화 */}
+      {showMarket && (
+        <StudioMarketModal
+          token={token()}
+          onClose={() => setShowMarket(false)}
+          onImported={loadMyAssets}
+        />
       )}
 
       {/* 씬 트리 우클릭 컨텍스트 메뉴 */}
