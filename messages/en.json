@@ -2012,6 +2012,16 @@
     "benefits_gold": "Profile 🏆 badge (highlighted)|10K monthly coin bonus|Early access to new features|Priority operator response",
     "benefits_legend": "👑 Rainbow badge (most visible)|All Gold perks + more coins|Direct 1:1 channel|Roadmap voice priority"
   },
+  "AlphaGate": {
+    "title": "Open Alpha — Closed Test",
+    "desc": "AirLivePlay is currently open to approved testers only. Please enter your alpha access code.",
+    "placeholder": "Access code",
+    "enter": "Enter",
+    "checking": "Checking…",
+    "notAlphaCode": "Not a valid alpha access code.",
+    "redeemFailed": "Failed to verify the code.",
+    "logout": "Sign in with another account"
+  },
   "PlayerPanel": {
     "publicAssets": "Public",
     "followers": "Followers",

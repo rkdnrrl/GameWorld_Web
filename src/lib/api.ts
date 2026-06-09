@@ -12,6 +12,8 @@ export type User = {
   isOperator?: boolean;
   /** 이메일 화이트리스트 등 포함한 운영 콘솔 접근 가능 여부 */
   operatorAccess?: boolean;
+  /** 오픈 알파 접속 승인 (알파 코드 redeem) — false 면 게이트에서 차단 */
+  alphaApproved?: boolean;
   /** CommonDB 기준 userId — Google OAuth 사용자는 id와 다를 수 있음 */
   commonUserId?: string;
   /** 구독 여부 — true면 광고 숨김 */
