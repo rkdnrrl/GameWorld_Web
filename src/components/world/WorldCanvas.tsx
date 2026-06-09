@@ -69,9 +69,12 @@ import { createGameRuntime, GAME_SYNC_EVENT, GAME_SOUND_EVENT, type GameSnapshot
 import { execUiButtonScript } from '@/lib/world/uiButtonScript';
 import GameHud from './GameHud';
 
-const PLAYER_CAPSULE_HALF_HEIGHT = 0.35;
+// 캡슐 전체 높이 = 2*(halfHeight+radius). 캐릭터(눈높이 1.5m, 키 ~1.66m)에 맞춤.
+// halfHeight 0.55 + radius 0.28 → 캡슐 바닥 오프셋 0.83, 전체 높이 1.66m (기존 1.26m 은 머리가 천장을 뚫었음).
+const PLAYER_CAPSULE_HALF_HEIGHT = 0.55;
 const PLAYER_CAPSULE_RADIUS = 0.28;
-const PLAYER_MESH_Y = -(PLAYER_CAPSULE_HALF_HEIGHT + PLAYER_CAPSULE_RADIUS);
+const PLAYER_MESH_Y = -(PLAYER_CAPSULE_HALF_HEIGHT + PLAYER_CAPSULE_RADIUS); // = -0.83 (캡슐 바닥 = 발)
+const PLAYER_CAPSULE_BOTTOM = PLAYER_CAPSULE_HALF_HEIGHT + PLAYER_CAPSULE_RADIUS; // 0.83, 카메라/접지에서 사용
 
 // 동적 오브젝트가 스폰 높이 기준 이만큼 아래로 떨어지면 원위치로 복귀 (월드 밖 추락 방지)
 const OBJ_FALL_RESET = 50;
@@ -2133,9 +2136,9 @@ export function Player({
 
       // 지면 체크 — 자기 RigidBody 제외 (제외 없으면 캡슐 내부 → TOI=0 → 항상 onGround=true)
       const ray = new rapier.Ray({ x: posT.x, y: posT.y, z: posT.z }, { x: 0, y: -1, z: 0 });
-      const hit = rWorld.castRay(ray, 1.3, true, undefined, undefined, undefined, body.current ?? undefined);
-      // 캡슐 바닥(중심에서 0.63 아래) + 여유 버퍼 — 살짝 떠도 접지로 인정(coyote/snap). 0.7 은 버퍼가 너무 좁아 경사·미끄럼에서 낙하 애니 깜빡임.
-      const onGround = !!(hit && hit.timeOfImpact < 0.9);
+      const hit = rWorld.castRay(ray, 1.6, true, undefined, undefined, undefined, body.current ?? undefined);
+      // 캡슐 바닥(중심에서 PLAYER_CAPSULE_BOTTOM=0.83 아래) + 여유 버퍼 0.27 — 살짝 떠도 접지로 인정(coyote/snap).
+      const onGround = !!(hit && hit.timeOfImpact < PLAYER_CAPSULE_BOTTOM + 0.27);
       groundedRef.current = onGround;   // world.isGrounded() 용
 
       // 점프: Space가 새로 눌렸을 때만 1번 (앉기/엎드리기 중엔 점프 금지). 수동 모드면 엔진 점프 skip.
@@ -2301,7 +2304,7 @@ export function Player({
       } else {
         const modelScale = Number((character?.appearance as Record<string, unknown> | undefined)?.modelScale) || 1.0;
         camX = p.x; camZ = p.z;
-        camY = (p.y - 0.63) + 1.5 * modelScale * postureScale;
+        camY = (p.y - PLAYER_CAPSULE_BOTTOM) + 1.5 * modelScale * postureScale;
       }
       camera.position.set(camX, camY, camZ);
       const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
