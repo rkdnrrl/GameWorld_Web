@@ -29,6 +29,11 @@ export default function AccountPage() {
   const [nicknameInput, setNicknameInput] = useState("");
   const [nicknameMessage, setNicknameMessage] = useState<string | null>(null);
   const [savingNickname, setSavingNickname] = useState(false);
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [pwMessage, setPwMessage] = useState<string | null>(null);
+  const [savingPw, setSavingPw] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const refreshProfile = useCallback(async (tk: string) => {
@@ -88,6 +93,44 @@ export default function AccountPage() {
       setNicknameMessage(err instanceof ApiError ? err.message : t("saveFailed"));
     } finally {
       setSavingNickname(false);
+    }
+  }
+
+  async function handleChangePassword() {
+    if (!user?.email || savingPw) return;
+    if (newPw.length < 8) {
+      setPwMessage(t("pwTooShort"));
+      return;
+    }
+    if (newPw !== confirmPw) {
+      setPwMessage(t("pwMismatch"));
+      return;
+    }
+    setSavingPw(true);
+    setPwMessage(null);
+    try {
+      // 현재 비밀번호 재확인 (supabase 세션 갱신 겸). 구글 로그인 계정은 비밀번호가 없어 여기서 실패함.
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPw,
+      });
+      if (signInErr) {
+        setPwMessage(t("pwCurrentWrong"));
+        return;
+      }
+      const { error: updErr } = await supabase.auth.updateUser({ password: newPw });
+      if (updErr) {
+        setPwMessage(updErr.message || t("pwChangeFailed"));
+        return;
+      }
+      setPwMessage(t("pwChanged"));
+      setCurrentPw("");
+      setNewPw("");
+      setConfirmPw("");
+    } catch {
+      setPwMessage(t("pwChangeFailed"));
+    } finally {
+      setSavingPw(false);
     }
   }
 
@@ -168,6 +211,45 @@ export default function AccountPage() {
                 className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
               >
                 {savingNickname ? t("savingNickname") : t("saveNickname")}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-6">
+            <h2 className="text-lg font-semibold">{t("pwSection")}</h2>
+            <div className="mt-3 space-y-3">
+              <input
+                type="password"
+                value={currentPw}
+                onChange={(e) => setCurrentPw(e.target.value)}
+                placeholder={t("pwCurrent")}
+                autoComplete="current-password"
+                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
+              />
+              <input
+                type="password"
+                value={newPw}
+                onChange={(e) => setNewPw(e.target.value)}
+                placeholder={t("pwNew")}
+                autoComplete="new-password"
+                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
+              />
+              <input
+                type="password"
+                value={confirmPw}
+                onChange={(e) => setConfirmPw(e.target.value)}
+                placeholder={t("pwConfirm")}
+                autoComplete="new-password"
+                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
+              />
+              {pwMessage ? <p className="text-sm text-zinc-600">{pwMessage}</p> : null}
+              <button
+                type="button"
+                onClick={handleChangePassword}
+                disabled={savingPw || !currentPw || !newPw || !confirmPw}
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              >
+                {savingPw ? t("pwSaving") : t("pwButton")}
               </button>
             </div>
           </div>
