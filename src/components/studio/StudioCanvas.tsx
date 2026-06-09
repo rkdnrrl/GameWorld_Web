@@ -5586,8 +5586,8 @@ export default function StudioCanvas() {
   function addTerrain(kind: 'flat' | 'noise' = 'flat') {
     const id = `terrain_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const t: TerrainData = kind === 'noise'
-      ? generateNoiseTerrain(50, 64, 4, 0.05, Math.floor(Math.random() * 1000))
-      : makeFlatTerrain(50, 64);
+      ? generateNoiseTerrain(50, 128, 4, 0.05, Math.floor(Math.random() * 1000))
+      : makeFlatTerrain(50, 128);
     setObjects(prev => {
       const next: MapObject[] = [...prev, {
         id, kind: 'terrain', label: kind === 'noise' ? tCanvas("default_label_noise_terrain") : tCanvas("default_label_flat_terrain"),

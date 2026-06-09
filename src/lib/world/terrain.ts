@@ -24,14 +24,14 @@ export interface TerrainData {
 }
 
 /** 평탄 (모두 0) 기본 terrain. */
-export function makeFlatTerrain(size = 50, segments = 64, baseColor = '#5a8a4a'): TerrainData {
+export function makeFlatTerrain(size = 50, segments = 128, baseColor = '#5a8a4a'): TerrainData {
   const n = (segments + 1) * (segments + 1);
   return { size, segments, heights: new Array(n).fill(0), baseColor, textureRepeat: 8 };
 }
 
 /** 진짜 coherent value noise — 격자점 해시 랜덤 + Hermite smoothstep bilinear 보간, fBm 4 octaves.
  *  옛 버전은 per-vertex 해시 랜덤이라 가시밭이 됐음. 이제 자연스러운 굴곡. */
-export function generateNoiseTerrain(size = 50, segments = 64, amplitude = 4, scale = 0.06, seed = 1): TerrainData {
+export function generateNoiseTerrain(size = 50, segments = 128, amplitude = 4, scale = 0.06, seed = 1): TerrainData {
   const n1 = segments + 1;
   const heights = new Array(n1 * n1).fill(0);
   const hash = (xi: number, yi: number, s: number) => {
