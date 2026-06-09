@@ -53,6 +53,7 @@ import { CarvedMesh } from '@/lib/world/CarvedMesh';
 import { ChunkedVoxelTerrain } from '@/lib/world/ChunkedVoxelTerrain';
 import { computeBuoyancyVolumes, type BuoyancyVolume } from '@/lib/world/components';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
+import { computeSunDir } from '@/lib/world/CsmSun';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UI_SYNC_EVENT, DATA_SYNC_EVENT, type UiData } from '@/lib/world/uiObjects';
 import { api as backendApi } from '@/lib/api';
@@ -1093,25 +1094,35 @@ function RemotePlayerCrosshairClick({
  *  버그 fix: 라이트가 고정 좌표 (20,30,10) 라 캐릭터가 멀리 가면 shadow camera 박스
  *  (±60) 밖이라 그림자 끊김. 매 frame 카메라 추적해서 frustum 안에 들어오게 함.
  *  방향은 (20,30,10) → cam 으로 일정 유지 → 그림자 방향 일관성 OK. */
-function FollowingSunLight({ intensity, castShadow, shadowMapSize, shadowFar }: {
+function FollowingSunLight({ intensity, castShadow, shadowMapSize, shadowFar, dir = [-0.53, -0.80, -0.27] }: {
   intensity: number;
   castShadow: boolean;
   shadowMapSize: [number, number];
   shadowFar: number;
+  dir?: [number, number, number];
 }) {
   const ref = useRef<THREE.DirectionalLight>(null);
   useFrame((state) => {
     if (!ref.current) return;
     const cam = state.camera.position;
-    ref.current.position.set(cam.x + 20, cam.y + 30, cam.z + 10);
-    ref.current.target.position.copy(cam);
+    // dir = 빛이 나아가는 방향. 광원은 그 반대쪽 위, 타겟은 카메라 앞 dir 방향 → 그림자 frustum 이 항상 보이는 영역을 덮음.
+    ref.current.position.set(cam.x - dir[0] * 40, cam.y - dir[1] * 40, cam.z - dir[2] * 40);
+    ref.current.target.position.set(cam.x + dir[0], cam.y + dir[1], cam.z + dir[2]);
     ref.current.target.updateMatrixWorld();
-    // shadow throttle 제거 — 잔상 원인. #217 로 base fps 여유 있어 매 frame 갱신 OK.
+    // 유저 dirlight 억제 — 고정 위치 dirlight 는 그림자 frustum 이 씬을 못 덮어 빛이 천장/지형을 뚫는다.
+    // 유저 dirlight 는 방향(회전)·강도 핸들로만 쓰고, 실제 빛/그림자는 이 카메라추적 태양이 담당.
+    const me = ref.current, tgt = ref.current.target;
+    state.scene.traverse((o) => {
+      const dl = o as THREE.DirectionalLight;
+      if (dl.isDirectionalLight && dl !== me && dl !== tgt) {
+        if (dl.intensity !== 0) dl.intensity = 0;
+        if (dl.castShadow) dl.castShadow = false;
+      }
+    });
   });
   return (
     <directionalLight
       ref={ref}
-      position={[20, 30, 10]}
       intensity={intensity}
       castShadow={castShadow}
       shadow-mapSize={shadowMapSize}
@@ -5726,14 +5737,22 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         {/* 조명 — sceneSettings 기반 */}
         <ambientLight intensity={ambientIntensity} />
         {/* 하늘 채움광 제거 — 전역 hemisphere 는 밀폐 공간 안까지 밝혀서 "빛 없는 곳 캄캄" 목표와 충돌. 스튜디오와 동일. */}
-        {dirIntensity > 0 && (
-          <FollowingSunLight
-            intensity={dirIntensity}
-            castShadow={shadowsEnabled}
-            shadowMapSize={shadowMapSize}
-            shadowFar={150}
-          />
-        )}
+        {(() => {
+          // 하이어라키에 방향광이 있으면 그 회전(방향)·강도로 태양을 구동. 없으면 씬 기본 태양광 강도.
+          const dl = lightObjects.find(o => o.kind === 'dirlight' && !o.hidden);
+          const inten = dl ? (dl.lightIntensity ?? 1) : dirIntensity;
+          if (inten <= 0) return null;
+          const dir = dl ? computeSunDir(dl.rotation) : ([-0.53, -0.80, -0.27] as [number, number, number]);
+          return (
+            <FollowingSunLight
+              intensity={inten}
+              dir={dir}
+              castShadow={shadowsEnabled}
+              shadowMapSize={shadowMapSize}
+              shadowFar={150}
+            />
+          );
+        })()}
         {/* 사용자 추가 조명 */}
         {lightObjects.map(o => {
           const dist = o.lightDistance ?? 0;
