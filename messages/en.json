@@ -1753,7 +1753,7 @@
     "bulkDelete": "Delete",
     "bulkDeleteConfirm": "Confirm delete",
     "bulkSkippedSome": "{count} skipped (no permission)",
-    "marketBrowseLink": "Browse",
+    "marketBrowseLink": "Marketplace",
     "marketTitle": "Asset Marketplace",
     "marketSubtitle": "Discover public assets and import them into your library",
     "marketBackToLibrary": "My Library",

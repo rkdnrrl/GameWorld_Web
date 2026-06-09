@@ -17,6 +17,8 @@ interface Props {
   onBulkMove: (folder: string | null) => void;
   onBulkAddTags: (tags: string[]) => void;
   onBulkSetPublic: (isPublic: boolean) => void;
+  /** 선택 안에 공개/비공개 전환 가능한(=내가 올린, 참조 아님) 에셋이 하나라도 있으면 true. 없으면 토글 숨김. */
+  canSetPublic: boolean;
 }
 
 type SubAction = null | 'move' | 'tag';
@@ -125,15 +127,18 @@ export default function AssetBulkBar(p: Props) {
         </button>
       )}
 
-      {/* 공개/비공개 */}
-      <button onClick={() => p.onBulkSetPublic(true)} disabled={p.busy} style={btn('rgba(16,185,129,0.2)', '#6ee7b7')}>
-        {t('bulkMakePublic')}
-      </button>
-      <button onClick={() => p.onBulkSetPublic(false)} disabled={p.busy} style={btn('rgba(255,255,255,0.06)', 'rgba(255,255,255,0.7)')}>
-        {t('bulkMakePrivate')}
-      </button>
+      {/* 공개/비공개 — 마켓에서 가져온(참조) 에셋은 원본 소유자 것이라 전환 불가. 토글 가능한 게 하나라도 있을 때만 표시. */}
+      {p.canSetPublic && <>
+        <button onClick={() => p.onBulkSetPublic(true)} disabled={p.busy} style={btn('rgba(16,185,129,0.2)', '#6ee7b7')}>
+          {t('bulkMakePublic')}
+        </button>
+        <button onClick={() => p.onBulkSetPublic(false)} disabled={p.busy} style={btn('rgba(255,255,255,0.06)', 'rgba(255,255,255,0.7)')}>
+          {t('bulkMakePrivate')}
+        </button>
+        <Divider />
+      </>}
 
-      <Divider />
+      {!p.canSetPublic && <Divider />}
 
       {/* 삭제 — 한 번 더 확인 */}
       <DeleteButton onConfirm={p.onBulkDelete} busy={p.busy} label={t('bulkDelete')} confirmLabel={t('bulkDeleteConfirm')} />

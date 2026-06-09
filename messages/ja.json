@@ -1753,7 +1753,7 @@
     "bulkDelete": "削除",
     "bulkDeleteConfirm": "本当に削除",
     "bulkSkippedSome": "権限のない{count}件は除外",
-    "marketBrowseLink": "探す",
+    "marketBrowseLink": "マーケットプレイス",
     "marketTitle": "アセットマーケットプレイス",
     "marketSubtitle": "他のユーザーが公開したアセットを探してライブラリに追加",
     "marketBackToLibrary": "マイライブラリ",

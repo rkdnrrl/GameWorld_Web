@@ -1773,7 +1773,7 @@
     "bulkDelete": "삭제",
     "bulkDeleteConfirm": "정말 삭제",
     "bulkSkippedSome": "{count}개는 권한이 없어 제외됨",
-    "marketBrowseLink": "둘러보기",
+    "marketBrowseLink": "마켓 플레이스",
     "marketTitle": "에셋 마켓플레이스",
     "marketSubtitle": "다른 유저가 공개한 에셋을 둘러보고 내 라이브러리로 가져오기",
     "marketBackToLibrary": "내 라이브러리",

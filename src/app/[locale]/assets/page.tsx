@@ -548,7 +548,11 @@ export default function AssetsPage() {
     action: 'delete' | 'move' | 'addTags' | 'removeTags' | 'setPublic',
     value?: unknown,
   ) {
-    const ids = Array.from(selectedIds);
+    let ids = Array.from(selectedIds);
+    // 공개/비공개 전환은 참조(마켓에서 가져온) 에셋 제외 — 원본 소유자 것이라 변경 불가.
+    if (action === 'setPublic') {
+      ids = assets.filter(a => selectedIds.has(a.id) && !(a.metadata?.referenceOnly || a.metadata?.importedFrom)).map(a => a.id);
+    }
     if (ids.length === 0) return;
     setBulkBusy(true);
     try {
@@ -558,7 +562,7 @@ export default function AssetsPage() {
       setAssets(prev => {
         if (action === 'delete') return prev.filter(a => !selectedIds.has(a.id));
         if (action === 'move')   return prev.map(a => selectedIds.has(a.id) ? { ...a, folder: (value as string | null) ?? null } : a);
-        if (action === 'setPublic') return prev.map(a => selectedIds.has(a.id) ? { ...a, isPublic: Boolean(value) } : a);
+        if (action === 'setPublic') { const set = new Set(ids); return prev.map(a => set.has(a.id) ? { ...a, isPublic: Boolean(value) } : a); }
         if (action === 'addTags' || action === 'removeTags') {
           const incoming = (value as string[]) || [];
           return prev.map(a => {
@@ -641,6 +645,7 @@ export default function AssetsPage() {
         onBulkMove={(folder) => runBulk('move', folder)}
         onBulkAddTags={(tags) => runBulk('addTags', tags)}
         onBulkSetPublic={(isPublic) => runBulk('setPublic', isPublic)}
+        canSetPublic={assets.some(a => selectedIds.has(a.id) && !(a.metadata?.referenceOnly || a.metadata?.importedFrom))}
       />
 
       <div style={{ minHeight: '100vh', background: '#0f172a', color: '#fff', fontFamily: "-apple-system,'Apple SD Gothic Neo',sans-serif" }}>
