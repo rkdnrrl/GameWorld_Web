@@ -16,7 +16,6 @@ import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import { devLog } from '@/lib/devLog';
 import { PerfManager } from '@/lib/world/PerfManager';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
-import { computeSunDir } from '@/lib/world/CsmSun';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
@@ -2307,15 +2306,6 @@ function FollowingStudioSun({ intensity, dir }: { intensity: number; dir: [numbe
     ref.current.position.set(cam.x - dir[0] * 40, cam.y - dir[1] * 40, cam.z - dir[2] * 40);
     ref.current.target.position.set(cam.x + dir[0], cam.y + dir[1], cam.z + dir[2]);
     ref.current.target.updateMatrixWorld();
-    // 유저 dirlight 억제 — 이 태양이 유일 (이중 태양 방지). 유저 dirlight 는 방향 핸들 역할만.
-    const me = ref.current, tgt = ref.current.target;
-    state.scene.traverse((o) => {
-      const dl = o as THREE.DirectionalLight;
-      if (dl.isDirectionalLight && dl !== me && dl !== tgt) {
-        if (dl.intensity !== 0) dl.intensity = 0;
-        if (dl.castShadow) dl.castShadow = false;
-      }
-    });
   });
   return (
     <directionalLight
@@ -8336,13 +8326,11 @@ export default function StudioCanvas() {
           {/* 하늘 채움광 (유니티/언리얼식 sky light) — 그림자 속을 하늘색으로 은은히 채워
               밝음↔검정 하드 경계(이음새)를 부드럽게. 위=하늘색, 아래=지면 반사색. */}
           <hemisphereLight args={['#dce8ff', '#5a6a4a', 0.85]} />
-          {/* 메인 태양 (단일 그림자맵, cascade 없음 → 경계 이음새 없음) — 카메라 추적.
-              방향은 첫 dirlight 오브젝트의 회전(없으면 기본 각도). 유저 dirlight 는 FollowingStudioSun 이 억제(단일 태양). */}
-          {(() => {
-            const dl = objects.find(o => o.kind === 'dirlight' && !o.hidden);
-            const dir = dl ? computeSunDir(dl.rotation) : ([-0.53, -0.80, -0.27] as [number, number, number]);
-            return <FollowingStudioSun intensity={dl?.lightIntensity ?? lightDir} dir={dir} />;
-          })()}
+          {/* 태양: 하이어라키에 방향광이 있으면 그게 태양 (회전 E=각도, 강도=밝기, 그림자 투영 직접 제어).
+              방향광이 하나도 없을 때만 환경 기본 태양(FollowingStudioSun, 태양광 강도 슬라이더)을 켠다. */}
+          {objects.some(o => o.kind === 'dirlight' && !o.hidden)
+            ? null
+            : <FollowingStudioSun intensity={lightDir} dir={[-0.53, -0.80, -0.27]} />}
           {skyEnabled && !hdriBackground && <Sky sunPosition={[20, 10, 10]} />}
           {/* HDRI 환경맵 — 커스텀 URL 우선, 없으면 프리셋, none이면 미사용 */}
           {hdriUrl.trim() ? (
