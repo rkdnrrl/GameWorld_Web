@@ -2469,7 +2469,7 @@ export function Player({
         if (objId) onObjCollide?.(String(objId), 'exit');
       }}
     >
-      <CapsuleCollider args={[PLAYER_CAPSULE_HALF_HEIGHT, PLAYER_CAPSULE_RADIUS]} friction={0.6} frictionCombineRule={CoefficientCombineRule.Max} />
+      <CapsuleCollider args={[PLAYER_CAPSULE_HALF_HEIGHT, PLAYER_CAPSULE_RADIUS]} friction={0} frictionCombineRule={CoefficientCombineRule.Min} />
       {/* 1인칭에서도 본인 메쉬 표시 — 아래 보면 다리/몸 보임.
           머리는 hideHead 로 본 스케일 0 / 블록 머리 미렌더 처리 */}
       <group ref={mesh} position={[0, PLAYER_MESH_Y, 0]}>
@@ -2591,7 +2591,7 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick,
       position={initPos}
       userData={{ playerId: player.id }}
     >
-      <CapsuleCollider args={[PLAYER_CAPSULE_HALF_HEIGHT, PLAYER_CAPSULE_RADIUS]} friction={0.6} frictionCombineRule={CoefficientCombineRule.Max} />
+      <CapsuleCollider args={[PLAYER_CAPSULE_HALF_HEIGHT, PLAYER_CAPSULE_RADIUS]} friction={0} frictionCombineRule={CoefficientCombineRule.Min} />
       <group
         ref={meshRef}
         position={[0, PLAYER_MESH_Y, 0]}
