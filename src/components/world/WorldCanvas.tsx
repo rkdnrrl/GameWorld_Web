@@ -5756,7 +5756,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               shadow-camera-left={-80} shadow-camera-right={80}
               shadow-camera-top={80} shadow-camera-bottom={-80}
               shadow-camera-near={0.1} shadow-camera-far={200}
-              shadow-bias={-0.0005} />
+              shadow-bias={-0.0005} shadow-normalBias={0.05} />
           ) : (
             <spotLight key={o.id} ref={refCb}
               position={lpos} color={o.lightColor || '#ffffff'}
