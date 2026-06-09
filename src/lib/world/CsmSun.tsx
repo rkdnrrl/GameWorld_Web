@@ -22,6 +22,7 @@ import { CSM } from 'three/examples/jsm/csm/CSM.js';
 type CSMInst = {
   lights: THREE.DirectionalLight[];
   lightDirection: THREE.Vector3;
+  fade: boolean;
   update: () => void;
   updateFrustums: () => void;
   setupMaterial: (m: THREE.Material) => void;
@@ -71,6 +72,7 @@ export function CsmSun({
       lightDirection: dir, lightIntensity: intensity, camera, lightMargin: 100,
       shadowBias: -0.0002,
     }) as unknown as CSMInst;
+    csm.fade = true;   // cascade 경계 부드럽게 블렌딩 — 안 켜면 가까운/먼 cascade 경계에 가로 이음새가 보임
     // normalBias — CSM 기본 bias(0.000001)는 너무 낮아 빛을 향한 grazing 면에 acne(지글거림)가 생김.
     // 표면 법선 방향 오프셋으로 self-shadow 지글거림 제거. (CSM 생성자엔 normalBias 옵션 없어 직접 세팅)
     for (const l of csm.lights) {
