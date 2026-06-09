@@ -8717,7 +8717,7 @@ export default function StudioCanvas() {
               <button
                 type="button"
                 onClick={() => setShowTimeline(v => !v)}
-                style={{ position: 'fixed', right: 16, bottom: showTimeline ? 150 : 16, zIndex: 51,
+                style={{ position: 'fixed', right: 16, bottom: showTimeline ? 150 : 72, zIndex: 51,
                   padding: '8px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)',
                   background: showTimeline ? 'rgba(99,102,241,0.9)' : 'rgba(40,40,52,0.9)',
                   color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', backdropFilter: 'blur(6px)' }}
