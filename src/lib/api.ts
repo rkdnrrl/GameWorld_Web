@@ -1137,39 +1137,12 @@ export const api = {
     });
   },
 
-  /** 운영자: 플레이어 신고 큐 */
-  operatorListPlayerReports(token: string, status: 'pending' | 'dismissed' | 'resolved' | 'all' = 'pending') {
-    return request<{ reports: Array<{ id: string; reporterId: string; reportedId: string; reporterName: string | null; reportedName: string | null; reason: string; status: string; createdAt: string }> }>(
-      `/api/operator/user-reports?status=${status}`, { headers: authHeaders(token) });
-  },
-  /** 운영자: 플레이어 신고 처리 */
-  operatorResolvePlayerReport(token: string, id: string, status: 'pending' | 'dismissed' | 'resolved') {
-    return request<{ ok: true }>(`/api/operator/user-reports/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      headers: { ...authHeaders(token), "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-  },
-
-  /** 인-앱 피드백 / 버그 신고 제출 (오픈 알파 학습 루프). */
+  /** 인-앱 피드백 / 버그 신고 제출 (오픈 알파 학습 루프). 운영자 검토는 ALP-Desktop. */
   submitFeedback(token: string, body: { kind: 'bug' | 'idea' | 'other'; message: string; context?: string }) {
     return request<{ ok: true }>(`/api/feedback`, {
       method: "POST",
       headers: { ...authHeaders(token), "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    });
-  },
-  /** 운영자: 피드백 큐 */
-  operatorListFeedback(token: string, status: 'new' | 'reviewed' | 'all' = 'new') {
-    return request<{ items: Array<{ id: string; userId: string | null; username: string | null; kind: string; message: string; context: string | null; status: string; createdAt: string }> }>(
-      `/api/operator/feedback?status=${status}`, { headers: authHeaders(token) });
-  },
-  /** 운영자: 피드백 처리 */
-  operatorResolveFeedback(token: string, id: string, status: 'new' | 'reviewed') {
-    return request<{ ok: true }>(`/api/operator/feedback/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      headers: { ...authHeaders(token), "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
     });
   },
 

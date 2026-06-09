@@ -2027,22 +2027,6 @@
     "redeemFailed": "Failed to verify the code.",
     "logout": "Sign in with another account"
   },
-  "OpUserReports": {
-    "title": "Player Reports",
-    "subtitle": "Queue of player reports submitted from worlds.",
-    "tab_pending": "Pending",
-    "tab_resolved": "Resolved",
-    "tab_dismissed": "Dismissed",
-    "tab_all": "All",
-    "reportedBy": "by",
-    "resolve": "Resolve",
-    "dismiss": "Dismiss",
-    "loading": "Loading…",
-    "empty": "No reports.",
-    "needLogin": "Login required.",
-    "loadFailed": "Failed to load",
-    "actionFailed": "Action failed"
-  },
   "Feedback": {
     "button": "Feedback",
     "title": "Send Feedback",
@@ -2056,20 +2040,6 @@
     "thanks": "Thank you!",
     "failed": "Failed to send.",
     "close": "Close"
-  },
-  "OpFeedback": {
-    "title": "Feedback Review",
-    "subtitle": "In-app feedback / bug reports from users.",
-    "tab_new": "New",
-    "tab_reviewed": "Reviewed",
-    "tab_all": "All",
-    "anonymous": "Unknown",
-    "markReviewed": "Mark reviewed",
-    "loading": "Loading…",
-    "empty": "No feedback.",
-    "needLogin": "Login required.",
-    "loadFailed": "Failed to load",
-    "actionFailed": "Action failed"
   },
   "PlayerPanel": {
     "publicAssets": "Public",
