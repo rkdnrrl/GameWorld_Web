@@ -47,7 +47,7 @@ function isCsmMaterial(m: THREE.Material): boolean {
 
 export function CsmSun({
   direction, color = '#ffffff', intensity = 1,
-  cascades = 4, shadowMapSize = 2048, maxFar = 120,
+  cascades = 4, shadowMapSize = 2048, maxFar = 500,
 }: {
   direction: [number, number, number];
   color?: string;
