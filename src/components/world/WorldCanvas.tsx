@@ -2015,14 +2015,33 @@ export function Player({
         onToggleCameraMode();
       }
 
+      // 자세 변경 — 캡슐 리사이즈 + 머리 위 공간 체크. 더 커지는 전환(엎드림→앉기/서기, 앉기→서기)은
+      // 위로 레이캐스트해서 막혀 있으면 차단하고 입력 토글까지 원복 (애니/속도/콜라이더 모두 현재 자세 유지).
+      {
+        const desired: PlayerPosture = proneRef.current ? 'prone' : crouchRef.current ? 'crouch' : 'stand';
+        if (desired !== colliderPostureRef.current) {
+          const heightOf = (p: PlayerPosture) => 2 * (PLAYER_CAPSULE_RADIUS +
+            (p === 'prone' ? PLAYER_PRONE_HALF_HEIGHT : p === 'crouch' ? PLAYER_CROUCH_HALF_HEIGHT : PLAYER_CAPSULE_HALF_HEIGHT));
+          let blocked = false;
+          if (heightOf(desired) > heightOf(colliderPostureRef.current)) {
+            // 발 바로 위에서 목표 키만큼 위로 — 센서(물 트리거 등) 제외, 자기 바디 제외
+            const upRay = new rapier.Ray(
+              { x: posT.x, y: posT.y - PLAYER_CAPSULE_BOTTOM + 0.05, z: posT.z },
+              { x: 0, y: 1, z: 0 },
+            );
+            blocked = !!rWorld.castRay(upRay, heightOf(desired), true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, body.current ?? undefined);
+          }
+          if (blocked) {
+            crouchRef.current = colliderPostureRef.current === 'crouch';
+            proneRef.current  = colliderPostureRef.current === 'prone';
+          } else {
+            colliderPostureRef.current = desired;
+            applyPostureCollider(colliderRef.current, desired);
+          }
+        }
+      }
       const isCrouch = crouchRef.current;
       const isProne  = proneRef.current;
-      // 자세 변경 시 캡슐 콜라이더 리사이즈 — 앉기/엎드리기로 낮은 곳 통과 가능
-      const posture: PlayerPosture = isProne ? 'prone' : isCrouch ? 'crouch' : 'stand';
-      if (posture !== colliderPostureRef.current) {
-        colliderPostureRef.current = posture;
-        applyPostureCollider(colliderRef.current, posture);
-      }
       // center bone = hips 로 spring 안정화 — 빠른 이동도 자연 흩날림 유지.
       const SPEED    = (isProne ? 1.0 : isCrouch ? 2.5 : sprint ? 7 : 3.5) * speedMulRef.current;
 
