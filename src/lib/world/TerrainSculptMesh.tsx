@@ -51,6 +51,21 @@ export function TerrainSculptMesh({ terrain, worldPos, tool, radius, strength, o
   useEffect(() => () => { geom.dispose(); }, [geom]);
 
   const dragging = useRef(false);
+  // 콜백을 ref 로 — 윈도우 리스너에서 항상 최신 호출 (재구독 없이).
+  const onCommitRef = useRef(onCommit); onCommitRef.current = onCommit;
+  const onActiveChangeRef = useRef(onActiveChange); onActiveChangeRef.current = onActiveChange;
+  // 윈도우 pointerup — 드래그를 메시 밖에서 떼도(또는 setPointerCapture 실패해도) 반드시 커밋. (취소 버그 수정)
+  useEffect(() => {
+    const onUp = () => {
+      if (!dragging.current) return;
+      dragging.current = false;
+      onActiveChangeRef.current?.(false);
+      onCommitRef.current(heightsRef.current.slice());
+    };
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => { window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp); };
+  }, []);
 
   // 브러시 1회 적용 — hit 월드 지점 중심.
   const applyBrush = (worldX: number, worldZ: number) => {
