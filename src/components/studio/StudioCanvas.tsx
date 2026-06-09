@@ -2082,7 +2082,7 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
       <group position={wpos} rotation={wrot} scale={[1, 1, 1]} userData={{ id: obj.id }}>
         {obj.kind === 'dirlight' && (
           <directionalLight
-            ref={(dl) => { if (dl) { dl.target.position.set(0, -1, 0); if (dl.target.parent !== dl) dl.add(dl.target); } }}
+            ref={(dl) => { if (dl) { dl.target.position.set(0.5, -1, 0.5); if (dl.target.parent !== dl) dl.add(dl.target); } }}
             color={obj.lightColor || '#ffffff'}
             intensity={obj.lightIntensity ?? 1}
             castShadow={obj.castShadow ?? false}
@@ -2487,7 +2487,7 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
       // (기본 타겟은 원점 고정 → 위치만 방향에 영향, 회전은 무시되는 버그. 자식 타겟이면 그 반대.)
       if (obj.kind === 'dirlight') {
         const dl = light as THREE.DirectionalLight;
-        dl.target.position.set(0, -1, 0);
+        dl.target.position.set(0.5, -1, 0.5);   // 비스듬한 기본 각도(수직 아니라 입체감) — 회전으로 추가 조절
         if (dl.target.parent !== dl) dl.add(dl.target);
       }
     } else {

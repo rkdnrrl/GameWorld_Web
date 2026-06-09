@@ -5742,7 +5742,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               lightRefs.current.set(o.id, light);
               if (o.kind === 'dirlight') {
                 const dl = light as THREE.DirectionalLight;
-                dl.target.position.set(0, -1, 0);
+                dl.target.position.set(0.5, -1, 0.5);   // 비스듬한 기본 각도(입체감) — 회전으로 추가 조절
                 if (dl.target.parent !== dl) dl.add(dl.target);
               }
             } else lightRefs.current.delete(o.id);
