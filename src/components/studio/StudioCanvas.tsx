@@ -8288,7 +8288,7 @@ export default function StudioCanvas() {
         }}
       >
         <Canvas
-          shadows={{ enabled: true, type: THREE.PCFShadowMap, autoUpdate: true }}
+          shadows={{ enabled: true, type: THREE.PCFSoftShadowMap, autoUpdate: true }}
           camera={{ position: [8, 8, 8], fov: 50 }}
           dpr={[1, 2]}
           gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: exposure }}
