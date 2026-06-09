@@ -4290,26 +4290,57 @@ function useSheetDrag(initial = 62) {
   return { heightVh, dragging, gripHandlers };
 }
 
-/** 키프레임 타임라인 패널 (멀티 오브젝트) — 애니메이션 있는 모든 오브젝트를 트랙으로 표시,
- *  공유 플레이헤드로 동시 재생/스크럽. 선택한 오브젝트(트랙)에 키 추가. */
-function KeyframeTimelinePanel({ objects, selectedId, onChangeObj, onSelectObj, onPreviewAll }: {
+/** 선택 오브젝트(또는 조상) 중 Timeline 컴포넌트를 가진 루트를 찾음. 없으면 null. */
+function findTimelineRoot(selId: string | null, objects: MapObject[]): MapObject | null {
+  let cur = selId ? objects.find(o => o.id === selId) ?? null : null;
+  const seen = new Set<string>();
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    if (cur.components?.some(c => c.type === 'timeline')) return cur;
+    cur = cur.parentId ? objects.find(o => o.id === cur!.parentId) ?? null : null;
+  }
+  return null;
+}
+/** 루트 + 모든 자손 id (BFS). */
+function subtreeIds(rootId: string, objects: MapObject[]): string[] {
+  const childrenOf = new Map<string, string[]>();
+  for (const o of objects) if (o.parentId) {
+    const arr = childrenOf.get(o.parentId) ?? [];
+    arr.push(o.id); childrenOf.set(o.parentId, arr);
+  }
+  const out = [rootId]; const stack = [rootId];
+  while (stack.length) {
+    const id = stack.pop()!;
+    for (const c of childrenOf.get(id) ?? []) { out.push(c); stack.push(c); }
+  }
+  return out;
+}
+
+/** 🎬 Timeline 패널 — Timeline 컴포넌트가 붙은 루트 + 그 자식들만 스코프해서 키프레임 애니메이션 제작/미리보기.
+ *  공유 길이/반복/자동재생은 Timeline 컴포넌트가 보유, 각 오브젝트의 키는 keyframeAnim 에 저장(시뮬 재생 호환). */
+function KeyframeTimelinePanel({ root, objects, selectedId, onChangeObj, onSelectObj, onPatchTimeline, onPreviewAll }: {
+  root: MapObject;
   objects: MapObject[];
   selectedId: string | null;
   onChangeObj: (id: string, anim: KeyframeAnim) => void;
   onSelectObj: (id: string) => void;
+  onPatchTimeline: (props: { duration?: number; loop?: boolean; autoplay?: boolean }) => void;
   onPreviewAll: (poses: Record<string, { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }> | null) => void;
 }) {
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
   const timeRef = useRef(0);
 
-  const selObj = objects.find(o => o.id === selectedId) ?? null;
-  // 트랙 = 키 있는 오브젝트 + (아직 키 없어도) 선택된 오브젝트. 순서: 선택 먼저.
-  const tracks = objects.filter(o => (o.keyframeAnim?.keys?.length ?? 0) > 0 || o.id === selectedId);
-  // 공유 길이 = 모든 트랙 길이의 최댓값 (최소 3s).
-  const dur = Math.max(3, ...tracks.map(o => o.keyframeAnim?.duration ?? 0));
+  const comp = root.components?.find(c => c.type === 'timeline');
+  const dur = Math.max(0.1, Number(comp?.props?.duration ?? 3));
+  const loop = comp?.props?.loop !== false;
+  const autoplay = comp?.props?.autoplay !== false;
+  // 트랙 = 루트 + 자손 (씬 순서 유지).
+  const ids = subtreeIds(root.id, objects);
+  const tracks = ids.map(id => objects.find(o => o.id === id)).filter((o): o is MapObject => !!o);
+  // 선택 오브젝트가 서브트리 안이면 그것, 아니면 루트.
+  const selObj = (selectedId && ids.includes(selectedId) ? objects.find(o => o.id === selectedId) : null) ?? root;
 
-  // ref 로 최신 tracks 참조 — rAF 루프 안에서 stale 방지.
   const tracksRef = useRef(tracks); tracksRef.current = tracks;
   const previewAt = (t: number) => {
     const poses: Record<string, { p: [number,number,number]; r: [number,number,number]; s: [number,number,number] }> = {};
@@ -4333,7 +4364,7 @@ function KeyframeTimelinePanel({ objects, selectedId, onChangeObj, onSelectObj, 
       const now = performance.now();
       const dt = (now - last) / 1000; last = now;
       t += dt;
-      if (t >= dur) t = t % dur;   // 편집 미리보기는 항상 루프
+      if (t >= dur) t = t % dur;
       timeRef.current = t;
       setTime(t);
       previewAt(t);
@@ -4344,15 +4375,15 @@ function KeyframeTimelinePanel({ objects, selectedId, onChangeObj, onSelectObj, 
   }, [playing, dur]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const scrub = (v: number) => { timeRef.current = v; setTime(v); previewAt(v); };
-  // 편집모드 = 재생 정지 + 미리보기 전부 해제 → 모든 오브젝트가 실제 위치로 돌아와 편집 가능.
   const stopEdit = () => { setPlaying(false); onPreviewAll(null); };
   const addKey = () => {
     if (!selObj) return;
-    const a: KeyframeAnim = selObj.keyframeAnim ?? { duration: 3, loop: true, autoplay: true, keys: [] };
+    // 이 오브젝트의 키프레임에 현재 위치를 키로 추가. 공유 설정(길이/반복/자동재생)을 함께 스탬프 → 시뮬에서 일관 재생.
+    const a: KeyframeAnim = selObj.keyframeAnim ?? { duration: dur, loop, autoplay, keys: [] };
     const tt = Math.round(time * 100) / 100;
     const key: KeyFrame = { t: tt, position: [...selObj.position], rotation: [...selObj.rotation], scale: [...selObj.scale] };
     const keys = a.keys.filter(k => Math.abs(k.t - tt) > 0.001).concat(key);
-    onChangeObj(selObj.id, normalizeKeyframeAnim({ ...a, keys }));
+    onChangeObj(selObj.id, normalizeKeyframeAnim({ ...a, duration: dur, loop, autoplay, keys }));
     onPreviewAll(null);
   };
   const delKey = (id: string, i: number) => {
@@ -4360,43 +4391,35 @@ function KeyframeTimelinePanel({ objects, selectedId, onChangeObj, onSelectObj, 
     if (!o?.keyframeAnim) return;
     onChangeObj(id, normalizeKeyframeAnim({ ...o.keyframeAnim, keys: o.keyframeAnim.keys.filter((_, n) => n !== i) }));
   };
-  const patchSel = (p: Partial<KeyframeAnim>) => {
-    if (!selObj) return;
-    const a: KeyframeAnim = selObj.keyframeAnim ?? { duration: 3, loop: true, autoplay: true, keys: [] };
-    onChangeObj(selObj.id, normalizeKeyframeAnim({ ...a, ...p }));
-  };
-  const selAnim: KeyframeAnim = selObj?.keyframeAnim ?? { duration: 3, loop: true, autoplay: true, keys: [] };
 
   return (
     <div style={{ position: 'fixed', left: 12, right: 12, bottom: 12, zIndex: 50, background: 'rgba(20,20,28,0.96)',
       border: '1px solid #333', borderRadius: 10, padding: '10px 14px', color: '#eee', font: '12px sans-serif', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', maxHeight: '42vh', overflowY: 'auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
-        <strong style={{ color: '#a5b4fc' }}>🎬 타임라인 ({tracks.length} 오브젝트)</strong>
-        <button onClick={() => (playing ? stopEdit() : setPlaying(true))} style={{ padding: '3px 12px', borderRadius: 6, border: 'none', background: playing ? '#ef4444' : '#6366f1', color: '#fff', cursor: 'pointer' }}>{playing ? '⏸ 정지' : '▶ 전체 재생'}</button>
+        <strong style={{ color: '#a5b4fc' }}>🎬 타임라인 — {root.label || root.kind} (자신+자식 {tracks.length})</strong>
+        <button onClick={() => (playing ? stopEdit() : setPlaying(true))} style={{ padding: '3px 12px', borderRadius: 6, border: 'none', background: playing ? '#ef4444' : '#6366f1', color: '#fff', cursor: 'pointer' }}>{playing ? '⏸ 정지' : '▶ 재생'}</button>
         <button onClick={stopEdit} style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid #555', background: 'transparent', color: '#ccc', cursor: 'pointer' }}>■ 편집모드</button>
-        <button onClick={addKey} disabled={!selObj} style={{ padding: '3px 12px', borderRadius: 6, border: 'none', background: selObj ? '#22c55e' : '#444', color: '#fff', cursor: selObj ? 'pointer' : 'default' }}>
-          ＋ {selObj ? `“${selObj.label || selObj.kind}” 키 추가` : '오브젝트 선택'} ({time.toFixed(2)}s)</button>
-        {selObj && <>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>길이
-            <input type="number" min={0.1} step={0.1} value={selAnim.duration || 3} onChange={e => patchSel({ duration: Math.max(0.1, Number(e.target.value) || 0.1) })}
-              style={{ width: 56, background: '#111', border: '1px solid #444', color: '#eee', borderRadius: 4, padding: '2px 4px' }} />s</label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}><input type="checkbox" checked={selAnim.loop} onChange={e => patchSel({ loop: e.target.checked })} />반복</label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}><input type="checkbox" checked={selAnim.autoplay} onChange={e => patchSel({ autoplay: e.target.checked })} />자동재생</label>
-        </>}
+        <button onClick={addKey} style={{ padding: '3px 12px', borderRadius: 6, border: 'none', background: '#22c55e', color: '#fff', cursor: 'pointer' }}>
+          ＋ “{selObj.label || selObj.kind}” 키 추가 ({time.toFixed(2)}s)</button>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>길이
+          <input type="number" min={0.1} step={0.1} value={dur} onChange={e => onPatchTimeline({ duration: Math.max(0.1, Number(e.target.value) || 0.1) })}
+            style={{ width: 56, background: '#111', border: '1px solid #444', color: '#eee', borderRadius: 4, padding: '2px 4px' }} />s</label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}><input type="checkbox" checked={loop} onChange={e => onPatchTimeline({ loop: e.target.checked })} />반복</label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}><input type="checkbox" checked={autoplay} onChange={e => onPatchTimeline({ autoplay: e.target.checked })} />자동재생</label>
       </div>
       <input type="range" min={0} max={dur} step={0.01} value={Math.min(time, dur)} onChange={e => scrub(Number(e.target.value))} style={{ width: '100%' }} />
-      {/* 트랙들 — 오브젝트별 한 줄 (이름 클릭 → 선택, 다이아몬드 = 키프레임) */}
-      {tracks.length === 0 && <div style={{ color: '#888', marginTop: 8 }}>오브젝트를 선택한 뒤 옮기고 “키 추가”로 키프레임을 찍으세요. 여러 오브젝트를 각각 애니메이션하면 한 타임라인에서 동시에 재생됩니다.</div>}
+      {/* 트랙 = 루트 + 자식 (이름 클릭 → 선택, 다이아몬드 = 키, 더블클릭 삭제) */}
       {tracks.map(o => {
         const keys = o.keyframeAnim?.keys ?? [];
-        const isSel = o.id === selectedId;
+        const isSel = o.id === selObj.id;
+        const isRoot = o.id === root.id;
         return (
-          <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, marginLeft: isRoot ? 0 : 14 }}>
             <button onClick={() => onSelectObj(o.id)} title="선택"
-              style={{ flex: '0 0 120px', textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              style={{ flex: '0 0 130px', textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 background: isSel ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.05)', border: isSel ? '1px solid #818cf8' : '1px solid #333',
                 color: isSel ? '#c7d2fe' : '#bbb', borderRadius: 5, padding: '3px 6px', cursor: 'pointer', fontSize: 11 }}>
-              {o.label || o.kind}
+              {isRoot ? '◆ ' : '└ '}{o.label || o.kind}
             </button>
             <div style={{ position: 'relative', flex: 1, height: 14, background: 'rgba(255,255,255,0.04)', borderRadius: 3 }}>
               {keys.map((k, i) => (
@@ -4404,12 +4427,12 @@ function KeyframeTimelinePanel({ objects, selectedId, onChangeObj, onSelectObj, 
                   onDoubleClick={() => delKey(o.id, i)}
                   style={{ position: 'absolute', left: `calc(${(k.t / dur) * 100}% - 5px)`, top: 1, width: 10, height: 10, background: isSel ? '#fbbf24' : '#9ca3af', transform: 'rotate(45deg)', cursor: 'pointer' }} />
               ))}
-              {/* 플레이헤드 */}
               <div style={{ position: 'absolute', left: `${(Math.min(time, dur) / dur) * 100}%`, top: -2, width: 1, height: 18, background: '#ef4444' }} />
             </div>
           </div>
         );
       })}
+      <div style={{ color: '#888', fontSize: 10, marginTop: 8 }}>오브젝트(또는 자식)를 선택 → 옮기고 “키 추가”. 시뮬/플레이에서 자동 재생됩니다.</div>
     </div>
   );
 }
@@ -8685,28 +8708,49 @@ export default function StudioCanvas() {
 
         {/* 시뮬레이션 시작/중지 버튼은 상단 툴바로 이동됨 */}
 
-        {/* 키프레임 타임라인 (멀티 오브젝트) — 선택 오브젝트 또는 애니메이션 있는 오브젝트가 있으면 노출 (편집 모드 전용) */}
-        {!simulating && (selectedId || objects.some(o => (o.keyframeAnim?.keys?.length ?? 0) > 0)) && (
-          <>
-            <button
-              type="button"
-              onClick={() => setShowTimeline(v => !v)}
-              style={{ position: 'fixed', right: 16, bottom: showTimeline ? 150 : 16, zIndex: 51,
-                padding: '8px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)',
-                background: showTimeline ? 'rgba(99,102,241,0.9)' : 'rgba(40,40,52,0.9)',
-                color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', backdropFilter: 'blur(6px)' }}
-            >🎬 타임라인 {showTimeline ? '닫기' : '열기'}</button>
-            {showTimeline && (
-              <KeyframeTimelinePanel
-                objects={objects}
-                selectedId={selectedId}
-                onChangeObj={(id, anim) => { pushHistory(objects); setObjects(prev => prev.map(o => o.id === id ? { ...o, keyframeAnim: anim } : o)); }}
-                onSelectObj={(id) => setSelectedId(id)}
-                onPreviewAll={(poses) => setKfPreviews(poses)}
-              />
-            )}
-          </>
-        )}
+        {/* 🎬 Timeline — 선택 오브젝트(또는 조상)에 Timeline 컴포넌트가 있으면 그 루트+자식 스코프로 노출 (편집 전용) */}
+        {!simulating && (() => {
+          const tlRoot = findTimelineRoot(selectedId, objects);
+          if (!tlRoot) return null;
+          return (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowTimeline(v => !v)}
+                style={{ position: 'fixed', right: 16, bottom: showTimeline ? 150 : 16, zIndex: 51,
+                  padding: '8px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)',
+                  background: showTimeline ? 'rgba(99,102,241,0.9)' : 'rgba(40,40,52,0.9)',
+                  color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', backdropFilter: 'blur(6px)' }}
+              >🎬 타임라인 {showTimeline ? '닫기' : '열기'}</button>
+              {showTimeline && (
+                <KeyframeTimelinePanel
+                  root={tlRoot}
+                  objects={objects}
+                  selectedId={selectedId}
+                  onChangeObj={(id, anim) => { pushHistory(objects); setObjects(prev => prev.map(o => o.id === id ? { ...o, keyframeAnim: anim } : o)); }}
+                  onSelectObj={(id) => setSelectedId(id)}
+                  onPatchTimeline={(props) => {
+                    pushHistory(objects);
+                    const ids = subtreeIds(tlRoot.id, objects);
+                    setObjects(prev => prev.map(o => {
+                      let next = o;
+                      if (o.id === tlRoot.id) {
+                        const comps = (o.components ?? []).map(c => c.type === 'timeline' ? { ...c, props: { ...c.props, ...props } } : c);
+                        next = { ...next, components: comps };
+                      }
+                      // 서브트리 오브젝트의 keyframeAnim 에도 길이/반복/자동재생 전파 → 시뮬 재생 일관.
+                      if (ids.includes(o.id) && next.keyframeAnim) {
+                        next = { ...next, keyframeAnim: { ...next.keyframeAnim, ...props } };
+                      }
+                      return next;
+                    }));
+                  }}
+                  onPreviewAll={(poses) => setKfPreviews(poses)}
+                />
+              )}
+            </>
+          );
+        })()}
 
         {/* 터레인 조각(sculpt) 도구 — 선택한 터레인 지형 올리고/내리기 (유니티/언리얼식 브러시) */}
         {!simulating && (() => {

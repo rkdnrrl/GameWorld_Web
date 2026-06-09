@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -218,6 +218,17 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'autoplay', label: '자동 재생 (입장/시뮬 시작 시)', type: 'boolean', default: true },
       { key: 'loop',     label: '반복 재생',                  type: 'boolean', default: true },
       { key: 'speed',    label: '재생 속도',                  type: 'number',  default: 1, min: 0, max: 4, step: 0.1 },
+    ],
+  },
+  {
+    type: 'timeline',
+    name: 'Timeline (키프레임 애니메이션)',
+    icon: '🎬',
+    description: '이 오브젝트와 자식 오브젝트들을 키프레임 타임라인으로 직접 애니메이션 (유니티 Animator 식). 컴포넌트를 붙인 뒤 우하단 🎬 타임라인 패널에서 자신·자식 트랙에 키를 찍으세요. 시뮬/플레이/월드에서 자동 재생. (모델 내장 애니가 아니라 스튜디오에서 만드는 이동·회전 애니)',
+    props: [
+      { key: 'duration', label: '길이(초)',                 type: 'number',  default: 3, min: 0.1, max: 600, step: 0.1 },
+      { key: 'loop',     label: '반복 재생',                type: 'boolean', default: true },
+      { key: 'autoplay', label: '자동 재생 (시뮬/입장 시)', type: 'boolean', default: true },
     ],
   },
 ];
