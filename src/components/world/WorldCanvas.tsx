@@ -42,6 +42,7 @@ function waterDepthAt(vols: BuoyancyVolume[] | undefined, x: number, y: number, 
   return 0;
 }
 import type { ChatBubble, RemotePlayer, PlayerPose } from '@/lib/world/useGameSocket';
+import { useBlockedSet, useMutedSet } from '@/lib/world/blocklist';
 import type { GraphicsSettings } from '@/lib/world/graphicsSettings';
 import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
 import { PerfManager } from '@/lib/world/PerfManager';
@@ -5485,6 +5486,19 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     posesRef,
     localPoseRef,
   });
+  // 안전 — 로컬 차단/음소거 리스트 (username 기준). 차단 = 렌더 제외, 음소거/차단 = 음성 0.
+  const blockedSet = useBlockedSet();
+  const mutedSet = useMutedSet();
+  const prevMutedPeersRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const cur = new Set<string>();
+    for (const p of Object.values(players)) {
+      if (mutedSet.has((p.username || '').toLowerCase())) { cur.add(p.id); voice.setPeerGain(p.id, 0); }
+    }
+    // 이전엔 음소거였는데 지금 풀린 peer → 음성 복원(1)
+    for (const id of prevMutedPeersRef.current) if (!cur.has(id)) voice.setPeerGain(id, 1);
+    prevMutedPeersRef.current = cur;
+  }, [mutedSet, players, voice]);
   // 첫 user gesture (click/key) 후 자동 listen-only 시작
   useEffect(() => {
     if (voiceEnabled) return;
@@ -5971,7 +5985,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             )}
             {mapReady && <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} buoyancyRef={buoyancyVolsRef} postFXZonesRef={postFXZonesRef} onPostFXZone={setActivePostFXZone} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={handleObjectClick} playerCtlRef={playerCtlRef} spawnRef={spawnRef} getAnalyser={voice.getMyAnalyser} />}
             {placementGhost && <PlacementGhostMesh ghost={placementGhost} localPoseRef={localPoseRef} />}
-            {Object.values(players).map((p) => (
+            {Object.values(players).filter(p => !blockedSet.has((p.username || '').toLowerCase())).map((p) => (
               <RemotePlayerMesh
                 key={p.id}
                 player={p}

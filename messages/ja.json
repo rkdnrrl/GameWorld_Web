@@ -2035,7 +2035,14 @@
     "thatsYou": "あなた自身です",
     "voiceVolumeTitle": "🔊 音声ボリューム",
     "voiceVolumeOff": "マイクオフ",
-    "voiceVolumeSpeaking": "通話中"
+    "voiceVolumeSpeaking": "通話中",
+    "mute": "ミュート",
+    "unmute": "ミュート解除",
+    "block": "ブロック",
+    "unblock": "ブロック解除",
+    "report": "通報",
+    "reported": "通報済み",
+    "reportReasonPrompt": "通報の理由を入力してください"
   },
   "Launcher": {
     "tagline": "A I R   L I V E   P L A Y",

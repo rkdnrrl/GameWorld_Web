@@ -10,6 +10,7 @@ import { useTranslations } from 'next-intl';
 import { api, session, ApiError } from '@/lib/api';
 import { SupporterBadge } from '@/components/SupporterBadge';
 import { DmChatModal } from '@/components/world/DmChatModal';
+import { useBlockState, setMuted, setBlocked } from '@/lib/world/blocklist';
 import type { RemotePlayer } from '@/lib/world/useGameSocket';
 
 interface FullProfile {
@@ -55,6 +56,25 @@ export function RemotePlayerInfoPanel({
   const [friendshipId, setFriendshipId] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   const [dmConvId, setDmConvId] = useState<string | null>(null);   // DM 모달 (페이지 이동 대신)
+  const block = useBlockState(player.username);                     // 음소거/차단 상태 (로컬)
+  const [reported, setReported] = useState(false);
+
+  async function reportPlayer() {
+    if (!profile || profile.isMe || reported) return;
+    const tk = session.getToken();
+    if (!tk) { router.push('/login'); return; }
+    const reason = window.prompt(t('reportReasonPrompt')) || '';
+    if (!reason.trim()) return;
+    setBusy(true);
+    try {
+      await api.reportPlayer(tk, profile.id, reason.trim());
+      setReported(true);
+      // 신고와 동시에 차단(보호) — 더 이상 안 보이게
+      setBlocked(player.username, true);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'report failed');
+    } finally { setBusy(false); }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -280,6 +300,24 @@ export function RemotePlayerInfoPanel({
                 : friendState === 'pending_sent' ? tFriends('btnPending')
                 : friendState === 'pending_received' ? tFriends('btnAccept')
                 : '+ ' + tFriends('btnAddFriend')}
+            </button>
+          </div>
+        )}
+
+        {/* 안전 — 음소거 / 차단 / 신고 (본인 아닐 때) */}
+        {profile && !profile.isMe && (
+          <div style={{ padding: '0 14px 14px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+            <button onClick={() => setMuted(player.username, !block.muted)}
+              style={btnStyle(block.muted ? 'rgba(245,158,11,0.25)' : 'rgba(255,255,255,0.06)', block.muted ? '#fcd34d' : '#cbd5e1')}>
+              {block.muted ? '🔇 ' + t('unmute') : '🔊 ' + t('mute')}
+            </button>
+            <button onClick={() => setBlocked(player.username, !block.blocked)}
+              style={btnStyle(block.blocked ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.06)', block.blocked ? '#fca5a5' : '#cbd5e1')}>
+              {block.blocked ? '🚫 ' + t('unblock') : '🚫 ' + t('block')}
+            </button>
+            <button onClick={reportPlayer} disabled={busy || reported}
+              style={btnStyle('rgba(239,68,68,0.15)', reported ? 'rgba(255,255,255,0.4)' : '#fca5a5')}>
+              {reported ? '✓ ' + t('reported') : '🚩 ' + t('report')}
             </button>
           </div>
         )}

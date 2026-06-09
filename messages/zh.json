@@ -2035,7 +2035,14 @@
     "thatsYou": "这是你自己",
     "voiceVolumeTitle": "🔊 语音音量",
     "voiceVolumeOff": "麦克风关闭",
-    "voiceVolumeSpeaking": "正在说话"
+    "voiceVolumeSpeaking": "正在说话",
+    "mute": "静音",
+    "unmute": "取消静音",
+    "block": "屏蔽",
+    "unblock": "取消屏蔽",
+    "report": "举报",
+    "reported": "已举报",
+    "reportReasonPrompt": "请输入举报理由"
   },
   "Launcher": {
     "tagline": "A I R   L I V E   P L A Y",

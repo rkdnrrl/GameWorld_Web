@@ -1115,6 +1115,15 @@ export const api = {
     });
   },
 
+  /** 인-월드 플레이어 신고 (운영자 검토용). */
+  reportPlayer(token: string, userId: string, reason: string) {
+    return request<{ ok: true }>(`/api/reports/player`, {
+      method: "POST",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, reason }),
+    });
+  },
+
   /** 운영자: 신고 큐 */
   operatorListAssetReports(token: string, params: { status?: 'pending' | 'dismissed' | 'resolved' | 'all'; page?: number } = {}) {
     const sp = new URLSearchParams();

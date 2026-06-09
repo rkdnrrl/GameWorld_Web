@@ -2035,7 +2035,14 @@
     "thatsYou": "That's you",
     "voiceVolumeTitle": "🔊 Voice Volume",
     "voiceVolumeOff": "Mic off",
-    "voiceVolumeSpeaking": "Speaking"
+    "voiceVolumeSpeaking": "Speaking",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "block": "Block",
+    "unblock": "Unblock",
+    "report": "Report",
+    "reported": "Reported",
+    "reportReasonPrompt": "Enter a reason for the report"
   },
   "Launcher": {
     "tagline": "A I R   L I V E   P L A Y",
