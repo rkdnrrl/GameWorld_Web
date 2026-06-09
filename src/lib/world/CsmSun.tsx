@@ -69,8 +69,15 @@ export function CsmSun({
     const csm = new CSM({
       maxFar, cascades, mode: 'practical', parent: scene, shadowMapSize,
       lightDirection: dir, lightIntensity: intensity, camera, lightMargin: 100,
+      shadowBias: -0.0002,
     }) as unknown as CSMInst;
-    for (const l of csm.lights) { l.color.set(color); l.intensity = intensity; ownRef.current.add(l); }
+    // normalBias — CSM 기본 bias(0.000001)는 너무 낮아 빛을 향한 grazing 면에 acne(지글거림)가 생김.
+    // 표면 법선 방향 오프셋으로 self-shadow 지글거림 제거. (CSM 생성자엔 normalBias 옵션 없어 직접 세팅)
+    for (const l of csm.lights) {
+      l.color.set(color); l.intensity = intensity;
+      l.shadow.normalBias = 0.05;
+      ownRef.current.add(l);
+    }
     csmRef.current = csm;
     setupRef.current = new WeakSet();
     return () => {
