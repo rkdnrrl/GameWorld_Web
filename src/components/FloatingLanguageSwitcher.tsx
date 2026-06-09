@@ -51,7 +51,7 @@ export default function FloatingLanguageSwitcher() {
       style={{
         position: 'fixed',
         right: 16,
-        bottom: 16,
+        top: 14,
         zIndex: 16777200,
         fontFamily: 'system-ui, sans-serif',
       }}
@@ -60,7 +60,7 @@ export default function FloatingLanguageSwitcher() {
         <div
           style={{
             position: 'absolute',
-            bottom: 'calc(100% + 8px)',
+            top: 'calc(100% + 8px)',
             right: 0,
             background: 'rgba(15,23,42,0.95)',
             backdropFilter: 'blur(12px)',
@@ -126,7 +126,7 @@ export default function FloatingLanguageSwitcher() {
       >
         <span style={{ fontSize: 16 }}>{current.flag}</span>
         <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>{current.code}</span>
-        <span style={{ fontSize: 9, opacity: 0.6 }}>{open ? '▼' : '▲'}</span>
+        <span style={{ fontSize: 9, opacity: 0.6 }}>{open ? '▲' : '▼'}</span>
       </button>
     </div>
   );

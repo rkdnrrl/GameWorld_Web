@@ -5703,7 +5703,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         onClick={toggleCameraMode}
         title="카메라 전환 (V)"
         style={{
-          position: 'fixed', top: 16, right: 16, zIndex: 16777274,
+          position: 'fixed', top: 16, right: 92, zIndex: 16777274,
           background: 'rgba(0,0,0,0.45)', color: '#fff',
           border: '1px solid rgba(255,255,255,0.15)', borderRadius: 10,
           padding: '7px 11px', fontSize: 12, fontWeight: 700,
