@@ -2041,6 +2041,34 @@
     "loadFailed": "読み込みに失敗しました",
     "actionFailed": "操作に失敗しました"
   },
+  "Feedback": {
+    "button": "フィードバック",
+    "title": "フィードバックを送る",
+    "desc": "バグや改善アイデアを教えてください。オープンアルファを一緒に作りましょう！",
+    "kind_bug": "バグ",
+    "kind_idea": "アイデア",
+    "kind_other": "その他",
+    "placeholder": "何でも自由にご記入ください…",
+    "send": "送信",
+    "sending": "送信中…",
+    "thanks": "ありがとうございます！",
+    "failed": "送信に失敗しました。",
+    "close": "閉じる"
+  },
+  "OpFeedback": {
+    "title": "フィードバック確認",
+    "subtitle": "ユーザーからのアプリ内フィードバック / バグ報告です。",
+    "tab_new": "新規",
+    "tab_reviewed": "確認済み",
+    "tab_all": "すべて",
+    "anonymous": "不明",
+    "markReviewed": "確認済みにする",
+    "loading": "読み込み中…",
+    "empty": "フィードバックはありません。",
+    "needLogin": "ログインが必要です。",
+    "loadFailed": "読み込みに失敗しました",
+    "actionFailed": "操作に失敗しました"
+  },
   "PlayerPanel": {
     "publicAssets": "公開",
     "followers": "フォロワー",

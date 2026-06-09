@@ -2041,6 +2041,34 @@
     "loadFailed": "加载失败",
     "actionFailed": "操作失败"
   },
+  "Feedback": {
+    "button": "反馈",
+    "title": "发送反馈",
+    "desc": "告诉我们 bug 或改进想法。一起打造公开 Alpha！",
+    "kind_bug": "Bug",
+    "kind_idea": "想法",
+    "kind_other": "其他",
+    "placeholder": "随便写点什么…",
+    "send": "发送",
+    "sending": "发送中…",
+    "thanks": "谢谢！",
+    "failed": "发送失败。",
+    "close": "关闭"
+  },
+  "OpFeedback": {
+    "title": "反馈审核",
+    "subtitle": "用户提交的应用内反馈 / bug 报告。",
+    "tab_new": "新",
+    "tab_reviewed": "已审核",
+    "tab_all": "全部",
+    "anonymous": "未知",
+    "markReviewed": "标记已审核",
+    "loading": "加载中…",
+    "empty": "暂无反馈。",
+    "needLogin": "需要登录。",
+    "loadFailed": "加载失败",
+    "actionFailed": "操作失败"
+  },
   "PlayerPanel": {
     "publicAssets": "公开",
     "followers": "粉丝",

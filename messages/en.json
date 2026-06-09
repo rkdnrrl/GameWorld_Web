@@ -2041,6 +2041,34 @@
     "loadFailed": "Failed to load",
     "actionFailed": "Action failed"
   },
+  "Feedback": {
+    "button": "Feedback",
+    "title": "Send Feedback",
+    "desc": "Tell us about bugs or ideas. Help us shape the open alpha!",
+    "kind_bug": "Bug",
+    "kind_idea": "Idea",
+    "kind_other": "Other",
+    "placeholder": "Write anything you'd like…",
+    "send": "Send",
+    "sending": "Sending…",
+    "thanks": "Thank you!",
+    "failed": "Failed to send.",
+    "close": "Close"
+  },
+  "OpFeedback": {
+    "title": "Feedback Review",
+    "subtitle": "In-app feedback / bug reports from users.",
+    "tab_new": "New",
+    "tab_reviewed": "Reviewed",
+    "tab_all": "All",
+    "anonymous": "Unknown",
+    "markReviewed": "Mark reviewed",
+    "loading": "Loading…",
+    "empty": "No feedback.",
+    "needLogin": "Login required.",
+    "loadFailed": "Failed to load",
+    "actionFailed": "Action failed"
+  },
   "PlayerPanel": {
     "publicAssets": "Public",
     "followers": "Followers",
