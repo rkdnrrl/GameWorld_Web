@@ -5721,8 +5721,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         <VRLocomotion localPoseRef={localPoseRef} />
         {/* 조명 — sceneSettings 기반 */}
         <ambientLight intensity={ambientIntensity} />
-        {/* 하늘 채움광 (유니티/언리얼식 sky light) — 그림자 속을 하늘색으로 채워 하드 경계 완화. 스튜디오와 동일. */}
-        <hemisphereLight args={['#dce8ff', '#5a6a4a', 0.5]} />
+        {/* 하늘 채움광 제거 — 전역 hemisphere 는 밀폐 공간 안까지 밝혀서 "빛 없는 곳 캄캄" 목표와 충돌. 스튜디오와 동일. */}
         {dirIntensity > 0 && (
           <FollowingSunLight
             intensity={dirIntensity}
