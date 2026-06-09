@@ -8400,7 +8400,10 @@ export default function StudioCanvas() {
           camera={{ position: [8, 8, 8], fov: 50 }}
           dpr={[1, 2]}
           gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: exposure }}
-          onPointerMissed={() => { if (!isGizmoActive()) { setSelectedId(null); setStudioMode('scene'); } }}
+          onPointerMissed={() => {
+            // 터레인 조각 도구 사용 중엔 빈 곳 클릭/브러시 드래그 해제로 선택이 풀리지 않게 (유니티식 — ESC 나 도구 버튼으로만 종료)
+            if (!isGizmoActive() && !terrainTool) { setSelectedId(null); setStudioMode('scene'); }
+          }}
         >
           <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
           <CanvasPointerEventsKeeper simulating={simulating} />
