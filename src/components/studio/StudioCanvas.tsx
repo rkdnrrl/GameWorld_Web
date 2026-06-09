@@ -8339,7 +8339,9 @@ export default function StudioCanvas() {
             <Environment preset={hdriPreset} background={hdriBackground} />
           ) : null}
 
-          <Grid args={[100, 100]} cellSize={1} cellThickness={0.5} sectionSize={5} sectionThickness={1} fadeDistance={50} infiniteGrid />
+          {/* 에디터 격자 — 편집 모드만. y=-0.05 로 지형(y=0) 아래 배치 → 지형과 coplanar z-fighting 방지
+              (이게 "지형 가로 이음새"의 진짜 원인이었음: 격자가 지형과 같은 평면이라 깊이 충돌 + fade 링). */}
+          {!simulating && <Grid position={[0, -0.05, 0]} renderOrder={-1} args={[100, 100]} cellSize={1} cellThickness={0.5} sectionSize={5} sectionThickness={1} fadeDistance={120} infiniteGrid />}
 
           {simulating ? (
             /* ── 시뮬레이션 모드 ── */
