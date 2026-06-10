@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign' | 'seat' | 'teleporter';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign' | 'seat' | 'teleporter' | 'ladder';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -138,6 +138,16 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'scanline',       label: 'CRT 스캔라인 (0=끔)',    type: 'number', default: 0,    min: 0, max: 2,    step: 0.05, group: 'advanced' },
       { key: 'pixelate',       label: '픽셀화 (0=끔, 픽셀 크기)', type: 'number', default: 0,  min: 0, max: 16,   step: 1, group: 'advanced' },
       { key: 'toneMapping',    label: 'ACES 톤매핑',            type: 'boolean', default: false, group: 'advanced' },
+    ],
+  },
+  {
+    type: 'ladder',
+    name: '사다리 / 오르기',
+    icon: '🪜',
+    description: '플레이어가 이 오브젝트 박스(scale) 안에 들어오면 중력이 꺼지고 오를 수 있음. W/↑ 위로, S/↓ 아래로, Space 점프 이탈. 좌우로 박스 밖 나가면 자동 해제. 사다리 모델 옆에 빈 트리거 박스로 두기 좋음.',
+    props: [
+      { key: 'climbSpeed', label: '오르기 속도 (m/s)',           type: 'number', default: 2.5, min: 0.3, max: 10, step: 0.1 },
+      { key: 'jumpExitV',  label: 'Space 점프 이탈 시 위 속도',  type: 'number', default: 4,   min: 0,   max: 15, step: 0.5 },
     ],
   },
   {
@@ -354,6 +364,39 @@ export interface BuoyancyVolume {
   waveStrength: number;                 // 웨이브 강도 (0=출렁 없음). WaterMesh 와 동일 a=0.04*strength
   waveSpeed: number;
   waveFreq: number;
+}
+
+/** ladder 컴포넌트 → 트리거 박스 + 오르기 속도. LadderController 가 매 frame 진입/이탈 처리. */
+export interface LadderSpot {
+  id: string;
+  cx: number; cy: number; cz: number;
+  hx: number; hy: number; hz: number;
+  climbSpeed: number;
+  jumpExitV: number;
+}
+
+export function computeLadders(
+  objects: Array<{ id?: string; position?: number[]; scale?: number[]; components?: ComponentInstance[]; hidden?: boolean }> | undefined | null,
+): LadderSpot[] {
+  const out: LadderSpot[] = [];
+  for (const o of objects || []) {
+    if (o.hidden) continue;
+    const c = (o.components || []).find(x => x.type === 'ladder');
+    if (!c) continue;
+    const p = (c.props || {}) as Record<string, unknown>;
+    const pos = o.position || [0, 0, 0];
+    const scl = o.scale || [1, 1, 1];
+    out.push({
+      id: String(o.id ?? Math.random().toString(36).slice(2)),
+      cx: Number(pos[0]) || 0, cy: Number(pos[1]) || 0, cz: Number(pos[2]) || 0,
+      hx: Math.abs(Number(scl[0]) || 1) / 2,
+      hy: Math.abs(Number(scl[1]) || 1) / 2,
+      hz: Math.abs(Number(scl[2]) || 1) / 2,
+      climbSpeed: Math.max(0.1, Number(p.climbSpeed ?? 2.5)),
+      jumpExitV:  Math.max(0,   Number(p.jumpExitV  ?? 4)),
+    });
+  }
+  return out;
 }
 
 /** teleporter 컴포넌트 → 트리거 박스 + 도착지. TeleporterController 가 매 frame 진입 판정. */
