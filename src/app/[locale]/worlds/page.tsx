@@ -4,6 +4,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { session, listWorldSessions } from '@/lib/api';
 import CreatorNav from '@/components/creator/CreatorNav';
 import { getRecentWorlds, removeRecentWorld, type RecentWorldEntry } from '@/lib/world/recentWorlds';
+import { getFavoriteWorlds, toggleFavoriteWorld, isFavoriteWorld, type FavoriteWorldEntry } from '@/lib/world/favoriteWorlds';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
@@ -20,7 +21,7 @@ interface World {
   creator?: { username: string };
 }
 
-type Tab  = 'mine' | 'public';
+type Tab  = 'mine' | 'public' | 'favorites';
 type Sort = 'popular' | 'latest' | 'updated' | 'name';
 
 /** 이름+설명에서 #해시태그 추출. 중복 제거. */
@@ -46,6 +47,7 @@ export default function WorldsPage() {
   const [onlyGames, setOnlyGames] = useState(false);       // 게임만 보기
   const [liveCounts, setLiveCounts] = useState<Record<string, number>>({}); // worldId → 현재 접속자 수
   const [recents, setRecents] = useState<RecentWorldEntry[]>([]);
+  const [favorites, setFavorites] = useState<FavoriteWorldEntry[]>([]);
 
   const token = () => session.getToken() || '';
 
@@ -57,13 +59,20 @@ export default function WorldsPage() {
       fetch(`${API}/api/worlds/my`, { headers: { Authorization: `Bearer ${token()}` } })
         .then(r => r.json()).then(d => setMyWorlds(d.worlds || [])).catch(() => {});
     }
-    // 최근 방문 — localStorage 1회 로드
+    // 최근 방문 + 즐겨찾기 — localStorage 1회 로드
     setRecents(getRecentWorlds());
+    setFavorites(getFavoriteWorlds());
   }, []);
 
   function dismissRecent(id: string) {
     removeRecentWorld(id);
     setRecents(prev => prev.filter(w => w.id !== id));
+  }
+
+  function onToggleFavorite(w: World) {
+    const added = toggleFavoriteWorld({ id: w.id, name: w.name, thumbnailUrl: w.thumbnailUrl });
+    setFavorites(getFavoriteWorlds());
+    return added;
   }
 
   // 공개 월드는 검색/정렬/태그 바뀔 때마다 fetch (debounce 300ms)
@@ -131,7 +140,14 @@ export default function WorldsPage() {
     return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 16).map(([name, n]) => ({ name, count: n }));
   }, [publicWorlds]);
 
-  const list = tab === 'mine' ? myWorlds : publicWorlds;
+  const list: World[] =
+    tab === 'mine' ? myWorlds :
+    tab === 'favorites' ? favorites.map(f => ({
+      id: f.id, name: f.name, description: null,
+      thumbnailUrl: f.thumbnailUrl ?? null, isPublic: true,
+      playCount: 0, createdAt: new Date(f.addedAt).toISOString(),
+    })) :
+    publicWorlds;
 
   const sortOptions: Array<{ key: Sort; label: string }> = [
     { key: 'popular', label: t('sortPopular') },
@@ -202,8 +218,9 @@ export default function WorldsPage() {
         {/* 탭 */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 18, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           {([
-            ['public', t('tabPublic'), publicWorlds.length],
-            ['mine',   t('tabMine'),   loggedIn ? myWorlds.length : null],
+            ['public',    t('tabPublic'),    publicWorlds.length],
+            ['mine',      t('tabMine'),      loggedIn ? myWorlds.length : null],
+            ['favorites', t('tabFavorites'), favorites.length],
           ] as const).map(([key, label, count]) => (
             <button key={key} onClick={() => setTab(key as Tab)} style={{
               background: 'none', border: 'none', padding: '12px 18px', cursor: 'pointer',
@@ -327,6 +344,7 @@ export default function WorldsPage() {
                   ? <>{t('noMineLoggedIn')}<br /><a href={`/${locale}/studio`} style={{ color: '#818cf8' }}>{t('studioLink')}</a> {t('studioHere')}.</>
                   : t('loginRequired')
                 )
+              : tab === 'favorites' ? t('noFavorites')
               : (search || tagFilter ? t('noMatches') : t('noPublic'))
             }
           </div>
@@ -371,7 +389,19 @@ export default function WorldsPage() {
                   </a>
 
                   <div style={{ padding: '12px 14px' }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{w.name}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <div style={{ flex: 1, fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{w.name}</div>
+                      <button
+                        onClick={(e) => { e.preventDefault(); onToggleFavorite(w); }}
+                        aria-label={isFavoriteWorld(w.id) ? t('unfavorite') : t('favorite')}
+                        title={isFavoriteWorld(w.id) ? t('unfavorite') : t('favorite')}
+                        style={{
+                          flex: '0 0 auto', background: 'transparent', border: 'none', cursor: 'pointer',
+                          fontSize: 16, padding: 0, lineHeight: 1,
+                          color: isFavoriteWorld(w.id) ? '#fbbf24' : 'rgba(255,255,255,0.3)',
+                        }}
+                      >★</button>
+                    </div>
                     {tab === 'public' && w.creator && (
                       <div style={{ fontSize: 11, opacity: 0.55, marginBottom: 6 }}>{t('by')} <span style={{ color: 'rgba(255,255,255,0.7)' }}>{w.creator.username}</span></div>
                     )}
