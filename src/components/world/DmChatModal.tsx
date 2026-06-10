@@ -10,6 +10,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { api, session, ApiError } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
+import { linkify } from '@/lib/linkify';
 
 interface Message { id: string; senderId: string; body: string; createdAt: string; readAt: string | null }
 interface OtherLite { username: string; profileImageUrl?: string | null; iconEmoji?: string | null; themeColor?: string | null }
@@ -117,7 +118,7 @@ export function DmChatModal({ conversationId, other, onClose }: {
                   maxWidth: '76%', padding: '7px 11px', borderRadius: 12,
                   background: mine ? '#059669' : 'rgba(255,255,255,0.1)', color: mine ? '#fff' : '#e2e8f0',
                 }}>
-                  <p style={{ margin: 0, fontSize: 13, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{m.body}</p>
+                  <p style={{ margin: 0, fontSize: 13, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{linkify(m.body)}</p>
                   <p style={{ margin: '3px 0 0', fontSize: 10, opacity: 0.7 }}>{time}{mine && m.readAt ? ' · ✓' : ''}</p>
                 </div>
               </div>
