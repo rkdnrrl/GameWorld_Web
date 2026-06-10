@@ -5,6 +5,7 @@ import { useRouter } from '@/i18n/navigation';
 import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useGameSocket } from '@/lib/world/useGameSocket';
+import { usePresenceHeartbeat } from '@/lib/world/usePresenceHeartbeat';
 import { useGraphicsSettings } from '@/lib/world/graphicsSettings';
 import { session } from '@/lib/api';
 import { WorldSpawnModal, type SpawnPayload, type PrefabSpawnPayload } from '@/components/world/WorldSpawnModal';
@@ -76,6 +77,8 @@ export default function WorldPage() {
 
   // 실제로 로드할 월드 id — 명시 파라미터 우선, 없으면 홈허브, 그것도 없으면 데모 섬
   const effectiveWorldId = worldIdParam || (homeHubId ?? null);
+  // 친구 위치 표시용 presence heartbeat (30초 간격)
+  usePresenceHeartbeat(effectiveWorldId);
   // worldSocketKey = DO routing key. SessionPicker / Lobby DO 가 같은 key 로 조회하므로
   // 'world:' 접두사 없이 raw worldId 그대로 사용해야 매칭됨. (이전엔 prefix 때문에 Lobby miss)
   const worldSocketKey = effectiveWorldId || 'home_default';

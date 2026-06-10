@@ -951,6 +951,29 @@ export const api = {
     );
   },
 
+  // ─── Presence (친구 위치 표시) ───
+  /** heartbeat — 월드 입장 중 30초마다 호출 */
+  presenceHeartbeat(token: string, worldId: string) {
+    return request<{ ok: true }>(
+      "/api/presence",
+      { method: "POST", headers: authHeaders(token), body: JSON.stringify({ worldId }) },
+    );
+  },
+  /** 명시적 offline — 월드 이탈 / 창 닫기 */
+  presenceClear(token: string) {
+    return request<{ ok: true }>(
+      "/api/presence",
+      { method: "DELETE", headers: authHeaders(token) },
+    );
+  },
+  /** 친구들의 현재 접속 위치 */
+  listFriendLocations(token: string) {
+    return request<{ locations: Array<{ userId: string; username: string; profileImageUrl: string | null; worldId: string; updatedAt: string }> }>(
+      "/api/presence/friends",
+      { headers: authHeaders(token) },
+    );
+  },
+
   // ─── DM (Phase 19) ───
   /** 대화방 목록 */
   listConversations(token: string) {
