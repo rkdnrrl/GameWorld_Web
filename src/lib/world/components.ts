@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign' | 'seat';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign' | 'seat' | 'teleporter';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -138,6 +138,20 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'scanline',       label: 'CRT 스캔라인 (0=끔)',    type: 'number', default: 0,    min: 0, max: 2,    step: 0.05, group: 'advanced' },
       { key: 'pixelate',       label: '픽셀화 (0=끔, 픽셀 크기)', type: 'number', default: 0,  min: 0, max: 16,   step: 1, group: 'advanced' },
       { key: 'toneMapping',    label: 'ACES 톤매핑',            type: 'boolean', default: false, group: 'advanced' },
+    ],
+  },
+  {
+    type: 'teleporter',
+    name: '텔레포터 (월드 내 이동)',
+    icon: '🌀',
+    description: '플레이어가 이 오브젝트 박스(scale) 안에 들어오면 같은 월드의 destX/Y/Z 로 즉시 이동. 무한 루프 방지를 위해 cooldown 동안 재진입 무시. 다른 월드로 가는 portal 과는 별개. 입구·출구 두 쌍을 두면 양방향. 빈 오브젝트에 붙여 사용.',
+    props: [
+      { key: 'destX',     label: '도착 X',                              type: 'number',  default: 0 },
+      { key: 'destY',     label: '도착 Y',                              type: 'number',  default: 1 },
+      { key: 'destZ',     label: '도착 Z',                              type: 'number',  default: 0 },
+      { key: 'setRotY',   label: '도착 방향(rad) 도 설정 (Yaw)',         type: 'boolean', default: false },
+      { key: 'destRotY',  label: '└ 도착 시 캐릭터 회전 Y (rad)',        type: 'number',  default: 0, min: -6.28, max: 6.28, step: 0.05 },
+      { key: 'cooldown',  label: '재진입 쿨다운 (초) — 무한 루프 방지',  type: 'number',  default: 2,  min: 0.1, max: 30, step: 0.1 },
     ],
   },
   {
@@ -340,6 +354,45 @@ export interface BuoyancyVolume {
   waveStrength: number;                 // 웨이브 강도 (0=출렁 없음). WaterMesh 와 동일 a=0.04*strength
   waveSpeed: number;
   waveFreq: number;
+}
+
+/** teleporter 컴포넌트 → 트리거 박스 + 도착지. TeleporterController 가 매 frame 진입 판정. */
+export interface TeleporterSpot {
+  id: string;
+  cx: number; cy: number; cz: number;
+  hx: number; hy: number; hz: number;
+  dx: number; dy: number; dz: number;
+  setRotY: boolean;
+  drotY: number;
+  cooldown: number;
+}
+
+export function computeTeleporters(
+  objects: Array<{ id?: string; position?: number[]; scale?: number[]; components?: ComponentInstance[]; hidden?: boolean }> | undefined | null,
+): TeleporterSpot[] {
+  const out: TeleporterSpot[] = [];
+  for (const o of objects || []) {
+    if (o.hidden) continue;
+    const c = (o.components || []).find(x => x.type === 'teleporter');
+    if (!c) continue;
+    const p = (c.props || {}) as Record<string, unknown>;
+    const pos = o.position || [0, 0, 0];
+    const scl = o.scale || [1, 1, 1];
+    out.push({
+      id: String(o.id ?? Math.random().toString(36).slice(2)),
+      cx: Number(pos[0]) || 0, cy: Number(pos[1]) || 0, cz: Number(pos[2]) || 0,
+      hx: Math.abs(Number(scl[0]) || 1) / 2,
+      hy: Math.abs(Number(scl[1]) || 1) / 2,
+      hz: Math.abs(Number(scl[2]) || 1) / 2,
+      dx: Number(p.destX ?? 0),
+      dy: Number(p.destY ?? 1),
+      dz: Number(p.destZ ?? 0),
+      setRotY: !!p.setRotY,
+      drotY: Number(p.destRotY ?? 0),
+      cooldown: Math.max(0.05, Number(p.cooldown ?? 2)),
+    });
+  }
+  return out;
 }
 
 /** seat 컴포넌트가 붙은 오브젝트 → SeatSpot 목록. SeatController 가 매 frame 거리 체크 + 앉기 처리. */
