@@ -2062,6 +2062,21 @@
     "failed": "전송에 실패했습니다.",
     "close": "닫기"
   },
+  "Social": {
+    "open": "소셜 열기",
+    "close": "닫기",
+    "title": "소셜",
+    "friends": "친구",
+    "friendsDesc": "친구 목록 · 요청 · 추가",
+    "messages": "메시지",
+    "messagesDesc": "1:1 채팅",
+    "notifications": "알림",
+    "notificationsDesc": "최근 활동 알림",
+    "feed": "활동 피드",
+    "feedDesc": "팔로잉 한 사람들의 활동",
+    "findPeople": "사람 찾기",
+    "findPeopleDesc": "다른 크리에이터 둘러보기"
+  },
   "DailyCheckIn": {
     "title": "오늘의 출석 보상",
     "streak": "{count}일 연속",

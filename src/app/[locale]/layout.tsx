@@ -5,6 +5,7 @@ import Script from "next/script";
 import "../globals.css";
 import BackendConnectionBanner from "@/components/BackendConnectionBanner";
 import FeedbackButton from "@/components/FeedbackButton";
+import SocialPanel from "@/components/SocialPanel";
 import FloatingLanguageSwitcher from "@/components/FloatingLanguageSwitcher";
 import Header from "@/components/Header";
 import OnboardingModal from "@/components/OnboardingModal";
@@ -55,6 +56,7 @@ export default async function LocaleLayout({
           <BackendConnectionBanner enabled={showBackendConnectionBanner} />
           <OnboardingModal />
           <FeedbackButton />
+          <SocialPanel />
           <main className="flex w-full min-w-0 max-w-full flex-1 flex-col overflow-x-hidden">
             {children}
           </main>

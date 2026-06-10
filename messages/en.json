@@ -2042,6 +2042,21 @@
     "failed": "Failed to send.",
     "close": "Close"
   },
+  "Social": {
+    "open": "Open Social",
+    "close": "Close",
+    "title": "Social",
+    "friends": "Friends",
+    "friendsDesc": "Friend list · requests · add",
+    "messages": "Messages",
+    "messagesDesc": "Direct chat",
+    "notifications": "Notifications",
+    "notificationsDesc": "Recent activity alerts",
+    "feed": "Activity Feed",
+    "feedDesc": "What people you follow are up to",
+    "findPeople": "Find People",
+    "findPeopleDesc": "Browse other creators"
+  },
   "DailyCheckIn": {
     "title": "Daily Reward",
     "streak": "{count}-day streak",

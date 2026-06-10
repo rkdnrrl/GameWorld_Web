@@ -1,0 +1,153 @@
+'use client';
+/**
+ * 소셜 버튼 + 사이드 패널 — 모든 페이지 우하단 플로팅. 로그인 유저만.
+ * 버튼에는 DM·알림 unread 합계 배지. 클릭 시 우측 슬라이드 패널 — 친구·메시지·알림 진입 카드.
+ * 몰입형 화면(월드/스튜디오)은 자체 UI 와 겹치지 않게 숨김 (FeedbackButton 과 동일 정책).
+ */
+import { useCallback, useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { Link } from '@/i18n/navigation';
+import { api, session, ApiError } from '@/lib/api';
+import { useLoggedIn } from '@/lib/useLoggedIn';
+
+export default function SocialPanel() {
+  const t = useTranslations('Social');
+  const loggedIn = useLoggedIn();
+  const pathname = usePathname() || '';
+  const [open, setOpen] = useState(false);
+  const [dmUnread, setDmUnread] = useState(0);
+  const [notifUnread, setNotifUnread] = useState(0);
+
+  // 몰입형 (월드/스튜디오) 에선 숨김 — 자체 UI 우선
+  const immersive = /\/(world|studio)(\/|$|\?)/.test(pathname);
+
+  const loadUnread = useCallback(async () => {
+    const tk = session.getToken();
+    if (!tk) { setDmUnread(0); setNotifUnread(0); return; }
+    try {
+      const [dm, n] = await Promise.all([
+        api.dmUnreadCount(tk).catch(() => ({ unread: 0 })),
+        api.notificationsUnreadCount(tk).catch(() => ({ unread: 0 })),
+      ]);
+      setDmUnread(dm.unread || 0);
+      setNotifUnread(n.unread || 0);
+    } catch (e) {
+      if (e instanceof ApiError) { /* noop */ }
+    }
+  }, []);
+
+  // 60초 폴링 + 패널 열 때마다 즉시 갱신
+  useEffect(() => {
+    if (!loggedIn || immersive) return;
+    loadUnread();
+    const iv = setInterval(loadUnread, 60_000);
+    return () => clearInterval(iv);
+  }, [loggedIn, immersive, loadUnread]);
+  useEffect(() => { if (open) loadUnread(); }, [open, loadUnread]);
+
+  // ESC 로 닫기
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  if (!loggedIn || immersive) return null;
+
+  const totalBadge = dmUnread + notifUnread;
+
+  return (
+    <>
+      {/* 플로팅 버튼 — 우하단. FeedbackButton(좌하단) 과 짝. */}
+      <button
+        onClick={() => setOpen(true)}
+        aria-label={t('open')}
+        style={{
+          position: 'fixed', right: 16, bottom: 16, zIndex: 2147482000,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          width: 52, height: 52, borderRadius: '50%', border: 'none', cursor: 'pointer',
+          background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff',
+          fontSize: 22, fontWeight: 700,
+          boxShadow: '0 6px 20px rgba(0,0,0,0.35)', fontFamily: 'system-ui, sans-serif',
+        }}
+      >
+        👥
+        {totalBadge > 0 && (
+          <span style={{
+            position: 'absolute', top: -2, right: -2, minWidth: 18, height: 18,
+            padding: '0 5px', borderRadius: 9,
+            background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 800,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: '2px solid #0f172a',
+          }}>{totalBadge > 99 ? '99+' : totalBadge}</span>
+        )}
+      </button>
+
+      {open && (
+        <div
+          onClick={() => setOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 2147482001,
+            background: 'rgba(0,0,0,0.45)',
+            display: 'flex', justifyContent: 'flex-end',
+            fontFamily: 'system-ui, sans-serif',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: 'min(380px, 92vw)', height: '100%',
+              background: '#0f172a', color: '#fff',
+              borderLeft: '1px solid rgba(255,255,255,0.1)',
+              boxShadow: '-20px 0 60px rgba(0,0,0,0.5)',
+              display: 'flex', flexDirection: 'column',
+              animation: 'alp-slide-in 0.18s ease-out',
+            }}
+          >
+            <style>{`@keyframes alp-slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }`}</style>
+            <div style={{ padding: '18px 18px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <strong style={{ fontSize: 16 }}>👥 {t('title')}</strong>
+              <button onClick={() => setOpen(false)} aria-label={t('close')}
+                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>×</button>
+            </div>
+
+            <nav style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
+              <SocialCard href="/friends" icon="🤝" label={t('friends')} desc={t('friendsDesc')} onNavigate={() => setOpen(false)} />
+              <SocialCard href="/messages" icon="💬" label={t('messages')} desc={t('messagesDesc')} badge={dmUnread} onNavigate={() => setOpen(false)} />
+              <SocialCard href="/notifications" icon="🔔" label={t('notifications')} desc={t('notificationsDesc')} badge={notifUnread} onNavigate={() => setOpen(false)} />
+              <SocialCard href="/feed" icon="📰" label={t('feed')} desc={t('feedDesc')} onNavigate={() => setOpen(false)} />
+              <SocialCard href="/users" icon="🔎" label={t('findPeople')} desc={t('findPeopleDesc')} onNavigate={() => setOpen(false)} />
+            </nav>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function SocialCard({ href, icon, label, desc, badge, onNavigate }: {
+  href: string; icon: string; label: string; desc: string; badge?: number; onNavigate: () => void;
+}) {
+  return (
+    <Link href={href} onClick={onNavigate} style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      padding: '12px 14px', borderRadius: 10,
+      background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+      color: '#fff', textDecoration: 'none',
+    }}>
+      <span style={{ fontSize: 24 }}>{icon}</span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700 }}>
+          {label}
+          {badge && badge > 0 ? (
+            <span style={{ minWidth: 18, height: 18, padding: '0 6px', borderRadius: 9, background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{badge > 99 ? '99+' : badge}</span>
+          ) : null}
+        </span>
+        <span style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>{desc}</span>
+      </span>
+      <span style={{ color: 'rgba(255,255,255,0.4)' }}>›</span>
+    </Link>
+  );
+}

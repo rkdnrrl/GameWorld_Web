@@ -2042,6 +2042,21 @@
     "failed": "送信に失敗しました。",
     "close": "閉じる"
   },
+  "Social": {
+    "open": "ソーシャルを開く",
+    "close": "閉じる",
+    "title": "ソーシャル",
+    "friends": "フレンド",
+    "friendsDesc": "フレンド一覧・申請・追加",
+    "messages": "メッセージ",
+    "messagesDesc": "1対1チャット",
+    "notifications": "通知",
+    "notificationsDesc": "最近のアクティビティ通知",
+    "feed": "アクティビティ",
+    "feedDesc": "フォロー中のユーザーの活動",
+    "findPeople": "ユーザーを探す",
+    "findPeopleDesc": "他のクリエイターを見る"
+  },
   "DailyCheckIn": {
     "title": "今日のログイン報酬",
     "streak": "{count}日連続",

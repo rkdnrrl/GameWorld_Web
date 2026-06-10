@@ -2042,6 +2042,21 @@
     "failed": "发送失败。",
     "close": "关闭"
   },
+  "Social": {
+    "open": "打开社交面板",
+    "close": "关闭",
+    "title": "社交",
+    "friends": "好友",
+    "friendsDesc": "好友列表 · 请求 · 添加",
+    "messages": "消息",
+    "messagesDesc": "私聊",
+    "notifications": "通知",
+    "notificationsDesc": "最近的活动通知",
+    "feed": "动态",
+    "feedDesc": "关注的人的最新活动",
+    "findPeople": "发现用户",
+    "findPeopleDesc": "看看其他创作者"
+  },
   "DailyCheckIn": {
     "title": "每日签到奖励",
     "streak": "连续 {count} 天",
