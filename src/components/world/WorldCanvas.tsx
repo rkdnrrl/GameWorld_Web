@@ -52,7 +52,7 @@ import { TerrainMesh } from '@/lib/world/TerrainMesh';
 import { generateNoiseTerrain } from '@/lib/world/terrain';
 import { CarvedMesh } from '@/lib/world/CarvedMesh';
 import { ChunkedVoxelTerrain } from '@/lib/world/ChunkedVoxelTerrain';
-import { computeBuoyancyVolumes, computeAmbientSoundZones, findDayNightComponent, computeSeats, computeTeleporters, computeLadders, computeDoors, computeDialogues, computeVendings, computeJumpPads, type BuoyancyVolume, type AmbientSoundZone, type ComponentInstance, type SeatSpot, type TeleporterSpot, type LadderSpot, type DoorSpot, type DialogueSpot, type VendingSpot, type JumpPadSpot } from '@/lib/world/components';
+import { computeBuoyancyVolumes, computeAmbientSoundZones, findDayNightComponent, computeSeats, computeTeleporters, computeLadders, computeDoors, computeDialogues, computeVendings, computeJumpPads, computeCheckpoints, computeKillZones, type BuoyancyVolume, type AmbientSoundZone, type ComponentInstance, type SeatSpot, type TeleporterSpot, type LadderSpot, type DoorSpot, type DialogueSpot, type VendingSpot, type JumpPadSpot, type CheckpointSpot, type KillZoneSpot } from '@/lib/world/components';
 import AmbientSoundsPlayer from '@/lib/world/AmbientSounds';
 import DayNightCycle from '@/lib/world/DayNightCycle';
 import SeatController from '@/lib/world/SeatController';
@@ -62,6 +62,7 @@ import DoorController from '@/lib/world/DoorController';
 import DialogueController from '@/lib/world/DialogueController';
 import VendingController from '@/lib/world/VendingController';
 import JumpPadController from '@/lib/world/JumpPadController';
+import CheckpointController from '@/lib/world/CheckpointController';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
@@ -3959,6 +3960,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const dialogues: DialogueSpot[] = useMemo(() => computeDialogues(customObjects ?? []), [customObjects]);
   const vendings: VendingSpot[] = useMemo(() => computeVendings(customObjects ?? []), [customObjects]);
   const jumpPads: JumpPadSpot[] = useMemo(() => computeJumpPads(customObjects ?? []), [customObjects]);
+  const checkpoints: CheckpointSpot[] = useMemo(() => computeCheckpoints(customObjects ?? []), [customObjects]);
+  const killZones: KillZoneSpot[] = useMemo(() => computeKillZones(customObjects ?? []), [customObjects]);
   // 물(water+PostProcess) 후처리 — 카메라가 그 물 부피 안일 때 그 물의 PostProcess 적용.
   const waterPostFX = useMemo(() => collectWaterPostFX(customObjects ?? []), [customObjects]);
   const waterPostFXRef = useRef<WaterPostFX[]>(waterPostFX);
@@ -5965,6 +5968,15 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           )}
           {jumpPads.length > 0 && (
             <JumpPadController pads={jumpPads} localPoseRef={localPoseRef} playerCtlRef={playerCtlRef} />
+          )}
+          {(checkpoints.length > 0 || killZones.length > 0) && (
+            <CheckpointController
+              checkpoints={checkpoints}
+              killZones={killZones}
+              worldSpawn={spawnPick.pos}
+              localPoseRef={localPoseRef}
+              playerCtlRef={playerCtlRef}
+            />
           )}
           <VideoDistanceUpdater registry={videoRegistry} objectsById={objectsById}
             // 어떤 videoRemote 든 globalAudio=true 면 전역 음향. 거리 감쇠 없음.

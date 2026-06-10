@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign' | 'seat' | 'teleporter' | 'ladder' | 'door' | 'dialogue' | 'vendingMachine' | 'jumpPad';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign' | 'seat' | 'teleporter' | 'ladder' | 'door' | 'dialogue' | 'vendingMachine' | 'jumpPad' | 'checkpoint' | 'killZone';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -181,6 +181,27 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'bubbleColor',  label: '말풍선 배경색',                              type: 'color',   default: '#1f2937' },
       { key: 'textColor',    label: '글자색',                                     type: 'color',   default: '#ffffff' },
       { key: 'autoClose',    label: '마지막 줄 후 자동 닫힘',                     type: 'boolean', default: true },
+    ],
+  },
+  {
+    type: 'checkpoint',
+    name: '체크포인트 (부활 지점)',
+    icon: '🚩',
+    description: '플레이어가 이 박스(scale) 안에 진입하면 부활 지점으로 등록. 이후 killZone 에 닿거나 추락하면 이 위치에서 다시 시작. 새로 체크포인트 도달 시 토스트 표시. 같은 체크포인트 재진입은 무시. 빈 박스 트리거로 두면 됨. 멀티: 각자 본인 체크포인트만.',
+    props: [
+      { key: 'label',  label: '이름 (토스트 표시)',          type: 'string',  default: '체크포인트' },
+      { key: 'offsetY', label: '부활 시 Y 오프셋 (m, +위)',   type: 'number',  default: 1, min: 0, max: 10, step: 0.1 },
+      { key: 'silent', label: '토스트 숨김',                  type: 'boolean', default: false },
+    ],
+  },
+  {
+    type: 'killZone',
+    name: '킬존 (추락·함정)',
+    icon: '☠️',
+    description: '플레이어가 이 박스(scale) 안에 진입하면 즉시 마지막 체크포인트로 부활. 체크포인트 없으면 월드 spawn. 추락 지대(맵 아래 큰 박스), 함정, 용암 구역 등에 사용. 빈 트리거 박스. 멀티: 본인만 부활.',
+    props: [
+      { key: 'mode',     label: '모드 (respawn=부활 / kill=health 0)', type: 'enum',   default: 'respawn', options: ['respawn', 'kill'] },
+      { key: 'toast',    label: '토스트 메시지 (비우면 없음)',         type: 'string', default: '💀 부활!' },
     ],
   },
   {
@@ -462,6 +483,77 @@ export function computeDoors(
       swingDuration: Math.max(0.05, Number(p.swingDuration ?? 0.4)),
       range:     Math.max(0.1, Number(p.interactRange ?? 2)),
       startOpen: !!p.startOpen,
+    });
+  }
+  return out;
+}
+
+/** checkpoint 컴포넌트 → 트리거 박스 + 부활 메타. CheckpointController 가 매 frame 진입 시 마지막 체크포인트 갱신. */
+export interface CheckpointSpot {
+  id: string;
+  cx: number; cy: number; cz: number;
+  hx: number; hy: number; hz: number;
+  rotY: number;
+  label: string;
+  offsetY: number;
+  silent: boolean;
+}
+
+export function computeCheckpoints(
+  objects: Array<{ id?: string; position?: number[]; rotation?: number[]; scale?: number[]; components?: ComponentInstance[]; hidden?: boolean }> | undefined | null,
+): CheckpointSpot[] {
+  const out: CheckpointSpot[] = [];
+  for (const o of objects || []) {
+    if (o.hidden) continue;
+    const c = (o.components || []).find(x => x.type === 'checkpoint');
+    if (!c) continue;
+    const p = (c.props || {}) as Record<string, unknown>;
+    const pos = o.position || [0, 0, 0];
+    const rot = o.rotation || [0, 0, 0];
+    const scl = o.scale    || [1, 1, 1];
+    out.push({
+      id: String(o.id ?? Math.random().toString(36).slice(2)),
+      cx: Number(pos[0]) || 0, cy: Number(pos[1]) || 0, cz: Number(pos[2]) || 0,
+      hx: Math.abs(Number(scl[0]) || 1) / 2,
+      hy: Math.abs(Number(scl[1]) || 1) / 2,
+      hz: Math.abs(Number(scl[2]) || 1) / 2,
+      rotY: Number(rot[1]) || 0,
+      label:   String(p.label   ?? '체크포인트'),
+      offsetY: Math.max(0, Number(p.offsetY ?? 1)),
+      silent:  !!p.silent,
+    });
+  }
+  return out;
+}
+
+/** killZone 컴포넌트 → 트리거 박스 + 부활 모드. CheckpointController 가 진입 시 마지막 체크포인트로 텔레포트. */
+export interface KillZoneSpot {
+  id: string;
+  cx: number; cy: number; cz: number;
+  hx: number; hy: number; hz: number;
+  mode: 'respawn' | 'kill';
+  toast: string;
+}
+
+export function computeKillZones(
+  objects: Array<{ id?: string; position?: number[]; scale?: number[]; components?: ComponentInstance[]; hidden?: boolean }> | undefined | null,
+): KillZoneSpot[] {
+  const out: KillZoneSpot[] = [];
+  for (const o of objects || []) {
+    if (o.hidden) continue;
+    const c = (o.components || []).find(x => x.type === 'killZone');
+    if (!c) continue;
+    const p = (c.props || {}) as Record<string, unknown>;
+    const pos = o.position || [0, 0, 0];
+    const scl = o.scale    || [1, 1, 1];
+    out.push({
+      id: String(o.id ?? Math.random().toString(36).slice(2)),
+      cx: Number(pos[0]) || 0, cy: Number(pos[1]) || 0, cz: Number(pos[2]) || 0,
+      hx: Math.abs(Number(scl[0]) || 1) / 2,
+      hy: Math.abs(Number(scl[1]) || 1) / 2,
+      hz: Math.abs(Number(scl[2]) || 1) / 2,
+      mode: p.mode === 'kill' ? 'kill' : 'respawn',
+      toast: String(p.toast ?? '💀 부활!'),
     });
   }
   return out;
