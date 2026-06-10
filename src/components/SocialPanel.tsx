@@ -7,14 +7,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Link } from '@/i18n/navigation';
+import { Link, useRouter } from '@/i18n/navigation';
 import { api, session, ApiError } from '@/lib/api';
 import { useLoggedIn } from '@/lib/useLoggedIn';
+import { useNotificationStream, type PushNotification } from '@/lib/notifications/useNotificationStream';
 import DmListModal from '@/components/social/DmListModal';
 import NotificationsModal from '@/components/social/NotificationsModal';
 
 export default function SocialPanel() {
   const t = useTranslations('Social');
+  const tn = useTranslations('Notifications');
+  const router = useRouter();
   const loggedIn = useLoggedIn();
   const pathname = usePathname() || '';
   const [open, setOpen] = useState(false);
@@ -22,6 +25,7 @@ export default function SocialPanel() {
   const [notifModal, setNotifModal] = useState(false);
   const [dmUnread, setDmUnread] = useState(0);
   const [notifUnread, setNotifUnread] = useState(0);
+  const [toast, setToast] = useState<PushNotification | null>(null);
 
   // 몰입형 (월드/스튜디오) — 안 숨기고 위치만 위로 올려서 우하단 채팅/캐릭터 버튼들과 안 겹치게.
   const immersive = /\/(world|studio)(\/|$|\?)/.test(pathname);
@@ -50,6 +54,17 @@ export default function SocialPanel() {
   }, [loggedIn, loadUnread]);
   useEffect(() => { if (open) loadUnread(); }, [open, loadUnread]);
 
+  // 실시간 알림 수신(NotifyHub WS) — 배지 즉시 갱신 + 토스트 팝업.
+  // 30초 폴링은 백업으로 유지(연결 끊김 대비).
+  useNotificationStream((n) => { loadUnread(); setToast(n); });
+
+  // 토스트 자동 사라짐
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(id);
+  }, [toast]);
+
   // ESC 로 닫기
   useEffect(() => {
     if (!open) return;
@@ -58,14 +73,65 @@ export default function SocialPanel() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
+  // 토스트 표시용 — NotifRow(NotificationBell) 와 동일한 라벨/링크 규칙.
+  function notifView(n: PushNotification): { icon: string; text: string; href: string | null } {
+    const { type, payload } = n;
+    if (type === 'world_invite')   return { icon: '🌍', text: tn('world_invite',   { actor: payload.actorName || '?', world: payload.worldName || '' }), href: payload.worldId ? `/world?id=${encodeURIComponent(payload.worldId)}` : null };
+    if (type === 'asset_liked')    return { icon: '♥',  text: tn('asset_liked',    { actor: payload.actorName || '?', asset: payload.assetName || '' }), href: null };
+    if (type === 'user_followed')  return { icon: '+',  text: tn('user_followed',  { actor: payload.actorName || '?' }), href: payload.actorName ? `/users/${encodeURIComponent(payload.actorName)}` : null };
+    if (type === 'asset_imported') return { icon: '↓',  text: tn('asset_imported', { actor: payload.actorName || '?', asset: payload.assetName || '' }), href: null };
+    if (type === 'report_resolved') return { icon: payload.resolution === 'delete' ? '🗑' : '⚠', text: tn(`report_resolved_${payload.resolution}`, { asset: payload.assetName || '' }), href: null };
+    if (type === 'asset_auto_hidden') return { icon: '⚠', text: tn('asset_auto_hidden', { asset: payload.assetName || '' }), href: null };
+    return { icon: '🔔', text: type, href: null };
+  }
+
+  function onToastClick() {
+    if (!toast) return;
+    const { href } = notifView(toast);
+    setToast(null);
+    if (href) router.push(href);
+    else setNotifModal(true);
+  }
+
   if (!loggedIn) return null;
 
   const totalBadge = dmUnread + notifUnread;
+  const toastView = toast ? notifView(toast) : null;
   // 몰입형은 우하단에 채팅(🗨)·캐릭터(🎭) 버튼이 stack 돼 있어 그 위로 올림.
   const btnBottom = immersive ? 156 : 16;
 
   return (
     <>
+      {/* 실시간 알림 토스트 — 상단 중앙. 어느 페이지에서든 즉시 표시. */}
+      {toastView && (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={onToastClick}
+          onKeyDown={(e) => { if (e.key === 'Enter') onToastClick(); }}
+          style={{
+            position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 2147483000, maxWidth: 'min(420px, 92vw)',
+            display: 'flex', alignItems: 'flex-start', gap: 10,
+            padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
+            background: 'linear-gradient(135deg,#1e1b4b,#312e81)', color: '#fff',
+            border: '1px solid rgba(139,92,246,0.5)',
+            boxShadow: '0 10px 32px rgba(0,0,0,0.45)',
+            fontFamily: 'system-ui, sans-serif',
+            animation: 'alp-toast-in 0.22s ease-out',
+          }}
+        >
+          <style>{`@keyframes alp-toast-in { from { opacity: 0; transform: translate(-50%, -12px); } to { opacity: 1; transform: translate(-50%, 0); } }`}</style>
+          <span style={{ fontSize: 20, lineHeight: 1, marginTop: 1 }}>{toastView.icon}</span>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.4 }}>{toastView.text}</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); setToast(null); }}
+            aria-label={t('close')}
+            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: 18, cursor: 'pointer', lineHeight: 1, marginTop: -2 }}
+          >×</button>
+        </div>
+      )}
+
       {/* 플로팅 버튼 — 우하단. FeedbackButton(좌하단) 과 짝. */}
       <button
         onClick={() => setOpen(true)}

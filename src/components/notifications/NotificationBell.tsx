@@ -9,6 +9,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { api, session } from '@/lib/api';
+import { NOTIFICATION_PUSH_EVENT } from '@/lib/notifications/useNotificationStream';
 
 const POLL_MS = 30_000;
 const DROPDOWN_LIMIT = 10;
@@ -39,11 +40,16 @@ export default function NotificationBell() {
       .catch(() => {});
   }, []);
 
-  // 폴링
+  // 폴링 (실시간 push 백업) + push 이벤트 즉시 갱신
   useEffect(() => {
     fetchUnread();
     const id = setInterval(fetchUnread, POLL_MS);
-    return () => clearInterval(id);
+    const onPush = () => fetchUnread();
+    window.addEventListener(NOTIFICATION_PUSH_EVENT, onPush);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener(NOTIFICATION_PUSH_EVENT, onPush);
+    };
   }, [fetchUnread]);
 
   // 외부 클릭 닫기
