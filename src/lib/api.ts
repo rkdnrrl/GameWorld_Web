@@ -1158,6 +1158,18 @@ export const api = {
     });
   },
 
+  /** 현재 코인 잔액 조회 (자판기 모달 열 때 사용). */
+  getShopBalance(token: string) {
+    return request<{ coins: number }>(`/api/shop/balance`, { headers: authHeaders(token) });
+  },
+  /** 자판기 아이템 구매 — 코인 atomic 차감 + inventory_items 지급. 부족하면 402. */
+  purchaseShopItem(token: string, body: { name: string; icon?: string; price: number; sourceGame?: string; kind?: string; category?: string; tags?: string[] }) {
+    return request<{ coins: number; granted: { name: string; icon: string; price: number; sourceGame: string; kind: string; category: string; tags: string[] } }>(
+      `/api/shop/purchase`,
+      { method: 'POST', headers: { ...authHeaders(token), 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+    );
+  },
+
   /** 운영자: 신고 큐 */
   operatorListAssetReports(token: string, params: { status?: 'pending' | 'dismissed' | 'resolved' | 'all'; page?: number } = {}) {
     const sp = new URLSearchParams();

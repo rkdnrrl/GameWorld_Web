@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign' | 'seat' | 'teleporter' | 'ladder' | 'door' | 'dialogue';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign' | 'seat' | 'teleporter' | 'ladder' | 'door' | 'dialogue' | 'vendingMachine';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -154,6 +154,19 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'swingDuration', label: '회전 시간 (초)',                  type: 'number',  default: 0.4, min: 0.05, max: 5, step: 0.05 },
       { key: 'interactRange', label: '인터랙트 거리 (m)',               type: 'number',  default: 2,   min: 0.3, max: 8,   step: 0.1 },
       { key: 'startOpen',     label: '시작할 때 열린 상태',             type: 'boolean', default: false },
+    ],
+  },
+  {
+    type: 'vendingMachine',
+    name: '자판기 / 상점',
+    icon: '🏪',
+    description: '가까이서 E 누르면 상점 모달이 뜸. 코인(출석 보상)으로 아이템 구매 → 인벤토리에 지급. items 한 줄에 한 상품 형식 `이름|아이콘|가격`. 빈 줄·#로 시작하는 줄 무시. 예) `사과|🍎|10`. 빈 오브젝트 또는 자판기 모델에 붙여 사용. 같은 위치 문(door)·대화(dialogue)가 우선.',
+    props: [
+      { key: 'title', label: '가게 이름 (모달 상단 표시)', type: 'string', default: '🏪 자판기' },
+      { key: 'items', label: '상품 (한 줄에 `이름|아이콘|가격`)', type: 'string', default: '사과|🍎|10\n물병|💧|5\n빵|🍞|20' },
+      { key: 'interactRange', label: '인터랙트 거리 (m)', type: 'number', default: 2.5, min: 0.3, max: 10, step: 0.1 },
+      { key: 'sourceGame', label: '인벤토리 sourceGame 분류', type: 'string', default: 'vending' },
+      { key: 'category',   label: '인벤토리 category 분류',   type: 'string', default: 'shop' },
     ],
   },
   {
@@ -434,6 +447,58 @@ export function computeDoors(
       swingDuration: Math.max(0.05, Number(p.swingDuration ?? 0.4)),
       range:     Math.max(0.1, Number(p.interactRange ?? 2)),
       startOpen: !!p.startOpen,
+    });
+  }
+  return out;
+}
+
+/** vendingMachine 컴포넌트 → 위치 + 상품 목록. VendingController 가 매 frame 거리 체크 + E 모달. */
+export interface VendingItem {
+  name: string;
+  icon: string;
+  price: number;
+}
+export interface VendingSpot {
+  id: string;
+  cx: number; cy: number; cz: number;
+  range: number;
+  title: string;
+  items: VendingItem[];
+  sourceGame: string;
+  category: string;
+}
+
+export function computeVendings(
+  objects: Array<{ id?: string; position?: number[]; components?: ComponentInstance[]; hidden?: boolean }> | undefined | null,
+): VendingSpot[] {
+  const out: VendingSpot[] = [];
+  for (const o of objects || []) {
+    if (o.hidden) continue;
+    const c = (o.components || []).find(x => x.type === 'vendingMachine');
+    if (!c) continue;
+    const p = (c.props || {}) as Record<string, unknown>;
+    const pos = o.position || [0, 0, 0];
+    const raw = String(p.items ?? '').replace(/\\n/g, '\n');
+    const items: VendingItem[] = [];
+    for (const lineRaw of raw.split('\n')) {
+      const line = lineRaw.trim();
+      if (!line || line.startsWith('#')) continue;
+      const parts = line.split('|').map(s => s.trim());
+      const name = parts[0] || '';
+      if (!name) continue;
+      const icon = parts[1] || '';
+      const price = Math.max(0, Math.floor(Number(parts[2]) || 0));
+      items.push({ name, icon, price });
+    }
+    if (items.length === 0) continue;
+    out.push({
+      id: String(o.id ?? Math.random().toString(36).slice(2)),
+      cx: Number(pos[0]) || 0, cy: Number(pos[1]) || 0, cz: Number(pos[2]) || 0,
+      range: Math.max(0.1, Number(p.interactRange ?? 2.5)),
+      title: String(p.title ?? '🏪 자판기'),
+      items,
+      sourceGame: String(p.sourceGame ?? 'vending').trim() || 'vending',
+      category:   String(p.category   ?? 'shop').trim()    || 'shop',
     });
   }
   return out;
