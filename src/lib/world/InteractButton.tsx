@@ -10,8 +10,10 @@
  */
 import { useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { useInteractPrompt } from './interactPrompt';
 
 export default function InteractButton({ isMobile }: { isMobile: boolean }) {
+  const prompt = useInteractPrompt();
   const dispatch = useCallback((type: 'keydown' | 'keyup') => {
     // KeyboardEvent dispatch — 기존 controller 들이 window keydown capture 로 받음
     const ev = new KeyboardEvent(type, { code: 'KeyE', key: 'e', bubbles: true });
@@ -19,6 +21,9 @@ export default function InteractButton({ isMobile }: { isMobile: boolean }) {
   }, []);
 
   if (!isMobile || typeof document === 'undefined') return null;
+
+  const active = !!prompt;
+  const promptIcon = prompt === 'door' ? '🚪' : prompt === 'dialogue' ? '💬' : prompt === 'vending' ? '🏪' : '';
 
   return createPortal(
     <button
@@ -40,19 +45,26 @@ export default function InteractButton({ isMobile }: { isMobile: boolean }) {
         width: 72,
         height: 72,
         borderRadius: '50%',
-        background: 'rgba(15, 23, 42, 0.78)',
+        background: active ? '#10b981' : 'rgba(15, 23, 42, 0.55)',
         color: '#fff',
-        border: '2px solid rgba(255,255,255,0.45)',
+        border: active ? '2px solid #fff' : '2px solid rgba(255,255,255,0.25)',
         fontSize: 26,
         fontWeight: 800,
         fontFamily: 'system-ui, sans-serif',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+        boxShadow: active ? '0 0 28px rgba(16,185,129,0.7)' : '0 4px 12px rgba(0,0,0,0.3)',
+        opacity: active ? 1 : 0.55,
         pointerEvents: 'auto',
         userSelect: 'none',
         touchAction: 'none',
         cursor: 'pointer',
+        transition: 'background 120ms, box-shadow 120ms, opacity 120ms',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        lineHeight: 1,
       }}
-    >E</button>,
+    >
+      <span style={{ fontSize: 22 }}>{promptIcon || 'E'}</span>
+      {promptIcon && <span style={{ fontSize: 11, marginTop: 2, opacity: 0.95 }}>E</span>}
+    </button>,
     document.body,
   );
 }

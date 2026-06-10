@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useFrame } from '@react-three/fiber';
 import type { DialogueSpot } from './components';
+import { setInteractPrompt } from './interactPrompt';
 
 interface DialogueState {
   spotId: string;
@@ -92,7 +93,10 @@ export default function DialogueController({
       lastHud.current = '';
     };
     window.addEventListener('keydown', onKey, { capture: true });
-    return () => window.removeEventListener('keydown', onKey, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', onKey, { capture: true });
+      setInteractPrompt(null);
+    };
     // applyActive 가 dialogues 클로저를 잡아야 함
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialogues]);
@@ -144,6 +148,8 @@ export default function DialogueController({
     if (newHud !== lastHud.current) {
       lastHud.current = newHud;
       setHudText(newHud);
+      // 대화 중일 땐 prompt active (E 로 다음 줄), 가까운 dialogue 있을 때도 active
+      setInteractPrompt(activeRef.current || nearest ? 'dialogue' : null);
     }
   });
 

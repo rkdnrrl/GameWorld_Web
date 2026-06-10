@@ -16,6 +16,7 @@ import { createPortal } from 'react-dom';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { DoorSpot } from './components';
+import { setInteractPrompt } from './interactPrompt';
 
 const SHARED_GEO_CACHE = new Map<string, THREE.BoxGeometry>();
 function getBoxGeo(w: number, h: number, t: number) {
@@ -65,7 +66,10 @@ export default function DoorController({
       lastHud.current = ''; // HUD 갱신 강제
     };
     window.addEventListener('keydown', onKey, { capture: true });
-    return () => window.removeEventListener('keydown', onKey, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', onKey, { capture: true });
+      setInteractPrompt(null);
+    };
   }, []);
 
   useFrame((_state, dt) => {
@@ -91,6 +95,7 @@ export default function DoorController({
     if (newHud !== lastHud.current) {
       lastHud.current = newHud;
       setHudText(newHud);
+      setInteractPrompt(nearest ? 'door' : null);
     }
 
     // 회전 lerp — 각 문의 swing group rotation.y 를 target 으로 부드럽게.

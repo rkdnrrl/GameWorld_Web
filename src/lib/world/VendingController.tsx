@@ -13,6 +13,7 @@ import { createPortal } from 'react-dom';
 import { useFrame } from '@react-three/fiber';
 import type { VendingSpot, VendingItem } from './components';
 import { api, session } from '@/lib/api';
+import { setInteractPrompt } from './interactPrompt';
 
 type Toast = { text: string; kind: 'ok' | 'err' };
 
@@ -82,7 +83,10 @@ export default function VendingController({
       lastHud.current = '';
     };
     window.addEventListener('keydown', onKey, { capture: true });
-    return () => window.removeEventListener('keydown', onKey, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', onKey, { capture: true });
+      setInteractPrompt(null);
+    };
   }, [close]);
 
   // 컴포넌트가 사라지면 모달 자동 닫기
@@ -123,6 +127,8 @@ export default function VendingController({
     if (newHud !== lastHud.current) {
       lastHud.current = newHud;
       setHudText(newHud);
+      // 모달 열려 있을 때 (E=닫기) 또는 가까운 자판기 (E=열기) 모두 prompt active
+      setInteractPrompt(openRef.current || nearest ? 'vending' : null);
     }
   });
 
