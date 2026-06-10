@@ -76,6 +76,13 @@
     "activeNotice": "您的高级订阅已激活。",
     "until": "到期: {date}"
   },
+  "GameVersions": {
+    "button": "版本",
+    "title": "版本历史",
+    "current": "当前",
+    "empty": "暂无版本历史。",
+    "approvedBy": "{name} 审批"
+  },
   "GameTitles": {
     "space-fishing": "废品钓鱼",
     "blacksmith": "铁匠铺",

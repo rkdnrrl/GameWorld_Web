@@ -76,6 +76,13 @@
     "activeNotice": "プレミアム購読が有効です。",
     "until": "有効期限: {date}"
   },
+  "GameVersions": {
+    "button": "バージョン",
+    "title": "バージョン履歴",
+    "current": "現在",
+    "empty": "バージョン履歴はまだありません。",
+    "approvedBy": "{name} 承認"
+  },
   "GameTitles": {
     "space-fishing": "ジャンク釣り",
     "blacksmith": "鍛冶屋",

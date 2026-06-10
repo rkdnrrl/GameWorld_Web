@@ -76,6 +76,13 @@
     "activeNotice": "Your premium subscription is active.",
     "until": "Expires: {date}"
   },
+  "GameVersions": {
+    "button": "Versions",
+    "title": "Version History",
+    "current": "current",
+    "empty": "No version history yet.",
+    "approvedBy": "Approved by {name}"
+  },
   "GameTitles": {
     "space-fishing": "Junk Fishing",
     "blacksmith": "Blacksmith",

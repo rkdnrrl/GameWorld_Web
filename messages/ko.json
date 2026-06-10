@@ -76,6 +76,13 @@
     "activeNotice": "현재 프리미엄 구독이 활성화되어 있습니다.",
     "until": "만료: {date}"
   },
+  "GameVersions": {
+    "button": "버전",
+    "title": "버전 히스토리",
+    "current": "현재",
+    "empty": "버전 기록이 아직 없습니다.",
+    "approvedBy": "{name} 승인"
+  },
   "GameTitles": {
     "space-fishing": "폐품 낚시",
     "blacksmith": "대장간",
