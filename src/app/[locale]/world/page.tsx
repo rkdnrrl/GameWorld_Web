@@ -18,6 +18,7 @@ const WorldCanvas = dynamic(() => import('@/components/world/WorldCanvas'), { ss
 const GraphicsPanel = dynamic(() => import('@/components/world/GraphicsPanel'), { ssr: false });
 const SessionPicker = dynamic(() => import('@/components/world/SessionPicker'), { ssr: false });
 const WorldDevConsole = dynamic(() => import('@/components/world/WorldDevConsole'), { ssr: false });
+const WorldShareModal = dynamic(() => import('@/components/worlds/WorldShareModal'), { ssr: false });
 
 interface MapObject {
   id: string;
@@ -118,6 +119,8 @@ export default function WorldPage() {
     if (returnToSettings) { setReturnToSettings(false); setSettingsOpen(true); }
   };
   const [mapModalOpen, setMapModalOpen] = useState(false);
+  // VRChat 식 — 월드 안에서 친구에게 invite (worldIdParam 있을 때만 의미. 홈허브는 본인 전용이라 제외)
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
   /** 맵 picker 에서 현재 미리보기 중인 월드 id (실제 이동은 우측 패널 "이동" 버튼 클릭 시) */
   const [focusedWorldId, setFocusedWorldId] = useState<string | null>(null);
   const [charModalOpen, setCharModalOpen] = useState(false);
@@ -1222,6 +1225,12 @@ export default function WorldPage() {
                           style={{ ...actionBtn, border: '1px solid rgba(34,211,238,0.4)', background: 'rgba(34,211,238,0.12)' }}>
                           🌀 {t('portalOpen')}
                         </button>
+                        {worldIdParam && worldName && (
+                          <button onClick={() => { setSettingsOpen(false); setReturnToSettings(true); setInviteModalOpen(true); }}
+                            style={{ ...actionBtn, border: '1px solid rgba(168,85,247,0.4)', background: 'rgba(168,85,247,0.12)' }}>
+                            🌍 {t('inviteFriends')}
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1262,6 +1271,19 @@ export default function WorldPage() {
           </div>
         );
       })()}
+
+      {inviteModalOpen && worldIdParam && worldName && (
+        <WorldShareModal
+          world={{ id: worldIdParam, name: worldName }}
+          url={typeof window !== 'undefined'
+            ? `${window.location.origin}/${locale}/world?id=${encodeURIComponent(worldIdParam)}`
+            : ''}
+          onClose={() => {
+            setInviteModalOpen(false);
+            if (returnToSettings) { setReturnToSettings(false); setSettingsOpen(true); }
+          }}
+        />
+      )}
 
       <WorldSpawnModal
         open={spawnModalOpen}

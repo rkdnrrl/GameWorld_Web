@@ -1548,6 +1548,7 @@
     "moveMap": "Move to Map",
     "switchSession": "Switch Session",
     "portalOpen": "Open Portal",
+    "inviteFriends": "Invite Friends",
     "portalPickTitle": "Pick a Map to Portal To",
     "portalHere": "Portal Here",
     "portalOpenedHint": "Portal to {name} opened · walk in to travel",

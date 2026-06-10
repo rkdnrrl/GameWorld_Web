@@ -1548,6 +1548,7 @@
     "moveMap": "マップ移動",
     "switchSession": "別のセッションへ",
     "portalOpen": "ポータルを開く",
+    "inviteFriends": "友達を招待",
     "portalPickTitle": "ポータル先のマップを選択",
     "portalHere": "ここへポータル",
     "portalOpenedHint": "{name} へのポータルが開きました · 入ると移動します",

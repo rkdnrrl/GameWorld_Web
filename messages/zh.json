@@ -1548,6 +1548,7 @@
     "moveMap": "切换地图",
     "switchSession": "切换会话",
     "portalOpen": "开启传送门",
+    "inviteFriends": "邀请好友",
     "portalPickTitle": "选择传送门目标地图",
     "portalHere": "传送到这里",
     "portalOpenedHint": "已开启通往 {name} 的传送门 · 走进即可移动",

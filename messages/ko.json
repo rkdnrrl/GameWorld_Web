@@ -1548,6 +1548,7 @@
     "moveMap": "맵 이동",
     "switchSession": "다른 세션으로",
     "portalOpen": "포탈 열기",
+    "inviteFriends": "친구 초대",
     "portalPickTitle": "포탈 열 맵 선택",
     "portalHere": "여기로 포탈",
     "portalOpenedHint": "{name} 포탈이 열렸어요 · 걸어 들어가면 이동합니다",
