@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign' | 'seat';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -138,6 +138,19 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'scanline',       label: 'CRT 스캔라인 (0=끔)',    type: 'number', default: 0,    min: 0, max: 2,    step: 0.05, group: 'advanced' },
       { key: 'pixelate',       label: '픽셀화 (0=끔, 픽셀 크기)', type: 'number', default: 0,  min: 0, max: 16,   step: 1, group: 'advanced' },
       { key: 'toneMapping',    label: 'ACES 톤매핑',            type: 'boolean', default: false, group: 'advanced' },
+    ],
+  },
+  {
+    type: 'seat',
+    name: '의자 / 앉기',
+    icon: '🪑',
+    description: '가까이서 F 누르면 캐릭터가 이 오브젝트에 앉음. 다시 F 누르면 일어남. 앉아 있는 동안 카메라/시야는 자유롭게 둘러볼 수 있고, 이동/점프는 잠김. 빈 오브젝트나 의자 모델에 붙여 사용. offsetY 로 앉는 높이(엉덩이 위치) 조절.',
+    props: [
+      { key: 'interactRange', label: '인터랙트 거리 (m)',                type: 'number', default: 1.5, min: 0.3, max: 8,  step: 0.1 },
+      { key: 'offsetY',       label: '앉는 높이 보정 (m) — 의자 표면 위', type: 'number', default: 0.4, min: -2,  max: 3,  step: 0.05 },
+      { key: 'offsetX',       label: 'X 오프셋 (옆 보정)',                type: 'number', default: 0,   min: -2,  max: 2,  step: 0.05 },
+      { key: 'offsetZ',       label: 'Z 오프셋 (앞뒤 보정)',              type: 'number', default: 0,   min: -2,  max: 2,  step: 0.05 },
+      { key: 'exitForward',   label: '일어날 때 앞으로 빠지는 거리 (m)',  type: 'number', default: 0.8, min: 0,   max: 5,  step: 0.1 },
     ],
   },
   {
@@ -327,6 +340,39 @@ export interface BuoyancyVolume {
   waveStrength: number;                 // 웨이브 강도 (0=출렁 없음). WaterMesh 와 동일 a=0.04*strength
   waveSpeed: number;
   waveFreq: number;
+}
+
+/** seat 컴포넌트가 붙은 오브젝트 → SeatSpot 목록. SeatController 가 매 frame 거리 체크 + 앉기 처리. */
+export interface SeatSpot {
+  id: string;
+  sx: number; sy: number; sz: number;       // 앉을 위치 (오프셋 적용)
+  rotY: number;                              // 오브젝트의 Y 회전 — 일어날 방향에 사용
+  range: number;
+  exitForward: number;
+}
+
+export function computeSeats(
+  objects: Array<{ id?: string; position?: number[]; rotation?: number[]; components?: ComponentInstance[]; hidden?: boolean }> | undefined | null,
+): SeatSpot[] {
+  const out: SeatSpot[] = [];
+  for (const o of objects || []) {
+    if (o.hidden) continue;
+    const c = (o.components || []).find(x => x.type === 'seat');
+    if (!c) continue;
+    const p = (c.props || {}) as Record<string, unknown>;
+    const pos = o.position || [0, 0, 0];
+    const rot = o.rotation || [0, 0, 0];
+    out.push({
+      id: String(o.id ?? Math.random().toString(36).slice(2)),
+      sx: Number(pos[0]) + Number(p.offsetX ?? 0),
+      sy: Number(pos[1]) + Number(p.offsetY ?? 0.4),
+      sz: Number(pos[2]) + Number(p.offsetZ ?? 0),
+      rotY: Number(rot[1]) || 0,
+      range: Math.max(0.1, Number(p.interactRange ?? 1.5)),
+      exitForward: Math.max(0, Number(p.exitForward ?? 0.8)),
+    });
+  }
+  return out;
 }
 
 /** 월드의 첫 dayNight 컴포넌트 인스턴스 반환 (없으면 null). 월드 단위 유일 설정. */
