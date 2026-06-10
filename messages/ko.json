@@ -1501,7 +1501,8 @@
     "sortName": "이름순",
     "filteringByTag": "태그 필터:",
     "popularTags": "인기 태그:",
-    "noMatches": "검색 결과가 없습니다."
+    "noMatches": "검색 결과가 없습니다.",
+    "friendsHere": "친구"
   },
   "DevConsole": {
     "title": "스크립트 콘솔",
@@ -1987,6 +1988,9 @@
     "btnFriend": "친구",
     "confirmRemove": "정말 친구를 끊으시겠어요?",
     "friendSince": "{date}부터 친구",
+    "inWorld": "{name} 월드에 있음",
+    "onlinePrivate": "비공개 월드에 있음",
+    "btnFollow": "🌍 따라가기",
     "loginRequired": "로그인이 필요합니다.",
     "loading": "불러오는 중…",
     "blocked": "차단됨",

@@ -6,6 +6,7 @@ import CreatorNav from '@/components/creator/CreatorNav';
 import { getRecentWorlds, removeRecentWorld, type RecentWorldEntry } from '@/lib/world/recentWorlds';
 import { getFavoriteWorlds, toggleFavoriteWorld, isFavoriteWorld, type FavoriteWorldEntry } from '@/lib/world/favoriteWorlds';
 import WorldShareModal from '@/components/worlds/WorldShareModal';
+import { useFriendLocations } from '@/lib/world/useFriendLocations';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
@@ -49,6 +50,17 @@ export default function WorldsPage() {
   const [liveCounts, setLiveCounts] = useState<Record<string, number>>({}); // worldId → 현재 접속자 수
   const [recents, setRecents] = useState<RecentWorldEntry[]>([]);
   const [favorites, setFavorites] = useState<FavoriteWorldEntry[]>([]);
+  const { locations: friendLocs } = useFriendLocations();
+  // worldId → 그 월드에 있는 친구들
+  const friendsByWorld = useMemo(() => {
+    const m = new Map<string, typeof friendLocs>();
+    for (const f of friendLocs) {
+      const arr = m.get(f.worldId) || [];
+      arr.push(f);
+      m.set(f.worldId, arr);
+    }
+    return m;
+  }, [friendLocs]);
 
   const token = () => session.getToken() || '';
 
@@ -407,6 +419,18 @@ export default function WorldsPage() {
                         🎮 {t('gameBadge')}
                       </span>
                     )}
+                    {(() => {
+                      const fs = friendsByWorld.get(w.id);
+                      if (!fs || fs.length === 0) return null;
+                      return (
+                        <span
+                          title={fs.map(f => f.username).join(', ')}
+                          style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(16,185,129,0.92)', color: '#fff', fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 3 }}
+                        >
+                          👥 {fs.length} {t('friendsHere')}
+                        </span>
+                      );
+                    })()}
                   </a>
 
                   <div style={{ padding: '12px 14px' }}>

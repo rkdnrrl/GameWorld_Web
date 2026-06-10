@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { api, session, ApiError } from '@/lib/api';
 import { SupporterIcon } from '@/components/SupporterBadge';
+import { useFriendLocations } from '@/lib/world/useFriendLocations';
+import { useLocale } from 'next-intl';
 
 type Tab = 'friends' | 'received' | 'sent';
 
@@ -25,6 +27,10 @@ interface SentReq { friendshipId: string; createdAt: string; to: UserMini }
 
 export default function FriendsPage() {
   const t = useTranslations('Friends');
+  const locale = useLocale();
+  const { locations: friendLocs } = useFriendLocations();
+  // userId → 위치
+  const locByUserId = new Map(friendLocs.map(l => [l.userId, l]));
   const [tab, setTab] = useState<Tab>('friends');
   const [friends, setFriends] = useState<Friend[]>([]);
   const [received, setReceived] = useState<ReceivedReq[]>([]);
@@ -109,13 +115,26 @@ export default function FriendsPage() {
       {tab === 'friends' && (
         friends.length === 0 ? <Empty text={t('emptyFriends')} />
         : <ul className="space-y-2">
-            {friends.map(f => (
-              <UserRow key={f.friendshipId} user={f.friend} subtitle={t('friendSince', { date: new Date(f.since).toLocaleDateString() })}>
-                <button onClick={() => onRemove(f.friend.id)} className="px-3 py-1 text-sm border border-slate-600 text-slate-400 hover:bg-rose-900/30 hover:text-rose-300 hover:border-rose-700 rounded">
-                  {t('btnRemove')}
-                </button>
-              </UserRow>
-            ))}
+            {friends.map(f => {
+              const loc = locByUserId.get(f.friend.id);
+              const subtitle = loc
+                ? (loc.worldIsPublic && loc.worldName
+                    ? `🟢 ${t('inWorld', { name: loc.worldName })}`
+                    : `🟢 ${t('onlinePrivate')}`)
+                : t('friendSince', { date: new Date(f.since).toLocaleDateString() });
+              return (
+                <UserRow key={f.friendshipId} user={f.friend} subtitle={subtitle}>
+                  {loc && loc.worldIsPublic && (
+                    <Link href={`/${locale}/world?id=${loc.worldId}`} className="px-3 py-1 text-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded">
+                      {t('btnFollow')}
+                    </Link>
+                  )}
+                  <button onClick={() => onRemove(f.friend.id)} className="px-3 py-1 text-sm border border-slate-600 text-slate-400 hover:bg-rose-900/30 hover:text-rose-300 hover:border-rose-700 rounded">
+                    {t('btnRemove')}
+                  </button>
+                </UserRow>
+              );
+            })}
           </ul>
       )}
 

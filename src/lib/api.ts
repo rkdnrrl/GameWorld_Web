@@ -968,7 +968,7 @@ export const api = {
   },
   /** 친구들의 현재 접속 위치 */
   listFriendLocations(token: string) {
-    return request<{ locations: Array<{ userId: string; username: string; profileImageUrl: string | null; worldId: string; updatedAt: string }> }>(
+    return request<{ locations: Array<{ userId: string; username: string; profileImageUrl: string | null; worldId: string; worldName: string | null; worldIsPublic: boolean; updatedAt: string }> }>(
       "/api/presence/friends",
       { headers: authHeaders(token) },
     );

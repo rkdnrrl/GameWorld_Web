@@ -1501,7 +1501,8 @@
     "sortName": "名称",
     "filteringByTag": "按标签筛选:",
     "popularTags": "热门标签:",
-    "noMatches": "没有匹配的世界。"
+    "noMatches": "没有匹配的世界。",
+    "friendsHere": "好友"
   },
   "DevConsole": {
     "title": "脚本控制台",
@@ -1967,6 +1968,9 @@
     "btnFriend": "好友",
     "confirmRemove": "确定要解除好友关系吗?",
     "friendSince": "自 {date} 起为好友",
+    "inWorld": "在「{name}」中",
+    "onlinePrivate": "在私密世界中",
+    "btnFollow": "🌍 跟随",
     "loginRequired": "需要登录。",
     "loading": "加载中…",
     "blocked": "已屏蔽",

@@ -1501,7 +1501,8 @@
     "sortName": "Name",
     "filteringByTag": "Filtering by tag:",
     "popularTags": "Popular tags:",
-    "noMatches": "No worlds match your search."
+    "noMatches": "No worlds match your search.",
+    "friendsHere": "friends"
   },
   "DevConsole": {
     "title": "Script console",
@@ -1967,6 +1968,9 @@
     "btnFriend": "Friend",
     "confirmRemove": "Are you sure you want to unfriend?",
     "friendSince": "Friends since {date}",
+    "inWorld": "In {name}",
+    "onlinePrivate": "Online (private world)",
+    "btnFollow": "🌍 Follow",
     "loginRequired": "Login required.",
     "loading": "Loading…",
     "blocked": "Blocked",
