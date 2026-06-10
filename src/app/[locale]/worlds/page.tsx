@@ -5,6 +5,7 @@ import { session, listWorldSessions } from '@/lib/api';
 import CreatorNav from '@/components/creator/CreatorNav';
 import { getRecentWorlds, removeRecentWorld, type RecentWorldEntry } from '@/lib/world/recentWorlds';
 import { getFavoriteWorlds, toggleFavoriteWorld, isFavoriteWorld, type FavoriteWorldEntry } from '@/lib/world/favoriteWorlds';
+import WorldShareModal from '@/components/worlds/WorldShareModal';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
@@ -75,33 +76,12 @@ export default function WorldsPage() {
     return added;
   }
 
-  // "같이 가기" — 모바일은 navigator.share, 데스크탑은 클립보드 복사
-  const [shareToast, setShareToast] = useState<string>('');
-  async function onShareWorld(w: World) {
-    if (typeof window === 'undefined') return;
-    const url = `${window.location.origin}/${locale}/world?id=${w.id}`;
-    try {
-      // 모바일/지원 브라우저는 네이티브 공유 시트 (카톡/DM 등으로 바로)
-      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-        await navigator.share({ title: w.name, text: w.name, url });
-        return;
-      }
-      // 그 외 — 클립보드 복사
-      await navigator.clipboard.writeText(url);
-      setShareToast(t('shareCopied'));
-      setTimeout(() => setShareToast(''), 2200);
-    } catch {
-      // 사용자가 share 취소한 경우 등 — 조용히 무시. 클립보드 실패 시만 토스트.
-      try {
-        await navigator.clipboard.writeText(url);
-        setShareToast(t('shareCopied'));
-        setTimeout(() => setShareToast(''), 2200);
-      } catch {
-        setShareToast(t('shareError'));
-        setTimeout(() => setShareToast(''), 2200);
-      }
-    }
-  }
+  // "같이 가기" — 친구에게 DM + 외부 공유 옵션 통합 모달
+  const [shareTarget, setShareTarget] = useState<World | null>(null);
+  function onShareWorld(w: World) { setShareTarget(w); }
+  const shareUrl = shareTarget && typeof window !== 'undefined'
+    ? `${window.location.origin}/${locale}/world?id=${shareTarget.id}`
+    : '';
 
   // 공개 월드는 검색/정렬/태그 바뀔 때마다 fetch (debounce 300ms)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -497,15 +477,12 @@ export default function WorldsPage() {
           </div>
         )}
       </div>
-      {shareToast && (
-        <div style={{
-          position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)',
-          background: 'rgba(15,23,42,0.95)', color: '#fff', fontWeight: 700, fontSize: 13,
-          padding: '10px 18px', borderRadius: 999, zIndex: 1000,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-          border: '1px solid rgba(255,255,255,0.15)',
-          pointerEvents: 'none',
-        }}>{shareToast}</div>
+      {shareTarget && (
+        <WorldShareModal
+          world={{ id: shareTarget.id, name: shareTarget.name }}
+          url={shareUrl}
+          onClose={() => setShareTarget(null)}
+        />
       )}
     </div>
   );
