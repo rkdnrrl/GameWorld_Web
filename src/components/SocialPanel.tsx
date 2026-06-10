@@ -14,7 +14,7 @@ import { api, session, ApiError } from '@/lib/api';
 import { useLoggedIn } from '@/lib/useLoggedIn';
 import {
   useNotificationStream, getActiveDmConversation,
-  NOTIFICATION_PUSH_EVENT, DM_PUSH_EVENT,
+  NOTIFICATION_PUSH_EVENT, DM_PUSH_EVENT, DM_READ_EVENT,
   type PushNotification, type DmPush,
 } from '@/lib/notifications/useNotificationStream';
 import FriendsTab from '@/components/social/FriendsTab';
@@ -78,11 +78,14 @@ export default function SocialPanel() {
         setToast({ icon: '💬', text: `${dm.fromUsername}: ${dm.preview}`, href: `/messages/${dm.conversationId}` });
       }
     }
+    const onRead = () => loadUnread();
     window.addEventListener(NOTIFICATION_PUSH_EVENT, onNotif);
     window.addEventListener(DM_PUSH_EVENT, onDm);
+    window.addEventListener(DM_READ_EVENT, onRead);
     return () => {
       window.removeEventListener(NOTIFICATION_PUSH_EVENT, onNotif);
       window.removeEventListener(DM_PUSH_EVENT, onDm);
+      window.removeEventListener(DM_READ_EVENT, onRead);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadUnread]);

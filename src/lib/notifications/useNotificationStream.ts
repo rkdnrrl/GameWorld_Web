@@ -16,6 +16,8 @@ const WS_BASE = process.env.NEXT_PUBLIC_NOTIFY_WS || 'wss://play.airliveplay.com
 
 export const NOTIFICATION_PUSH_EVENT = 'alp-notification-push';
 export const DM_PUSH_EVENT = 'alp-dm-push';
+// 대화를 읽음 처리한 직후 — DM 배지 즉시 갱신용 (SocialPanel 이 수신)
+export const DM_READ_EVENT = 'alp-dm-read';
 
 export interface PushNotification {
   id: string;

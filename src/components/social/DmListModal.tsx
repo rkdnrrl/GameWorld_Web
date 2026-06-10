@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { api, session, ApiError } from '@/lib/api';
-import { DM_PUSH_EVENT } from '@/lib/notifications/useNotificationStream';
+import { DM_PUSH_EVENT, DM_READ_EVENT } from '@/lib/notifications/useNotificationStream';
 import { DmChatModal } from '@/components/world/DmChatModal';
 
 type Conv = {
@@ -38,11 +38,15 @@ export default function DmListModal({ onClose, embedded = false }: { onClose?: (
 
   useEffect(() => { load(); }, [load]);
 
-  // 실시간 DM 수신 시 목록 갱신
+  // 실시간 DM 수신/읽음 시 목록 갱신 (미읽음 배지·정렬 반영)
   useEffect(() => {
-    const onDm = () => load();
-    window.addEventListener(DM_PUSH_EVENT, onDm);
-    return () => window.removeEventListener(DM_PUSH_EVENT, onDm);
+    const refresh = () => load();
+    window.addEventListener(DM_PUSH_EVENT, refresh);
+    window.addEventListener(DM_READ_EVENT, refresh);
+    return () => {
+      window.removeEventListener(DM_PUSH_EVENT, refresh);
+      window.removeEventListener(DM_READ_EVENT, refresh);
+    };
   }, [load]);
 
   useEffect(() => {

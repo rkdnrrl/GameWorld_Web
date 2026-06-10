@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { api, session, ApiError } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import { setActiveDmConversation } from '@/lib/notifications/useNotificationStream';
+import { setActiveDmConversation, DM_PUSH_EVENT, DM_READ_EVENT, type DmPush } from '@/lib/notifications/useNotificationStream';
 
 interface Message { id: string; senderId: string; body: string; createdAt: string; readAt: string | null }
 interface OtherUser { id: string; username: string; profileImageUrl: string | null; iconEmoji: string | null; themeColor: string | null; bio: string | null }
@@ -40,8 +40,10 @@ export default function DmRoom({ params }: { params: Promise<{ id: string }> }) 
     ]).then(([conv, msgs]) => {
       setOther(conv.conversation.other);
       setMessages(msgs.messages);
-      // 진입 시 읽음 처리
-      api.markConversationRead(tk, id).catch(() => {});
+      // 진입 시 읽음 처리 → 배지 갱신 이벤트
+      api.markConversationRead(tk, id)
+        .then(() => window.dispatchEvent(new Event(DM_READ_EVENT)))
+        .catch(() => {});
     }).catch(e => {
       setError(e instanceof ApiError ? e.message : 'load failed');
     }).finally(() => setLoading(false));
@@ -56,6 +58,23 @@ export default function DmRoom({ params }: { params: Promise<{ id: string }> }) 
   useEffect(() => {
     setActiveDmConversation(id);
     return () => setActiveDmConversation(null);
+  }, [id]);
+
+  // NotifyHub DM push — 이 대화면 즉시 재조회 (Supabase Realtime 백업)
+  useEffect(() => {
+    function onDm(e: Event) {
+      const dm = (e as CustomEvent).detail as DmPush;
+      if (dm.conversationId !== id) return;
+      const tk = session.getToken(); if (!tk) return;
+      api.listMessages(tk, id).then(d => {
+        setMessages(d.messages);
+        api.markConversationRead(tk, id)
+          .then(() => window.dispatchEvent(new Event(DM_READ_EVENT)))
+          .catch(() => {});
+      }).catch(() => {});
+    }
+    window.addEventListener(DM_PUSH_EVENT, onDm);
+    return () => window.removeEventListener(DM_PUSH_EVENT, onDm);
   }, [id]);
 
   // Supabase Realtime 구독 (dm_messages INSERT)

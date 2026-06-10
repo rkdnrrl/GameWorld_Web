@@ -10,7 +10,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { api, session, ApiError } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import { setActiveDmConversation } from '@/lib/notifications/useNotificationStream';
+import { setActiveDmConversation, DM_PUSH_EVENT, DM_READ_EVENT, type DmPush } from '@/lib/notifications/useNotificationStream';
 import { linkify } from '@/lib/linkify';
 
 interface Message { id: string; senderId: string; body: string; createdAt: string; readAt: string | null }
@@ -35,10 +35,32 @@ export function DmChatModal({ conversationId, other, onClose }: {
     if (!tk) { setLoading(false); setError(t('loginRequired')); return; }
     setMyId(session.getUser()?.id || null);
     api.listMessages(tk, conversationId)
-      .then(d => { setMessages(d.messages); api.markConversationRead(tk, conversationId).catch(() => {}); })
+      .then(d => {
+        setMessages(d.messages);
+        api.markConversationRead(tk, conversationId)
+          .then(() => window.dispatchEvent(new Event(DM_READ_EVENT)))
+          .catch(() => {});
+      })
       .catch(e => setError(e instanceof ApiError ? e.message : 'load failed'))
       .finally(() => setLoading(false));
   }, [conversationId, t]);
+
+  // NotifyHub DM push — 이 대화면 즉시 재조회 (Supabase Realtime 백업: 그게 안 와도 갱신)
+  useEffect(() => {
+    function onDm(e: Event) {
+      const dm = (e as CustomEvent).detail as DmPush;
+      if (dm.conversationId !== conversationId) return;
+      const tk = session.getToken(); if (!tk) return;
+      api.listMessages(tk, conversationId).then(d => {
+        setMessages(d.messages);
+        api.markConversationRead(tk, conversationId)
+          .then(() => window.dispatchEvent(new Event(DM_READ_EVENT)))
+          .catch(() => {});
+      }).catch(() => {});
+    }
+    window.addEventListener(DM_PUSH_EVENT, onDm);
+    return () => window.removeEventListener(DM_PUSH_EVENT, onDm);
+  }, [conversationId]);
 
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [messages]);
 
