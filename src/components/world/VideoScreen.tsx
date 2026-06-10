@@ -281,9 +281,10 @@ export const YouTubeOverlay = memo(function YouTubeOverlayImpl({ videoId, objId,
     const applyEffective = (att: number) => {
       const eff = Math.max(0, Math.min(1, base * att));
       const v100 = Math.round(eff * 100);
-      if (v100 !== lastAppliedV100) {
-        try { playerRef.current?.setVolume?.(v100); } catch { /* noop */ }
-        lastAppliedV100 = v100;
+      // player ready(setVolume 호출 가능) 일 때만 적용 + lastApplied 갱신.
+      // ready 전에 갱신하면 실제 반영 안 됐는데 "적용됨"으로 기록돼 ready 후 영원히 스킵됨(시작 음량이 무시되던 버그).
+      if (v100 !== lastAppliedV100 && playerRef.current?.setVolume) {
+        try { playerRef.current.setVolume(v100); lastAppliedV100 = v100; } catch { /* noop */ }
       }
     };
     const handle: VideoHandle = {
