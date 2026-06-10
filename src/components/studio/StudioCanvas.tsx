@@ -40,7 +40,8 @@ import ScriptComponentsModal from './ScriptComponentsModal';
 import ScriptAssetEditor from '@/components/assets/ScriptAssetEditor';
 import StudioMarketModal from '@/components/studio/StudioMarketModal';
 import { MAP_APPLY_EVENT } from '@/lib/assets/kinds/map';
-import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, computeBuoyancyVolumes, type ComponentInstance, type ComponentType, type BuoyancyVolume, type ComponentPropDef } from '@/lib/world/components';
+import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, computeBuoyancyVolumes, computeAmbientSoundZones, type ComponentInstance, type ComponentType, type BuoyancyVolume, type ComponentPropDef, type AmbientSoundZone } from '@/lib/world/components';
+import AmbientSoundsPlayer from '@/lib/world/AmbientSounds';
 import { sampleKeyframeAnim, normalizeKeyframeAnim, applySampledTRS, composeSampledWorld, type KeyframeAnim, type KeyFrame } from '@/lib/world/keyframeAnim';
 import { Player, type PlayerControl } from '@/components/world/WorldCanvas';
 
@@ -2779,6 +2780,10 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
     const merged = objects.map(o => { const t = transforms[o.id]; return t ? { ...o, position: t.pos, scale: t.scl } : o; });
     simBuoyancyRef.current = computeBuoyancyVolumes(merged);
   }, [objects, transforms]);
+  const simAmbientZones: AmbientSoundZone[] = useMemo(() => {
+    const merged = objects.map(o => { const t = transforms[o.id]; return t ? { ...o, position: t.pos, scale: t.scl } : o; });
+    return computeAmbientSoundZones(merged);
+  }, [objects, transforms]);
   const spawnRef = useRef<[number, number, number]>([0, 4, 0]);
   useEffect(() => { if (player?.spawnPos) spawnRef.current = player.spawnPos; }, [player?.spawnPos]);
   // per-player 제어 명령을 시뮬 플레이어에 적용 (시뮬은 단일 플레이어라 항상 로컬).
@@ -3436,6 +3441,7 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
 
   return (
     <>
+      <AmbientSoundsPlayer zones={simAmbientZones} />
       <SimScriptLoop luaScripts={luaScripts} componentScripts={componentScripts} worldElapsed={worldElapsed}
         allObjectsRef={allObjectsRef} scriptBodyRefs={scriptBodyRefs} lightRefs={lightRefs} />
       {allObjects.map(obj => (

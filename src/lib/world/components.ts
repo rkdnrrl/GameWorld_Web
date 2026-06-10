@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -138,6 +138,19 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'scanline',       label: 'CRT 스캔라인 (0=끔)',    type: 'number', default: 0,    min: 0, max: 2,    step: 0.05, group: 'advanced' },
       { key: 'pixelate',       label: '픽셀화 (0=끔, 픽셀 크기)', type: 'number', default: 0,  min: 0, max: 16,   step: 1, group: 'advanced' },
       { key: 'toneMapping',    label: 'ACES 톤매핑',            type: 'boolean', default: false, group: 'advanced' },
+    ],
+  },
+  {
+    type: 'ambientSound',
+    name: '앰비언트 사운드 / BGM',
+    icon: '🎵',
+    description: 'mp3/ogg 음원을 월드에 깔기. 방식=global 이면 어디서나 들림 (BGM), zone 이면 이 오브젝트 박스(scale) 안에서만 들림 (영역 음향). 빈 오브젝트에 붙여 BGM 트리거로 쓰기 좋음. 영역 진입/이탈 시 부드럽게 페이드. 멀티에서 각 클라이언트가 자체 재생.',
+    props: [
+      { key: 'url',     label: '음원 URL (mp3/ogg) — 에셋 드래그 가능', type: 'string', default: '' },
+      { key: 'mode',    label: '방식 (global=BGM 어디서나 / zone=영역 안에서만)', type: 'enum', default: 'zone', options: ['global', 'zone'] },
+      { key: 'volume',  label: '음량 (0=무음 ~ 1=최대)',  type: 'number', default: 0.6, min: 0, max: 1,   step: 0.05 },
+      { key: 'loop',    label: '반복 재생',                type: 'boolean', default: true },
+      { key: 'fadeSec', label: '페이드 시간 (초) — 영역 진입/이탈 시', type: 'number', default: 1.5, min: 0, max: 10, step: 0.1 },
     ],
   },
   {
@@ -283,6 +296,49 @@ export interface BuoyancyVolume {
   waveSpeed: number;
   waveFreq: number;
 }
+
+/** 앰비언트 사운드 zone — 매 frame 카메라/플레이어 위치로 in/out 판정 후 볼륨 lerp. */
+export interface AmbientSoundZone {
+  id: string;
+  url: string;
+  mode: 'global' | 'zone';
+  volume: number;
+  loop: boolean;
+  fadeSec: number;
+  cx: number; cy: number; cz: number;
+  hx: number; hy: number; hz: number;
+}
+
+/** ambientSound 컴포넌트가 있는 오브젝트들에서 zone 목록 계산. */
+export function computeAmbientSoundZones(
+  objects: Array<{ id?: string; position?: number[]; scale?: number[]; components?: ComponentInstance[]; hidden?: boolean }> | undefined | null,
+): AmbientSoundZone[] {
+  const out: AmbientSoundZone[] = [];
+  for (const o of objects || []) {
+    if (o.hidden) continue;
+    const c = (o.components || []).find(x => x.type === 'ambientSound');
+    if (!c) continue;
+    const p = (c.props || {}) as Record<string, unknown>;
+    const url = String(p.url ?? '').trim();
+    if (!url) continue;
+    const pos = o.position || [0, 0, 0];
+    const scl = o.scale || [1, 1, 1];
+    out.push({
+      id: String(o.id ?? Math.random().toString(36).slice(2)),
+      url,
+      mode: p.mode === 'global' ? 'global' : 'zone',
+      volume: clamp01(Number(p.volume ?? 0.6)),
+      loop:   p.loop !== false,
+      fadeSec: Math.max(0, Number(p.fadeSec ?? 1.5)),
+      cx: Number(pos[0]) || 0, cy: Number(pos[1]) || 0, cz: Number(pos[2]) || 0,
+      hx: Math.abs(Number(scl[0]) || 1) / 2,
+      hy: Math.abs(Number(scl[1]) || 1) / 2,
+      hz: Math.abs(Number(scl[2]) || 1) / 2,
+    });
+  }
+  return out;
+}
+function clamp01(v: number) { return Math.max(0, Math.min(1, isFinite(v) ? v : 0)); }
 
 /** water + buoyancy 컴포넌트가 있는 오브젝트들에서 부력 볼륨 목록 계산. */
 export function computeBuoyancyVolumes(
