@@ -7,7 +7,7 @@
  *
  * V1: root-level position 기준 (부모 transform 미반영). 그룹 안 nested 트리거는 V2.
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import {
   computeJumpPads, computeCheckpoints, computeKillZones,
@@ -77,6 +77,15 @@ export interface TriggerGuideObject {
   hidden?: boolean;
 }
 
+const GUIDE_KEY = 'alp_studio_trigger_guides';
+function readGuideEnabled(): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    const v = window.localStorage.getItem(GUIDE_KEY);
+    return v === null ? true : v !== '0';
+  } catch { return true; }
+}
+
 export default function TriggerGuides({
   objects,
   selectedId,
@@ -84,6 +93,27 @@ export default function TriggerGuides({
   objects: TriggerGuideObject[] | undefined | null;
   selectedId: string | null;
 }) {
+  const [enabled, setEnabled] = useState(true);
+  useEffect(() => { setEnabled(readGuideEnabled()); }, []);
+
+  // B 키 토글 (입력 박스 안 / 모달 안에선 무시)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'KeyB') return;
+      const t = e.target as HTMLElement | null;
+      if (t && /^(INPUT|TEXTAREA)$/.test(t.tagName)) return;
+      if (t && (t.closest('[role="dialog"]') || t.isContentEditable)) return;
+      if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+      setEnabled(prev => {
+        const next = !prev;
+        try { window.localStorage.setItem(GUIDE_KEY, next ? '1' : '0'); } catch { /* noop */ }
+        return next;
+      });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const boxes: Box[] = useMemo(() => {
     if (!objects) return [];
     return [
@@ -116,6 +146,7 @@ export default function TriggerGuides({
     ];
   }, [objects]);
 
+  if (!enabled) return null;
   if (boxes.length === 0 && spheres.length === 0) return null;
 
   return (
