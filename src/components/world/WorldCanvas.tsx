@@ -5930,6 +5930,15 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           <VideoInitialStateApplier registry={videoRegistry}
             // 어떤 videoRemote 든 initiallyPlaying=false 면 모든 비디오 처음에 정지
             initiallyPaused={!!customObjects?.some(o => o.components?.some(c => c.type === 'videoRemote' && c.props?.initiallyPlaying === false))}
+            // videoRemote 의 initialVolume(명시된 첫 값)을 시작 음량으로 적용
+            initialVolume={(() => {
+              for (const o of customObjects ?? []) {
+                for (const c of o.components ?? []) {
+                  if (c.type === 'videoRemote' && typeof c.props?.initialVolume === 'number') return c.props.initialVolume as number;
+                }
+              }
+              return undefined;
+            })()}
             unlockedRef={videoUnlockedRef} />
           <Physics gravity={[0, gravityY, 0]} interpolate={false}>
             {customObjects !== undefined ? (

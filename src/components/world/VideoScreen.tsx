@@ -451,13 +451,24 @@ export function VideoDistanceUpdater({
  * 이전 1.5초 윈도우 방식은 YouTube ready 가 1.5초보다 늦으면 못 잡아서 자동 재생되는 문제 있었음.
  */
 export function VideoInitialStateApplier({
-  registry, initiallyPaused, unlockedRef,
+  registry, initiallyPaused, initialVolume, unlockedRef,
 }: {
   registry: VideoRegistry;
   initiallyPaused: boolean;
+  /** 입장 시 시작 음량 (0~1). 미지정이면 적용 안 함(기본 100%). videoRemote 의 initialVolume prop. */
+  initialVolume?: number;
   unlockedRef?: React.MutableRefObject<Set<string>>;
 }) {
+  const volApplied = useRef<Set<string>>(new Set());
   useFrame(() => {
+    // 초기 음량 — 핸들마다 1회만 적용. 핸들 ready 전에 호출해도 base 볼륨에 저장돼 ready 후 반영됨.
+    if (typeof initialVolume === 'number') {
+      for (const [id, handle] of registry.current) {
+        if (volApplied.current.has(id)) continue;
+        volApplied.current.add(id);
+        try { handle.setVolume(Math.max(0, Math.min(1, initialVolume))); } catch { /* noop */ }
+      }
+    }
     if (!initiallyPaused) return;
     for (const [id, handle] of registry.current) {
       if (unlockedRef?.current.has(id)) continue;

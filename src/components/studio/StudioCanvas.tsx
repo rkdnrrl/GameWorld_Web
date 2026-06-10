@@ -8439,6 +8439,14 @@ export default function StudioCanvas() {
                 globalAudio={simObjs.some(o => o.components?.some(c => c.type === 'videoRemote' && c.props?.globalAudio))} />
               <VideoInitialStateApplier registry={simVideoRegistry}
                 initiallyPaused={simObjs.some(o => o.components?.some(c => c.type === 'videoRemote' && c.props?.initiallyPlaying === false))}
+                initialVolume={(() => {
+                  for (const o of simObjs) {
+                    for (const c of o.components ?? []) {
+                      if (c.type === 'videoRemote' && typeof c.props?.initialVolume === 'number') return c.props.initialVolume as number;
+                    }
+                  }
+                  return undefined;
+                })()}
                 unlockedRef={simVideoUnlockedRef} />
               <Physics gravity={[0, worldPhysics.gravity, 0]} interpolate={false}>
                 <SimScene objects={simObjs} transforms={simTransforms} myAssets={myAssets} gameApi={simGameRuntime.api} gameStore={simGameRuntime}

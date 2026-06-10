@@ -205,6 +205,7 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'height', label: '세로 크기 (월드 단위)', type: 'number', default: 0.8, min: 0.1, max: 4, step: 0.05 },
       { key: 'offsetY', label: 'Y 오프셋 (오브젝트 위)',   type: 'number', default: 1,   min: -5, max: 10, step: 0.1 },
       { key: 'initiallyPlaying', label: '입장 시 자동 재생 (체크 해제 시 정지 상태로 시작)', type: 'boolean', default: true },
+      { key: 'initialVolume',    label: '시작 음량 (0=무음 ~ 1=최대)', type: 'number', default: 1, min: 0, max: 1, step: 0.05 },
       { key: 'globalAudio',      label: '월드 전역 음향 (체크 해제 시 거리에 따라 감쇠)',    type: 'boolean', default: false },
     ],
   },
