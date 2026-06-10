@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { session, listWorldSessions } from '@/lib/api';
 import CreatorNav from '@/components/creator/CreatorNav';
-import { getRecentWorlds, removeRecentWorld, type RecentWorldEntry } from '@/lib/world/recentWorlds';
+import { getRecentWorlds, removeRecentWorld, syncRecentWorldsFromServer, type RecentWorldEntry } from '@/lib/world/recentWorlds';
 import { getFavoriteWorlds, toggleFavoriteWorld, isFavoriteWorld, syncFavoriteWorldsFromServer, type FavoriteWorldEntry } from '@/lib/world/favoriteWorlds';
 import WorldShareModal from '@/components/worlds/WorldShareModal';
 import { useFriendLocations } from '@/lib/world/useFriendLocations';
@@ -75,9 +75,10 @@ export default function WorldsPage() {
     // 최근 방문 + 즐겨찾기 — localStorage 1회 로드
     setRecents(getRecentWorlds());
     setFavorites(getFavoriteWorlds());
-    // 로그인 시 서버와 즐겨찾기 동기화 (디바이스 간)
+    // 로그인 시 서버와 즐겨찾기·최근 방문 동기화 (디바이스 간)
     if (hasToken) {
       syncFavoriteWorldsFromServer().then(merged => setFavorites(merged)).catch(() => {});
+      syncRecentWorldsFromServer().then(merged => setRecents(merged)).catch(() => {});
     }
   }, []);
 

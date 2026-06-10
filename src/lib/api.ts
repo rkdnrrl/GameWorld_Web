@@ -1000,6 +1000,32 @@ export const api = {
     );
   },
 
+  // ─── 최근 방문 월드 (Phase 5-K, 계정 단위 LRU) ───
+  listRecentWorlds(token: string) {
+    return request<{ recents: Array<{ id: string; name: string; thumbnailUrl: string | null; visitedAt: number }> }>(
+      "/api/recent-worlds",
+      { headers: authHeaders(token) },
+    );
+  },
+  addRecentWorld(token: string, entry: { worldId: string; name: string; thumbnailUrl?: string | null }) {
+    return request<{ ok: true }>(
+      "/api/recent-worlds",
+      { method: "POST", headers: authHeaders(token), body: JSON.stringify(entry) },
+    );
+  },
+  removeRecentWorld(token: string, worldId: string) {
+    return request<{ ok: true }>(
+      `/api/recent-worlds/${encodeURIComponent(worldId)}`,
+      { method: "DELETE", headers: authHeaders(token) },
+    );
+  },
+  syncRecentWorlds(token: string, items: Array<{ id: string; name: string; thumbnailUrl?: string | null; visitedAt: number }>) {
+    return request<{ recents: Array<{ id: string; name: string; thumbnailUrl: string | null; visitedAt: number }> }>(
+      "/api/recent-worlds/sync",
+      { method: "POST", headers: authHeaders(token), body: JSON.stringify({ items }) },
+    );
+  },
+
   // ─── 월드 초대 알림 (Phase 5-J) ───
   /** 친구에게 'world_invite' 알림 발송 */
   sendWorldInvite(token: string, params: { friendId: string; worldId: string; worldName: string }) {
