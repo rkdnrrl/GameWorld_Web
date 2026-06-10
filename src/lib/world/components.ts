@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign' | 'seat' | 'teleporter' | 'ladder' | 'door' | 'dialogue' | 'vendingMachine' | 'jumpPad' | 'checkpoint' | 'killZone';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign' | 'seat' | 'teleporter' | 'ladder' | 'door' | 'dialogue' | 'vendingMachine' | 'jumpPad' | 'checkpoint' | 'killZone' | 'raceStart' | 'raceFinish';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -181,6 +181,26 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'bubbleColor',  label: '말풍선 배경색',                              type: 'color',   default: '#1f2937' },
       { key: 'textColor',    label: '글자색',                                     type: 'color',   default: '#ffffff' },
       { key: 'autoClose',    label: '마지막 줄 후 자동 닫힘',                     type: 'boolean', default: true },
+    ],
+  },
+  {
+    type: 'raceStart',
+    name: '레이스 시작 (타임 트라이얼)',
+    icon: '🏁',
+    description: '플레이어가 이 박스에 진입하면 raceId 의 타이머 시작 + 화면 상단에 시간 표시. 같은 raceId 의 raceFinish 에 닿으면 측정 종료. raceId 가 같은 시작/도착 쌍이 한 경주. 베스트 시간은 브라우저 localStorage 에 저장 (alp_race_best_<raceId>). 멀티: 본인만.',
+    props: [
+      { key: 'raceId',     label: '경주 ID (같은 ID 의 raceFinish 와 짝)', type: 'string',  default: 'default' },
+      { key: 'raceName',   label: '경주 이름 (HUD 표시)',                     type: 'string',  default: '타임 트라이얼' },
+      { key: 'restartOnReentry', label: '진행 중 재진입 시 타이머 리셋',     type: 'boolean', default: true },
+    ],
+  },
+  {
+    type: 'raceFinish',
+    name: '레이스 도착 (피니시 라인)',
+    icon: '🏆',
+    description: '같은 raceId 의 raceStart 후 이 박스에 진입하면 측정 종료 + 완주 토스트. 베스트 갱신 시 별도 메시지. 시작 안 한 상태로 들어오면 무시.',
+    props: [
+      { key: 'raceId', label: '경주 ID (raceStart 와 동일)', type: 'string', default: 'default' },
     ],
   },
   {
@@ -483,6 +503,71 @@ export function computeDoors(
       swingDuration: Math.max(0.05, Number(p.swingDuration ?? 0.4)),
       range:     Math.max(0.1, Number(p.interactRange ?? 2)),
       startOpen: !!p.startOpen,
+    });
+  }
+  return out;
+}
+
+/** raceStart / raceFinish 트리거 박스. RaceController 가 매 frame 진입 체크 + timer 관리. */
+export interface RaceStartSpot {
+  id: string;
+  cx: number; cy: number; cz: number;
+  hx: number; hy: number; hz: number;
+  raceId: string;
+  raceName: string;
+  restartOnReentry: boolean;
+}
+
+export interface RaceFinishSpot {
+  id: string;
+  cx: number; cy: number; cz: number;
+  hx: number; hy: number; hz: number;
+  raceId: string;
+}
+
+export function computeRaceStarts(
+  objects: Array<{ id?: string; position?: number[]; scale?: number[]; components?: ComponentInstance[]; hidden?: boolean }> | undefined | null,
+): RaceStartSpot[] {
+  const out: RaceStartSpot[] = [];
+  for (const o of objects || []) {
+    if (o.hidden) continue;
+    const c = (o.components || []).find(x => x.type === 'raceStart');
+    if (!c) continue;
+    const p = (c.props || {}) as Record<string, unknown>;
+    const pos = o.position || [0, 0, 0];
+    const scl = o.scale    || [1, 1, 1];
+    out.push({
+      id: String(o.id ?? Math.random().toString(36).slice(2)),
+      cx: Number(pos[0]) || 0, cy: Number(pos[1]) || 0, cz: Number(pos[2]) || 0,
+      hx: Math.abs(Number(scl[0]) || 1) / 2,
+      hy: Math.abs(Number(scl[1]) || 1) / 2,
+      hz: Math.abs(Number(scl[2]) || 1) / 2,
+      raceId:   String(p.raceId   ?? 'default').trim() || 'default',
+      raceName: String(p.raceName ?? '타임 트라이얼'),
+      restartOnReentry: p.restartOnReentry !== false,
+    });
+  }
+  return out;
+}
+
+export function computeRaceFinishes(
+  objects: Array<{ id?: string; position?: number[]; scale?: number[]; components?: ComponentInstance[]; hidden?: boolean }> | undefined | null,
+): RaceFinishSpot[] {
+  const out: RaceFinishSpot[] = [];
+  for (const o of objects || []) {
+    if (o.hidden) continue;
+    const c = (o.components || []).find(x => x.type === 'raceFinish');
+    if (!c) continue;
+    const p = (c.props || {}) as Record<string, unknown>;
+    const pos = o.position || [0, 0, 0];
+    const scl = o.scale    || [1, 1, 1];
+    out.push({
+      id: String(o.id ?? Math.random().toString(36).slice(2)),
+      cx: Number(pos[0]) || 0, cy: Number(pos[1]) || 0, cz: Number(pos[2]) || 0,
+      hx: Math.abs(Number(scl[0]) || 1) / 2,
+      hy: Math.abs(Number(scl[1]) || 1) / 2,
+      hz: Math.abs(Number(scl[2]) || 1) / 2,
+      raceId: String(p.raceId ?? 'default').trim() || 'default',
     });
   }
   return out;

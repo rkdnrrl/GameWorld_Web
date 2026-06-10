@@ -41,7 +41,7 @@ import ScriptComponentsModal from './ScriptComponentsModal';
 import ScriptAssetEditor from '@/components/assets/ScriptAssetEditor';
 import StudioMarketModal from '@/components/studio/StudioMarketModal';
 import { MAP_APPLY_EVENT } from '@/lib/assets/kinds/map';
-import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, computeBuoyancyVolumes, computeAmbientSoundZones, findDayNightComponent, computeSeats, computeTeleporters, computeLadders, computeDoors, computeDialogues, computeVendings, computeJumpPads, computeCheckpoints, computeKillZones, type ComponentInstance, type ComponentType, type BuoyancyVolume, type ComponentPropDef, type AmbientSoundZone, type SeatSpot, type TeleporterSpot, type LadderSpot, type DoorSpot, type DialogueSpot, type VendingSpot, type JumpPadSpot, type CheckpointSpot, type KillZoneSpot } from '@/lib/world/components';
+import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, computeBuoyancyVolumes, computeAmbientSoundZones, findDayNightComponent, computeSeats, computeTeleporters, computeLadders, computeDoors, computeDialogues, computeVendings, computeJumpPads, computeCheckpoints, computeKillZones, computeRaceStarts, computeRaceFinishes, type ComponentInstance, type ComponentType, type BuoyancyVolume, type ComponentPropDef, type AmbientSoundZone, type SeatSpot, type TeleporterSpot, type LadderSpot, type DoorSpot, type DialogueSpot, type VendingSpot, type JumpPadSpot, type CheckpointSpot, type KillZoneSpot, type RaceStartSpot, type RaceFinishSpot } from '@/lib/world/components';
 import AmbientSoundsPlayer from '@/lib/world/AmbientSounds';
 import DayNightCycle from '@/lib/world/DayNightCycle';
 import SeatController from '@/lib/world/SeatController';
@@ -52,6 +52,7 @@ import DialogueController from '@/lib/world/DialogueController';
 import VendingController from '@/lib/world/VendingController';
 import JumpPadController from '@/lib/world/JumpPadController';
 import CheckpointController from '@/lib/world/CheckpointController';
+import RaceController from '@/lib/world/RaceController';
 import { sampleKeyframeAnim, normalizeKeyframeAnim, applySampledTRS, composeSampledWorld, type KeyframeAnim, type KeyFrame } from '@/lib/world/keyframeAnim';
 import { Player, type PlayerControl } from '@/components/world/WorldCanvas';
 
@@ -2831,6 +2832,14 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
     const merged = objects.map(o => { const t = transforms[o.id]; return t ? { ...o, position: t.pos, scale: t.scl } : o; });
     return computeKillZones(merged);
   }, [objects, transforms]);
+  const simRaceStarts: RaceStartSpot[] = useMemo(() => {
+    const merged = objects.map(o => { const t = transforms[o.id]; return t ? { ...o, position: t.pos, scale: t.scl } : o; });
+    return computeRaceStarts(merged);
+  }, [objects, transforms]);
+  const simRaceFinishes: RaceFinishSpot[] = useMemo(() => {
+    const merged = objects.map(o => { const t = transforms[o.id]; return t ? { ...o, position: t.pos, scale: t.scl } : o; });
+    return computeRaceFinishes(merged);
+  }, [objects, transforms]);
   const spawnRef = useRef<[number, number, number]>([0, 4, 0]);
   useEffect(() => { if (player?.spawnPos) spawnRef.current = player.spawnPos; }, [player?.spawnPos]);
   // per-player 제어 명령을 시뮬 플레이어에 적용 (시뮬은 단일 플레이어라 항상 로컬).
@@ -3519,6 +3528,9 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
           localPoseRef={simPlayerPoseRef}
           playerCtlRef={playerCtlRef}
         />
+      )}
+      {player && (simRaceStarts.length > 0 || simRaceFinishes.length > 0) && (
+        <RaceController starts={simRaceStarts} finishes={simRaceFinishes} localPoseRef={simPlayerPoseRef} />
       )}
       <SimScriptLoop luaScripts={luaScripts} componentScripts={componentScripts} worldElapsed={worldElapsed}
         allObjectsRef={allObjectsRef} scriptBodyRefs={scriptBodyRefs} lightRefs={lightRefs} />
