@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign' | 'seat' | 'teleporter' | 'ladder';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign' | 'seat' | 'teleporter' | 'ladder' | 'door';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -138,6 +138,22 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'scanline',       label: 'CRT 스캔라인 (0=끔)',    type: 'number', default: 0,    min: 0, max: 2,    step: 0.05, group: 'advanced' },
       { key: 'pixelate',       label: '픽셀화 (0=끔, 픽셀 크기)', type: 'number', default: 0,  min: 0, max: 16,   step: 1, group: 'advanced' },
       { key: 'toneMapping',    label: 'ACES 톤매핑',            type: 'boolean', default: false, group: 'advanced' },
+    ],
+  },
+  {
+    type: 'door',
+    name: '문 (E로 열기/닫기)',
+    icon: '🚪',
+    description: '빈 오브젝트에 붙이면 그 위치에 자동으로 문짝이 생김. 가까이서 E 누르면 swingAngle 만큼 회전(열기/닫기 토글). 오브젝트의 position 이 hinge(경첩) 위치이며 문짝은 +X 방향으로 width 만큼 펼쳐짐. 시각만 V1 — 콜라이더는 자동 OFF (관통 가능). 멀티에선 본인 화면에서만 회전 (V2 동기화 예정).',
+    props: [
+      { key: 'width',         label: '문 폭 (m)',                       type: 'number',  default: 1,   min: 0.3, max: 5,   step: 0.05 },
+      { key: 'height',        label: '문 높이 (m)',                     type: 'number',  default: 2,   min: 0.5, max: 8,   step: 0.05 },
+      { key: 'thickness',     label: '문 두께 (m)',                     type: 'number',  default: 0.05, min: 0.01, max: 0.5, step: 0.01 },
+      { key: 'color',         label: '문 색',                           type: 'color',   default: '#8b4513' },
+      { key: 'swingAngleDeg', label: '회전 각도 (°) — 음수면 반대 방향', type: 'number',  default: 90,  min: -180, max: 180, step: 5 },
+      { key: 'swingDuration', label: '회전 시간 (초)',                  type: 'number',  default: 0.4, min: 0.05, max: 5, step: 0.05 },
+      { key: 'interactRange', label: '인터랙트 거리 (m)',               type: 'number',  default: 2,   min: 0.3, max: 8,   step: 0.1 },
+      { key: 'startOpen',     label: '시작할 때 열린 상태',             type: 'boolean', default: false },
     ],
   },
   {
@@ -364,6 +380,49 @@ export interface BuoyancyVolume {
   waveStrength: number;                 // 웨이브 강도 (0=출렁 없음). WaterMesh 와 동일 a=0.04*strength
   waveSpeed: number;
   waveFreq: number;
+}
+
+/** door 컴포넌트 → hinge 위치 + 문짝 크기 + 회전 옵션. DoorController 가 자체 mesh 렌더 + E 토글. */
+export interface DoorSpot {
+  id: string;
+  hx: number; hy: number; hz: number;  // hinge world position (오브젝트 position)
+  rotY: number;                          // hinge 그룹 외부 회전 (오브젝트의 Y rotation)
+  width: number;
+  height: number;
+  thickness: number;
+  color: string;
+  swingAngleRad: number;
+  swingDuration: number;
+  range: number;
+  startOpen: boolean;
+}
+
+export function computeDoors(
+  objects: Array<{ id?: string; position?: number[]; rotation?: number[]; components?: ComponentInstance[]; hidden?: boolean }> | undefined | null,
+): DoorSpot[] {
+  const out: DoorSpot[] = [];
+  for (const o of objects || []) {
+    if (o.hidden) continue;
+    const c = (o.components || []).find(x => x.type === 'door');
+    if (!c) continue;
+    const p = (c.props || {}) as Record<string, unknown>;
+    const pos = o.position || [0, 0, 0];
+    const rot = o.rotation || [0, 0, 0];
+    out.push({
+      id: String(o.id ?? Math.random().toString(36).slice(2)),
+      hx: Number(pos[0]) || 0, hy: Number(pos[1]) || 0, hz: Number(pos[2]) || 0,
+      rotY: Number(rot[1]) || 0,
+      width:     Math.max(0.1, Number(p.width     ?? 1)),
+      height:    Math.max(0.1, Number(p.height    ?? 2)),
+      thickness: Math.max(0.005, Number(p.thickness ?? 0.05)),
+      color:     String(p.color ?? '#8b4513'),
+      swingAngleRad: (Number(p.swingAngleDeg ?? 90)) * Math.PI / 180,
+      swingDuration: Math.max(0.05, Number(p.swingDuration ?? 0.4)),
+      range:     Math.max(0.1, Number(p.interactRange ?? 2)),
+      startOpen: !!p.startOpen,
+    });
+  }
+  return out;
 }
 
 /** ladder 컴포넌트 → 트리거 박스 + 오르기 속도. LadderController 가 매 frame 진입/이탈 처리. */

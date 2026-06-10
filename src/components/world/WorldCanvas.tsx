@@ -52,12 +52,13 @@ import { TerrainMesh } from '@/lib/world/TerrainMesh';
 import { generateNoiseTerrain } from '@/lib/world/terrain';
 import { CarvedMesh } from '@/lib/world/CarvedMesh';
 import { ChunkedVoxelTerrain } from '@/lib/world/ChunkedVoxelTerrain';
-import { computeBuoyancyVolumes, computeAmbientSoundZones, findDayNightComponent, computeSeats, computeTeleporters, computeLadders, type BuoyancyVolume, type AmbientSoundZone, type ComponentInstance, type SeatSpot, type TeleporterSpot, type LadderSpot } from '@/lib/world/components';
+import { computeBuoyancyVolumes, computeAmbientSoundZones, findDayNightComponent, computeSeats, computeTeleporters, computeLadders, computeDoors, type BuoyancyVolume, type AmbientSoundZone, type ComponentInstance, type SeatSpot, type TeleporterSpot, type LadderSpot, type DoorSpot } from '@/lib/world/components';
 import AmbientSoundsPlayer from '@/lib/world/AmbientSounds';
 import DayNightCycle from '@/lib/world/DayNightCycle';
 import SeatController from '@/lib/world/SeatController';
 import TeleporterController from '@/lib/world/TeleporterController';
 import LadderController from '@/lib/world/LadderController';
+import DoorController from '@/lib/world/DoorController';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
@@ -3951,6 +3952,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const seats: SeatSpot[] = useMemo(() => computeSeats(customObjects ?? []), [customObjects]);
   const teleporters: TeleporterSpot[] = useMemo(() => computeTeleporters(customObjects ?? []), [customObjects]);
   const ladders: LadderSpot[] = useMemo(() => computeLadders(customObjects ?? []), [customObjects]);
+  const doors: DoorSpot[] = useMemo(() => computeDoors(customObjects ?? []), [customObjects]);
   // 물(water+PostProcess) 후처리 — 카메라가 그 물 부피 안일 때 그 물의 PostProcess 적용.
   const waterPostFX = useMemo(() => collectWaterPostFX(customObjects ?? []), [customObjects]);
   const waterPostFXRef = useRef<WaterPostFX[]>(waterPostFX);
@@ -5945,6 +5947,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           )}
           {ladders.length > 0 && (
             <LadderController ladders={ladders} localPoseRef={localPoseRef} playerCtlRef={playerCtlRef} />
+          )}
+          {doors.length > 0 && (
+            <DoorController doors={doors} localPoseRef={localPoseRef} />
           )}
           <VideoDistanceUpdater registry={videoRegistry} objectsById={objectsById}
             // 어떤 videoRemote 든 globalAudio=true 면 전역 음향. 거리 감쇠 없음.
