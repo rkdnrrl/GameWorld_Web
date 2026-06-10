@@ -1971,6 +1971,7 @@
     "friendSince": "Friends since {date}",
     "inWorld": "In {name}",
     "onlinePrivate": "Online (private world)",
+    "onlineCount": "{n} online",
     "btnFollow": "🌍 Follow",
     "loginRequired": "Login required.",
     "loading": "Loading…",

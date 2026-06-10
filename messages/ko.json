@@ -1991,6 +1991,7 @@
     "friendSince": "{date}부터 친구",
     "inWorld": "{name} 월드에 있음",
     "onlinePrivate": "비공개 월드에 있음",
+    "onlineCount": "{n}명 온라인",
     "btnFollow": "🌍 따라가기",
     "loginRequired": "로그인이 필요합니다.",
     "loading": "불러오는 중…",

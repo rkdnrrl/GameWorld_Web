@@ -1971,6 +1971,7 @@
     "friendSince": "自 {date} 起为好友",
     "inWorld": "在「{name}」中",
     "onlinePrivate": "在私密世界中",
+    "onlineCount": "{n}人在线",
     "btnFollow": "🌍 跟随",
     "loginRequired": "需要登录。",
     "loading": "加载中…",

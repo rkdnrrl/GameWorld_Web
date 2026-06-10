@@ -39,6 +39,14 @@ export default function FriendsPage() {
   const [error, setError] = useState('');
   const [needsLogin, setNeedsLogin] = useState(false);
 
+  // 온라인 친구 우선 정렬 + 카운트 (presence 기반)
+  const onlineCount = friends.filter(f => locByUserId.has(f.friend.id)).length;
+  const sortedFriends = [...friends].sort((a, b) => {
+    const ao = locByUserId.has(a.friend.id) ? 1 : 0;
+    const bo = locByUserId.has(b.friend.id) ? 1 : 0;
+    return bo - ao;
+  });
+
   const load = useCallback(async () => {
     const tk = session.getToken();
     if (!tk) { setNeedsLogin(true); return; }
@@ -100,6 +108,11 @@ export default function FriendsPage() {
       <div className="flex gap-2 border-b border-slate-700 mb-4">
         <TabBtn active={tab === 'friends'}  onClick={() => setTab('friends')}>
           {t('tabFriends')} ({friends.length})
+          {onlineCount > 0 && (
+            <span title={t('onlineCount', { n: onlineCount })} className="ml-1 px-1.5 py-0.5 text-xs bg-emerald-600/30 text-emerald-300 rounded">
+              🟢 {onlineCount}
+            </span>
+          )}
         </TabBtn>
         <TabBtn active={tab === 'received'} onClick={() => setTab('received')}>
           {t('tabReceived')} {received.length > 0 && <span className="ml-1 px-1.5 py-0.5 text-xs bg-pink-500 text-white rounded">{received.length}</span>}
@@ -115,7 +128,7 @@ export default function FriendsPage() {
       {tab === 'friends' && (
         friends.length === 0 ? <Empty text={t('emptyFriends')} />
         : <ul className="space-y-2">
-            {friends.map(f => {
+            {sortedFriends.map(f => {
               const loc = locByUserId.get(f.friend.id);
               const subtitle = loc
                 ? (loc.worldIsPublic && loc.worldName
@@ -123,7 +136,7 @@ export default function FriendsPage() {
                     : `🟢 ${t('onlinePrivate')}`)
                 : t('friendSince', { date: new Date(f.since).toLocaleDateString() });
               return (
-                <UserRow key={f.friendshipId} user={f.friend} subtitle={subtitle}>
+                <UserRow key={f.friendshipId} user={f.friend} subtitle={subtitle} online={!!loc}>
                   {loc && loc.worldIsPublic && (
                     <Link href={`/${locale}/world?id=${loc.worldId}`} className="px-3 py-1 text-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded">
                       {t('btnFollow')}
@@ -185,13 +198,14 @@ function Empty({ text }: { text: string }) {
   return <p className="text-slate-500 text-sm py-8 text-center">{text}</p>;
 }
 
-function UserRow({ user, subtitle, children }: { user: UserMini; subtitle: string; children: React.ReactNode }) {
+function UserRow({ user, subtitle, online, children }: { user: UserMini; subtitle: string; online?: boolean; children: React.ReactNode }) {
+  const ring = online ? ' ring-2 ring-emerald-500' : '';
   return (
     <li className="flex items-center gap-3 p-3 bg-slate-800/50 border border-slate-700 rounded">
       <Link href={`/users/${encodeURIComponent(user.username)}`} className="shrink-0">
         {user.profileImageUrl
-          ? <img src={user.profileImageUrl} alt="" className="w-12 h-12 rounded-full object-cover" />
-          : <div className="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center text-xl">👤</div>}
+          ? <img src={user.profileImageUrl} alt="" className={`w-12 h-12 rounded-full object-cover${ring}`} />
+          : <div className={`w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center text-xl${ring}`}>👤</div>}
       </Link>
       <div className="flex-1 min-w-0">
         <Link href={`/users/${encodeURIComponent(user.username)}`} className="font-medium hover:text-emerald-300">{user.username}<SupporterIcon tier={user.supporterTier} /></Link>

@@ -1971,6 +1971,7 @@
     "friendSince": "{date} からフレンド",
     "inWorld": "「{name}」にいます",
     "onlinePrivate": "非公開ワールドにいます",
+    "onlineCount": "{n}人オンライン",
     "btnFollow": "🌍 ついていく",
     "loginRequired": "ログインが必要です。",
     "loading": "読み込み中…",
