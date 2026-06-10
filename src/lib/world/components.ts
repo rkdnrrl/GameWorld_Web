@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign' | 'seat' | 'teleporter' | 'ladder' | 'door';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign' | 'seat' | 'teleporter' | 'ladder' | 'door' | 'dialogue';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -154,6 +154,20 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'swingDuration', label: '회전 시간 (초)',                  type: 'number',  default: 0.4, min: 0.05, max: 5, step: 0.05 },
       { key: 'interactRange', label: '인터랙트 거리 (m)',               type: 'number',  default: 2,   min: 0.3, max: 8,   step: 0.1 },
       { key: 'startOpen',     label: '시작할 때 열린 상태',             type: 'boolean', default: false },
+    ],
+  },
+  {
+    type: 'dialogue',
+    name: '대화 / NPC 말풍선',
+    icon: '💬',
+    description: '가까이서 E 누르면 화면 하단에 대화 말풍선이 뜸. 한 번 더 E 누르면 다음 줄, 마지막 줄이면 닫힘. 빈 오브젝트나 NPC 모델에 붙여 사용. 여러 줄은 \\n (Enter) 으로 구분. 같은 위치에 문(door) 컴포넌트가 있으면 문이 우선. 멀티에서 각자 본인 화면만 (V2 sync 예정).',
+    props: [
+      { key: 'speakerName',  label: '화자 이름 (말풍선 위에 표시, 비우면 없음)', type: 'string',  default: '' },
+      { key: 'lines',        label: '대화 줄 (Enter=다음 줄)',                   type: 'string',  default: '안녕하세요!\n반갑습니다.' },
+      { key: 'interactRange', label: '인터랙트 거리 (m)',                         type: 'number',  default: 2.5, min: 0.3, max: 10, step: 0.1 },
+      { key: 'bubbleColor',  label: '말풍선 배경색',                              type: 'color',   default: '#1f2937' },
+      { key: 'textColor',    label: '글자색',                                     type: 'color',   default: '#ffffff' },
+      { key: 'autoClose',    label: '마지막 줄 후 자동 닫힘',                     type: 'boolean', default: true },
     ],
   },
   {
@@ -420,6 +434,45 @@ export function computeDoors(
       swingDuration: Math.max(0.05, Number(p.swingDuration ?? 0.4)),
       range:     Math.max(0.1, Number(p.interactRange ?? 2)),
       startOpen: !!p.startOpen,
+    });
+  }
+  return out;
+}
+
+/** dialogue 컴포넌트 → 위치 + 대사 줄. DialogueController 가 매 frame 거리 체크 + E 진행. */
+export interface DialogueSpot {
+  id: string;
+  cx: number; cy: number; cz: number;
+  range: number;
+  lines: string[];          // 빈 줄 제거 후 split('\n')
+  speakerName: string;
+  bubbleColor: string;
+  textColor: string;
+  autoClose: boolean;
+}
+
+export function computeDialogues(
+  objects: Array<{ id?: string; position?: number[]; components?: ComponentInstance[]; hidden?: boolean }> | undefined | null,
+): DialogueSpot[] {
+  const out: DialogueSpot[] = [];
+  for (const o of objects || []) {
+    if (o.hidden) continue;
+    const c = (o.components || []).find(x => x.type === 'dialogue');
+    if (!c) continue;
+    const p = (c.props || {}) as Record<string, unknown>;
+    const pos = o.position || [0, 0, 0];
+    const raw = String(p.lines ?? '').replace(/\\n/g, '\n');
+    const lines = raw.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+    if (lines.length === 0) continue;
+    out.push({
+      id: String(o.id ?? Math.random().toString(36).slice(2)),
+      cx: Number(pos[0]) || 0, cy: Number(pos[1]) || 0, cz: Number(pos[2]) || 0,
+      range: Math.max(0.1, Number(p.interactRange ?? 2.5)),
+      lines,
+      speakerName: String(p.speakerName ?? '').trim(),
+      bubbleColor: String(p.bubbleColor ?? '#1f2937'),
+      textColor:   String(p.textColor ?? '#ffffff'),
+      autoClose:   p.autoClose !== false,
     });
   }
   return out;
