@@ -1481,6 +1481,7 @@
     "by": "by",
     "confirmDelete": "\"{name}\" 월드를 삭제할까요?",
     "searchPlaceholder": "월드 이름·설명으로 검색…",
+    "sortLive": "🔴 라이브순",
     "sortPopular": "인기순",
     "sortLatest": "최신순",
     "sortUpdated": "업데이트순",

@@ -22,7 +22,7 @@ interface World {
 }
 
 type Tab  = 'mine' | 'public' | 'favorites';
-type Sort = 'popular' | 'latest' | 'updated' | 'name';
+type Sort = 'live' | 'popular' | 'latest' | 'updated' | 'name';
 
 /** 이름+설명에서 #해시태그 추출. 중복 제거. */
 function extractTags(w: World): string[] {
@@ -85,7 +85,8 @@ export default function WorldsPage() {
       if (search.trim()) params.set('q', search.trim());
       if (tagFilter)     params.set('tag', tagFilter);
       if (onlyGames)     params.set('onlyGames', '1');
-      params.set('sort', sort);
+      // 'live' 는 클라에서 liveCounts 기준 재정렬 — 백엔드는 popular 받음
+      params.set('sort', sort === 'live' ? 'popular' : sort);
       fetch(`${API}/api/worlds/public?${params.toString()}`)
         .then(r => r.json())
         .then(d => { setPubWorlds(d.worlds || []); setLoading(false); })
@@ -140,6 +141,17 @@ export default function WorldsPage() {
     return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 16).map(([name, n]) => ({ name, count: n }));
   }, [publicWorlds]);
 
+  const sortedPublic = useMemo(() => {
+    if (sort !== 'live') return publicWorlds;
+    // liveCounts 기준 desc. tie 면 playCount desc.
+    return [...publicWorlds].sort((a, b) => {
+      const la = liveCounts[a.id] ?? 0;
+      const lb = liveCounts[b.id] ?? 0;
+      if (lb !== la) return lb - la;
+      return (b.playCount ?? 0) - (a.playCount ?? 0);
+    });
+  }, [publicWorlds, sort, liveCounts]);
+
   const list: World[] =
     tab === 'mine' ? myWorlds :
     tab === 'favorites' ? favorites.map(f => ({
@@ -147,9 +159,10 @@ export default function WorldsPage() {
       thumbnailUrl: f.thumbnailUrl ?? null, isPublic: true,
       playCount: 0, createdAt: new Date(f.addedAt).toISOString(),
     })) :
-    publicWorlds;
+    sortedPublic;
 
   const sortOptions: Array<{ key: Sort; label: string }> = [
+    { key: 'live',    label: t('sortLive')    },
     { key: 'popular', label: t('sortPopular') },
     { key: 'latest',  label: t('sortLatest')  },
     { key: 'updated', label: t('sortUpdated') },

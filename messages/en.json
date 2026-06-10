@@ -1481,6 +1481,7 @@
     "by": "by",
     "confirmDelete": "Delete world \"{name}\"?",
     "searchPlaceholder": "Search by name or description…",
+    "sortLive": "🔴 Live",
     "sortPopular": "Popular",
     "sortLatest": "Newest",
     "sortUpdated": "Recently updated",
