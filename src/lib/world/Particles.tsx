@@ -21,7 +21,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { getProp, type ComponentInstance } from '@/lib/world/components';
 
-export type ParticlePreset = 'snow' | 'smoke' | 'fire' | 'rain' | 'sparkles';
+export type ParticlePreset = 'snow' | 'smoke' | 'fire' | 'rain' | 'sparkles' | 'firefly' | 'leaves' | 'mist';
 export type ParticleMode = 'continuous' | 'click';
 
 export interface ParticleSettings {
@@ -55,13 +55,16 @@ export function deriveParticleSettings(inst: ComponentInstance): ParticleSetting
 
 interface PresetCfg {
   color: string;
-  dir: 1 | -1;        // -1 = 아래로(눈/비), +1 = 위로(연기/불/반짝임)
+  dir: -1 | 0 | 1;    // -1 = 아래로(눈/비/잎), +1 = 위로(연기/불), 0 = 떠 있음 (반딧불/안개)
   baseSpeed: number;
   baseSize: number;
   blending: THREE.Blending;
-  sway: number;       // 가로 흔들림 진폭
+  sway: number;       // X 흔들림 진폭
   swaySpeed: number;
   opacityMul: number;
+  swayZ?: number;     // Z 흔들림 진폭 (지정 안 하면 0 — 기존 프리셋 호환)
+  twinkleAmp?: number;// 0 = 깜빡임 없음. 0~0.5 권장. material.opacity 가 sin 진동 (반딧불용)
+  twinkleHz?: number; // 깜빡임 빈도 Hz (기본 1.5)
 }
 
 const PRESETS: Record<ParticlePreset, PresetCfg> = {
@@ -70,6 +73,12 @@ const PRESETS: Record<ParticlePreset, PresetCfg> = {
   fire:     { color: '#ff5a1f', dir:  1, baseSpeed: 1.9, baseSize: 0.22, blending: THREE.AdditiveBlending, sway: 0.18, swaySpeed: 1.3, opacityMul: 0.9 },
   rain:     { color: '#9bbcff', dir: -1, baseSpeed: 5.0, baseSize: 0.05, blending: THREE.NormalBlending,   sway: 0,    swaySpeed: 0,   opacityMul: 0.8 },
   sparkles: { color: '#ffe9a3', dir:  1, baseSpeed: 0.4, baseSize: 0.07, blending: THREE.AdditiveBlending, sway: 0.4,  swaySpeed: 0.9, opacityMul: 1 },
+  // 반딧불 — 노란-연두 발광, 느린 X/Z 부유 + 점멸. dir=0 (떠 있음).
+  firefly:  { color: '#bef264', dir:  0, baseSpeed: 0,   baseSize: 0.10, blending: THREE.AdditiveBlending, sway: 0.6,  swaySpeed: 0.4, opacityMul: 1,    swayZ: 0.5, twinkleAmp: 0.4, twinkleHz: 1.2 },
+  // 꽃잎/잎 — 분홍색(벚꽃 기본). 아래로 천천히 + 크게 좌우. 유저가 texture URL 로 잎 그림 가능.
+  leaves:   { color: '#f9a8d4', dir: -1, baseSpeed: 0.5, baseSize: 0.18, blending: THREE.NormalBlending,   sway: 1.2,  swaySpeed: 0.5, opacityMul: 0.95, swayZ: 0.8 },
+  // 안개층 — 떠 있음. 큰 입자, 낮은 opacity. height 작게 두고 바닥에 깔면 ground mist.
+  mist:     { color: '#ffffff', dir:  0, baseSpeed: 0,   baseSize: 1.5,  blending: THREE.NormalBlending,   sway: 0.2,  swaySpeed: 0.2, opacityMul: 0.35, swayZ: 0.2 },
 };
 
 // 부드러운 원형 스프라이트 — 모듈 1회 생성 후 공유 (사각 점 방지)
@@ -212,23 +221,34 @@ export default function Particles({ s, objId, burstRef }: {
       return;
     }
 
-    // ── 연속 방출 모드 (기존) ──
+    // ── 연속 방출 모드 ──
     const vy = cfg.dir * cfg.baseSpeed * s.speed;
     const t = state.clock.elapsedTime;
     const half = height / 2;
+    const swayZ = cfg.swayZ ?? 0;
     for (let i = 0; i < count; i++) {
       const k = i * 3;
-      arr[k + 1] += vy * speeds[i] * d;
-      if (cfg.sway) arr[k] += Math.sin(t * cfg.swaySpeed + phases[i]) * cfg.sway * d;
-      const y = arr[k + 1];
-      // 범위 밖으로 나가면 반대편에서 재방출 (가로 위치도 새로 뽑음)
-      if (cfg.dir < 0 ? y < -half : y > half) {
-        arr[k] = (Math.random() * 2 - 1) * area;
-        arr[k + 1] = cfg.dir < 0 ? half : -half;
-        arr[k + 2] = (Math.random() * 2 - 1) * area;
+      if (vy !== 0) arr[k + 1] += vy * speeds[i] * d;
+      if (cfg.sway)  arr[k]     += Math.sin(t * cfg.swaySpeed + phases[i]) * cfg.sway * d;
+      if (swayZ)     arr[k + 2] += Math.cos(t * cfg.swaySpeed + phases[i] * 0.7) * swayZ * d;
+      // dir 0 (떠 있음) 은 재방출 없음 — sway 만으로 영역 안에서 흔들림.
+      if (cfg.dir !== 0) {
+        const y = arr[k + 1];
+        if (cfg.dir < 0 ? y < -half : y > half) {
+          arr[k]     = (Math.random() * 2 - 1) * area;
+          arr[k + 1] = cfg.dir < 0 ? half : -half;
+          arr[k + 2] = (Math.random() * 2 - 1) * area;
+        }
       }
     }
     attr.needsUpdate = true;
+    // 깜빡임(반딧불) — material.opacity 를 sin 진동. 진폭 작게.
+    if (cfg.twinkleAmp) {
+      const mat = pts.material as THREE.PointsMaterial;
+      const hz = cfg.twinkleHz ?? 1.5;
+      const amp = cfg.twinkleAmp;
+      mat.opacity = baseOpacity * (1 - amp + Math.sin(t * Math.PI * 2 * hz) * amp);
+    }
   });
 
   return (
