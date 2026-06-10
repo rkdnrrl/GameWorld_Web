@@ -19,7 +19,7 @@ export default function SocialPanel() {
   const [dmUnread, setDmUnread] = useState(0);
   const [notifUnread, setNotifUnread] = useState(0);
 
-  // 몰입형 (월드/스튜디오) 에선 숨김 — 자체 UI 우선
+  // 몰입형 (월드/스튜디오) — 안 숨기고 위치만 위로 올려서 우하단 채팅/캐릭터 버튼들과 안 겹치게.
   const immersive = /\/(world|studio)(\/|$|\?)/.test(pathname);
 
   const loadUnread = useCallback(async () => {
@@ -39,11 +39,11 @@ export default function SocialPanel() {
 
   // 60초 폴링 + 패널 열 때마다 즉시 갱신
   useEffect(() => {
-    if (!loggedIn || immersive) return;
+    if (!loggedIn) return;
     loadUnread();
     const iv = setInterval(loadUnread, 60_000);
     return () => clearInterval(iv);
-  }, [loggedIn, immersive, loadUnread]);
+  }, [loggedIn, loadUnread]);
   useEffect(() => { if (open) loadUnread(); }, [open, loadUnread]);
 
   // ESC 로 닫기
@@ -54,9 +54,11 @@ export default function SocialPanel() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
-  if (!loggedIn || immersive) return null;
+  if (!loggedIn) return null;
 
   const totalBadge = dmUnread + notifUnread;
+  // 몰입형은 우하단에 채팅(🗨)·캐릭터(🎭) 버튼이 stack 돼 있어 그 위로 올림.
+  const btnBottom = immersive ? 156 : 16;
 
   return (
     <>
@@ -65,7 +67,7 @@ export default function SocialPanel() {
         onClick={() => setOpen(true)}
         aria-label={t('open')}
         style={{
-          position: 'fixed', right: 16, bottom: 16, zIndex: 2147482000,
+          position: 'fixed', right: 16, bottom: btnBottom, zIndex: 2147482000,
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           width: 52, height: 52, borderRadius: '50%', border: 'none', cursor: 'pointer',
           background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff',
