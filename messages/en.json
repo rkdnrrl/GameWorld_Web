@@ -76,13 +76,6 @@
     "activeNotice": "Your premium subscription is active.",
     "until": "Expires: {date}"
   },
-  "GameVersions": {
-    "button": "Versions",
-    "title": "Version History",
-    "current": "current",
-    "empty": "No version history yet.",
-    "approvedBy": "Approved by {name}"
-  },
   "GameTitles": {
     "space-fishing": "Junk Fishing",
     "blacksmith": "Blacksmith",
@@ -1461,6 +1454,9 @@
     "title": "Worlds",
     "subtitle": "Maps I made and public maps from others",
     "newWorld": "+ Create New World",
+    "recentTitle": "Recents",
+    "recentHint": "Worlds you visited in this browser",
+    "recentDismiss": "Remove from list",
     "tabMine": "🛠️ My Worlds",
     "tabPublic": "🌐 Public Worlds",
     "loading": "Loading…",

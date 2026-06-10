@@ -414,6 +414,14 @@ export default function WorldPage() {
         setWorldKind(k);
         if (typeof d.world.maxPlayers === 'number' && d.world.maxPlayers > 0) setWorldMaxPlayers(d.world.maxPlayers);
         if (typeof d.world.name === 'string') setWorldName(d.world.name);
+        // 최근 방문 LRU 갱신 — VRChat "Recents" 식. localStorage 만, 백엔드 X.
+        if (effectiveWorldId && typeof d.world.name === 'string') {
+          import('@/lib/world/recentWorlds').then(m => m.addRecentWorld({
+            id: effectiveWorldId,
+            name: d.world.name,
+            thumbnailUrl: d.world.thumbnailUrl ?? null,
+          }));
+        }
         // 제작자 지정 게임 캐릭터 — 있으면 모든 플레이어가 본인 아바타 대신 이걸로 플레이
         setWorldGameChar(d.world.gameCharacter && typeof d.world.gameCharacter === 'object' ? d.world.gameCharacter : null);
       })

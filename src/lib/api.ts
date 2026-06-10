@@ -1219,20 +1219,6 @@ export const api = {
     );
   },
 
-  /** 게임 버전 히스토리 (공개). 운영자 승인 시점에 INSERT 된 행을 최신순으로 반환. */
-  listGameVersions(slug: string) {
-    return request<{
-      currentVersion: number;
-      versions: Array<{
-        id: string;
-        version: number;
-        note: string | null;
-        createdAt: string;
-        approvedBy: string | null;
-      }>;
-    }>(`/api/games/${encodeURIComponent(slug)}/versions`);
-  },
-
   /** 에셋 버전 목록 (소유자) */
   listAssetVersions(token: string, id: string) {
     return request<{

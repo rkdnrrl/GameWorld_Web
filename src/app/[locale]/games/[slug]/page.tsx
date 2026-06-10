@@ -5,7 +5,6 @@ import GameComments     from "@/components/GameComments";
 import GameDetailRating from "@/components/GameDetailRating";
 import GameLikeButton     from "@/components/GameLikeButton";
 import GameScreenshots    from "@/components/GameScreenshots";
-import GameVersionsButton from "@/components/GameVersionsButton";
 import type { GameCategory } from "@/components/GameCard";
 
 const CAT_BG: Record<string, string> = {
@@ -171,7 +170,6 @@ export default async function GameDetailPage({
             <div className="flex flex-wrap items-center gap-3">
               <GamePlayButton gameId={game.id} gameUrl={game.url} />
               <GameLikeButton gameId={game.id} initialCount={game.likeCount} />
-              <GameVersionsButton slug={game.slug} />
             </div>
           </div>
         </div>

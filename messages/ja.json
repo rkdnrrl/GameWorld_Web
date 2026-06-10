@@ -76,13 +76,6 @@
     "activeNotice": "プレミアム購読が有効です。",
     "until": "有効期限: {date}"
   },
-  "GameVersions": {
-    "button": "バージョン",
-    "title": "バージョン履歴",
-    "current": "現在",
-    "empty": "バージョン履歴はまだありません。",
-    "approvedBy": "{name} 承認"
-  },
   "GameTitles": {
     "space-fishing": "ジャンク釣り",
     "blacksmith": "鍛冶屋",
@@ -1461,6 +1454,9 @@
     "title": "ワールド",
     "subtitle": "自分が作ったマップと他の人が公開したマップ",
     "newWorld": "+ 新しいワールドを作成",
+    "recentTitle": "最近訪問",
+    "recentHint": "このブラウザで訪れたワールド",
+    "recentDismiss": "リストから削除",
     "tabMine": "🛠️ 自分が作った",
     "tabPublic": "🌐 公開ワールド",
     "loading": "読み込み中…",

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { session, listWorldSessions } from '@/lib/api';
 import CreatorNav from '@/components/creator/CreatorNav';
+import { getRecentWorlds, removeRecentWorld, type RecentWorldEntry } from '@/lib/world/recentWorlds';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
@@ -44,6 +45,7 @@ export default function WorldsPage() {
   const [tagFilter, setTagFilter] = useState<string>(''); // 선택된 태그 (빈 = 전체)
   const [onlyGames, setOnlyGames] = useState(false);       // 게임만 보기
   const [liveCounts, setLiveCounts] = useState<Record<string, number>>({}); // worldId → 현재 접속자 수
+  const [recents, setRecents] = useState<RecentWorldEntry[]>([]);
 
   const token = () => session.getToken() || '';
 
@@ -55,7 +57,14 @@ export default function WorldsPage() {
       fetch(`${API}/api/worlds/my`, { headers: { Authorization: `Bearer ${token()}` } })
         .then(r => r.json()).then(d => setMyWorlds(d.worlds || [])).catch(() => {});
     }
+    // 최근 방문 — localStorage 1회 로드
+    setRecents(getRecentWorlds());
   }, []);
+
+  function dismissRecent(id: string) {
+    removeRecentWorld(id);
+    setRecents(prev => prev.filter(w => w.id !== id));
+  }
 
   // 공개 월드는 검색/정렬/태그 바뀔 때마다 fetch (debounce 300ms)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -150,6 +159,46 @@ export default function WorldsPage() {
       </div>
 
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 24px 60px' }}>
+        {/* 최근 방문 (localStorage 기반, VRChat Recents 식) */}
+        {recents.length > 0 && (
+          <div style={{ marginBottom: 22 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, opacity: 0.75 }}>🕓 {t('recentTitle')}</span>
+              <span style={{ fontSize: 11, opacity: 0.4 }}>{t('recentHint')}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 6 }}>
+              {recents.map(r => (
+                <div key={r.id} style={{
+                  position: 'relative', flex: '0 0 200px', borderRadius: 10, overflow: 'hidden',
+                  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)',
+                }}>
+                  <a href={`/${locale}/world?id=${r.id}`} target="_blank" rel="noreferrer" style={{
+                    display: 'block', textDecoration: 'none', color: '#fff',
+                  }}>
+                    <div style={{
+                      width: '100%', aspectRatio: '16/9',
+                      background: r.thumbnailUrl ? `url(${r.thumbnailUrl}) center/cover` : 'linear-gradient(135deg,#1e293b,#0a0e1a)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, opacity: r.thumbnailUrl ? 1 : 0.4,
+                    }}>{!r.thumbnailUrl && '🌍'}</div>
+                    <div style={{ padding: '8px 10px', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {r.name}
+                    </div>
+                  </a>
+                  <button
+                    onClick={() => dismissRecent(r.id)}
+                    aria-label={t('recentDismiss')}
+                    style={{
+                      position: 'absolute', top: 6, right: 6,
+                      background: 'rgba(0,0,0,0.55)', color: '#fff', border: 'none',
+                      width: 22, height: 22, borderRadius: '50%', cursor: 'pointer',
+                      fontSize: 12, lineHeight: 1, padding: 0,
+                    }}
+                  >✕</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {/* 탭 */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 18, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           {([
