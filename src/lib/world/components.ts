@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign' | 'seat' | 'teleporter' | 'ladder' | 'door' | 'dialogue' | 'vendingMachine';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign' | 'seat' | 'teleporter' | 'ladder' | 'door' | 'dialogue' | 'vendingMachine' | 'jumpPad';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -181,6 +181,21 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'bubbleColor',  label: '말풍선 배경색',                              type: 'color',   default: '#1f2937' },
       { key: 'textColor',    label: '글자색',                                     type: 'color',   default: '#ffffff' },
       { key: 'autoClose',    label: '마지막 줄 후 자동 닫힘',                     type: 'boolean', default: true },
+    ],
+  },
+  {
+    type: 'jumpPad',
+    name: '점프대 / 부스터',
+    icon: '⬆️',
+    description: '플레이어가 이 오브젝트 박스(scale) 안에 진입하면 즉시 impulse 발동 — 위/앞/임의 방향으로 튕김. cooldown 동안 재발동 무시 (한 번 진입 = 한 번 튕김). 트램펄린·로켓 점프 패드·스피드 부스터 모두 가능. 빈 트리거 박스를 점프대 모델 위에 두면 좋음.',
+    props: [
+      { key: 'mode',     label: '방향 모드 (up=위 / forward=오브젝트 +Z / custom=직접 지정)', type: 'enum',   default: 'up', options: ['up', 'forward', 'custom'] },
+      { key: 'power',    label: '세기 (m/s) — up 모드의 위 속도, forward 모드의 진행 속도',  type: 'number', default: 12, min: 0.5, max: 60, step: 0.5 },
+      { key: 'customX',  label: 'custom 모드: X 속도',                                       type: 'number', default: 0,  min: -50, max: 50, step: 0.5 },
+      { key: 'customY',  label: 'custom 모드: Y 속도 (위)',                                  type: 'number', default: 12, min: -50, max: 50, step: 0.5 },
+      { key: 'customZ',  label: 'custom 모드: Z 속도',                                       type: 'number', default: 0,  min: -50, max: 50, step: 0.5 },
+      { key: 'preserveHorizontal', label: 'up 모드에서 수평 속도 보존 (false=수평 0 으로 리셋)', type: 'boolean', default: true },
+      { key: 'cooldown', label: '재발동 쿨다운 (초)',                                        type: 'number', default: 0.5, min: 0.05, max: 10, step: 0.05 },
     ],
   },
   {
@@ -447,6 +462,51 @@ export function computeDoors(
       swingDuration: Math.max(0.05, Number(p.swingDuration ?? 0.4)),
       range:     Math.max(0.1, Number(p.interactRange ?? 2)),
       startOpen: !!p.startOpen,
+    });
+  }
+  return out;
+}
+
+/** jumpPad 컴포넌트 → 트리거 박스 + impulse 설정. JumpPadController 가 매 frame 진입 → setVelocity. */
+export interface JumpPadSpot {
+  id: string;
+  cx: number; cy: number; cz: number;
+  hx: number; hy: number; hz: number;
+  rotY: number;                                      // forward 모드 방향 (오브젝트 Y 회전)
+  mode: 'up' | 'forward' | 'custom';
+  power: number;
+  customX: number; customY: number; customZ: number;
+  preserveHorizontal: boolean;
+  cooldown: number;
+}
+
+export function computeJumpPads(
+  objects: Array<{ id?: string; position?: number[]; rotation?: number[]; scale?: number[]; components?: ComponentInstance[]; hidden?: boolean }> | undefined | null,
+): JumpPadSpot[] {
+  const out: JumpPadSpot[] = [];
+  for (const o of objects || []) {
+    if (o.hidden) continue;
+    const c = (o.components || []).find(x => x.type === 'jumpPad');
+    if (!c) continue;
+    const p = (c.props || {}) as Record<string, unknown>;
+    const pos = o.position || [0, 0, 0];
+    const rot = o.rotation || [0, 0, 0];
+    const scl = o.scale    || [1, 1, 1];
+    const m = p.mode === 'forward' ? 'forward' : p.mode === 'custom' ? 'custom' : 'up';
+    out.push({
+      id: String(o.id ?? Math.random().toString(36).slice(2)),
+      cx: Number(pos[0]) || 0, cy: Number(pos[1]) || 0, cz: Number(pos[2]) || 0,
+      hx: Math.abs(Number(scl[0]) || 1) / 2,
+      hy: Math.abs(Number(scl[1]) || 1) / 2,
+      hz: Math.abs(Number(scl[2]) || 1) / 2,
+      rotY: Number(rot[1]) || 0,
+      mode: m,
+      power: Math.max(0, Number(p.power ?? 12)),
+      customX: Number(p.customX ?? 0),
+      customY: Number(p.customY ?? 12),
+      customZ: Number(p.customZ ?? 0),
+      preserveHorizontal: p.preserveHorizontal !== false,
+      cooldown: Math.max(0.05, Number(p.cooldown ?? 0.5)),
     });
   }
   return out;
