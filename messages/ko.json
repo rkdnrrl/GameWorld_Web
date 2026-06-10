@@ -2074,8 +2074,16 @@
     "notificationsDesc": "최근 활동 알림",
     "feed": "활동 피드",
     "feedDesc": "팔로잉 한 사람들의 활동",
-    "findPeople": "사람 찾기",
-    "findPeopleDesc": "다른 크리에이터 둘러보기"
+    "findPeople": "크리에이터 둘러보기",
+    "findPeopleDesc": "마켓플레이스에서 다른 사람들의 작품 보기",
+    "loading": "불러오는 중…",
+    "loadFailed": "불러오기 실패",
+    "needLogin": "로그인이 필요합니다.",
+    "dmEmpty": "아직 메시지가 없어요.\n월드에서 다른 사람을 클릭하면 메시지를 보낼 수 있어요.",
+    "dmNoMessages": "(메시지 없음)",
+    "viewAllMessages": "전체 메시지 보기",
+    "notifEmpty": "새 알림이 없습니다.",
+    "viewAllNotifications": "이전 알림 보기"
   },
   "DailyCheckIn": {
     "title": "오늘의 출석 보상",

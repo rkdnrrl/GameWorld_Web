@@ -2054,8 +2054,16 @@
     "notificationsDesc": "最近的活动通知",
     "feed": "动态",
     "feedDesc": "关注的人的最新活动",
-    "findPeople": "发现用户",
-    "findPeopleDesc": "看看其他创作者"
+    "findPeople": "看看创作者们",
+    "findPeopleDesc": "在市场里看看别人做的作品",
+    "loading": "加载中…",
+    "loadFailed": "加载失败",
+    "needLogin": "需要登录。",
+    "dmEmpty": "暂无消息。\n在世界里点击别人即可开始聊天。",
+    "dmNoMessages": "(无消息)",
+    "viewAllMessages": "打开消息列表",
+    "notifEmpty": "没有新通知。",
+    "viewAllNotifications": "查看历史通知"
   },
   "DailyCheckIn": {
     "title": "每日签到奖励",

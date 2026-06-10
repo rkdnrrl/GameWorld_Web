@@ -10,12 +10,16 @@ import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { api, session, ApiError } from '@/lib/api';
 import { useLoggedIn } from '@/lib/useLoggedIn';
+import DmListModal from '@/components/social/DmListModal';
+import NotificationsModal from '@/components/social/NotificationsModal';
 
 export default function SocialPanel() {
   const t = useTranslations('Social');
   const loggedIn = useLoggedIn();
   const pathname = usePathname() || '';
   const [open, setOpen] = useState(false);
+  const [dmModal, setDmModal] = useState(false);
+  const [notifModal, setNotifModal] = useState(false);
   const [dmUnread, setDmUnread] = useState(0);
   const [notifUnread, setNotifUnread] = useState(0);
 
@@ -116,29 +120,30 @@ export default function SocialPanel() {
             </div>
 
             <nav style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
-              <SocialCard href="/friends" icon="🤝" label={t('friends')} desc={t('friendsDesc')} onNavigate={() => setOpen(false)} />
-              <SocialCard href="/messages" icon="💬" label={t('messages')} desc={t('messagesDesc')} badge={dmUnread} onNavigate={() => setOpen(false)} />
-              <SocialCard href="/notifications" icon="🔔" label={t('notifications')} desc={t('notificationsDesc')} badge={notifUnread} onNavigate={() => setOpen(false)} />
-              <SocialCard href="/feed" icon="📰" label={t('feed')} desc={t('feedDesc')} onNavigate={() => setOpen(false)} />
-              <SocialCard href="/users" icon="🔎" label={t('findPeople')} desc={t('findPeopleDesc')} onNavigate={() => setOpen(false)} />
+              {/* 메시지·알림: 페이지 전환 대신 모달 — 빠른 미리보기 + 액션 */}
+              <SocialAction icon="💬" label={t('messages')} desc={t('messagesDesc')} badge={dmUnread} onClick={() => { setOpen(false); setDmModal(true); }} />
+              <SocialAction icon="🔔" label={t('notifications')} desc={t('notificationsDesc')} badge={notifUnread} onClick={() => { setOpen(false); setNotifModal(true); }} />
+              {/* 친구·피드: 긴 콘텐츠/맥락 유지 — 전용 페이지 */}
+              <SocialLink href="/friends" icon="🤝" label={t('friends')} desc={t('friendsDesc')} onNavigate={() => setOpen(false)} />
+              <SocialLink href="/feed" icon="📰" label={t('feed')} desc={t('feedDesc')} onNavigate={() => setOpen(false)} />
+              {/* 사람 찾기 = 마켓플레이스의 크리에이터 둘러보기 (/users 미존재) */}
+              <SocialLink href="/assets/browse" icon="🔎" label={t('findPeople')} desc={t('findPeopleDesc')} onNavigate={() => setOpen(false)} />
             </nav>
           </div>
         </div>
       )}
+
+      {/* 메시지·알림 모달 — 패널 닫힌 상태에서 단독으로도 띄울 수 있음 */}
+      {dmModal && <DmListModal onClose={() => { setDmModal(false); loadUnread(); }} />}
+      {notifModal && <NotificationsModal onClose={() => { setNotifModal(false); loadUnread(); }} onAllRead={() => setNotifUnread(0)} />}
     </>
   );
 }
 
-function SocialCard({ href, icon, label, desc, badge, onNavigate }: {
-  href: string; icon: string; label: string; desc: string; badge?: number; onNavigate: () => void;
-}) {
+// 카드 공통 콘텐츠 (아이콘 + 라벨 + 설명 + 옵셔널 배지)
+function CardInner({ icon, label, desc, badge }: { icon: string; label: string; desc: string; badge?: number }) {
   return (
-    <Link href={href} onClick={onNavigate} style={{
-      display: 'flex', alignItems: 'center', gap: 12,
-      padding: '12px 14px', borderRadius: 10,
-      background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-      color: '#fff', textDecoration: 'none',
-    }}>
+    <>
       <span style={{ fontSize: 24 }}>{icon}</span>
       <span style={{ flex: 1, minWidth: 0 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700 }}>
@@ -150,6 +155,33 @@ function SocialCard({ href, icon, label, desc, badge, onNavigate }: {
         <span style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>{desc}</span>
       </span>
       <span style={{ color: 'rgba(255,255,255,0.4)' }}>›</span>
+    </>
+  );
+}
+
+const CARD_STYLE: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 12,
+  padding: '12px 14px', borderRadius: 10,
+  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+  color: '#fff', textDecoration: 'none', cursor: 'pointer', textAlign: 'left',
+};
+
+function SocialLink({ href, icon, label, desc, badge, onNavigate }: {
+  href: string; icon: string; label: string; desc: string; badge?: number; onNavigate: () => void;
+}) {
+  return (
+    <Link href={href} onClick={onNavigate} style={CARD_STYLE}>
+      <CardInner icon={icon} label={label} desc={desc} badge={badge} />
     </Link>
+  );
+}
+
+function SocialAction({ icon, label, desc, badge, onClick }: {
+  icon: string; label: string; desc: string; badge?: number; onClick: () => void;
+}) {
+  return (
+    <button type="button" onClick={onClick} style={{ ...CARD_STYLE, font: 'inherit' }}>
+      <CardInner icon={icon} label={label} desc={desc} badge={badge} />
+    </button>
   );
 }

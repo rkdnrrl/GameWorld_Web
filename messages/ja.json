@@ -2054,8 +2054,16 @@
     "notificationsDesc": "最近のアクティビティ通知",
     "feed": "アクティビティ",
     "feedDesc": "フォロー中のユーザーの活動",
-    "findPeople": "ユーザーを探す",
-    "findPeopleDesc": "他のクリエイターを見る"
+    "findPeople": "クリエイターを見る",
+    "findPeopleDesc": "マーケットプレイスで他のユーザーの作品を見る",
+    "loading": "読み込み中…",
+    "loadFailed": "読み込みに失敗しました",
+    "needLogin": "ログインが必要です。",
+    "dmEmpty": "メッセージはまだありません。\nワールドで誰かをクリックして話しかけてみよう。",
+    "dmNoMessages": "(メッセージなし)",
+    "viewAllMessages": "メッセージ一覧を開く",
+    "notifEmpty": "新しい通知はありません。",
+    "viewAllNotifications": "過去の通知を見る"
   },
   "DailyCheckIn": {
     "title": "今日のログイン報酬",

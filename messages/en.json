@@ -2054,8 +2054,16 @@
     "notificationsDesc": "Recent activity alerts",
     "feed": "Activity Feed",
     "feedDesc": "What people you follow are up to",
-    "findPeople": "Find People",
-    "findPeopleDesc": "Browse other creators"
+    "findPeople": "Browse Creators",
+    "findPeopleDesc": "See what others have made in the marketplace",
+    "loading": "Loading…",
+    "loadFailed": "Failed to load",
+    "needLogin": "Login required.",
+    "dmEmpty": "No messages yet.\nClick someone in a world to start a chat.",
+    "dmNoMessages": "(no messages)",
+    "viewAllMessages": "Open full inbox",
+    "notifEmpty": "No new notifications.",
+    "viewAllNotifications": "See older notifications"
   },
   "DailyCheckIn": {
     "title": "Daily Reward",
