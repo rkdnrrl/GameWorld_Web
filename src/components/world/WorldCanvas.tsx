@@ -5982,6 +5982,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               checkpoints={checkpoints}
               killZones={killZones}
               worldSpawn={spawnPick.pos}
+              spawnRef={spawnRef}
               localPoseRef={localPoseRef}
               playerCtlRef={playerCtlRef}
             />

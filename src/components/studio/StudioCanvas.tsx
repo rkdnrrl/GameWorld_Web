@@ -3526,6 +3526,7 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
           checkpoints={simCheckpoints}
           killZones={simKillZones}
           worldSpawn={spawnRef.current}
+          spawnRef={spawnRef}
           localPoseRef={simPlayerPoseRef}
           playerCtlRef={playerCtlRef}
         />

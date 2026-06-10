@@ -21,12 +21,15 @@ export default function CheckpointController({
   checkpoints,
   killZones,
   worldSpawn,
+  spawnRef,
   localPoseRef,
   playerCtlRef,
 }: {
   checkpoints: CheckpointSpot[];
   killZones: KillZoneSpot[];
   worldSpawn: [number, number, number] | null | undefined;
+  // 체크포인트 도달 시 spawnRef.current 도 갱신 → Player 의 추락 부활/world.setSpawn 시스템과 자동 호환.
+  spawnRef?: React.MutableRefObject<[number, number, number]> | null;
   localPoseRef: React.MutableRefObject<{ x: number; y: number; z: number; rotY: number }> | null | undefined;
   playerCtlRef: React.MutableRefObject<PlayerControl | null> | null | undefined;
 }) {
@@ -75,7 +78,10 @@ export default function CheckpointController({
       if (!isInside(cp.cx, cp.cy, cp.cz, cp.hx, cp.hy, cp.hz, pose.x, pose.y, pose.z)) continue;
       if (lastCheckpointId.current === cp.id) break; // 이미 등록된 체크포인트
       lastCheckpointId.current = cp.id;
-      lastSpawnPos.current = [cp.cx, cp.cy + cp.offsetY, cp.cz];
+      const spawn: [number, number, number] = [cp.cx, cp.cy + cp.offsetY, cp.cz];
+      lastSpawnPos.current = spawn;
+      // spawnRef 도 갱신 → Player 의 추락 부활 / world.setSpawn 시스템과 자동 호환
+      if (spawnRef) { spawnRef.current = [spawn[0], spawn[1], spawn[2]]; }
       if (!cp.silent) pushToast(`🚩 ${cp.label}`);
       break;
     }
