@@ -2101,6 +2101,8 @@ export function Player({
         for (let bi = 0; bi < bvs.length; bi++) {
           const bv = bvs[bi];
           if (Math.abs(posT.x - bv.cx) > bv.hx || Math.abs(posT.z - bv.cz) > bv.hz) continue;
+          // 물 바닥(보이는 물 부피: 수면 cy ~ 바닥 cy-scaleY) 아래면 물 밖 — 맵 밑으로 떨어져도 수영 판정 안 됨
+          if (posT.y < bv.cy - bv.scaleY - 0.3) continue;
           // 수면 Y = WaterMesh 정점 변위와 동일 공식을 캐릭터 위치(lx,ly)에서 평가.
           let surf = bv.cy + bv.offset;
           if (bv.waveStrength) {
