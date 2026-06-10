@@ -974,6 +974,32 @@ export const api = {
     );
   },
 
+  // ─── 월드 즐겨찾기 (Phase 5-I, 계정 단위 동기화) ───
+  listFavoriteWorlds(token: string) {
+    return request<{ favorites: Array<{ id: string; name: string; thumbnailUrl: string | null; addedAt: number }> }>(
+      "/api/favorite-worlds",
+      { headers: authHeaders(token) },
+    );
+  },
+  addFavoriteWorld(token: string, entry: { worldId: string; name: string; thumbnailUrl?: string | null }) {
+    return request<{ ok: true }>(
+      "/api/favorite-worlds",
+      { method: "POST", headers: authHeaders(token), body: JSON.stringify(entry) },
+    );
+  },
+  removeFavoriteWorld(token: string, worldId: string) {
+    return request<{ ok: true }>(
+      `/api/favorite-worlds/${encodeURIComponent(worldId)}`,
+      { method: "DELETE", headers: authHeaders(token) },
+    );
+  },
+  syncFavoriteWorlds(token: string, items: Array<{ id: string; name: string; thumbnailUrl?: string | null; addedAt?: number }>) {
+    return request<{ favorites: Array<{ id: string; name: string; thumbnailUrl: string | null; addedAt: number }> }>(
+      "/api/favorite-worlds/sync",
+      { method: "POST", headers: authHeaders(token), body: JSON.stringify({ items }) },
+    );
+  },
+
   // ─── DM (Phase 19) ───
   /** 대화방 목록 */
   listConversations(token: string) {
