@@ -65,6 +65,7 @@ import JumpPadController from '@/lib/world/JumpPadController';
 import CheckpointController from '@/lib/world/CheckpointController';
 import RaceController from '@/lib/world/RaceController';
 import InteractButton from '@/lib/world/InteractButton';
+import SeatButton from '@/lib/world/SeatButton';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
@@ -5655,6 +5656,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       {/* ── 모바일 컨트롤: Canvas 완전 바깥의 position:fixed DOM ── */}
       {isMobile && <MobileControls inputLocked={chatInputActive} cameraMode={cameraMode} />}
       <InteractButton isMobile={isMobile} />
+      <SeatButton isMobile={isMobile} />
 
       {selectedRemote && (
         <RemotePlayerInfoPanel

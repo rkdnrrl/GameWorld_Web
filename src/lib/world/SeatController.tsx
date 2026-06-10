@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useFrame } from '@react-three/fiber';
 import type { SeatSpot } from './components';
+import { setInteractPrompt } from './interactPrompt';
 
 export interface PlayerControl {
   teleport?: (x: number, y: number, z: number) => void;
@@ -69,6 +70,7 @@ export default function SeatController({
     lastStatus.current = s;
     onStatusChange?.(s);
     setHudText(s.sitting ? '🪑 F: 일어나기' : s.prompt ? '🪑 F: 앉기' : '');
+    setInteractPrompt(s.prompt || s.sitting ? 'seat' : null);
   }
 
   function handleToggle() {
@@ -129,6 +131,7 @@ export default function SeatController({
       try { playerCtlRef?.current?.setGravityEnabled?.(true); } catch { /* noop */ }
       sittingOnRef.current = null;
     }
+    setInteractPrompt(null);
   }, [playerCtlRef]);
 
   // HUD prompt — 화면 하단 중앙. createPortal 로 document.body 에 띄워 R3F 외부 위치.
