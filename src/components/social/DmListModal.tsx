@@ -5,10 +5,11 @@
  *  - 행 클릭 시 같은 모달 위에 DmChatModal 띄움 (RemotePlayerInfoPanel 과 동일 패턴)
  *  - "전체 메시지 보기" 링크로 /messages 페이지 진입 가능 (백그라운드용)
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { api, session, ApiError } from '@/lib/api';
+import { DM_PUSH_EVENT } from '@/lib/notifications/useNotificationStream';
 import { DmChatModal } from '@/components/world/DmChatModal';
 
 type Conv = {
@@ -26,13 +27,22 @@ export default function DmListModal({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState('');
   const [active, setActive] = useState<Conv | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     const tk = session.getToken();
     if (!tk) { setError(t('needLogin')); return; }
     api.listConversations(tk)
       .then(d => setConvs(d.conversations as Conv[]))
       .catch(e => setError(e instanceof ApiError ? e.message : t('loadFailed')));
   }, [t]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // 실시간 DM 수신 시 목록 갱신 (열려있을 때)
+  useEffect(() => {
+    const onDm = () => load();
+    window.addEventListener(DM_PUSH_EVENT, onDm);
+    return () => window.removeEventListener(DM_PUSH_EVENT, onDm);
+  }, [load]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { if (active) setActive(null); else onClose(); } };

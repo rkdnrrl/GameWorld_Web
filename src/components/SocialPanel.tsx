@@ -10,7 +10,13 @@ import { useTranslations } from 'next-intl';
 import { Link, useRouter } from '@/i18n/navigation';
 import { api, session, ApiError } from '@/lib/api';
 import { useLoggedIn } from '@/lib/useLoggedIn';
-import { useNotificationStream, type PushNotification } from '@/lib/notifications/useNotificationStream';
+import {
+  useNotificationStream, getActiveDmConversation,
+  NOTIFICATION_PUSH_EVENT, DM_PUSH_EVENT,
+  type PushNotification, type DmPush,
+} from '@/lib/notifications/useNotificationStream';
+
+type ToastView = { icon: string; text: string; href: string | null };
 import DmListModal from '@/components/social/DmListModal';
 import NotificationsModal from '@/components/social/NotificationsModal';
 
@@ -25,7 +31,7 @@ export default function SocialPanel() {
   const [notifModal, setNotifModal] = useState(false);
   const [dmUnread, setDmUnread] = useState(0);
   const [notifUnread, setNotifUnread] = useState(0);
-  const [toast, setToast] = useState<PushNotification | null>(null);
+  const [toast, setToast] = useState<ToastView | null>(null);
 
   // 몰입형 (월드/스튜디오) — 안 숨기고 위치만 위로 올려서 우하단 채팅/캐릭터 버튼들과 안 겹치게.
   const immersive = /\/(world|studio)(\/|$|\?)/.test(pathname);
@@ -54,9 +60,33 @@ export default function SocialPanel() {
   }, [loggedIn, loadUnread]);
   useEffect(() => { if (open) loadUnread(); }, [open, loadUnread]);
 
-  // 실시간 알림 수신(NotifyHub WS) — 배지 즉시 갱신 + 토스트 팝업.
-  // 30초 폴링은 백업으로 유지(연결 끊김 대비).
-  useNotificationStream((n) => { loadUnread(); setToast(n); });
+  // 실시간 수신(NotifyHub WS) — 연결만 유지. 이벤트는 window 로 받음.
+  // 30초 폴링은 백업(연결 끊김 대비).
+  useNotificationStream();
+
+  // 알림/DM push → 배지 즉시 갱신 + 토스트
+  useEffect(() => {
+    function onNotif(e: Event) {
+      loadUnread();
+      setToast(notifView((e as CustomEvent).detail as PushNotification));
+    }
+    function onDm(e: Event) {
+      const dm = (e as CustomEvent).detail as DmPush;
+      loadUnread();
+      // 그 대화창을 보고 있으면 토스트 생략 (이미 Supabase 로 인라인 수신 중)
+      if (dm.conversationId !== getActiveDmConversation()) {
+        setToast({ icon: '💬', text: `${dm.fromUsername}: ${dm.preview}`, href: `/messages/${dm.conversationId}` });
+      }
+    }
+    window.addEventListener(NOTIFICATION_PUSH_EVENT, onNotif);
+    window.addEventListener(DM_PUSH_EVENT, onDm);
+    return () => {
+      window.removeEventListener(NOTIFICATION_PUSH_EVENT, onNotif);
+      window.removeEventListener(DM_PUSH_EVENT, onDm);
+    };
+    // notifView 는 tn(안정) 의존 — 이벤트 핸들러라 stale 무해
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadUnread]);
 
   // 토스트 자동 사라짐
   useEffect(() => {
@@ -87,7 +117,7 @@ export default function SocialPanel() {
 
   function onToastClick() {
     if (!toast) return;
-    const { href } = notifView(toast);
+    const href = toast.href;
     setToast(null);
     if (href) router.push(href);
     else setNotifModal(true);
@@ -96,7 +126,7 @@ export default function SocialPanel() {
   if (!loggedIn) return null;
 
   const totalBadge = dmUnread + notifUnread;
-  const toastView = toast ? notifView(toast) : null;
+  const toastView = toast;
   // 몰입형은 우하단에 채팅(🗨)·캐릭터(🎭) 버튼이 stack 돼 있어 그 위로 올림.
   const btnBottom = immersive ? 156 : 16;
 

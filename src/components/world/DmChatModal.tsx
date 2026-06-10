@@ -10,6 +10,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { api, session, ApiError } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
+import { setActiveDmConversation } from '@/lib/notifications/useNotificationStream';
 import { linkify } from '@/lib/linkify';
 
 interface Message { id: string; senderId: string; body: string; createdAt: string; readAt: string | null }
@@ -40,6 +41,12 @@ export function DmChatModal({ conversationId, other, onClose }: {
   }, [conversationId, t]);
 
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [messages]);
+
+  // 이 대화창을 보는 동안 DM 토스트 억제 (SocialPanel 이 참조)
+  useEffect(() => {
+    setActiveDmConversation(conversationId);
+    return () => setActiveDmConversation(null);
+  }, [conversationId]);
 
   // Supabase Realtime — 새 메시지 수신
   useEffect(() => {

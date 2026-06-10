@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { api, session, ApiError } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
+import { setActiveDmConversation } from '@/lib/notifications/useNotificationStream';
 
 interface Message { id: string; senderId: string; body: string; createdAt: string; readAt: string | null }
 interface OtherUser { id: string; username: string; profileImageUrl: string | null; iconEmoji: string | null; themeColor: string | null; bio: string | null }
@@ -50,6 +51,12 @@ export default function DmRoom({ params }: { params: Promise<{ id: string }> }) 
   useEffect(() => {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [messages]);
+
+  // 이 대화방을 보는 동안 DM 토스트 억제
+  useEffect(() => {
+    setActiveDmConversation(id);
+    return () => setActiveDmConversation(null);
+  }, [id]);
 
   // Supabase Realtime 구독 (dm_messages INSERT)
   useEffect(() => {

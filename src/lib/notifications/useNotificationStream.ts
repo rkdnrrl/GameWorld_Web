@@ -15,6 +15,7 @@ import { session, SESSION_CHANGE_EVENT } from '@/lib/api';
 const WS_BASE = process.env.NEXT_PUBLIC_NOTIFY_WS || 'wss://play.airliveplay.com';
 
 export const NOTIFICATION_PUSH_EVENT = 'alp-notification-push';
+export const DM_PUSH_EVENT = 'alp-dm-push';
 
 export interface PushNotification {
   id: string;
@@ -24,6 +25,22 @@ export interface PushNotification {
   readAt: string | null;
   createdAt: string;
 }
+
+export interface DmPush {
+  conversationId: string;
+  messageId: string;
+  fromUserId: string;
+  fromUsername: string;
+  fromAvatar: string | null;
+  preview: string;
+  createdAt: string;
+}
+
+// 현재 열려있는 DM 대화 id — 그 대화창에 있는 동안엔 DM 토스트를 띄우지 않기 위함.
+// DmChatModal / messages 페이지가 mount 시 설정, unmount 시 null.
+let _activeDmConv: string | null = null;
+export function setActiveDmConversation(id: string | null) { _activeDmConv = id; }
+export function getActiveDmConversation() { return _activeDmConv; }
 
 export function useNotificationStream(onNotification?: (n: PushNotification) => void) {
   const cbRef = useRef(onNotification);
@@ -61,12 +78,14 @@ export function useNotificationStream(onNotification?: (n: PushNotification) => 
       };
       ws.onmessage = (evt) => {
         if (evt.data === 'pong') return;
-        let msg: { type?: string; notification?: PushNotification };
+        let msg: { type?: string; notification?: PushNotification; dm?: DmPush };
         try { msg = JSON.parse(evt.data); } catch { return; }
         if (msg.type === 'notification' && msg.notification) {
           const n = msg.notification;
           cbRef.current?.(n);
           window.dispatchEvent(new CustomEvent(NOTIFICATION_PUSH_EVENT, { detail: n }));
+        } else if (msg.type === 'dm' && msg.dm) {
+          window.dispatchEvent(new CustomEvent(DM_PUSH_EVENT, { detail: msg.dm }));
         }
       };
       ws.onerror = () => { try { ws?.close(); } catch { /* noop */ } };
