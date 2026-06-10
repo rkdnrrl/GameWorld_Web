@@ -53,6 +53,7 @@ import VendingController from '@/lib/world/VendingController';
 import JumpPadController from '@/lib/world/JumpPadController';
 import CheckpointController from '@/lib/world/CheckpointController';
 import RaceController from '@/lib/world/RaceController';
+import TriggerGuides from '@/lib/world/TriggerGuides';
 import { sampleKeyframeAnim, normalizeKeyframeAnim, applySampledTRS, composeSampledWorld, type KeyframeAnim, type KeyFrame } from '@/lib/world/keyframeAnim';
 import { Player, type PlayerControl } from '@/components/world/WorldCanvas';
 
@@ -8657,6 +8658,8 @@ export default function StudioCanvas() {
                   </group>
                 );
               })}
+              {/* 트리거 영역 시각화 — 편집 모드에서 jumpPad/checkpoint/killZone/raceStart/raceFinish 위치·범위 확인 */}
+              <TriggerGuides objects={objects} selectedId={selectedId} />
               {/* 표지판 미리보기 — 편집 모드에서 글자/위치 확인 */}
               {objects.filter(o => !o.hidden && o.components?.some(c => c.type === 'sign')).map(obj => {
                 const inst = obj.components!.find(c => c.type === 'sign')!;
