@@ -13,6 +13,7 @@ import AssetPreviewModal from '@/components/assets/AssetPreviewModal';
 import type { Asset as RegistryAsset } from '@/lib/assets/types';
 import PostFX, { derivePostFX, collectPostFXZones, collectWaterPostFX, type PostFXZone, type WaterPostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
+import SignText from '@/lib/world/SignText';
 import { devLog } from '@/lib/devLog';
 import { PerfManager } from '@/lib/world/PerfManager';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
@@ -3459,6 +3460,16 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
         return (
           <group key={'pfx-' + obj.id} position={tr.pos} rotation={tr.rot} scale={tr.scl ?? obj.scale}>
             <Particles s={deriveParticleSettings(inst)} objId={obj.id} burstRef={clickBurstRef} />
+          </group>
+        );
+      })}
+      {/* 표지판 레이어 — sign 컴포넌트 위치에 worldspace text */}
+      {allObjects.filter(o => o.components?.some(c => c.type === 'sign')).map(obj => {
+        const inst = obj.components!.find(c => c.type === 'sign')!;
+        const tr = transforms[obj.id] ?? { pos: obj.position, rot: obj.rotation, scl: obj.scale };
+        return (
+          <group key={'sign-' + obj.id} position={tr.pos} rotation={tr.rot} scale={tr.scl ?? obj.scale}>
+            <SignText inst={inst} />
           </group>
         );
       })}
@@ -8557,6 +8568,16 @@ export default function StudioCanvas() {
                 return (
                   <group key={'pfx-' + obj.id} position={w.p} rotation={w.r} scale={w.s}>
                     <Particles s={deriveParticleSettings(inst)} />
+                  </group>
+                );
+              })}
+              {/* 표지판 미리보기 — 편집 모드에서 글자/위치 확인 */}
+              {objects.filter(o => !o.hidden && o.components?.some(c => c.type === 'sign')).map(obj => {
+                const inst = obj.components!.find(c => c.type === 'sign')!;
+                const w = worldTRSFor(obj);
+                return (
+                  <group key={'sign-' + obj.id} position={w.p} rotation={w.r} scale={w.s}>
+                    <SignText inst={inst} />
                   </group>
                 );
               })}

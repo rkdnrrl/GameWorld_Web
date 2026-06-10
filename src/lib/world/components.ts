@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -138,6 +138,24 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'scanline',       label: 'CRT 스캔라인 (0=끔)',    type: 'number', default: 0,    min: 0, max: 2,    step: 0.05, group: 'advanced' },
       { key: 'pixelate',       label: '픽셀화 (0=끔, 픽셀 크기)', type: 'number', default: 0,  min: 0, max: 16,   step: 1, group: 'advanced' },
       { key: 'toneMapping',    label: 'ACES 톤매핑',            type: 'boolean', default: false, group: 'advanced' },
+    ],
+  },
+  {
+    type: 'sign',
+    name: '표지판 / 텍스트',
+    icon: '🪧',
+    description: '월드 공간에 텍스트 띄움. 안내문·이름표·환영 메시지·길 안내용. 줄바꿈은 Enter. billboard=항상 카메라 향함. viewDistance 밖에선 자동 숨김(성능). 배경 박스는 bgOpacity 0 보다 크게 두면 표시.',
+    props: [
+      { key: 'text',         label: '내용 (Enter=줄바꿈)',           type: 'string',  default: '안녕하세요!' },
+      { key: 'color',        label: '글자색',                          type: 'color',   default: '#ffffff' },
+      { key: 'fontSize',     label: '글자 크기 (m)',                   type: 'number',  default: 0.4, min: 0.05, max: 5, step: 0.05 },
+      { key: 'maxWidth',     label: '최대 폭 (m) — 자동 줄바꿈',       type: 'number',  default: 6,   min: 0.5,  max: 50, step: 0.5 },
+      { key: 'bgColor',      label: '배경 박스 색',                    type: 'color',   default: '#000000' },
+      { key: 'bgOpacity',    label: '배경 투명도 (0=박스 없음)',       type: 'number',  default: 0.5, min: 0,    max: 1, step: 0.05 },
+      { key: 'outlineWidth', label: '외곽선 두께 (가독성)',            type: 'number',  default: 0.02, min: 0,   max: 0.2, step: 0.01 },
+      { key: 'outlineColor', label: '외곽선 색',                       type: 'color',   default: '#000000' },
+      { key: 'billboard',    label: '항상 카메라 향함 (billboard)',     type: 'boolean', default: true },
+      { key: 'viewDistance', label: '보이는 거리 (m, 밖이면 숨김)',     type: 'number',  default: 30,  min: 1,    max: 200, step: 1 },
     ],
   },
   {

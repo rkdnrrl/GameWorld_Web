@@ -65,6 +65,7 @@ import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
 import PostFX, { derivePostFX, collectPostFXZones, collectWaterPostFX, type PostFXZone, type WaterPostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
+import SignText from '@/lib/world/SignText';
 import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, parseUrlKind, normalizeMediaUrl, ImageMaterial, GenericIframeOverlay, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, VideoRemotePanel, VideoDistanceUpdater, VideoInitialStateApplier, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
 import VoiceSettingsPanel from './VoiceSettingsPanel';
 import { RemotePlayerInfoPanel } from './RemotePlayerInfoPanel';
@@ -5988,6 +5989,18 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                       </group>
                     );
                   });
+                // 표지판/텍스트 레이어 — sign 컴포넌트가 붙은 오브젝트의 월드 위치에 worldspace text.
+                const signs = list
+                  .filter(o => !o.hidden && o.components?.some(c => c.type === 'sign'))
+                  .map(obj => {
+                    const inst = obj.components!.find(c => c.type === 'sign')!;
+                    const w = obj.parentId ? computeWorldTRS(obj, byId) : { position: obj.position, rotation: obj.rotation, scale: obj.scale };
+                    return (
+                      <group key={'sign-' + obj.id} position={w.position} rotation={w.rotation} scale={w.scale}>
+                        <SignText inst={inst} />
+                      </group>
+                    );
+                  });
                 // 비디오 리모컨 레이어 — videoRemote 컴포넌트가 붙은 오브젝트 위치에 3D 조작 패널.
                 const remotes = list
                   .filter(o => !o.hidden && o.components?.some(c => c.type === 'videoRemote'))
@@ -6051,7 +6064,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                       autoplay={o.soundAutoplay !== false}
                       radius={o.soundRadius ?? 10} />;
                   });
-                return <>{meshes}{particles}{remotes}{flashlights}{sounds}</>;
+                return <>{meshes}{particles}{signs}{remotes}{flashlights}{sounds}</>;
               })()}</>
             ) : (
               // worldId 없음 (기본 월드) → 데모 섬
