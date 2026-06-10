@@ -75,6 +75,34 @@ export default function WorldsPage() {
     return added;
   }
 
+  // "같이 가기" — 모바일은 navigator.share, 데스크탑은 클립보드 복사
+  const [shareToast, setShareToast] = useState<string>('');
+  async function onShareWorld(w: World) {
+    if (typeof window === 'undefined') return;
+    const url = `${window.location.origin}/${locale}/world?id=${w.id}`;
+    try {
+      // 모바일/지원 브라우저는 네이티브 공유 시트 (카톡/DM 등으로 바로)
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        await navigator.share({ title: w.name, text: w.name, url });
+        return;
+      }
+      // 그 외 — 클립보드 복사
+      await navigator.clipboard.writeText(url);
+      setShareToast(t('shareCopied'));
+      setTimeout(() => setShareToast(''), 2200);
+    } catch {
+      // 사용자가 share 취소한 경우 등 — 조용히 무시. 클립보드 실패 시만 토스트.
+      try {
+        await navigator.clipboard.writeText(url);
+        setShareToast(t('shareCopied'));
+        setTimeout(() => setShareToast(''), 2200);
+      } catch {
+        setShareToast(t('shareError'));
+        setTimeout(() => setShareToast(''), 2200);
+      }
+    }
+  }
+
   // 공개 월드는 검색/정렬/태그 바뀔 때마다 fetch (debounce 300ms)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -414,6 +442,16 @@ export default function WorldsPage() {
                           color: isFavoriteWorld(w.id) ? '#fbbf24' : 'rgba(255,255,255,0.3)',
                         }}
                       >★</button>
+                      <button
+                        onClick={(e) => { e.preventDefault(); onShareWorld(w); }}
+                        aria-label={t('share')}
+                        title={t('share')}
+                        style={{
+                          flex: '0 0 auto', background: 'transparent', border: 'none', cursor: 'pointer',
+                          fontSize: 14, padding: 0, lineHeight: 1,
+                          color: 'rgba(255,255,255,0.45)',
+                        }}
+                      >🔗</button>
                     </div>
                     {tab === 'public' && w.creator && (
                       <div style={{ fontSize: 11, opacity: 0.55, marginBottom: 6 }}>{t('by')} <span style={{ color: 'rgba(255,255,255,0.7)' }}>{w.creator.username}</span></div>
@@ -459,6 +497,16 @@ export default function WorldsPage() {
           </div>
         )}
       </div>
+      {shareToast && (
+        <div style={{
+          position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(15,23,42,0.95)', color: '#fff', fontWeight: 700, fontSize: 13,
+          padding: '10px 18px', borderRadius: 999, zIndex: 1000,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          pointerEvents: 'none',
+        }}>{shareToast}</div>
+      )}
     </div>
   );
 }
