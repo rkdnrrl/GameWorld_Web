@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -138,6 +138,20 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'scanline',       label: 'CRT 스캔라인 (0=끔)',    type: 'number', default: 0,    min: 0, max: 2,    step: 0.05, group: 'advanced' },
       { key: 'pixelate',       label: '픽셀화 (0=끔, 픽셀 크기)', type: 'number', default: 0,  min: 0, max: 16,   step: 1, group: 'advanced' },
       { key: 'toneMapping',    label: 'ACES 톤매핑',            type: 'boolean', default: false, group: 'advanced' },
+    ],
+  },
+  {
+    type: 'dayNight',
+    name: '낮/밤 사이클',
+    icon: '🌅',
+    description: '월드 시간을 자동 진행 — 해/달이 뜨고 지며 빛·하늘색이 시간대에 따라 변함. 한 주기(=24시간) 가 cycleMinutes 분에 걸쳐 진행. 빈 오브젝트에 붙여 월드 단위로 1개만 두면 됨. 메인 광원이 강하면 효과가 약해질 수 있어 직접 끄거나 강도 낮춰 두는 것을 권장. 멀티에서 각 클라가 자체 시계로 진행 (가벼운 차이는 시각상 무시).',
+    props: [
+      { key: 'enabled',        label: '사용',                                    type: 'boolean', default: true },
+      { key: 'cycleMinutes',   label: '주기 (분) — 24시간 한 바퀴 도는 실시간',  type: 'number', default: 10, min: 0.5, max: 120, step: 0.5 },
+      { key: 'startTime',      label: '시작 시각 (0=자정 ~ 24)',                 type: 'number', default: 8,  min: 0,   max: 24,  step: 0.5 },
+      { key: 'sunIntensity',   label: '해 세기 (정오)',                          type: 'number', default: 1.5, min: 0, max: 5,    step: 0.1 },
+      { key: 'moonIntensity',  label: '달 세기 (자정)',                          type: 'number', default: 0.3, min: 0, max: 3,    step: 0.05 },
+      { key: 'changeSky',      label: '하늘색도 같이 바꾸기',                    type: 'boolean', default: true },
     ],
   },
   {
@@ -295,6 +309,18 @@ export interface BuoyancyVolume {
   waveStrength: number;                 // 웨이브 강도 (0=출렁 없음). WaterMesh 와 동일 a=0.04*strength
   waveSpeed: number;
   waveFreq: number;
+}
+
+/** 월드의 첫 dayNight 컴포넌트 인스턴스 반환 (없으면 null). 월드 단위 유일 설정. */
+export function findDayNightComponent(
+  objects: Array<{ components?: ComponentInstance[]; hidden?: boolean }> | undefined | null,
+): ComponentInstance | null {
+  for (const o of objects || []) {
+    if (o.hidden) continue;
+    const c = (o.components || []).find(x => x.type === 'dayNight');
+    if (c) return c;
+  }
+  return null;
 }
 
 /** 앰비언트 사운드 zone — 매 frame 카메라/플레이어 위치로 in/out 판정 후 볼륨 lerp. */

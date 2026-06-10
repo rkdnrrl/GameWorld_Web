@@ -52,8 +52,9 @@ import { TerrainMesh } from '@/lib/world/TerrainMesh';
 import { generateNoiseTerrain } from '@/lib/world/terrain';
 import { CarvedMesh } from '@/lib/world/CarvedMesh';
 import { ChunkedVoxelTerrain } from '@/lib/world/ChunkedVoxelTerrain';
-import { computeBuoyancyVolumes, computeAmbientSoundZones, type BuoyancyVolume, type AmbientSoundZone } from '@/lib/world/components';
+import { computeBuoyancyVolumes, computeAmbientSoundZones, findDayNightComponent, type BuoyancyVolume, type AmbientSoundZone, type ComponentInstance } from '@/lib/world/components';
 import AmbientSoundsPlayer from '@/lib/world/AmbientSounds';
+import DayNightCycle from '@/lib/world/DayNightCycle';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
@@ -3942,6 +3943,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const buoyancyVolsRef = useRef<BuoyancyVolume[]>([]);
   useEffect(() => { buoyancyVolsRef.current = computeBuoyancyVolumes(customObjects ?? []); }, [customObjects]);
   const ambientSoundZones: AmbientSoundZone[] = useMemo(() => computeAmbientSoundZones(customObjects ?? []), [customObjects]);
+  const dayNightInst: ComponentInstance | null = useMemo(() => findDayNightComponent(customObjects ?? []), [customObjects]);
   // 물(water+PostProcess) 후처리 — 카메라가 그 물 부피 안일 때 그 물의 PostProcess 적용.
   const waterPostFX = useMemo(() => collectWaterPostFX(customObjects ?? []), [customObjects]);
   const waterPostFXRef = useRef<WaterPostFX[]>(waterPostFX);
@@ -5927,6 +5929,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         <Suspense fallback={null}>
           <VideoScreenCtx.Provider value={videoCtxValue}>
           <AmbientSoundsPlayer zones={ambientSoundZones} />
+          {dayNightInst && <DayNightCycle inst={dayNightInst} />}
           <VideoDistanceUpdater registry={videoRegistry} objectsById={objectsById}
             // 어떤 videoRemote 든 globalAudio=true 면 전역 음향. 거리 감쇠 없음.
             globalAudio={!!customObjects?.some(o => o.components?.some(c => c.type === 'videoRemote' && c.props?.globalAudio))} />
