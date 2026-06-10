@@ -1,9 +1,10 @@
 'use client';
 /**
- * DM 대화 목록 모달 — SocialPanel 의 "메시지" 진입점. 페이지 전환 없이 모달 안에서:
- *  - 대화 목록 표시 (api.listConversations)
- *  - 행 클릭 시 같은 모달 위에 DmChatModal 띄움 (RemotePlayerInfoPanel 과 동일 패턴)
- *  - "전체 메시지 보기" 링크로 /messages 페이지 진입 가능 (백그라운드용)
+ * DM 대화 목록 — SocialPanel 의 "메시지" 탭/모달.
+ *  - embedded=true: 소셜 패널 탭 안에 인라인 렌더 (오버레이·헤더 없음, 부모 높이 채움)
+ *  - embedded=false: 독립 모달 (중앙 오버레이)
+ *  - 행 클릭 시 DmChatModal 띄움
+ *  - 실시간 DM 수신 시 목록 자동 갱신
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -21,7 +22,7 @@ type Conv = {
   unread: number;
 };
 
-export default function DmListModal({ onClose }: { onClose: () => void }) {
+export default function DmListModal({ onClose, embedded = false }: { onClose?: () => void; embedded?: boolean }) {
   const t = useTranslations('Social');
   const [convs, setConvs] = useState<Conv[] | null>(null);
   const [error, setError] = useState('');
@@ -37,7 +38,7 @@ export default function DmListModal({ onClose }: { onClose: () => void }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // 실시간 DM 수신 시 목록 갱신 (열려있을 때)
+  // 실시간 DM 수신 시 목록 갱신
   useEffect(() => {
     const onDm = () => load();
     window.addEventListener(DM_PUSH_EVENT, onDm);
@@ -45,11 +46,80 @@ export default function DmListModal({ onClose }: { onClose: () => void }) {
   }, [load]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { if (active) setActive(null); else onClose(); } };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { if (active) setActive(null); else onClose?.(); } };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [active, onClose]);
 
+  const list = (
+    <div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
+      {error && <div style={{ padding: 16, color: '#fca5a5', fontSize: 13 }}>{error}</div>}
+      {!error && convs === null && <div style={{ padding: 16, opacity: 0.5, fontSize: 13 }}>{t('loading')}</div>}
+      {convs && convs.length === 0 && (
+        <div style={{ padding: 30, textAlign: 'center', opacity: 0.5, fontSize: 13, lineHeight: 1.6 }}>
+          {t('dmEmpty')}
+        </div>
+      )}
+      {convs && convs.map(c => (
+        <button key={c.id} onClick={() => setActive(c)} style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+          background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)',
+          borderRadius: 10, marginBottom: 6, cursor: 'pointer', textAlign: 'left', color: '#fff',
+        }}>
+          <Avatar other={c.other} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.other?.username ?? '?'}</span>
+              {c.unread > 0 && (
+                <span style={{ background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 800, padding: '0 6px', borderRadius: 9, minWidth: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{c.unread > 99 ? '99+' : c.unread}</span>
+              )}
+              {c.lastMessageAt && (
+                <span style={{ marginLeft: 'auto', fontSize: 10, opacity: 0.45 }}>{relTime(c.lastMessageAt)}</span>
+              )}
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>
+              {c.lastMessageText || t('dmNoMessages')}
+            </div>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+
+  const footer = convs && convs.length > 0 ? (
+    <div style={{ padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.08)', textAlign: 'center' }}>
+      <Link href="/messages" onClick={() => onClose?.()}
+        style={{ fontSize: 12, color: '#a5b4fc', textDecoration: 'none' }}>
+        {t('viewAllMessages')} →
+      </Link>
+    </div>
+  ) : null;
+
+  const chat = active && active.other && (
+    <DmChatModal
+      conversationId={active.id}
+      other={{
+        username: active.other.username,
+        profileImageUrl: active.other.profileImageUrl,
+        iconEmoji: active.other.iconEmoji,
+        themeColor: active.other.themeColor,
+      }}
+      onClose={() => setActive(null)}
+    />
+  );
+
+  // 패널 탭 안에 인라인
+  if (embedded) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+        {list}
+        {footer}
+        {chat}
+      </div>
+    );
+  }
+
+  // 독립 모달
   return (
     <>
       <div onClick={onClose} style={{
@@ -68,63 +138,11 @@ export default function DmListModal({ onClose }: { onClose: () => void }) {
             <button onClick={onClose} aria-label={t('close')}
               style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>×</button>
           </div>
-
-          <div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
-            {error && <div style={{ padding: 16, color: '#fca5a5', fontSize: 13 }}>{error}</div>}
-            {!error && convs === null && <div style={{ padding: 16, opacity: 0.5, fontSize: 13 }}>{t('loading')}</div>}
-            {convs && convs.length === 0 && (
-              <div style={{ padding: 30, textAlign: 'center', opacity: 0.5, fontSize: 13, lineHeight: 1.6 }}>
-                {t('dmEmpty')}
-              </div>
-            )}
-            {convs && convs.map(c => (
-              <button key={c.id} onClick={() => setActive(c)} style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: 10, marginBottom: 6, cursor: 'pointer', textAlign: 'left', color: '#fff',
-              }}>
-                <Avatar other={c.other} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.other?.username ?? '?'}</span>
-                    {c.unread > 0 && (
-                      <span style={{ background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 800, padding: '0 6px', borderRadius: 9, minWidth: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{c.unread > 99 ? '99+' : c.unread}</span>
-                    )}
-                    {c.lastMessageAt && (
-                      <span style={{ marginLeft: 'auto', fontSize: 10, opacity: 0.45 }}>{relTime(c.lastMessageAt)}</span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 12, opacity: 0.6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>
-                    {c.lastMessageText || t('dmNoMessages')}
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {convs && convs.length > 0 && (
-            <div style={{ padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.08)', textAlign: 'center' }}>
-              <Link href="/messages" onClick={onClose}
-                style={{ fontSize: 12, color: '#a5b4fc', textDecoration: 'none' }}>
-                {t('viewAllMessages')} →
-              </Link>
-            </div>
-          )}
+          {list}
+          {footer}
         </div>
       </div>
-
-      {active && active.other && (
-        <DmChatModal
-          conversationId={active.id}
-          other={{
-            username: active.other.username,
-            profileImageUrl: active.other.profileImageUrl,
-            iconEmoji: active.other.iconEmoji,
-            themeColor: active.other.themeColor,
-          }}
-          onClose={() => setActive(null)}
-        />
-      )}
+      {chat}
     </>
   );
 }

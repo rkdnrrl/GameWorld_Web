@@ -1,8 +1,10 @@
 'use client';
 /**
- * 소셜 버튼 + 사이드 패널 — 모든 페이지 우하단 플로팅. 로그인 유저만.
- * 버튼에는 DM·알림 unread 합계 배지. 클릭 시 우측 슬라이드 패널 — 친구·메시지·알림 진입 카드.
- * 몰입형 화면(월드/스튜디오)은 자체 UI 와 겹치지 않게 숨김 (FeedbackButton 과 동일 정책).
+ * 소셜 패널 — 모든 페이지 우하단 플로팅. 로그인 유저만.
+ * 버튼 클릭 시 우측 슬라이드 패널, 그 안에서 탭(친구/메시지/알림)을 전부 인라인 처리.
+ *  - 페이지 이동 없이 친구추가·요청수락·채팅·알림을 패널 안에서 (롤/디스코드 식)
+ *  - 실시간 알림/DM push → 배지 즉시 갱신 + 상단 토스트
+ * 몰입형 화면(월드/스튜디오)은 버튼 위치만 위로.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
@@ -15,10 +17,12 @@ import {
   NOTIFICATION_PUSH_EVENT, DM_PUSH_EVENT,
   type PushNotification, type DmPush,
 } from '@/lib/notifications/useNotificationStream';
-
-type ToastView = { icon: string; text: string; href: string | null };
+import FriendsTab from '@/components/social/FriendsTab';
 import DmListModal from '@/components/social/DmListModal';
 import NotificationsModal from '@/components/social/NotificationsModal';
+
+type Tab = 'friends' | 'messages' | 'notifications';
+type ToastView = { icon: string; text: string; href: string | null };
 
 export default function SocialPanel() {
   const t = useTranslations('Social');
@@ -27,13 +31,12 @@ export default function SocialPanel() {
   const loggedIn = useLoggedIn();
   const pathname = usePathname() || '';
   const [open, setOpen] = useState(false);
-  const [dmModal, setDmModal] = useState(false);
-  const [notifModal, setNotifModal] = useState(false);
+  const [tab, setTab] = useState<Tab>('friends');
   const [dmUnread, setDmUnread] = useState(0);
   const [notifUnread, setNotifUnread] = useState(0);
+  const [reqCount, setReqCount] = useState(0);
   const [toast, setToast] = useState<ToastView | null>(null);
 
-  // 몰입형 (월드/스튜디오) — 안 숨기고 위치만 위로 올려서 우하단 채팅/캐릭터 버튼들과 안 겹치게.
   const immersive = /\/(world|studio)(\/|$|\?)/.test(pathname);
 
   const loadUnread = useCallback(async () => {
@@ -51,7 +54,6 @@ export default function SocialPanel() {
     }
   }, []);
 
-  // 60초 폴링 + 패널 열 때마다 즉시 갱신
   useEffect(() => {
     if (!loggedIn) return;
     loadUnread();
@@ -60,8 +62,7 @@ export default function SocialPanel() {
   }, [loggedIn, loadUnread]);
   useEffect(() => { if (open) loadUnread(); }, [open, loadUnread]);
 
-  // 실시간 수신(NotifyHub WS) — 연결만 유지. 이벤트는 window 로 받음.
-  // 30초 폴링은 백업(연결 끊김 대비).
+  // 실시간 연결 — 연결만 유지, 이벤트는 window 로
   useNotificationStream();
 
   // 알림/DM push → 배지 즉시 갱신 + 토스트
@@ -73,7 +74,6 @@ export default function SocialPanel() {
     function onDm(e: Event) {
       const dm = (e as CustomEvent).detail as DmPush;
       loadUnread();
-      // 그 대화창을 보고 있으면 토스트 생략 (이미 Supabase 로 인라인 수신 중)
       if (dm.conversationId !== getActiveDmConversation()) {
         setToast({ icon: '💬', text: `${dm.fromUsername}: ${dm.preview}`, href: `/messages/${dm.conversationId}` });
       }
@@ -84,7 +84,6 @@ export default function SocialPanel() {
       window.removeEventListener(NOTIFICATION_PUSH_EVENT, onNotif);
       window.removeEventListener(DM_PUSH_EVENT, onDm);
     };
-    // notifView 는 tn(안정) 의존 — 이벤트 핸들러라 stale 무해
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadUnread]);
 
@@ -103,8 +102,7 @@ export default function SocialPanel() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
-  // 토스트 표시용 — NotifRow(NotificationBell) 와 동일한 라벨/링크 규칙.
-  function notifView(n: PushNotification): { icon: string; text: string; href: string | null } {
+  function notifView(n: PushNotification): ToastView {
     const { type, payload } = n;
     if (type === 'world_invite')   return { icon: '🌍', text: tn('world_invite',   { actor: payload.actorName || '?', world: payload.worldName || '' }), href: payload.worldId ? `/world?id=${encodeURIComponent(payload.worldId)}` : null };
     if (type === 'asset_liked')    return { icon: '♥',  text: tn('asset_liked',    { actor: payload.actorName || '?', asset: payload.assetName || '' }), href: null };
@@ -120,23 +118,20 @@ export default function SocialPanel() {
     const href = toast.href;
     setToast(null);
     if (href) router.push(href);
-    else setNotifModal(true);
+    else { setTab('notifications'); setOpen(true); }
   }
 
   if (!loggedIn) return null;
 
-  const totalBadge = dmUnread + notifUnread;
-  const toastView = toast;
-  // 몰입형은 우하단에 채팅(🗨)·캐릭터(🎭) 버튼이 stack 돼 있어 그 위로 올림.
+  const totalBadge = dmUnread + notifUnread + reqCount;
   const btnBottom = immersive ? 156 : 16;
 
   return (
     <>
-      {/* 실시간 알림 토스트 — 상단 중앙. 어느 페이지에서든 즉시 표시. */}
-      {toastView && (
+      {/* 실시간 토스트 — 상단 중앙 */}
+      {toast && (
         <div
-          role="button"
-          tabIndex={0}
+          role="button" tabIndex={0}
           onClick={onToastClick}
           onKeyDown={(e) => { if (e.key === 'Enter') onToastClick(); }}
           style={{
@@ -145,24 +140,19 @@ export default function SocialPanel() {
             display: 'flex', alignItems: 'flex-start', gap: 10,
             padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
             background: 'linear-gradient(135deg,#1e1b4b,#312e81)', color: '#fff',
-            border: '1px solid rgba(139,92,246,0.5)',
-            boxShadow: '0 10px 32px rgba(0,0,0,0.45)',
-            fontFamily: 'system-ui, sans-serif',
-            animation: 'alp-toast-in 0.22s ease-out',
+            border: '1px solid rgba(139,92,246,0.5)', boxShadow: '0 10px 32px rgba(0,0,0,0.45)',
+            fontFamily: 'system-ui, sans-serif', animation: 'alp-toast-in 0.22s ease-out',
           }}
         >
           <style>{`@keyframes alp-toast-in { from { opacity: 0; transform: translate(-50%, -12px); } to { opacity: 1; transform: translate(-50%, 0); } }`}</style>
-          <span style={{ fontSize: 20, lineHeight: 1, marginTop: 1 }}>{toastView.icon}</span>
-          <span style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.4 }}>{toastView.text}</span>
-          <button
-            onClick={(e) => { e.stopPropagation(); setToast(null); }}
-            aria-label={t('close')}
-            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: 18, cursor: 'pointer', lineHeight: 1, marginTop: -2 }}
-          >×</button>
+          <span style={{ fontSize: 20, lineHeight: 1, marginTop: 1 }}>{toast.icon}</span>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.4 }}>{toast.text}</span>
+          <button onClick={(e) => { e.stopPropagation(); setToast(null); }} aria-label={t('close')}
+            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: 18, cursor: 'pointer', lineHeight: 1, marginTop: -2 }}>×</button>
         </div>
       )}
 
-      {/* 플로팅 버튼 — 우하단. FeedbackButton(좌하단) 과 짝. */}
+      {/* 플로팅 버튼 */}
       <button
         onClick={() => setOpen(true)}
         aria-label={t('open')}
@@ -171,114 +161,77 @@ export default function SocialPanel() {
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           width: 52, height: 52, borderRadius: '50%', border: 'none', cursor: 'pointer',
           background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff',
-          fontSize: 22, fontWeight: 700,
-          boxShadow: '0 6px 20px rgba(0,0,0,0.35)', fontFamily: 'system-ui, sans-serif',
+          fontSize: 22, fontWeight: 700, boxShadow: '0 6px 20px rgba(0,0,0,0.35)', fontFamily: 'system-ui, sans-serif',
         }}
       >
         👥
         {totalBadge > 0 && (
           <span style={{
-            position: 'absolute', top: -2, right: -2, minWidth: 18, height: 18,
-            padding: '0 5px', borderRadius: 9,
+            position: 'absolute', top: -2, right: -2, minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9,
             background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 800,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: '2px solid #0f172a',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #0f172a',
           }}>{totalBadge > 99 ? '99+' : totalBadge}</span>
         )}
       </button>
 
       {open && (
-        <div
-          onClick={() => setOpen(false)}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 2147482001,
-            background: 'rgba(0,0,0,0.45)',
-            display: 'flex', justifyContent: 'flex-end',
-            fontFamily: 'system-ui, sans-serif',
-          }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              width: 'min(380px, 92vw)', height: '100%',
-              background: '#0f172a', color: '#fff',
-              borderLeft: '1px solid rgba(255,255,255,0.1)',
-              boxShadow: '-20px 0 60px rgba(0,0,0,0.5)',
-              display: 'flex', flexDirection: 'column',
-              animation: 'alp-slide-in 0.18s ease-out',
-            }}
-          >
+        <div onClick={() => setOpen(false)} style={{
+          position: 'fixed', inset: 0, zIndex: 2147482001, background: 'rgba(0,0,0,0.45)',
+          display: 'flex', justifyContent: 'flex-end', fontFamily: 'system-ui, sans-serif',
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            width: 'min(400px, 94vw)', height: '100%', background: '#0f172a', color: '#fff',
+            borderLeft: '1px solid rgba(255,255,255,0.1)', boxShadow: '-20px 0 60px rgba(0,0,0,0.5)',
+            display: 'flex', flexDirection: 'column', animation: 'alp-slide-in 0.18s ease-out',
+          }}>
             <style>{`@keyframes alp-slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }`}</style>
-            <div style={{ padding: '18px 18px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+
+            {/* 헤더 */}
+            <div style={{ padding: '14px 16px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
               <strong style={{ fontSize: 16 }}>👥 {t('title')}</strong>
               <button onClick={() => setOpen(false)} aria-label={t('close')}
                 style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>×</button>
             </div>
 
-            <nav style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
-              {/* 메시지·알림: 페이지 전환 대신 모달 — 빠른 미리보기 + 액션 */}
-              <SocialAction icon="💬" label={t('messages')} desc={t('messagesDesc')} badge={dmUnread} onClick={() => { setOpen(false); setDmModal(true); }} />
-              <SocialAction icon="🔔" label={t('notifications')} desc={t('notificationsDesc')} badge={notifUnread} onClick={() => { setOpen(false); setNotifModal(true); }} />
-              {/* 친구·피드: 긴 콘텐츠/맥락 유지 — 전용 페이지 */}
-              <SocialLink href="/presence" icon="🟢" label={t('online')} desc={t('onlineDesc')} onNavigate={() => setOpen(false)} />
-              <SocialLink href="/friends" icon="🤝" label={t('friends')} desc={t('friendsDesc')} onNavigate={() => setOpen(false)} />
-              <SocialLink href="/feed" icon="📰" label={t('feed')} desc={t('feedDesc')} onNavigate={() => setOpen(false)} />
-              {/* 사람 찾기 = 마켓플레이스의 크리에이터 둘러보기 (/users 미존재) */}
-              <SocialLink href="/assets/browse" icon="🔎" label={t('findPeople')} desc={t('findPeopleDesc')} onNavigate={() => setOpen(false)} />
-            </nav>
+            {/* 탭바 */}
+            <div style={{ display: 'flex', padding: '0 8px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <TabBtn active={tab === 'friends'} onClick={() => setTab('friends')} label={t('friends')} badge={reqCount} />
+              <TabBtn active={tab === 'messages'} onClick={() => setTab('messages')} label={t('messages')} badge={dmUnread} />
+              <TabBtn active={tab === 'notifications'} onClick={() => setTab('notifications')} label={t('notifications')} badge={notifUnread} />
+            </div>
+
+            {/* 탭 내용 */}
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+              {tab === 'friends' && <FriendsTab onRequestsChange={setReqCount} />}
+              {tab === 'messages' && <DmListModal embedded />}
+              {tab === 'notifications' && <NotificationsModal embedded onAllRead={() => setNotifUnread(0)} />}
+            </div>
+
+            {/* 보조 링크 (페이지 — 보조 기능) */}
+            <div style={{ display: 'flex', gap: 14, justifyContent: 'center', padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: 12 }}>
+              <Link href="/presence" onClick={() => setOpen(false)} style={{ color: '#a5b4fc', textDecoration: 'none' }}>🟢 {t('online')}</Link>
+              <Link href="/feed" onClick={() => setOpen(false)} style={{ color: '#a5b4fc', textDecoration: 'none' }}>📰 {t('feed')}</Link>
+              <Link href="/assets/browse" onClick={() => setOpen(false)} style={{ color: '#a5b4fc', textDecoration: 'none' }}>🔎 {t('findPeople')}</Link>
+            </div>
           </div>
         </div>
       )}
-
-      {/* 메시지·알림 모달 — 패널 닫힌 상태에서 단독으로도 띄울 수 있음 */}
-      {dmModal && <DmListModal onClose={() => { setDmModal(false); loadUnread(); }} />}
-      {notifModal && <NotificationsModal onClose={() => { setNotifModal(false); loadUnread(); }} onAllRead={() => setNotifUnread(0)} />}
     </>
   );
 }
 
-// 카드 공통 콘텐츠 (아이콘 + 라벨 + 설명 + 옵셔널 배지)
-function CardInner({ icon, label, desc, badge }: { icon: string; label: string; desc: string; badge?: number }) {
+function TabBtn({ active, onClick, label, badge }: { active: boolean; onClick: () => void; label: string; badge: number }) {
   return (
-    <>
-      <span style={{ fontSize: 24 }}>{icon}</span>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700 }}>
-          {label}
-          {badge && badge > 0 ? (
-            <span style={{ minWidth: 18, height: 18, padding: '0 6px', borderRadius: 9, background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{badge > 99 ? '99+' : badge}</span>
-          ) : null}
-        </span>
-        <span style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>{desc}</span>
-      </span>
-      <span style={{ color: 'rgba(255,255,255,0.4)' }}>›</span>
-    </>
-  );
-}
-
-const CARD_STYLE: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 12,
-  padding: '12px 14px', borderRadius: 10,
-  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-  color: '#fff', textDecoration: 'none', cursor: 'pointer', textAlign: 'left',
-};
-
-function SocialLink({ href, icon, label, desc, badge, onNavigate }: {
-  href: string; icon: string; label: string; desc: string; badge?: number; onNavigate: () => void;
-}) {
-  return (
-    <Link href={href} onClick={onNavigate} style={CARD_STYLE}>
-      <CardInner icon={icon} label={label} desc={desc} badge={badge} />
-    </Link>
-  );
-}
-
-function SocialAction({ icon, label, desc, badge, onClick }: {
-  icon: string; label: string; desc: string; badge?: number; onClick: () => void;
-}) {
-  return (
-    <button type="button" onClick={onClick} style={{ ...CARD_STYLE, font: 'inherit' }}>
-      <CardInner icon={icon} label={label} desc={desc} badge={badge} />
+    <button onClick={onClick} style={{
+      flex: 1, padding: '11px 6px', background: 'none', border: 'none', cursor: 'pointer',
+      color: active ? '#fff' : 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 700,
+      borderBottom: active ? '2px solid #8b5cf6' : '2px solid transparent',
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+    }}>
+      {label}
+      {badge > 0 && (
+        <span style={{ background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 800, padding: '0 5px', borderRadius: 8, minWidth: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{badge > 99 ? '99+' : badge}</span>
+      )}
     </button>
   );
 }

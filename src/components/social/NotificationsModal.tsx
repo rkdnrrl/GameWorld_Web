@@ -1,9 +1,9 @@
 'use client';
 /**
- * 알림 목록 모달 — SocialPanel 의 "알림" 진입점. 페이지 전환 없이 최근 알림 표시.
- *  - 헤더 NotificationBell 과 동일 데이터(api.listNotifications)
- *  - 열면 자동 읽음 처리(api.notificationsReadAll) — Bell 과 동일 정책
- *  - "전체 보기" 링크로 /notifications 페이지 (히스토리 페이지네이션 용)
+ * 알림 목록 — SocialPanel 의 "알림" 탭/모달.
+ *  - embedded=true: 소셜 패널 탭 안에 인라인 렌더 (오버레이·헤더 없음)
+ *  - embedded=false: 독립 모달
+ *  - 열면 자동 읽음 처리(api.markAllNotificationsRead)
  */
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -21,7 +21,7 @@ interface Notif {
 
 const LIMIT = 15;
 
-export default function NotificationsModal({ onClose, onAllRead }: { onClose: () => void; onAllRead?: () => void }) {
+export default function NotificationsModal({ onClose, onAllRead, embedded = false }: { onClose?: () => void; onAllRead?: () => void; embedded?: boolean }) {
   const t = useTranslations('Social');
   const tn = useTranslations('Notifications');
   const [items, setItems] = useState<Notif[] | null>(null);
@@ -33,17 +33,47 @@ export default function NotificationsModal({ onClose, onAllRead }: { onClose: ()
     api.listNotifications(tk, { page: 1 })
       .then(d => {
         setItems((d.notifications as Notif[]).slice(0, LIMIT));
-        // 열자마자 모두 읽음 처리 — 패널 배지 갱신
         api.markAllNotificationsRead(tk).then(() => onAllRead?.()).catch(() => {});
       })
       .catch(e => setError(e instanceof ApiError ? e.message : t('loadFailed')));
   }, [t, onAllRead]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose?.(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  const list = (
+    <div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
+      {error && <div style={{ padding: 16, color: '#fca5a5', fontSize: 13 }}>{error}</div>}
+      {!error && items === null && <div style={{ padding: 16, opacity: 0.5, fontSize: 13 }}>{t('loading')}</div>}
+      {items && items.length === 0 && (
+        <div style={{ padding: 30, textAlign: 'center', opacity: 0.5, fontSize: 13, lineHeight: 1.6 }}>
+          {t('notifEmpty')}
+        </div>
+      )}
+      {items && items.map(n => <Row key={n.id} notif={n} onNavigate={() => onClose?.()} tn={tn} />)}
+    </div>
+  );
+
+  const footer = items && items.length > 0 ? (
+    <div style={{ padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.08)', textAlign: 'center' }}>
+      <Link href="/notifications" onClick={() => onClose?.()}
+        style={{ fontSize: 12, color: '#a5b4fc', textDecoration: 'none' }}>
+        {t('viewAllNotifications')} →
+      </Link>
+    </div>
+  ) : null;
+
+  if (embedded) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+        {list}
+        {footer}
+      </div>
+    );
+  }
 
   return (
     <div onClick={onClose} style={{
@@ -62,26 +92,8 @@ export default function NotificationsModal({ onClose, onAllRead }: { onClose: ()
           <button onClick={onClose} aria-label={t('close')}
             style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>
-
-        <div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
-          {error && <div style={{ padding: 16, color: '#fca5a5', fontSize: 13 }}>{error}</div>}
-          {!error && items === null && <div style={{ padding: 16, opacity: 0.5, fontSize: 13 }}>{t('loading')}</div>}
-          {items && items.length === 0 && (
-            <div style={{ padding: 30, textAlign: 'center', opacity: 0.5, fontSize: 13, lineHeight: 1.6 }}>
-              {t('notifEmpty')}
-            </div>
-          )}
-          {items && items.map(n => <Row key={n.id} notif={n} onNavigate={onClose} tn={tn} />)}
-        </div>
-
-        {items && items.length > 0 && (
-          <div style={{ padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.08)', textAlign: 'center' }}>
-            <Link href="/notifications" onClick={onClose}
-              style={{ fontSize: 12, color: '#a5b4fc', textDecoration: 'none' }}>
-              {t('viewAllNotifications')} →
-            </Link>
-          </div>
-        )}
+        {list}
+        {footer}
       </div>
     </div>
   );
@@ -108,6 +120,10 @@ function Row({ notif, onNavigate, tn }: { notif: Notif; onNavigate: () => void; 
   } else if (type === 'asset_auto_hidden') {
     icon = '⚠';
     text = tn('asset_auto_hidden', { asset: payload.assetName || '' });
+  } else if (type === 'world_invite') {
+    icon = '🌍';
+    text = tn('world_invite', { actor: payload.actorName || '?', world: payload.worldName || '' });
+    if (payload.worldId) href = `/world?id=${encodeURIComponent(payload.worldId)}`;
   }
 
   const inner = (
