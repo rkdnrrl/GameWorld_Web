@@ -12,6 +12,8 @@ import * as THREE from 'three';
 import {
   computeJumpPads, computeCheckpoints, computeKillZones,
   computeRaceStarts, computeRaceFinishes,
+  computeTeleporters, computeLadders, computeAmbientSoundZones,
+  computeDialogues, computeVendings, computeSeats,
   type ComponentInstance,
 } from './components';
 
@@ -20,6 +22,15 @@ interface Box {
   ownerId: string;        // 원래 오브젝트 id (선택 강조용)
   cx: number; cy: number; cz: number;
   hx: number; hy: number; hz: number;
+  color: string;
+  label: string;
+}
+
+interface Sphere {
+  id: string;
+  ownerId: string;
+  cx: number; cy: number; cz: number;
+  r: number;
   color: string;
   label: string;
 }
@@ -35,7 +46,19 @@ function spotsToBox(spots: BoxLike[], color: string, label: string): Box[] {
   }));
 }
 
+interface SphereLike { id: string; cx: number; cy: number; cz: number; range: number }
+function spotsToSphere(spots: SphereLike[], color: string, label: string): Sphere[] {
+  return spots.map(s => ({
+    id: `${label}|${s.id}`,
+    ownerId: s.id,
+    cx: s.cx, cy: s.cy, cz: s.cz,
+    r: s.range,
+    color, label,
+  }));
+}
+
 const BOX_GEO = new THREE.BoxGeometry(1, 1, 1);
+const SPHERE_GEO = new THREE.SphereGeometry(1, 18, 12);
 const EDGES_CACHE = new Map<string, THREE.EdgesGeometry>();
 function getEdges(w: number, h: number, d: number) {
   const k = `${w}|${h}|${d}`;
@@ -43,6 +66,7 @@ function getEdges(w: number, h: number, d: number) {
   if (!g) { g = new THREE.EdgesGeometry(new THREE.BoxGeometry(w, h, d)); EDGES_CACHE.set(k, g); }
   return g;
 }
+const SPHERE_WIRE = new THREE.WireframeGeometry(new THREE.SphereGeometry(1, 18, 12));
 
 export interface TriggerGuideObject {
   id?: string;
@@ -68,10 +92,31 @@ export default function TriggerGuides({
       ...spotsToBox(computeKillZones(objects),    '#ef4444', 'killZone'),
       ...spotsToBox(computeRaceStarts(objects),   '#06b6d4', 'raceStart'),
       ...spotsToBox(computeRaceFinishes(objects), '#facc15', 'raceFinish'),
+      ...spotsToBox(computeTeleporters(objects),  '#a855f7', 'teleporter'),
+      ...spotsToBox(computeLadders(objects),      '#92400e', 'ladder'),
+      // ambientSound 은 zone 모드일 때만 박스. global 은 점 (생략).
+      ...spotsToBox(
+        computeAmbientSoundZones(objects).filter(z => z.mode === 'zone'),
+        '#ec4899', 'ambientSound',
+      ),
     ];
   }, [objects]);
 
-  if (boxes.length === 0) return null;
+  const spheres: Sphere[] = useMemo(() => {
+    if (!objects) return [];
+    return [
+      ...spotsToSphere(computeDialogues(objects), '#14b8a6', 'dialogue'),
+      ...spotsToSphere(computeVendings(objects),  '#f472b6', 'vending'),
+      // seat 은 sx/sy/sz 필드명이라 변환
+      ...computeSeats(objects).map(s => ({
+        id: `seat|${s.id}`, ownerId: s.id,
+        cx: s.sx, cy: s.sy, cz: s.sz, r: s.range,
+        color: '#38bdf8', label: 'seat',
+      })),
+    ];
+  }, [objects]);
+
+  if (boxes.length === 0 && spheres.length === 0) return null;
 
   return (
     <>
@@ -89,6 +134,21 @@ export default function TriggerGuides({
             {/* wireframe 모서리 */}
             <lineSegments geometry={getEdges(w, h, d)} renderOrder={10000}>
               <lineBasicMaterial color={b.color} transparent opacity={edgeOpacity} depthTest={false} />
+            </lineSegments>
+          </group>
+        );
+      })}
+      {spheres.map(s => {
+        const isSelected = !!selectedId && s.ownerId === selectedId;
+        const fillOpacity = isSelected ? 0.12 : 0.04;
+        const edgeOpacity = isSelected ? 0.85 : 0.25;
+        return (
+          <group key={s.id} position={[s.cx, s.cy, s.cz]} scale={[s.r, s.r, s.r]}>
+            <mesh geometry={SPHERE_GEO} renderOrder={9999}>
+              <meshBasicMaterial color={s.color} transparent opacity={fillOpacity} depthWrite={false} />
+            </mesh>
+            <lineSegments geometry={SPHERE_WIRE} renderOrder={10000}>
+              <lineBasicMaterial color={s.color} transparent opacity={edgeOpacity} depthTest={false} />
             </lineSegments>
           </group>
         );
