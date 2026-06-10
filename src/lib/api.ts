@@ -853,6 +853,14 @@ export const api = {
     );
   },
 
+  /** 사용자 이름 검색 (친구 추가 자동완성) — 2자 이상, 최대 10명 */
+  searchUsers(token: string, q: string) {
+    return request<{ users: Array<{ id: string; username: string; profileImageUrl: string | null }> }>(
+      `/api/users/search?q=${encodeURIComponent(q)}`,
+      { headers: authHeaders(token) },
+    );
+  },
+
   /** 작가 팔로우 */
   followUser(token: string, username: string) {
     return request<{ isFollowing: boolean; followerCount: number }>(

@@ -29,10 +29,11 @@ export default function FriendsTab({ onRequestsChange }: { onRequestsChange?: (n
   const [error, setError] = useState('');
   const [chatWith, setChatWith] = useState<UserMini | null>(null);
 
-  // 친구 추가 입력
+  // 친구 추가 입력 + 자동완성
   const [addName, setAddName] = useState('');
   const [adding, setAdding] = useState(false);
   const [addMsg, setAddMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [results, setResults] = useState<UserMini[]>([]);
 
   const load = useCallback(async () => {
     const tk = session.getToken();
@@ -59,19 +60,46 @@ export default function FriendsTab({ onRequestsChange }: { onRequestsChange?: (n
     return () => window.removeEventListener(NOTIFICATION_PUSH_EVENT, onPush);
   }, [load]);
 
+  // 입력하는 동안 일치하는 유저 자동완성 (디바운스 250ms, 2자 이상)
+  useEffect(() => {
+    const name = addName.trim();
+    if (name.length < 2) { setResults([]); return; }
+    const tk = session.getToken(); if (!tk) return;
+    const id = setTimeout(() => {
+      api.searchUsers(tk, name).then(d => setResults(d.users)).catch(() => setResults([]));
+    }, 250);
+    return () => clearTimeout(id);
+  }, [addName]);
+
+  // 드롭다운에서 특정 유저 선택 → 친구 요청
+  async function requestUser(u: UserMini) {
+    if (adding) return;
+    const tk = session.getToken(); if (!tk) return;
+    setAdding(true); setAddMsg(null); setResults([]); setAddName('');
+    try {
+      await api.sendFriendRequest(tk, u.id);
+      setAddMsg({ ok: true, text: t('addSent', { name: u.username }) });
+      load();
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) setAddMsg({ ok: false, text: t('addErrAlready') });
+      else setAddMsg({ ok: false, text: e instanceof ApiError ? e.message : t('addErrFailed') });
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  // 정확한 이름으로 추가 (Enter/추가 버튼 — 드롭다운 안 거치고)
   async function onAdd() {
     const name = addName.trim();
     if (!name || adding) return;
     const tk = session.getToken(); if (!tk) return;
     setAdding(true); setAddMsg(null);
     try {
-      // username → id 해결
       const { profile } = await api.getUserProfile(name, tk);
       if (profile.isMe) { setAddMsg({ ok: false, text: t('addErrSelf') }); return; }
       await api.sendFriendRequest(tk, profile.id);
       setAddMsg({ ok: true, text: t('addSent', { name: profile.username }) });
-      setAddName('');
-      load();
+      setAddName(''); setResults([]);
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) setAddMsg({ ok: false, text: t('addErrNotFound') });
       else if (e instanceof ApiError && e.status === 409) setAddMsg({ ok: false, text: t('addErrAlready') });
@@ -118,6 +146,23 @@ export default function FriendsTab({ onRequestsChange }: { onRequestsChange?: (n
             cursor: adding || !addName.trim() ? 'default' : 'pointer', opacity: adding || !addName.trim() ? 0.5 : 1, whiteSpace: 'nowrap',
           }}>{adding ? '…' : t('addBtn')}</button>
         </div>
+
+        {/* 자동완성 — 입력과 일치하는 유저 목록 */}
+        {results.length > 0 && (
+          <div style={{ marginTop: 6, background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, overflow: 'hidden' }}>
+            {results.map(u => (
+              <button key={u.id} onClick={() => requestUser(u)} style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px',
+                background: 'none', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', textAlign: 'left', color: '#fff',
+              }}>
+                <Avatar user={u} />
+                <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.username}</span>
+                <span style={{ fontSize: 16, color: '#a5b4fc', flexShrink: 0 }}>+</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {addMsg && (
           <div style={{ marginTop: 6, fontSize: 12, color: addMsg.ok ? '#6ee7b7' : '#fca5a5' }}>{addMsg.text}</div>
         )}
