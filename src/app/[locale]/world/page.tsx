@@ -939,28 +939,7 @@ export default function WorldPage() {
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
       {/* 스크립트 디버그 콘솔 (백틱 ` 키 토글) — 제작자가 게임 만들 때 print/에러 확인 */}
       <WorldDevConsole />
-      {/* 비공개 세션 — 초대 링크 복사 버튼 (호스트/참가자 모두, 친구 초대용) */}
-      {isPrivateParam && !isPersonalMode && effectiveSessionId && (
-        <button
-          type="button"
-          onClick={() => {
-            try {
-              navigator.clipboard.writeText(window.location.href);
-              setInviteCopied(true);
-              setTimeout(() => setInviteCopied(false), 2000);
-            } catch { /* clipboard 차단 환경 — 무시 */ }
-          }}
-          style={{
-            position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)',
-            zIndex: 9000, padding: '7px 14px', borderRadius: 999,
-            background: inviteCopied ? 'rgba(34,197,94,0.9)' : 'rgba(99,102,241,0.9)',
-            border: '1px solid rgba(255,255,255,0.25)', color: '#fff',
-            fontSize: 12, fontWeight: 700, cursor: 'pointer', backdropFilter: 'blur(6px)',
-          }}
-        >
-          🔒 {inviteCopied ? ts('inviteCopied') : ts('inviteCopy', { code: effectiveSessionId })}
-        </button>
-      )}
+      {/* 비공개 전용 초대 버튼은 헤더 안 초대 칩으로 통합 (아래) */}
       {showSessionPicker && (
         <SessionPicker
           worldId={effectiveWorldId!}
@@ -1058,6 +1037,31 @@ export default function WorldPage() {
         {hostId && hostId !== userId && <span style={{ color: '#94a3b8', fontSize: 11 }}>(호스트: {players[hostId]?.username ?? '...'})</span>}
         <span style={{ opacity: 0.5 }}>|</span>
         <span style={{ opacity: 0.7 }}>{t('playersOnline', { count: Object.keys(players).length + 1 })}</span>
+        {/* 초대 코드/링크 복사 — multi 세션(personal 아님)에서만 노출. 클릭=링크 복사, 비공개면 🔒 표시. */}
+        {!isPersonalMode && effectiveSessionId && effectiveWorldId && (
+          <>
+            <span style={{ opacity: 0.5 }}>|</span>
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  navigator.clipboard.writeText(window.location.href);
+                  setInviteCopied(true);
+                  setTimeout(() => setInviteCopied(false), 2000);
+                } catch { /* noop */ }
+              }}
+              title={ts('inviteCopy', { code: effectiveSessionId })}
+              style={{
+                padding: '3px 10px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.18)',
+                background: inviteCopied ? 'rgba(34,197,94,0.85)' : 'rgba(99,102,241,0.75)',
+                color: '#fff', fontSize: 12, fontWeight: 800, fontFamily: 'monospace', letterSpacing: 1,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              {inviteCopied ? '✓ ' + ts('inviteCopied') : `${isPrivateParam ? '🔒' : '🔗'} ${effectiveSessionId}`}
+            </button>
+          </>
+        )}
       </div>
 
       <div style={{ position: 'absolute', top: 60, left: 16, background: 'rgba(0,0,0,0.4)', borderRadius: 12, padding: '8px 12px', color: '#fff', fontSize: 12, backdropFilter: 'blur(6px)', minWidth: 120, zIndex: 16777274 }}>
