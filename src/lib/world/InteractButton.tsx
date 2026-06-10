@@ -22,8 +22,8 @@ export default function InteractButton({ isMobile }: { isMobile: boolean }) {
 
   if (!isMobile || typeof document === 'undefined') return null;
 
-  // seat 은 F 키 — SeatButton 이 담당. E 키는 그 외 prompt 만 활성화.
-  const activeKind = prompt === 'seat' ? null : prompt;
+  // seat (F) / ladder (W/S/Space) 는 전용 버튼이 담당 — E 버튼은 door/dialogue/vending 만 활성화.
+  const activeKind = prompt === 'seat' || prompt === 'ladder' ? null : prompt;
   const active = !!activeKind;
   const promptIcon = activeKind === 'door' ? '🚪' : activeKind === 'dialogue' ? '💬' : activeKind === 'vending' ? '🏪' : '';
 

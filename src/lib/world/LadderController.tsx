@@ -12,6 +12,7 @@ import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { LadderSpot } from './components';
 import type { PlayerControl } from './SeatController';
+import { setInteractPrompt } from './interactPrompt';
 
 export interface PlayerControlWithVel extends PlayerControl {
   getVelocity?: () => { x: number; y: number; z: number };
@@ -74,18 +75,21 @@ export default function LadderController({
         try { ctl.setGravityEnabled?.(true); } catch { /* noop */ }
         try { ctl.setVelocity?.(v.x, cur.jumpExitV, v.z); } catch { /* noop */ }
         climbingRef.current = null;
+        setInteractPrompt(null);
         return;
       }
       if (!still) {
         // 박스 밖으로 빠짐 — climbing 해제
         try { ctl.setGravityEnabled?.(true); } catch { /* noop */ }
         climbingRef.current = null;
+        setInteractPrompt(null);
         return;
       }
       // 진행: vy 만 강제, x/z 는 사용자 입력 그대로
       const v = ctl.getVelocity?.() ?? { x: 0, y: 0, z: 0 };
       const vy = keys.current.up ? cur.climbSpeed : keys.current.down ? -cur.climbSpeed : 0;
       try { ctl.setVelocity?.(v.x, vy, v.z); } catch { /* noop */ }
+      setInteractPrompt('ladder');
     } else {
       // 박스 안으로 들어왔는지 체크 — 자동 climbing 진입
       const enter = findEnclosing(pose.x, pose.y, pose.z);
@@ -94,6 +98,10 @@ export default function LadderController({
         try { ctl.setGravityEnabled?.(false); } catch { /* noop */ }
         const v = ctl.getVelocity?.() ?? { x: 0, y: 0, z: 0 };
         try { ctl.setVelocity?.(v.x, 0, v.z); } catch { /* noop */ }
+        setInteractPrompt('ladder');
+      } else {
+        // climbing 도 nearby 도 아님 — ladder prompt clear (다른 prompt 가 set 했으면 보존)
+        // 단순화: 매 frame 마다 ladder 상태가 아니면 안 건드림.
       }
     }
   });
@@ -104,6 +112,7 @@ export default function LadderController({
       try { playerCtlRef?.current?.setGravityEnabled?.(true); } catch { /* noop */ }
       climbingRef.current = null;
     }
+    setInteractPrompt(null);
   }, [playerCtlRef]);
 
   return null;

@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from 'react';
 
-export type PromptKind = 'door' | 'dialogue' | 'vending' | 'seat' | null;
+export type PromptKind = 'door' | 'dialogue' | 'vending' | 'seat' | 'ladder' | null;
 
 let promptKind: PromptKind = null;
 const listeners = new Set<(k: PromptKind) => void>();

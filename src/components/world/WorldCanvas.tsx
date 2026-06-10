@@ -66,6 +66,7 @@ import CheckpointController from '@/lib/world/CheckpointController';
 import RaceController from '@/lib/world/RaceController';
 import InteractButton from '@/lib/world/InteractButton';
 import SeatButton from '@/lib/world/SeatButton';
+import LadderButton from '@/lib/world/LadderButton';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
@@ -5657,6 +5658,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
       {isMobile && <MobileControls inputLocked={chatInputActive} cameraMode={cameraMode} />}
       <InteractButton isMobile={isMobile} />
       <SeatButton isMobile={isMobile} />
+      <LadderButton isMobile={isMobile} />
 
       {selectedRemote && (
         <RemotePlayerInfoPanel
