@@ -2090,6 +2090,19 @@
     "failed": "전송에 실패했습니다.",
     "close": "닫기"
   },
+  "Presence": {
+    "title": "지금 접속 중",
+    "subtitle": "친구들이 지금 어디 있는지 한눈에 보고 바로 합류하세요.",
+    "onlineNow": "{count}명 접속 중",
+    "peopleCount": "{count}명",
+    "join": "들어가기",
+    "privateTitle": "위치 비공개",
+    "empty": "지금 접속 중인 친구가 없어요.",
+    "emptyHint": "친구가 월드에 들어가면 여기에 표시됩니다.",
+    "loginRequired": "로그인이 필요합니다.",
+    "login": "로그인",
+    "loading": "불러오는 중…"
+  },
   "Social": {
     "open": "소셜 열기",
     "close": "닫기",
@@ -2104,6 +2117,8 @@
     "feedDesc": "팔로잉 한 사람들의 활동",
     "findPeople": "크리에이터 둘러보기",
     "findPeopleDesc": "마켓플레이스에서 다른 사람들의 작품 보기",
+    "online": "지금 접속 중",
+    "onlineDesc": "친구들이 어디 있는지 한눈에",
     "loading": "불러오는 중…",
     "loadFailed": "불러오기 실패",
     "needLogin": "로그인이 필요합니다.",

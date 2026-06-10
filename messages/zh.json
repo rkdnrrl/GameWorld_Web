@@ -2070,6 +2070,19 @@
     "failed": "发送失败。",
     "close": "关闭"
   },
+  "Presence": {
+    "title": "谁在线",
+    "subtitle": "一眼看到好友现在在哪里，立即加入。",
+    "onlineNow": "{count}人在线",
+    "peopleCount": "{count}人",
+    "join": "加入",
+    "privateTitle": "位置已隐藏",
+    "empty": "目前没有好友在线。",
+    "emptyHint": "好友进入世界后会显示在这里。",
+    "loginRequired": "需要登录。",
+    "login": "登录",
+    "loading": "加载中…"
+  },
   "Social": {
     "open": "打开社交面板",
     "close": "关闭",
@@ -2084,6 +2097,8 @@
     "feedDesc": "关注的人的最新活动",
     "findPeople": "看看创作者们",
     "findPeopleDesc": "在市场里看看别人做的作品",
+    "online": "谁在线",
+    "onlineDesc": "一眼看到好友在哪里",
     "loading": "加载中…",
     "loadFailed": "加载失败",
     "needLogin": "需要登录。",

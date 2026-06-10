@@ -2070,6 +2070,19 @@
     "failed": "送信に失敗しました。",
     "close": "閉じる"
   },
+  "Presence": {
+    "title": "オンラインの友達",
+    "subtitle": "友達が今どこにいるか一目で見て、すぐ合流しましょう。",
+    "onlineNow": "{count}人オンライン",
+    "peopleCount": "{count}人",
+    "join": "参加",
+    "privateTitle": "場所は非公開",
+    "empty": "今オンラインの友達はいません。",
+    "emptyHint": "友達がワールドに入るとここに表示されます。",
+    "loginRequired": "ログインが必要です。",
+    "login": "ログイン",
+    "loading": "読み込み中…"
+  },
   "Social": {
     "open": "ソーシャルを開く",
     "close": "閉じる",
@@ -2084,6 +2097,8 @@
     "feedDesc": "フォロー中のユーザーの活動",
     "findPeople": "クリエイターを見る",
     "findPeopleDesc": "マーケットプレイスで他のユーザーの作品を見る",
+    "online": "オンライン",
+    "onlineDesc": "友達が今どこにいるか一目で",
     "loading": "読み込み中…",
     "loadFailed": "読み込みに失敗しました",
     "needLogin": "ログインが必要です。",

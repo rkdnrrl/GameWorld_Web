@@ -190,6 +190,7 @@ export default function SocialPanel() {
               <SocialAction icon="💬" label={t('messages')} desc={t('messagesDesc')} badge={dmUnread} onClick={() => { setOpen(false); setDmModal(true); }} />
               <SocialAction icon="🔔" label={t('notifications')} desc={t('notificationsDesc')} badge={notifUnread} onClick={() => { setOpen(false); setNotifModal(true); }} />
               {/* 친구·피드: 긴 콘텐츠/맥락 유지 — 전용 페이지 */}
+              <SocialLink href="/presence" icon="🟢" label={t('online')} desc={t('onlineDesc')} onNavigate={() => setOpen(false)} />
               <SocialLink href="/friends" icon="🤝" label={t('friends')} desc={t('friendsDesc')} onNavigate={() => setOpen(false)} />
               <SocialLink href="/feed" icon="📰" label={t('feed')} desc={t('feedDesc')} onNavigate={() => setOpen(false)} />
               {/* 사람 찾기 = 마켓플레이스의 크리에이터 둘러보기 (/users 미존재) */}

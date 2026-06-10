@@ -2070,6 +2070,19 @@
     "failed": "Failed to send.",
     "close": "Close"
   },
+  "Presence": {
+    "title": "Who's Online",
+    "subtitle": "See where your friends are right now and jump in.",
+    "onlineNow": "{count} online",
+    "peopleCount": "{count} here",
+    "join": "Join",
+    "privateTitle": "Location hidden",
+    "empty": "No friends online right now.",
+    "emptyHint": "Friends will show up here when they enter a world.",
+    "loginRequired": "Login required.",
+    "login": "Log in",
+    "loading": "Loading…"
+  },
   "Social": {
     "open": "Open Social",
     "close": "Close",
@@ -2084,6 +2097,8 @@
     "feedDesc": "What people you follow are up to",
     "findPeople": "Browse Creators",
     "findPeopleDesc": "See what others have made in the marketplace",
+    "online": "Who's Online",
+    "onlineDesc": "See where friends are at a glance",
     "loading": "Loading…",
     "loadFailed": "Failed to load",
     "needLogin": "Login required.",
