@@ -73,6 +73,8 @@ export default function WorldShareModal({
       const { conversation } = await api.openConversation(tk, friend.id);
       const body = `${t('inviteMessage', { name: world.name })} ${url}`;
       await api.sendMessage(tk, conversation.id, body);
+      // VRChat 식 invite 알림 (헤더 종 + /notifications) — DM 과 별개의 즉시 알림
+      api.sendWorldInvite(tk, { friendId: friend.id, worldId: world.id, worldName: world.name }).catch(() => {});
       setSentTo(prev => new Set(prev).add(friend.id));
       pushToast(t('inviteSent', { name: friend.username }));
     } catch (e: unknown) {

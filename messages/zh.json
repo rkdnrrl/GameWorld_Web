@@ -1911,6 +1911,7 @@
     "report_resolved_hide": "「{asset}」因举报已被隐藏",
     "report_resolved_delete": "「{asset}」因举报已被删除",
     "asset_auto_hidden": "「{asset}」因多次举报已自动隐藏",
+    "world_invite": "{actor} 邀请你来「{world}」世界",
     "relJustNow": "刚刚",
     "relMinAgo": "{n}分钟前",
     "relHourAgo": "{n}小时前",

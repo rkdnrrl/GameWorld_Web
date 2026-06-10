@@ -148,6 +148,10 @@ function Row({ notif }: { notif: Notif }) {
   } else if (type === 'asset_auto_hidden') {
     icon = '⚠';
     text = t('asset_auto_hidden', { asset: payload.assetName || '' });
+  } else if (type === 'world_invite') {
+    icon = '🌍';
+    text = t('world_invite', { actor: payload.actorName || '?', world: payload.worldName || '' });
+    if (payload.worldId) href = `/world?id=${encodeURIComponent(payload.worldId)}`;
   }
 
   const inner = (

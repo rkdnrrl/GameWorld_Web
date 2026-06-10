@@ -1911,6 +1911,7 @@
     "report_resolved_hide": "“{asset}” was hidden due to reports",
     "report_resolved_delete": "“{asset}” was deleted due to reports",
     "asset_auto_hidden": "“{asset}” was auto-hidden after multiple reports",
+    "world_invite": "{actor} invited you to “{world}”",
     "relJustNow": "just now",
     "relMinAgo": "{n}m ago",
     "relHourAgo": "{n}h ago",

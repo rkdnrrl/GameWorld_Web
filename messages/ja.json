@@ -1911,6 +1911,7 @@
     "report_resolved_hide": "通報により「{asset}」が非公開になりました",
     "report_resolved_delete": "通報により「{asset}」が削除されました",
     "asset_auto_hidden": "「{asset}」が多数の通報で自動非公開になりました",
+    "world_invite": "{actor} さんが「{world}」ワールドに招待しました",
     "relJustNow": "今",
     "relMinAgo": "{n}分前",
     "relHourAgo": "{n}時間前",

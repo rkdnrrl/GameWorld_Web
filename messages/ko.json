@@ -1931,6 +1931,7 @@
     "report_resolved_hide": "신고로 “{asset}” 이 비공개 처리되었습니다",
     "report_resolved_delete": "신고로 “{asset}” 이 삭제되었습니다",
     "asset_auto_hidden": "“{asset}” 이 다수 신고로 자동 비공개되었습니다",
+    "world_invite": "{actor} 님이 “{world}” 월드로 초대했어요",
     "relJustNow": "방금",
     "relMinAgo": "{n}분 전",
     "relHourAgo": "{n}시간 전",

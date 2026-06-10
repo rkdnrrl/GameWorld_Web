@@ -13,7 +13,7 @@ import { api, session } from '@/lib/api';
 const POLL_MS = 30_000;
 const DROPDOWN_LIMIT = 10;
 
-type NotifType = 'asset_liked' | 'user_followed' | 'asset_imported' | 'report_resolved' | 'asset_auto_hidden';
+type NotifType = 'asset_liked' | 'user_followed' | 'asset_imported' | 'report_resolved' | 'asset_auto_hidden' | 'world_invite';
 interface Notif {
   id: string;
   type: string;
@@ -153,6 +153,10 @@ function NotifRow({ notif, onClose }: { notif: Notif; onClose: () => void }) {
   } else if (type === 'asset_auto_hidden') {
     icon = '⚠';
     text = t('asset_auto_hidden', { asset: payload.assetName || '' });
+  } else if (type === 'world_invite') {
+    icon = '🌍';
+    text = t('world_invite', { actor: payload.actorName || '?', world: payload.worldName || '' });
+    if (payload.worldId) href = `/world?id=${encodeURIComponent(payload.worldId)}`;
   }
 
   const content = (

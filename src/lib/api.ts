@@ -1000,6 +1000,15 @@ export const api = {
     );
   },
 
+  // ─── 월드 초대 알림 (Phase 5-J) ───
+  /** 친구에게 'world_invite' 알림 발송 */
+  sendWorldInvite(token: string, params: { friendId: string; worldId: string; worldName: string }) {
+    return request<{ ok: true }>(
+      "/api/world-invites",
+      { method: "POST", headers: authHeaders(token), body: JSON.stringify(params) },
+    );
+  },
+
   // ─── DM (Phase 19) ───
   /** 대화방 목록 */
   listConversations(token: string) {
