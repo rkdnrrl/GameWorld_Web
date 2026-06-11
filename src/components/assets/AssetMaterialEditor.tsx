@@ -5,7 +5,8 @@ import { OrbitControls } from '@react-three/drei';
 import { useTranslations } from 'next-intl';
 import * as THREE from 'three';
 import { session } from '@/lib/api';
-import { buildMat, disposeMat, type MaterialConfig } from '@/lib/assets/material';
+import { buildMat, disposeMat, loadTex, type MaterialConfig } from '@/lib/assets/material';
+import { buildOverrideMaterial, hasOverride, uniqueMaterialNames } from '@/lib/world/materialOverride';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
@@ -15,7 +16,7 @@ export type { MaterialConfig };
 import type { Asset } from '@/lib/assets/types';
 
 /* ── 미리보기 ─────────────────────────────── */
-function PreviewModel({ url, config }: { url: string; config: MaterialConfig }) {
+function PreviewModel({ url, config, onMaterials }: { url: string; config: MaterialConfig; onMaterials?: (names: string[]) => void }) {
   const [obj, setObj] = useState<THREE.Object3D | null>(null);
   const originalMats = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
 
@@ -37,33 +38,34 @@ function PreviewModel({ url, config }: { url: string; config: MaterialConfig }) 
           const m = c as THREE.Mesh;
           if (m.isMesh) { m.castShadow = true; originalMats.current.set(m, m.material); }
         });
+        onMaterials?.(uniqueMaterialNames(originalMats.current));
         setObj(fbx);
       }).catch(() => { /* 로드 실패 — 미리보기 비움 */ });
     });
     return () => { cancelled = true; };
-  }, [url]);
+  }, [url, onMaterials]);
 
   useEffect(() => {
     if (!obj) return;
-    const mat = buildMat(config);
-    if (!mat) {
-      obj.traverse(c => {
-        const m = c as THREE.Mesh;
-        if (m.isMesh) { const o = originalMats.current.get(m); if (o) m.material = o; }
-      });
-      return;
-    }
+    const overrides = config.materialOverrides;
+    const globalMat = buildMat(config);
+    const made: THREE.MeshStandardMaterial[] = [];
+    const restore = () => obj.traverse(c => {
+      const m = c as THREE.Mesh;
+      if (m.isMesh) { const o = originalMats.current.get(m); if (o) m.material = o; }
+    });
     obj.traverse(c => {
       const m = c as THREE.Mesh;
-      if (m.isMesh) m.material = mat;
+      if (!m.isMesh) return;
+      const orig = originalMats.current.get(m);
+      const name = orig && !Array.isArray(orig) ? orig.name : null;
+      const ov = name && overrides ? overrides[name] : undefined;
+      if (hasOverride(ov)) { const nm = buildOverrideMaterial(orig, ov, loadTex); m.material = nm; made.push(nm); }
+      else if (globalMat) m.material = globalMat;
+      else if (orig) m.material = orig;
     });
-    return () => {
-      obj.traverse(c => {
-        const m = c as THREE.Mesh;
-        if (m.isMesh) { const o = originalMats.current.get(m); if (o) m.material = o; }
-      });
-      disposeMat(mat);
-    };
+    if (globalMat) made.push(globalMat);
+    return () => { restore(); made.forEach(disposeMat); };
   }, [obj, config]);
 
   if (!obj) return null;
@@ -123,7 +125,8 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
   const initialCfg = (asset as any).metadata?.materialConfig || asset.materialConfig || {};
   const [cfg, setCfg] = useState<MaterialConfig>(initialCfg);
   const [saving, setSaving] = useState(false);
-  const [picker, setPicker] = useState<null | 'albedo' | 'normal' | 'roughness'>(null);
+  const [picker, setPicker] = useState<null | { slot: 'albedo' | 'normal' | 'roughness'; matName?: string }>(null);
+  const [matNames, setMatNames] = useState<string[]>([]);
 
   // ESC 닫기 — 다른 asset 모달과 일관성. picker 모달 떠있으면 그것만 닫음.
   useEffect(() => {
@@ -140,6 +143,17 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
 
   function update<K extends keyof MaterialConfig>(key: K, val: MaterialConfig[K]) {
     setCfg(prev => ({ ...prev, [key]: val }));
+  }
+
+  // 부위별(머티리얼 이름) 텍스처 오버라이드 — 멀티 머티리얼 모델용
+  function updateOverride(matName: string, slot: 'albedo' | 'normal' | 'roughness', url: string | undefined) {
+    setCfg(prev => {
+      const mo = { ...(prev.materialOverrides || {}) };
+      const entry = { ...(mo[matName] || {}) };
+      if (url) entry[slot] = url; else delete entry[slot];
+      if (Object.keys(entry).length) mo[matName] = entry; else delete mo[matName];
+      return { ...prev, materialOverrides: Object.keys(mo).length ? mo : undefined };
+    });
   }
 
   async function save() {
@@ -189,7 +203,7 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
               <ambientLight intensity={0.6} />
               <directionalLight position={[5, 10, 5]} intensity={1.5} castShadow />
               <Suspense fallback={null}>
-                <PreviewModel url={asset.modelUrl} config={cfg} />
+                <PreviewModel url={asset.modelUrl} config={cfg} onMaterials={setMatNames} />
               </Suspense>
               <OrbitControls
                 enableDamping
@@ -253,7 +267,7 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
                     </button>
                   </>
                 ) : (
-                  <button onClick={() => setPicker(slot)}
+                  <button onClick={() => setPicker({ slot })}
                     style={{ flex: 1, fontSize: 11, padding: '5px', background: 'rgba(255,255,255,0.06)', color: '#a5b4fc', border: '1px dashed rgba(255,255,255,0.15)', borderRadius: 4, cursor: 'pointer' }}>
                     {t('texChoose')}
                   </button>
@@ -281,6 +295,31 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
             )}
           </div>
 
+          {/* 부위별 텍스처 — 멀티 머티리얼 모델(나무 줄기/잎 등). 모델에 저장 → 놓는 모든 복사본에 적용 */}
+          {matNames.length >= 2 && (
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 12, marginBottom: 12 }}>
+              <div style={{ fontSize: 12, opacity: 0.55, marginBottom: 8 }}>🧩 {t('perMaterialTexture')}</div>
+              {matNames.map(mn => {
+                const cur = cfg.materialOverrides?.[mn]?.albedo;
+                return (
+                  <div key={mn} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                    <span style={{ fontSize: 11, opacity: 0.7, width: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={mn}>{mn}</span>
+                    {cur ? (
+                      <>
+                        <div style={{ width: 28, height: 28, background: `url(${cur}) center/cover`, borderRadius: 4, border: '1px solid rgba(255,255,255,0.1)' }} />
+                        <button onClick={() => updateOverride(mn, 'albedo', undefined)}
+                          style={{ flex: 1, fontSize: 11, padding: '5px', background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: 'none', borderRadius: 4, cursor: 'pointer' }}>{t('texRemove')}</button>
+                      </>
+                    ) : (
+                      <button onClick={() => setPicker({ slot: 'albedo', matName: mn })}
+                        style={{ flex: 1, fontSize: 11, padding: '5px', background: 'rgba(255,255,255,0.06)', color: '#a5b4fc', border: '1px dashed rgba(255,255,255,0.15)', borderRadius: 4, cursor: 'pointer' }}>{t('texChoose')}</button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           <button onClick={save} disabled={saving}
             style={{
               width: '100%', padding: '12px', borderRadius: 10, border: 'none',
@@ -298,11 +337,16 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
             title={t('texPickerTitle')}
             onClose={() => setPicker(null)}
             onSelect={(url) => {
-              const field =
-                picker === 'albedo'    ? 'textureAlbedo' :
-                picker === 'normal'    ? 'textureNormal' :
-                                          'textureRoughness';
-              update(field, url);
+              if (!picker) return;
+              if (picker.matName) {
+                updateOverride(picker.matName, picker.slot, url);
+              } else {
+                const field =
+                  picker.slot === 'albedo' ? 'textureAlbedo' :
+                  picker.slot === 'normal' ? 'textureNormal' :
+                                              'textureRoughness';
+                update(field, url);
+              }
               setPicker(null);
             }}
           />

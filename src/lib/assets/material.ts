@@ -3,6 +3,7 @@
  * AssetMaterialEditor(편집·미리보기) 와 모델 썸네일 뷰어가 공유한다.
  */
 import * as THREE from 'three';
+import type { MaterialOverrides } from '@/lib/world/materialOverride';
 
 export type MaterialPreset = 'default' | 'wood' | 'metal' | 'stone' | 'glass' | 'plastic' | 'emissive';
 
@@ -14,6 +15,7 @@ export interface MaterialConfig {
   textureRoughness?: string;
   textureTilingX?:   number;
   textureTilingY?:   number;
+  materialOverrides?: MaterialOverrides;  // 부위별(머티리얼이름→텍스처) — 멀티 머티리얼 모델
 }
 
 export const PRESETS: Record<Exclude<MaterialPreset, 'default'>, {
