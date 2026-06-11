@@ -2410,7 +2410,7 @@ function SceneRefCapture({ target }: { target: { current: THREE.Scene | null } }
    gl prop / Environment prop 은 초기 마운트만 적용되므로 매 렌더마다 직접 세팅한다. */
 /** 스튜디오 메인 태양광 — 카메라 위치 따라가서 shadow frustum 안에 항상 오브젝트가 들어오게.
  *  방향은 첫 dirlight 오브젝트(있으면)의 회전, 없으면 기본 각도. 단일 그림자맵(cascade 없음 → 경계 이음새 없음). */
-function FollowingStudioSun({ intensity, dir }: { intensity: number; dir: [number, number, number] }) {
+function FollowingStudioSun({ intensity, dir, color }: { intensity: number; dir: [number, number, number]; color: string }) {
   const ref = useRef<THREE.DirectionalLight>(null);
   useFrame((state) => {
     if (!ref.current) return;
@@ -2434,6 +2434,7 @@ function FollowingStudioSun({ intensity, dir }: { intensity: number; dir: [numbe
     <directionalLight
       ref={ref}
       intensity={intensity}
+      color={color}
       castShadow
       shadow-mapSize={[4096, 4096]}
       shadow-camera-left={-50} shadow-camera-right={50}
@@ -8814,7 +8815,7 @@ export default function StudioCanvas() {
           {(() => {
             const dl = objects.find(o => o.kind === 'dirlight' && !o.hidden);
             const dir = dl ? computeSunDir(dl.rotation) : ([-0.53, -0.80, -0.27] as [number, number, number]);
-            return <FollowingStudioSun intensity={dl?.lightIntensity ?? lightDir} dir={dir} />;
+            return <FollowingStudioSun intensity={dl?.lightIntensity ?? lightDir} dir={dir} color={dl?.lightColor || '#ffffff'} />;
           })()}
           {skyEnabled && !hdriBackground && <Sky sunPosition={[20, 10, 10]} />}
           {/* HDRI 환경맵 — 커스텀 URL 우선, 없으면 프리셋, none이면 미사용 */}

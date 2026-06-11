@@ -1126,12 +1126,13 @@ function RemotePlayerCrosshairClick({
  *  버그 fix: 라이트가 고정 좌표 (20,30,10) 라 캐릭터가 멀리 가면 shadow camera 박스
  *  (±60) 밖이라 그림자 끊김. 매 frame 카메라 추적해서 frustum 안에 들어오게 함.
  *  방향은 (20,30,10) → cam 으로 일정 유지 → 그림자 방향 일관성 OK. */
-function FollowingSunLight({ intensity, castShadow, shadowMapSize, shadowFar, dir = [-0.53, -0.80, -0.27] }: {
+function FollowingSunLight({ intensity, castShadow, shadowMapSize, shadowFar, dir = [-0.53, -0.80, -0.27], color = '#ffffff' }: {
   intensity: number;
   castShadow: boolean;
   shadowMapSize: [number, number];
   shadowFar: number;
   dir?: [number, number, number];
+  color?: string;
 }) {
   const ref = useRef<THREE.DirectionalLight>(null);
   useFrame((state) => {
@@ -1156,6 +1157,7 @@ function FollowingSunLight({ intensity, castShadow, shadowMapSize, shadowFar, di
     <directionalLight
       ref={ref}
       intensity={intensity}
+      color={color}
       castShadow={castShadow}
       shadow-mapSize={shadowMapSize}
       shadow-camera-left={-60}
@@ -5877,6 +5879,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             <FollowingSunLight
               intensity={inten}
               dir={dir}
+              color={dl?.lightColor || '#ffffff'}
               castShadow={shadowsEnabled}
               shadowMapSize={shadowMapSize}
               shadowFar={150}
