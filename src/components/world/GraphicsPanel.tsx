@@ -135,6 +135,15 @@ export default function GraphicsPanel({ settings, updateSettings, applyPreset, m
             />
           </Section>
 
+          {/* 성능 통계 HUD — 드로우콜·삼각형·컬링 수 표시 (디버그) */}
+          <Section label={t('showStats')}>
+            <ToggleButtons
+              value={settings.showStats}
+              onChange={v => updateSettings({ showStats: v })}
+              labels={[t('off'), t('on')]}
+            />
+          </Section>
+
       {/* 리셋 */}
       <button onClick={() => applyPreset('ultra')}
         style={{

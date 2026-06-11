@@ -1942,6 +1942,7 @@
     "cullDistance": "距离剔除 (远处不渲染)",
     "frustumCull": "视锥剔除 (屏幕外不渲染)",
     "occlusionCull": "遮挡剔除 (墙后不渲染·实验性)",
+    "showStats": "性能统计 (绘制调用·剔除数)",
     "on": "开",
     "off": "关",
     "shadowOff": "关",

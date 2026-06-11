@@ -6,14 +6,14 @@
  *   - 거리 멀어지면 distance-culled ↑.
  *   - 오클루전 켜고 벽 뒤를 보면 occlusion-culled ↑.
  *
- * 켜는 법: 월드 URL 에 `?perf=1` 추가 (또는 localStorage 'alpPerf'='1').
- * 안 켜면 아무것도 안 함 → 프로덕션 무해. DOM textContent 직접 갱신(5Hz)이라 React 리렌더 0.
+ * 켜는 법: 그래픽 설정(⚙) 패널의 "성능 통계" 토글 → show prop.
+ * 꺼지면 DOM 요소 자체를 제거 → 프로덕션 무해. textContent 직접 갱신(~3Hz)이라 React 리렌더 0.
  */
 import { useEffect, useRef } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-export default function PerfHUD() {
+export default function PerfHUD({ show }: { show: boolean }) {
   const gl = useThree(s => s.gl);
   const scene = useThree(s => s.scene);
   const elRef = useRef<HTMLDivElement | null>(null);
@@ -21,10 +21,7 @@ export default function PerfHUD() {
   const frames = useRef(0);
 
   useEffect(() => {
-    const on = typeof window !== 'undefined' &&
-      (new URLSearchParams(location.search).get('perf') === '1' ||
-        localStorage.getItem('alpPerf') === '1');
-    if (!on) return;
+    if (!show || typeof document === 'undefined') return;
     const el = document.createElement('div');
     el.style.cssText =
       'position:fixed;top:8px;left:8px;z-index:2147483647;font:12px/1.5 ui-monospace,monospace;' +
@@ -33,7 +30,7 @@ export default function PerfHUD() {
     document.body.appendChild(el);
     elRef.current = el;
     return () => { el.remove(); elRef.current = null; };
-  }, []);
+  }, [show]);
 
   useFrame((_, dt) => {
     const el = elRef.current;

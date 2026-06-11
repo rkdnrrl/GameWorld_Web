@@ -1942,6 +1942,7 @@
     "cullDistance": "Distance Culling (skip far)",
     "frustumCull": "Frustum Culling (skip off-screen)",
     "occlusionCull": "Occlusion Culling (skip behind walls · experimental)",
+    "showStats": "Performance Stats (draw calls · culled)",
     "on": "On",
     "off": "Off",
     "shadowOff": "Off",

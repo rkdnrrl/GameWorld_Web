@@ -1962,6 +1962,7 @@
     "cullDistance": "거리 컬링 (멀면 안 그림)",
     "frustumCull": "프러스텀 컬링 (화면 밖 안 그림)",
     "occlusionCull": "오클루전 컬링 (벽 뒤 안 그림·실험적)",
+    "showStats": "성능 통계 (드로우콜·컬링 수)",
     "on": "켬",
     "off": "끔",
     "shadowOff": "끔",

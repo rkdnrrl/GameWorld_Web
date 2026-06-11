@@ -5937,8 +5937,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         {shadowsEnabled && <ShadowUpdateThrottle hz={30} />}
         {/* 거리/프러스텀/오클루전 culling — 안 보이는 mesh 안 그림 */}
         <PerfManager cullDistance={graphics.cullDistance} frustumCull={graphics.frustumCull} occlusionCull={graphics.occlusionCull} />
-        {/* 컬링 작동 확인용 디버그 HUD — ?perf=1 일 때만 표시 */}
-        <PerfHUD />
+        {/* 컬링 작동 확인용 디버그 HUD — 그래픽 설정 "성능 통계" 토글 */}
+        <PerfHUD show={graphics.showStats} />
         {/* fps 자동 측정 — 60fps 못 유지하면 dpr 0.75 단계로 낮춤. 회복되면 다시 올림.
             min/max bound 로 0.5~1.0 사이만 조정 — 너무 흐려지지 않게.
             ⚠ DPR 변경 = WebGL drawing buffer resize = 한 프레임 전체 flash(맵 깜빡임).
