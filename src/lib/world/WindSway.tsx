@@ -49,16 +49,19 @@ const VERT_UNIFORMS =
 const VERT_BODY = `
 {
   vec4 wWind = modelMatrix * vec4(transformed, 1.0);
-  float hWind = max(wWind.y - uWindBaseY, 0.0);              // base 위 높이(월드 m)
+  // 모델 스케일 — bendWind 는 world m 단위인데 local 정점(transformed)에 더하므로,
+  // 스케일로 나눠 줘야 world 변위가 스케일에 무관하게 일정(안 그러면 크게 스케일한 에셋이 심하게 일그러짐).
+  vec3 sWind = max(vec3(length(modelMatrix[0].xyz), length(modelMatrix[1].xyz), length(modelMatrix[2].xyz)), vec3(0.0001));
+  float hWind = clamp(wWind.y - uWindBaseY, 0.0, 4.0);      // base 위 높이(월드 m), 과한 굽힘 방지 클램프
   float phWind = (wWind.x * uWindDir.x + wWind.z * uWindDir.y) * 0.25;  // 위치 위상(물결)
   float tWind = uWindTime * uWindSpeed;
   // 메인 굽힘 — 높이에 비례(밑동 고정, 위로 휨). 2종 사인 합성으로 자연스럽게.
   float bendWind = (sin(tWind - phWind) * 0.7 + sin(tWind * 1.7 - phWind * 1.3) * 0.3) * hWind * uWindStr * 0.06;
   // 잎 펄럭임 — 고주파 소진폭, 높이·정점 위치 기반.
   float flWind = sin(tWind * 5.0 - phWind + wWind.x * 3.0 + wWind.z * 3.0) * hWind * uWindStr * uWindTurb * 0.03;
-  transformed.x += bendWind * uWindDir.x + flWind;
-  transformed.z += bendWind * uWindDir.y + flWind * 0.6;
-  transformed.y -= abs(flWind) * 0.2;
+  transformed.x += (bendWind * uWindDir.x + flWind) / sWind.x;
+  transformed.z += (bendWind * uWindDir.y + flWind * 0.6) / sWind.z;
+  transformed.y -= (abs(flWind) * 0.2) / sWind.y;
 }
 `;
 
