@@ -1915,6 +1915,8 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }:
         // (이전 1m 기준이면 데스크탑/웹 크기 2배 차이 남.)
         if (h > 0) model.scale.multiplyScalar(2 / h);
         const origMap = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
+        // 점진 reveal — mesh 들을 invisible 로 시작해 프레임당 조금씩 표시(첫 프레임 셰이더 컴파일·업로드 부담 분산)
+        const progressiveMeshes: THREE.Mesh[] = [];
         model.traverse(c => {
           const m = c as THREE.Mesh;
           if (m.isMesh) {
@@ -1924,6 +1926,8 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }:
             m.frustumCulled = false;
             fixModelMaterials(m);
             origMap.set(m, m.material);
+            m.visible = false;
+            progressiveMeshes.push(m);
           }
         });
         originalMatsRef.current = origMap;
@@ -1937,6 +1941,14 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }:
           window.dispatchEvent(new CustomEvent('alp-materials-loaded'));
         }
         setModel(model);
+        // 매 frame 2 mesh 씩 노출 — 잎 많은 모델도 첫 프레임 부담 없이 점진적으로 나타남 (월드 플레이와 동일)
+        let revealIdx = 0;
+        const revealNext = () => {
+          if (cancelled) return;
+          for (let n = 0; n < 2 && revealIdx < progressiveMeshes.length; n++) { progressiveMeshes[revealIdx].visible = true; revealIdx++; }
+          if (revealIdx < progressiveMeshes.length) requestAnimationFrame(revealNext);
+        };
+        requestAnimationFrame(revealNext);
       }).catch(err => console.error('[studio] 모델 로드 실패:', err))
     );
     return () => { cancelled = true; };
