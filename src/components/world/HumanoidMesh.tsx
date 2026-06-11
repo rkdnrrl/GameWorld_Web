@@ -181,14 +181,35 @@ export interface HumanoidMeshProps {
 }
 
 /** 단일 캐시 — 같은 url 요청 중복 로드 방지. dispose 는 페이지 unmount 시 안 함 (캐시) */
-const characterCache = new Map<string, Promise<HumanoidCharacter>>();
+// ⚠️ 인스턴스 캐시 안 함 — 같은 url 캐릭터를 여러 플레이어(HumanoidMesh)가 **동시에** 쓰면
+// 같은 root Object3D 를 공유하게 되는데, three.js 에선 객체가 부모를 하나만 가지므로
+// 두 번째 instance 의 add() 가 첫 번째에서 scene 을 빼앗아 → 한쪽만 렌더되는 버그.
+// (mixer/bones/vrm/lipSync 가 모두 root 에 묶여 있어 scene 만 클론할 수도 없음.)
+// → 인스턴스마다 자기 캐릭터를 로드하고, 언마운트 시 disposeCharacter() 로 정리한다.
 async function getCharacter(url: string, manualBoneMap?: Partial<Record<string, string>>): Promise<HumanoidCharacter> {
-  const key = `${url}::${JSON.stringify(manualBoneMap ?? {})}`;
-  const cached = characterCache.get(key);
-  if (cached) return cached;
-  const p = createHumanoidCharacter(url, { manualBoneMap: manualBoneMap as Partial<Record<never, string>> });
-  characterCache.set(key, p);
-  return p;
+  return createHumanoidCharacter(url, { manualBoneMap: manualBoneMap as Partial<Record<never, string>> });
+}
+
+/** 캐릭터 1개의 GPU 자원(지오메트리·머티리얼·텍스처) + mixer 정리. 인스턴스 전용이라 안전. */
+function disposeCharacter(c: HumanoidCharacter) {
+  try { c.dispose(); } catch { /* noop */ }
+  try { if (c.scene.parent) c.scene.parent.remove(c.scene); } catch { /* noop */ }
+  try {
+    c.scene.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.geometry) m.geometry.dispose();
+      const mats = Array.isArray(m.material) ? m.material : (m.material ? [m.material] : []);
+      for (const mat of mats) {
+        if (!mat) continue;
+        for (const k of Object.keys(mat)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const v = (mat as any)[k];
+          if (v && v.isTexture) v.dispose();
+        }
+        mat.dispose();
+      }
+    });
+  } catch { /* noop */ }
 }
 
 export function HumanoidMesh(props: HumanoidMeshProps) {
@@ -412,8 +433,8 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     })();
     return () => {
       cancelled = true;
-      // dispose 는 안 함 — 캐시 유지 (같은 url 재진입 빠름)
-      void local;
+      // 인스턴스 전용 캐릭터 → 언마운트/교체 시 GPU 자원 정리 (캐시 제거로 누수 방지)
+      if (local) disposeCharacter(local);
     };
   }, [url, manualBoneMap, clipUrls, targetHeight, userScale]);
 
@@ -499,7 +520,7 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     return () => {
       // 셰이더 컴파일 in-flight 중에 unmount 되면 setState 무시
       compileCancelled = true;
-      // unmount 시 scene 떼기 — 다른 인스턴스가 같은 캐시 char 받으면 재부착
+      // scene 을 group 에서 분리 (실제 GPU dispose 는 로드 effect cleanup 의 disposeCharacter 가 담당)
       if (char.scene.parent) char.scene.parent.remove(char.scene);
     };
   }, [char, castShadow, gl, camera]);
