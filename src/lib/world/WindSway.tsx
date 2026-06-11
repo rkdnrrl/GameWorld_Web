@@ -3,7 +3,7 @@
  * 바람 흔들림 — 버텍스 셰이더 기반 폴리지 바람. (예전: 그룹 통째 회전 → 부자연스러움)
  *
  * 자식 mesh 들의 머티리얼 셰이더에 바람 변위를 주입한다:
- *  - 밑동(base) 은 거의 고정, **높이(h)에 비례해 휨** → 나무가 자연스럽게 굽음
+ *  - 밑동(base) 은 고정, **높이² 에 비례해 휨(캔틸레버 곡률)** → 나무가 활처럼 부드럽게 휘청(꺾임 없음)
  *  - 높은 곳(잎)일수록 **고주파 소진폭 펄럭임** → 나뭇잎이 잘게 흔들림
  *  - 위상이 월드 위치 기반 → 같은 바람이 물결처럼 코히어런트하게 퍼짐
  *
@@ -46,19 +46,20 @@ const VERT_BODY = `
   // 모델 스케일 — bendWind 는 world m 단위인데 local 정점(transformed)에 더하므로,
   // 스케일로 나눠 줘야 world 변위가 스케일에 무관하게 일정(안 그러면 크게 스케일한 에셋이 심하게 일그러짐).
   vec3 sWind = max(vec3(length(modelMatrix[0].xyz), length(modelMatrix[1].xyz), length(modelMatrix[2].xyz)), vec3(0.0001));
-  float hWind = clamp(wWind.y - uWindBaseY, 0.0, 4.0);      // base 위 높이(월드 m), 과한 굽힘 방지 클램프
+  float hWind = max(wWind.y - uWindBaseY, 0.0);            // base 위 높이(월드 m), 밑동=0 고정
   float tWind = uWindTime * uWindSpeed;
   // ⚠️ 웨이브 제거: 위상을 월드위치(부드러운 전파 → 파도가 숲을 가로지름)로 정하지 않는다.
   //   - 나무별 랜덤 위상(원점 해시): 나무끼리만 어긋남, 전파(웨이브) 없음.
   //   - 정점별 랜덤 위상(로컬 position 해시): 잎이 코히어런트 물결이 아니라 잡음성으로 셔머.
   float treePhase = fract(sin(dot(modelMatrix[3].xyz, vec3(12.9898, 78.233, 37.719))) * 43758.5453) * 6.2831;
   float leafPhase = fract(sin(dot(position, vec3(12.9898, 78.233, 37.719))) * 43758.5453) * 6.2831;
-  // 메인 굽힘(줄기 포함 전체) — 나무 한 그루가 한 위상으로 통째 기욺(웨이브 없음).
-  //   **세기의 제곱에 비례** → 약풍엔 거의 0(줄기 정지), 강풍에만 눈에 띄게 휨.
+  // 메인 굽힘(줄기 포함) — **캔틸레버(낚싯대) 곡률: 변위 ∝ 높이²** → 밑동 고정·위로 갈수록
+  //   부드럽게 휨(휘청). ⚠️ 하드 clamp 금지: 예전 clamp(h,0,4)·clamp(disp) 가 그 지점에서
+  //   윗부분을 통째로 같은 값으로 묶어 '꺾임(hinge)' 을 만들었음 → 둘 다 제거.
+  //   세기의 제곱 → 약풍엔 거의 0(줄기 정지), 강풍에만 눈에 띄게 휨.
   float strBend = uWindStr * uWindStr;
-  float bendWind = clamp(
-    (sin(tWind + treePhase) * 0.7 + sin(tWind * 1.7 + treePhase) * 0.3) * hWind * strBend * 0.001,
-    -0.35, 0.35);
+  float sway = sin(tWind + treePhase) * 0.7 + sin(tWind * 1.7 + treePhase) * 0.3;
+  float bendWind = sway * hWind * hWind * strBend * 0.0006;
   // 잎 펄럭임 — **잎 머티리얼(uWindLeaf=1)만** (줄기는 0 → 펄럭임 0 = 부피 출렁임 없음).
   //   정점별 랜덤 위상 → 잡음성 셔머(웨이브 아님).
   float flWind = clamp(
