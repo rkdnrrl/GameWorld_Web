@@ -44,7 +44,7 @@ import { MAP_APPLY_EVENT } from '@/lib/assets/kinds/map';
 import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, computeBuoyancyVolumes, computeAmbientSoundZones, findDayNightComponent, computeSeats, computeTeleporters, computeLadders, computeDoors, computeDialogues, computeVendings, computeJumpPads, computeCheckpoints, computeKillZones, computeRaceStarts, computeRaceFinishes, type ComponentInstance, type ComponentType, type BuoyancyVolume, type ComponentPropDef, type AmbientSoundZone, type SeatSpot, type TeleporterSpot, type LadderSpot, type DoorSpot, type DialogueSpot, type VendingSpot, type JumpPadSpot, type CheckpointSpot, type KillZoneSpot, type RaceStartSpot, type RaceFinishSpot } from '@/lib/world/components';
 import AmbientSoundsPlayer from '@/lib/world/AmbientSounds';
 import { resolveMeshMaterial, uniqueMaterialNames, type MaterialOverrides, type MatSlot } from '@/lib/world/materialOverride';
-import WindSway, { deriveWind, type WindSettings } from '@/lib/world/WindSway';
+import WindSway, { deriveWind, patchWindMaterial, type WindSettings } from '@/lib/world/WindSway';
 import DayNightCycle from '@/lib/world/DayNightCycle';
 import SeatController from '@/lib/world/SeatController';
 import TeleporterController from '@/lib/world/TeleporterController';
@@ -1619,7 +1619,7 @@ function WaterMesh({ color, selected, strength = 1, speed = 1, frequency = 1, sc
 }
 
 /* ── 단일 오브젝트 렌더링 ────────────────── */
-function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false, sculpt, worldPos }: {
+function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false, sculpt, worldPos, windActive }: {
   obj: MapObject;
   selected: boolean;
   onClick: () => void;
@@ -1630,6 +1630,8 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false, scul
   sculpt?: { tool: import('@/lib/world/TerrainSculptMesh').TerrainTool; radius: number; strength: number; onCommit: (heights: number[]) => void; onActiveChange?: (a: boolean) => void };
   /** 터레인 조각 좌표 변환용 월드 위치 (SceneNode wpos). */
   worldPos?: [number, number, number];
+  /** 글로벌 바람 대상이면 true (AssetMesh 가 compileAsync 전에 바람 셰이더 미리 패치). */
+  windActive?: boolean;
 }) {
   const ref = useRef<THREE.Mesh>(null);
   const handle = (e: { stopPropagation: () => void; button?: number }) => {
@@ -1640,7 +1642,7 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false, scul
     onClick();
   };
 
-  if (obj.kind === 'asset') return <AssetMesh obj={obj} selected={selected} onClick={handle} assetConfig={assetConfig} noTransform={noTransform} />;
+  if (obj.kind === 'asset') return <AssetMesh obj={obj} selected={selected} onClick={handle} assetConfig={assetConfig} noTransform={noTransform} windActive={windActive} worldPos={worldPos} />;
 
   // 스폰 포인트 — 시각화용 (캡슐 + forward 화살표). 월드 플레이 시엔 안 보임.
   if (obj.kind === 'spawn') {
@@ -1886,13 +1888,16 @@ function PrimitiveMaterial({ obj, selected }: { obj: MapObject; selected?: boole
   return <meshStandardMaterial color={obj.color} side={side} />;
 }
 
-function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }: {
+function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false, windActive = false, worldPos }: {
   obj: MapObject;
   selected: boolean;
   onClick: (e: { stopPropagation: () => void }) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   assetConfig?: any;
   noTransform?: boolean;
+  /** 글로벌 바람 대상이면 true — compileAsync 전에 바람 셰이더를 미리 패치(재컴파일 hitch 방지). */
+  windActive?: boolean;
+  worldPos?: [number, number, number];
 }) {
   const [model, setModel] = useState<THREE.Object3D | null>(null);
   const originalMatsRef = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
@@ -1973,6 +1978,18 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }:
     });
     if (globalMat) appliedMatsRef.current.push(globalMat);
     forceUpdate(n => n + 1);
+    // 바람 대상이면 — compileAsync 전에 바람 셰이더를 미리 주입해 "바람 포함" 으로 한 번에 컴파일.
+    // (안 하면 compileAsync 는 바람 없는 셰이더를 컴파일하고, WindSway 가 나중에 패치하며 메인스레드 재컴파일 → 렉)
+    if (windActive && model) {
+      const by = worldPos?.[1] ?? 0;
+      model.traverse(c => {
+        const mm = c as THREE.Mesh;
+        if (mm.isMesh && mm.material) {
+          if (Array.isArray(mm.material)) mm.material.forEach(m => patchWindMaterial(m, by));
+          else patchWindMaterial(mm.material, by);
+        }
+      });
+    }
     // 첫 적용 후 — ① 셰이더를 병렬(KHR_parallel_shader_compile) 컴파일해 컴파일 hitch 제거,
     // ② 그 뒤 메시를 프레임당 1개씩 점진적으로 표시해 GPU 업로드·드로우콜이 한꺼번에 몰리지 않게.
     if (!revealedRef.current && model) {
@@ -2211,7 +2228,7 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
     <group position={wpos} rotation={effectiveRot} scale={wscale} userData={{ id: obj.id }}>
       {sway && globalWind ? (
         <WindSway wind={globalWind}>
-          <Mesh3D obj={obj} selected={isSelected} onClick={() => onObjectClick(obj.id)} assetConfig={assetConfig} noTransform sculpt={isSelected ? sculpt : undefined} worldPos={wpos} />
+          <Mesh3D obj={obj} selected={isSelected} onClick={() => onObjectClick(obj.id)} assetConfig={assetConfig} noTransform sculpt={isSelected ? sculpt : undefined} worldPos={wpos} windActive />
         </WindSway>
       ) : (
         <Mesh3D obj={obj} selected={isSelected} onClick={() => onObjectClick(obj.id)} assetConfig={assetConfig} noTransform sculpt={isSelected ? sculpt : undefined} worldPos={wpos} />
@@ -2659,9 +2676,10 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
   );
 
   const assetConfig = getAssetMaterialConfig(myAssets.find(a => a.modelUrl === obj.assetUrl));
-  const rawMesh = <Mesh3D obj={obj} selected={false} onClick={() => {}} assetConfig={assetConfig} noTransform />;
   // 글로벌 바람 — asset 모델만, 바람 제외 안 한 것만 (시뮬레이션에서도 흔들림)
-  const mesh = (globalWind && obj.kind === 'asset' && !obj.noWind)
+  const simSway = !!globalWind && obj.kind === 'asset' && !obj.noWind;
+  const rawMesh = <Mesh3D obj={obj} selected={false} onClick={() => {}} assetConfig={assetConfig} noTransform windActive={simSway} worldPos={t.pos} />;
+  const mesh = (simSway && globalWind)
     ? <WindSway wind={globalWind}>{rawMesh}</WindSway>
     : rawMesh;
   // 물리: Physics 컴포넌트 우선 → 레거시 obj.physics → 없으면 'none' (콜라이더 X)

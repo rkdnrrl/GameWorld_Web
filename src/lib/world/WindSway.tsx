@@ -10,7 +10,7 @@
  * 전역 유니폼(uWindTime 등)은 모든 나무가 공유(한 바람). 높이 기준 base Y 만 오브젝트별.
  * StudioCanvas(편집·시뮬) / WorldCanvas(플레이) 공용.
  */
-import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
@@ -62,15 +62,18 @@ const VERT_BODY = `
 }
 `;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function patchMaterial(mat: THREE.Material, baseY: { value: number }) {
+/**
+ * 머티리얼에 바람 변위 셰이더를 1회 주입(멱등). 이미 패치됐으면 baseY 값만 갱신.
+ * AssetMesh 가 compileAsync **전에** 호출 → 바람 포함 셰이더로 한 번에 컴파일(재컴파일 hitch 제거).
+ * WindSway 의 useFrame 도 매 프레임 호출하지만 이미 패치됐으면 값만 갱신 → 재컴파일 X.
+ */
+export function patchWindMaterial(mat: THREE.Material, baseYValue: number) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ud = mat.userData as any;
-  if (ud.__windBaseY === baseY) return; // 이미 이 인스턴스로 패치됨
-  const prev = ud.__windHadOBC ? ud.__windPrevOBC : mat.onBeforeCompile;
-  ud.__windHadOBC = true;
-  ud.__windPrevOBC = prev;
-  ud.__windBaseY = baseY;
+  if (ud.__windUniform) { ud.__windUniform.value = baseYValue; return; } // 이미 패치 — 값만 갱신
+  const u = { value: baseYValue };
+  ud.__windUniform = u;
+  const prev = mat.onBeforeCompile;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mat.onBeforeCompile = (shader: any, renderer: any) => {
     if (prev) prev.call(mat, shader, renderer);
@@ -79,7 +82,7 @@ function patchMaterial(mat: THREE.Material, baseY: { value: number }) {
     shader.uniforms.uWindStr   = G.uWindStr;
     shader.uniforms.uWindSpeed = G.uWindSpeed;
     shader.uniforms.uWindTurb  = G.uWindTurb;
-    shader.uniforms.uWindBaseY = baseY;
+    shader.uniforms.uWindBaseY = u;
     if (!shader.vertexShader.includes('uWindTime')) {
       shader.vertexShader = VERT_UNIFORMS + shader.vertexShader.replace(
         '#include <begin_vertex>',
@@ -92,7 +95,6 @@ function patchMaterial(mat: THREE.Material, baseY: { value: number }) {
 
 export default function WindSway({ wind, children }: { wind: WindSettings; children: ReactNode }) {
   const ref = useRef<THREE.Group>(null);
-  const baseY = useMemo(() => ({ value: 0 }), []);
   const wpos = useRef(new THREE.Vector3());
 
   useEffect(() => {
@@ -112,13 +114,13 @@ export default function WindSway({ wind, children }: { wind: WindSettings; child
     const g = ref.current;
     if (!g) return;
     g.getWorldPosition(wpos.current);
-    baseY.value = wpos.current.y;
-    // 서브트리 머티리얼에 바람 셰이더 주입 (미패치만 — patchMaterial 이 조기 반환)
+    const by = wpos.current.y;
+    // 서브트리 머티리얼 baseY 갱신(이미 패치됨 → 값만). AssetMesh 가 compileAsync 전에 패치하므로 여기선 보통 값 갱신만.
     g.traverse((o) => {
       const m = (o as THREE.Mesh).material;
       if (!m) return;
-      if (Array.isArray(m)) m.forEach((mm) => patchMaterial(mm, baseY));
-      else patchMaterial(m, baseY);
+      if (Array.isArray(m)) m.forEach((mm) => patchWindMaterial(mm, by));
+      else patchWindMaterial(m, by);
     });
   });
 
