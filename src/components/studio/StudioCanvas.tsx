@@ -5115,6 +5115,10 @@ export default function StudioCanvas() {
   const [activePostFXZone, setActivePostFXZone] = useState(-1);
   // 썸네일 캡처 함수 (Canvas 내부에서 등록)
   const captureFnRef = useRef<(() => string | null) | null>(null);
+  // 맵 썸네일 — 사용자가 직접 지정 (현재 화면 캡처 또는 이미지 업로드). 저장 시 thumbBlob 만 업로드.
+  const [thumbBlob, setThumbBlob] = useState<Blob | null>(null);
+  const [thumbPreview, setThumbPreview] = useState<string | null>(null);
+  const thumbInputRef = useRef<HTMLInputElement | null>(null);
   const cameraRef    = useRef<THREE.Camera | null>(null);
   const viewportRef  = useRef<HTMLDivElement | null>(null);
   const canvasDomRef = useRef<HTMLCanvasElement | null>(null);
@@ -5265,6 +5269,8 @@ export default function StudioCanvas() {
         devLog('[studio] loaded:', d.world.name, 'objects:', d.world.mapData?.objects?.length ?? 0);
         setName(d.world.name);
         setDescription(d.world.description || '');
+        setThumbPreview(d.world.thumbnailUrl || null);
+        setThumbBlob(null);
         setIsPublic(Boolean(d.world.isPublic));
         setIsGame(Boolean(d.world.isGame));
         setGameCharacter(d.world.gameCharacter && typeof d.world.gameCharacter === 'object' ? d.world.gameCharacter : null);
@@ -7098,18 +7104,36 @@ export default function StudioCanvas() {
     return true;
   }
 
+  // 썸네일: 현재 3D 화면 캡처 → 미리보기 + 업로드 대기 blob 으로
+  async function captureThumb() {
+    const dataUrl = captureFnRef.current?.();
+    if (!dataUrl) { alert(tCanvas('thumb_capture_failed')); return; }
+    try {
+      const blob = await (await fetch(dataUrl)).blob();
+      setThumbBlob(blob);
+      setThumbPreview(dataUrl);
+    } catch { alert(tCanvas('thumb_capture_failed')); }
+  }
+  // 썸네일: 내 PC 이미지 업로드 → 미리보기 + 업로드 대기 blob 으로
+  function onThumbFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    if (!f.type.startsWith('image/')) { alert(tCanvas('thumb_not_image')); return; }
+    setThumbBlob(f);
+    setThumbPreview(URL.createObjectURL(f));
+  }
+
   async function save() {
     if (saving) return;
     setSaving(true);
     try {
-      // 썸네일: Three.js 캔버스 캡처 → base64 → 서버 업로드
+      // 썸네일: 사용자가 지정한 것(캡처 or 업로드)만 서버 업로드. 미지정이면 기존 유지(덮어쓰지 않음).
       let thumbnailUrl: string | undefined;
-      try {
-        const dataUrl = captureFnRef.current?.();
-        if (dataUrl) {
-          const blob = await (await fetch(dataUrl)).blob();
+      if (thumbBlob) {
+        try {
           const fd = new FormData();
-          fd.append('file', blob, 'thumbnail.webp');
+          fd.append('file', thumbBlob, 'thumbnail.webp');
           const upRes = await fetch(`${API}/api/worlds/thumbnail`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${token()}` },
@@ -7119,8 +7143,8 @@ export default function StudioCanvas() {
             const upData = await upRes.json();
             thumbnailUrl = upData.url;
           }
-        }
-      } catch { /* 썸네일 실패는 무시 */ }
+        } catch { /* 썸네일 업로드 실패는 무시 — 맵 저장은 진행 */ }
+      }
 
       // 중력/점프력은 World Physics 컴포넌트가 소스 — 저장 시 sceneSettings 에 반영해 월드 플레이에 적용
       const sceneSettings = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, hdriIntensity, exposure, gravityY: worldPhysics.gravity, jumpPower: worldPhysics.jumpPower };
@@ -7142,6 +7166,8 @@ export default function StudioCanvas() {
           router.replace(`/studio?id=${newId}`);
         }
       }
+      // 썸네일 업로드 성공 시 blob 비움 — 재저장 때 중복 업로드 방지
+      if (thumbnailUrl) { setThumbBlob(null); setThumbPreview(thumbnailUrl); }
       // dirty 해제 — 현재 상태를 저장된 기준점으로 마킹
       setSavedKey(JSON.stringify({ name, objects, sceneSettings }));
     } catch (e) {
@@ -7231,6 +7257,30 @@ export default function StudioCanvas() {
               <textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={300}
                 placeholder={t('inspDescPlaceholder')} rows={3}
                 style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#fff', fontSize: 11, padding: '6px 10px', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
+            </div>
+
+            {/* 맵 썸네일 — 현재 3D 화면 캡처 또는 이미지 업로드 (목록에 표시) */}
+            <div>
+              <div style={{ fontSize: 11, opacity: 0.5, margin: '0 0 4px' }}>{tCanvas('thumb_label')}</div>
+              <div style={{
+                width: '100%', aspectRatio: '16/9', borderRadius: 8, marginBottom: 6,
+                border: '1px solid rgba(255,255,255,0.12)', overflow: 'hidden',
+                background: thumbPreview ? `#000 url(${thumbPreview}) center/cover no-repeat` : 'rgba(255,255,255,0.05)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {!thumbPreview && <span style={{ fontSize: 24, opacity: 0.35 }}>🖼</span>}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                <button type="button" onClick={captureThumb}
+                  style={{ padding: '7px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(99,102,241,0.24)', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  📷 {tCanvas('thumb_capture')}
+                </button>
+                <button type="button" onClick={() => thumbInputRef.current?.click()}
+                  style={{ padding: '7px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.07)', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  ⬆ {tCanvas('thumb_upload')}
+                </button>
+              </div>
+              <input ref={thumbInputRef} type="file" accept="image/*" onChange={onThumbFile} style={{ display: 'none' }} />
             </div>
             <button type="button" onClick={() => setIsPublic(v => !v)}
               style={{ width: '100%', padding: '8px', borderRadius: 8, border: `1px solid ${isPublic ? 'rgba(52,211,153,0.4)' : 'rgba(255,255,255,0.12)'}`,
@@ -8710,7 +8760,7 @@ export default function StudioCanvas() {
           shadows={{ enabled: true, type: THREE.PCFSoftShadowMap, autoUpdate: true }}
           camera={{ position: [8, 8, 8], fov: 50 }}
           dpr={[1, 2]}
-          gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: exposure }}
+          gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: exposure, preserveDrawingBuffer: true }}
           onPointerMissed={() => {
             // 터레인 조각 도구 사용 중엔 빈 곳 클릭/브러시 드래그 해제로 선택이 풀리지 않게 (유니티식 — ESC 나 도구 버튼으로만 종료)
             if (!isGizmoActive() && !terrainTool) { setSelectedId(null); setStudioMode('scene'); }
