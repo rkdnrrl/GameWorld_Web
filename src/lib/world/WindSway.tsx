@@ -13,6 +13,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { G } from './globalWind';
 
 export interface WindSettings {
   strength: number;   // 휨 세기
@@ -31,14 +32,7 @@ export function deriveWind(props: Record<string, unknown> | undefined): WindSett
   };
 }
 
-// ── 전역 공유 유니폼 (모든 나무 = 한 바람) ──
-const G = {
-  uWindTime:  { value: 0 },
-  uWindDir:   { value: new THREE.Vector2(1, 0) },
-  uWindStr:   { value: 0 },
-  uWindSpeed: { value: 1 },
-  uWindTurb:  { value: 0.4 },
-};
+// 전역 공유 유니폼(G)은 ./globalWind 에 있음 — 폴리지 셰이더 + 캐릭터 스프링본이 공유.
 // 활성 WindSway 수 — 0 이 되면(바람 제거) 변위를 0 으로 (나무 똑바로)
 let activeCount = 0;
 

@@ -17,6 +17,7 @@ import { loadHumanoid, type HumanoidLoadOptions } from './humanoidLoader';
 import { createHumanoidLipSync, type HumanoidLipSync } from './humanoidLipSync';
 import { retargetClipsToHumanoid } from './humanoidAnimation';
 import { resolveSlot, type HumanoidBoneName, type HumanoidExpressionName, type AnimSlot } from './humanoid';
+import { getGlobalWind } from '../world/globalWind';
 
 export interface HumanoidCharacter {
   /** 렌더링 root (씬에 add 할 Object3D). */
@@ -75,10 +76,16 @@ export async function createHumanoidCharacter(
   //     - 골격 회전·bone hierarchy 변형 정상 반영 → 자연 흔들림 ✅
   //   center = hips 로 하면 hips 바운싱까지 제거되어 제자리 흔들림이 부자연스러워짐.
   //   stiffness/dragForce 는 가슴처럼 단단 (1.5 / 0.8) — 잔진동 빠른 감쇠.
+  // 바람용 — 스프링본 joint settings + 원본(base) 중력 캡처. 머리카락/옷자락을 바람에 날리려면
+  // gravityDir/gravityPower 를 매 프레임 (base 중력 + 수평 바람) 으로 변조한다 (three-vrm 엔 외력 API 가 없음).
+  // 스프링본 없는 모델(FBX 등)은 이 배열이 비어 → 바람 적용 안 됨(요구사항: 스프링본 있는 것만).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const windJoints: { settings: any; baseDir: THREE.Vector3; basePower: number; phase: number }[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = (vrm as any)?.springBoneManager;
   if (sb?.joints) {
     try {
+      let ji = 0;
       for (const joint of sb.joints) {
         if (!joint) continue;
         joint.center = root;  // 강제 override — 캐릭터 root 가 spring 의 "고정 좌표계"
@@ -90,10 +97,36 @@ export async function createHumanoidCharacter(
           if (typeof s.dragForce === 'number') {
             s.dragForce = Math.max(s.dragForce, 0.8);
           }
+          if (s.gravityDir && typeof s.gravityPower === 'number') {
+            windJoints.push({ settings: s, baseDir: s.gravityDir.clone(), basePower: s.gravityPower, phase: ji * 0.6 });
+          }
         }
+        ji++;
       }
     } catch { /* noop */ }
   }
+  let windApplied = false;  // 바람이 0 으로 꺼졌을 때 base 중력 1회 복원용
+  // 머리카락/옷자락 바람 — base 중력에 수평 바람(거스트)을 합성해 gravityDir/Power 변조.
+  const applyWindToSpringBones = () => {
+    if (windJoints.length === 0) return;
+    const w = getGlobalWind();
+    if (w.strength > 0.001) {
+      for (const wj of windJoints) {
+        const gust = 0.65 + 0.35 * Math.sin(w.time * w.speed * 2.0 + wj.phase);  // 시변 펄럭임
+        const wp = Math.min(w.strength * 0.06, 0.6) * gust;                       // 수평 바람 세기(상한)
+        const gx = wj.baseDir.x * wj.basePower + w.dirX * wp;
+        const gy = wj.baseDir.y * wj.basePower;
+        const gz = wj.baseDir.z * wj.basePower + w.dirZ * wp;
+        const len = Math.hypot(gx, gy, gz) || 1e-5;
+        wj.settings.gravityPower = len;
+        wj.settings.gravityDir.set(gx / len, gy / len, gz / len);
+      }
+      windApplied = true;
+    } else if (windApplied) {
+      for (const wj of windJoints) { wj.settings.gravityPower = wj.basePower; wj.settings.gravityDir.copy(wj.baseDir); }
+      windApplied = false;
+    }
+  };
 
   // mixer root = vrm.scene (또는 root). HumanoidMesh 에서 VRMA clip 의 track name 을
   // raw bone 이름으로 rewrite → mixer 가 raw scene 안의 raw bone 직접 driving.
@@ -180,6 +213,7 @@ export async function createHumanoidCharacter(
       // vrm.update = spring bone + expression + lookAt 통합. skipVrm 면 mixer 만 돌림 — 본인
       // 1인칭에서 본인 vrm.update 의 비용 큰데 안 보이는 데 spring 시뮬레이션 의미 없어 skip.
       if (!skipVrm && vrm?.update) {
+        applyWindToSpringBones();   // 머리카락/옷자락 바람 (스프링본 gravityDir/Power 변조)
         try { vrm.update(Math.min(dt, 0.05)); } catch { /* noop */ }
       }
       mixer.update(dt);
