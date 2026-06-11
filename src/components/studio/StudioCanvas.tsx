@@ -1931,15 +1931,24 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false, w
           }
         });
         originalMatsRef.current = origMap;
-        // 식물(잎 cutout) 감지 — 원본 머티리얼이 알파블렌드/cutout 이면 식물(나무·풀). 통나무·바닥 등 불투명은 제외.
-        // (origMap 은 override 오염 전 = fixModelMaterials 의 깨끗한 신호). 바람은 식물 오브젝트만 흔든다.
-        const isFoliage = [...origMap.values()].some(mat =>
-          (Array.isArray(mat) ? mat : [mat]).some(mm => {
+        // 잎(cutout) 머티리얼 **슬롯별** 감지 — 줄기/몸통(불투명)은 바람 제외, 잎만 흔들리게(나무 부피 출렁임 방지).
+        // origMap = override 오염 전 fixModelMaterials 신호. 통나무·바닥 등 비-식물은 잎 슬롯 0 → 패치 안 됨.
+        // mesh.userData.__windLeafSlots = [슬롯별 잎 여부] (잎 없으면 null). 적용 머티리얼 슬롯 순서와 동일.
+        let anyLeaf = false;
+        model.traverse(c => {
+          const mesh = c as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          const orig = origMap.get(mesh);
+          const arr = Array.isArray(orig) ? orig : [orig];
+          const slots = arr.map(mm => {
             const s = mm as THREE.MeshStandardMaterial;
             return !!s && ((s.alphaTest ?? 0) > 0 || s.transparent === true);
-          }));
-        foliageRef.current = isFoliage;
-        model.traverse(c => { if ((c as THREE.Mesh).isMesh) c.userData.__windFoliage = isFoliage; });
+          });
+          const hasLeaf = slots.some(Boolean);
+          if (hasLeaf) anyLeaf = true;
+          mesh.userData.__windLeafSlots = hasLeaf ? slots : null;
+        });
+        foliageRef.current = anyLeaf;
         // Animator 인스펙터용 — 내장 클립 이름 캐시 + 알림
         if (obj.assetUrl) {
           // 이 URL 을 "처음" 로드할 때만 이벤트 발행 — 인스펙터 이름 캐시 채우기용.
@@ -1992,10 +2001,10 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false, w
       const by = worldPos?.[1] ?? 0;
       model.traverse(c => {
         const mm = c as THREE.Mesh;
-        if (mm.isMesh && mm.material) {
-          if (Array.isArray(mm.material)) mm.material.forEach(m => patchWindMaterial(m, by));
-          else patchWindMaterial(mm.material, by);
-        }
+        const slots = mm.userData?.__windLeafSlots as boolean[] | null | undefined;
+        if (!mm.isMesh || !mm.material || !slots) return;
+        if (Array.isArray(mm.material)) mm.material.forEach((m, i) => { if (slots[i]) patchWindMaterial(m, by); });
+        else if (slots[0]) patchWindMaterial(mm.material, by);
       });
     }
     // 첫 적용 후 — ① 셰이더를 병렬(KHR_parallel_shader_compile) 컴파일해 컴파일 hitch 제거,

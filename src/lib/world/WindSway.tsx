@@ -120,14 +120,16 @@ export default function WindSway({ wind, children }: { wind: WindSettings; child
     if (!g) return;
     g.getWorldPosition(wpos.current);
     const by = wpos.current.y;
-    // **식물(잎 cutout)만 흔든다** — 로더가 mesh.userData.__windFoliage 로 표시. 통나무·바닥 등은 패치 안 함.
+    // **잎(cutout) 머티리얼 슬롯만 흔든다** — 로더가 mesh.userData.__windLeafSlots(슬롯별 잎 여부)로 표시.
+    // 줄기/몸통(불투명)·통나무·바닥 등은 패치 안 함 → 나무 부피 출렁임 없이 잎만 흔들림.
     // (baseY 갱신도 겸함. AssetMesh 가 compileAsync 전에 미리 패치하므로 여기선 보통 값 갱신만.)
     g.traverse((o) => {
       const mesh = o as THREE.Mesh;
       const m = mesh.material;
-      if (!m || !mesh.userData?.__windFoliage) return;
-      if (Array.isArray(m)) m.forEach((mm) => patchWindMaterial(mm, by));
-      else patchWindMaterial(m, by);
+      const slots = mesh.userData?.__windLeafSlots as boolean[] | null | undefined;
+      if (!m || !slots) return;
+      if (Array.isArray(m)) m.forEach((mm, i) => { if (slots[i]) patchWindMaterial(mm, by); });
+      else if (slots[0]) patchWindMaterial(m, by);
     });
   });
 
