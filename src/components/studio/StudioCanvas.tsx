@@ -7170,8 +7170,9 @@ export default function StudioCanvas() {
           router.replace(`/studio?id=${newId}`);
         }
       }
-      // 썸네일 업로드 성공 시 blob 비움 — 재저장 때 중복 업로드 방지
-      if (thumbnailUrl) { setThumbBlob(null); setThumbPreview(thumbnailUrl); }
+      // 썸네일 업로드 성공 시 blob 비움 — 재저장 때 중복 업로드 방지.
+      //   ⚠ 미리보기는 로컬 캡처 이미지를 그대로 유지 (서버 URL 로 바꾸면 R2 전파 전 404→검은박스).
+      if (thumbnailUrl) setThumbBlob(null);
       setThumbDirty(false);   // 저장 완료 → 썸네일 dirty 해제
       // dirty 해제 — 현재 상태를 저장된 기준점으로 마킹
       setSavedKey(JSON.stringify({ name, objects, sceneSettings }));
