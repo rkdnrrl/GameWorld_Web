@@ -92,7 +92,7 @@ export default function PerfHUD({ show }: { show: boolean }) {
       `draw calls ${lastCalls.current}\n` +
       `triangles  ${(lastTris.current / 1000).toFixed(0)}k\n` +
       `meshes ${meshes} · visible ${vis}\n` +
-      `frustum-culled now ${frusNow}  <-- 카메라 돌리면 변함\n` +
+      `frustum-culled now ${frusNow}\n` +
       `distance-culled ${distC}\n` +
       `occlusion-culled ${occC}`;
   });
