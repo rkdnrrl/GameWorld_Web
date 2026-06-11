@@ -8994,7 +8994,9 @@ export default function StudioCanvas() {
                   </group>
                 );
               })}
-              {mode === 'scale' ? (
+              {/* 터레인 조각 도구가 켜진 동안엔 기즈모를 숨긴다 — 기즈모가 터레인 위 브러시 드래그를
+                  가로채(pointer 캡처) 조각이 안 되는 문제(클릭 풀림) 방지. */}
+              {terrainTool ? null : mode === 'scale' ? (
                 <BoxResizeWrap
                   targetId={objects.find(o => o.id === selectedId)?.locked ? null : selectedId}
                   toLocal={worldTRSToLocal}
