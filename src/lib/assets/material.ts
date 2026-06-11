@@ -64,7 +64,7 @@ export function buildMat(cfg: MaterialConfig, onTexLoad?: () => void): THREE.Mes
   const tx = cfg.textureTilingX || 1;
   const ty = cfg.textureTilingY || 1;
   const trig = () => { mat.needsUpdate = true; onTexLoad?.(); };
-  if (cfg.textureAlbedo)    mat.map          = loadTex(cfg.textureAlbedo,    THREE.SRGBColorSpace, tx, ty, trig);
+  if (cfg.textureAlbedo)  { mat.map = loadTex(cfg.textureAlbedo, THREE.SRGBColorSpace, tx, ty, trig); mat.alphaTest = 0.5; } // 알파 컷아웃 (투명 PNG 검게 안 나오게)
   if (cfg.textureNormal)    mat.normalMap    = loadTex(cfg.textureNormal,    THREE.NoColorSpace,   tx, ty, trig);
   if (cfg.textureRoughness) mat.roughnessMap = loadTex(cfg.textureRoughness, THREE.NoColorSpace,   tx, ty, trig);
   if (cfg.textureMetalness) { mat.metalnessMap = loadTex(cfg.textureMetalness, THREE.NoColorSpace, tx, ty, trig); mat.metalness = 1; }

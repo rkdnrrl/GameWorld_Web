@@ -2967,6 +2967,7 @@ function buildMaterial(obj: UserMapObject, fallbackColor?: string, onTextureLoad
 
   if (obj.textureAlbedo) {
     mat.map = loadFreshTexture(obj.textureAlbedo, THREE.SRGBColorSpace, tilingX, tilingY, trigger);
+    mat.alphaTest = 0.5; // 알파 컷아웃 (투명 PNG 검게 안 나오게)
   }
   if (obj.textureNormal) {
     mat.normalMap = loadFreshTexture(obj.textureNormal, THREE.NoColorSpace, tilingX, tilingY, trigger);

@@ -103,7 +103,13 @@ export function buildOverrideMaterial(
   });
   if (b && (b as THREE.MeshStandardMaterial).vertexColors) m.vertexColors = true;
   const trig = () => { m.needsUpdate = true; onLoad?.(); };
-  if (ov.albedo)    m.map          = loadTex(ov.albedo,    THREE.SRGBColorSpace, 1, 1, trig);
+  if (ov.albedo) {
+    m.map = loadTex(ov.albedo, THREE.SRGBColorSpace, 1, 1, trig);
+    // 알파 컷아웃 — 잎/풀 등 투명 PNG 가 검게 안 나오게 (유니티 Alpha Clip). 불투명 텍스처(알파=1)엔 무영향.
+    m.alphaTest = 0.5;
+    m.transparent = false;
+    m.side = THREE.DoubleSide;   // 잎 카드 양면 표시
+  }
   if (ov.normal)    m.normalMap    = loadTex(ov.normal,    THREE.NoColorSpace,   1, 1, trig);
   if (ov.roughness) m.roughnessMap = loadTex(ov.roughness, THREE.NoColorSpace,   1, 1, trig);
   if (ov.metalness) { m.metalnessMap = loadTex(ov.metalness, THREE.NoColorSpace, 1, 1, trig); m.metalness = 1; }
