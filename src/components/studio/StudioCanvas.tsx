@@ -1911,17 +1911,11 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false, w
     if (!obj.assetUrl) return;
     let cancelled = false;
     revealedRef.current = false;
-    // 범용 로더 — fbx / glb / gltf / dae / obj 지원 (SketchUp export 등)
-    import('@/lib/world/modelLoader').then(({ loadStaticModel }) =>
-      loadStaticModel(obj.assetUrl!).then(model => {
+    // 캐시 로더 — URL 별 1회 파싱 후 clone(정규화 완료) 반환. 같은 모델 재파싱·재업로드 제거.
+    import('@/lib/world/modelLoader').then(({ loadStaticModelCached }) =>
+      loadStaticModelCached(obj.assetUrl!).then(model => {
         if (cancelled) return;
         model.updateMatrixWorld(true);
-        const box = new THREE.Box3().setFromObject(model);
-        const size = box.getSize(new THREE.Vector3());
-        const h = Math.max(size.x, size.y, size.z);
-        // 데스크탑 에디터 finalizeFbx 와 동일 — 최대 치수 2m 기준 정규화.
-        // (이전 1m 기준이면 데스크탑/웹 크기 2배 차이 남.)
-        if (h > 0) model.scale.multiplyScalar(2 / h);
         const origMap = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
         model.traverse(c => {
           const m = c as THREE.Mesh;

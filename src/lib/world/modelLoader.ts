@@ -122,3 +122,41 @@ export async function loadStaticModel(url: string, manager?: THREE.LoadingManage
     new FBXLoader(manager).load(url, resolve, undefined, reject);
   });
 }
+
+/**
+ * URL 별 1회만 파싱하고, 이후 호출엔 **clone** 을 반환하는 캐시 로더.
+ * - 같은 모델을 여러 번 놓을 때 매번 재파싱(0.5s+)하던 걸 제거 — 파싱·bbox 1회.
+ * - clone 은 지오메트리를 공유하므로 GPU 업로드도 1회. 머티리얼도 공유(오브젝트별 오버라이드가 어차피 새로 만듦).
+ * - 미리 정규화(최대치수 2m)된 상태로 반환 → 호출부는 bbox/scale 재계산 불필요.
+ * 정적 소품·나무 등 맵 오브젝트용. (스킨드/VRM 도 SkeletonUtils.clone 으로 안전.)
+ */
+const _baseModelCache = new Map<string, Promise<{ base: THREE.Object3D; normScale: number }>>();
+
+export async function loadStaticModelCached(url: string): Promise<THREE.Object3D> {
+  let entry = _baseModelCache.get(url);
+  if (!entry) {
+    entry = loadStaticModel(url).then((base) => {
+      base.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(base);
+      const size = box.getSize(new THREE.Vector3());
+      const h = Math.max(size.x, size.y, size.z);
+      return { base, normScale: h > 0 ? 2 / h : 1 };
+    });
+    _baseModelCache.set(url, entry);
+  }
+  const { base, normScale } = await entry;
+  const { clone } = await import('three/examples/jsm/utils/SkeletonUtils.js');
+  const c = clone(base);
+  c.scale.multiplyScalar(normScale);
+  // 머티리얼은 인스턴스별로 clone — 텍스처·지오메트리는 공유(refs)되지만, 머티리얼 상태(바람 baseY 등)는 독립.
+  // 동일 설정이라 셰이더 프로그램은 three 내부 캐시로 1회만 컴파일됨.
+  c.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (m.isMesh && m.material) {
+      m.material = Array.isArray(m.material) ? m.material.map((x) => x.clone()) : m.material.clone();
+    }
+  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (c as any).animations = (base as any).animations || [];   // Animator 컴포넌트가 재생할 클립 보존
+  return c;
+}
