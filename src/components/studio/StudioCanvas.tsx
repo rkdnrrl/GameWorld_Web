@@ -1899,7 +1899,7 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }:
   const appliedMatsRef = useRef<THREE.MeshStandardMaterial[]>([]);
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
   const [, forceUpdate] = useState(0);
-  const { gl, scene, camera } = useThree();
+  const { gl, scene, camera, invalidate } = useThree();
   const revealedRef = useRef(false);   // 셰이더 컴파일 후 1회 표시
 
   useEffect(() => {
@@ -1973,11 +1973,25 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }:
     });
     if (globalMat) appliedMatsRef.current.push(globalMat);
     forceUpdate(n => n + 1);
-    // 첫 적용 후 — 셰이더를 병렬(KHR_parallel_shader_compile)로 미리 컴파일한 뒤 한 번에 표시.
-    // 이래야 모델 등장 시 메인스레드에서 셰이더 컴파일이 동기로 터져 렉 걸리던 게 사라진다.
+    // 첫 적용 후 — ① 셰이더를 병렬(KHR_parallel_shader_compile) 컴파일해 컴파일 hitch 제거,
+    // ② 그 뒤 메시를 프레임당 1개씩 점진적으로 표시해 GPU 업로드·드로우콜이 한꺼번에 몰리지 않게.
     if (!revealedRef.current && model) {
       revealedRef.current = true;
-      const reveal = () => { model.traverse(c => { const mm = c as THREE.Mesh; if (mm.isMesh) mm.visible = true; }); forceUpdate(n => n + 1); };
+      let started = false;
+      const reveal = () => {
+        if (started) return;
+        started = true;
+        const meshes: THREE.Mesh[] = [];
+        model.traverse(c => { const mm = c as THREE.Mesh; if (mm.isMesh) meshes.push(mm); });
+        let i = 0;
+        const step = () => {
+          if (i >= meshes.length) return;
+          meshes[i].visible = true; i++;
+          invalidate();
+          requestAnimationFrame(step);   // 다음 프레임에 1개 더
+        };
+        step();
+      };
       const rc = gl as unknown as { compileAsync?: (a: THREE.Object3D, b: THREE.Camera, c?: THREE.Object3D) => Promise<unknown> };
       if (typeof rc.compileAsync === 'function') { rc.compileAsync(model, camera, scene).then(reveal, reveal); setTimeout(reveal, 1500); }
       else reveal();
