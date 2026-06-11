@@ -27,10 +27,15 @@ export function deriveWind(props: Record<string, unknown> | undefined): WindSett
   };
 }
 
+// 공간 주파수 — 위상이 위치에 따라 얼마나 빨리 변하는지. 작을수록 넓은 영역이 비슷하게 흔들림.
+// 0.25 ≈ 파장 ~25m: 가까운 나무는 거의 같이, 먼 나무는 살짝 시차를 두고 물결치듯.
+const WAVE_FREQ = 0.25;
+
 export default function WindSway({ wind, children }: { wind: WindSettings; children: ReactNode }) {
   const ref = useRef<THREE.Group>(null);
-  // 오브젝트마다 다른 위상 — 같은 바람이어도 제각각 흔들리게
-  const phase = useMemo(() => Math.random() * Math.PI * 2, []);
+  // 같은 바람이어도 완전히 똑같진 않게 — 아주 작은 개체 편차만 (랜덤 위상 X)
+  const jitter = useMemo(() => (Math.random() - 0.5) * 0.5, []);
+  const wpos = useRef(new THREE.Vector3());
   const dir = (wind.direction * Math.PI) / 180;
   const cosD = Math.cos(dir);
   const sinD = Math.sin(dir);
@@ -41,10 +46,14 @@ export default function WindSway({ wind, children }: { wind: WindSettings; child
   useFrame((state) => {
     const g = ref.current;
     if (!g) return;
+    // 위치 기반 위상 — 바람 진행축에 투영한 좌표로 위상을 결정해, 같은 바람이 물결처럼 퍼지게.
+    // 가까운(바람축에 수직인) 나무들은 비슷하게, 바람 방향으로 갈수록 시차가 생김.
+    g.getWorldPosition(wpos.current);
+    const phase = (wpos.current.x * cosD + wpos.current.z * sinD) * WAVE_FREQ + jitter;
     const t = state.clock.elapsedTime;
-    // 완만한 기본 바람 + 빠른 난기류 합성
-    const base = Math.sin(t * spd + phase);
-    const gust = Math.sin(t * spd * 2.7 + phase * 1.3) * turb;
+    // 완만한 기본 바람 + 느린 난기류 합성 (난기류도 위치 기반이라 전체가 코히어런트)
+    const base = Math.sin(t * spd - phase);
+    const gust = Math.sin(t * spd * 2.3 - phase * 1.2) * turb;
     const tilt = (base + gust) * amp;
     // 바람 방향으로 기울임: +X 방향 → Z축 -회전, +Z 방향 → X축 +회전
     g.rotation.z = -cosD * tilt;
