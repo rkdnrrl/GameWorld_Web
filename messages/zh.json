@@ -1029,6 +1029,7 @@
     "dragTextureHint": "把贴图拖到插槽",
     "myTextures": "我的贴图",
     "allFolders": "全部",
+    "excludeWind": "不受风影响",
     "texRemove": "移除",
     "texTilingX": "平铺 X",
     "texTilingY": "平铺 Y",

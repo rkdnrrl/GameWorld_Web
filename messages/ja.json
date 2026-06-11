@@ -1029,6 +1029,7 @@
     "dragTextureHint": "テクスチャをスロットにドラッグ",
     "myTextures": "マイテクスチャ",
     "allFolders": "すべて",
+    "excludeWind": "風から除外",
     "texRemove": "削除",
     "texTilingX": "タイル X",
     "texTilingY": "タイル Y",

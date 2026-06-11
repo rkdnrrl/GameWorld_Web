@@ -1029,6 +1029,7 @@
     "dragTextureHint": "텍스처를 슬롯으로 드래그",
     "myTextures": "내 텍스처",
     "allFolders": "전체",
+    "excludeWind": "바람 제외",
     "texRemove": "제거",
     "texTilingX": "반복 X",
     "texTilingY": "반복 Y",

@@ -44,7 +44,7 @@ import { MAP_APPLY_EVENT } from '@/lib/assets/kinds/map';
 import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, computeBuoyancyVolumes, computeAmbientSoundZones, findDayNightComponent, computeSeats, computeTeleporters, computeLadders, computeDoors, computeDialogues, computeVendings, computeJumpPads, computeCheckpoints, computeKillZones, computeRaceStarts, computeRaceFinishes, type ComponentInstance, type ComponentType, type BuoyancyVolume, type ComponentPropDef, type AmbientSoundZone, type SeatSpot, type TeleporterSpot, type LadderSpot, type DoorSpot, type DialogueSpot, type VendingSpot, type JumpPadSpot, type CheckpointSpot, type KillZoneSpot, type RaceStartSpot, type RaceFinishSpot } from '@/lib/world/components';
 import AmbientSoundsPlayer from '@/lib/world/AmbientSounds';
 import { resolveMeshMaterial, uniqueMaterialNames, type MaterialOverrides, type MatSlot } from '@/lib/world/materialOverride';
-import WindSway, { deriveWind } from '@/lib/world/WindSway';
+import WindSway, { deriveWind, type WindSettings } from '@/lib/world/WindSway';
 import DayNightCycle from '@/lib/world/DayNightCycle';
 import SeatController from '@/lib/world/SeatController';
 import TeleporterController from '@/lib/world/TeleporterController';
@@ -201,6 +201,7 @@ interface MapObject {
   textureTilingX?:   number;
   textureTilingY?:   number;
   materialOverrides?: MaterialOverrides;  // 부위별(머티리얼이름→텍스처) 오버라이드 — 멀티 머티리얼 모델용
+  noWind?:           boolean;  // true 면 글로벌 바람에 안 흔들림 (건물·바위 등 예외)
   videoUrl?:         string;   // 표면에 재생할 영상(TV 화면). 설정 시 텍스처 대신 비디오 재질.
   // 조명 전용
   lightColor?:     string;
@@ -2096,7 +2097,7 @@ function SpotLightWithTarget({ color, intensity, distance, angle, penumbra, cast
 }
 
 /* ── 씬 노드 (부모→자식 재귀 렌더링) ─────── */
-function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onObjectClick, myAssets, sculpt }: {
+function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onObjectClick, myAssets, sculpt, globalWind }: {
   obj: MapObject;
   wpos: [number, number, number];
   wrot: [number, number, number];
@@ -2108,6 +2109,8 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
   myAssets: any[];
   /** 터레인 조각 설정 (선택 터레인일 때만 전달). */
   sculpt?: { tool: TerrainTool; radius: number; strength: number; onCommit: (heights: number[]) => void; onActiveChange?: (a: boolean) => void };
+  /** 글로벌 바람 — 모든 asset 모델을 흔듦 (없으면 null). */
+  globalWind?: WindSettings | null;
 }) {
   const isSelected = obj.id === selectedId || multiSelectedIds.has(obj.id);
   // 평탄(flat) 렌더 — 각 오브젝트를 자기 "월드 TRS" 로 직접 렌더. 중첩 group 을 안 쓰므로
@@ -2168,8 +2171,8 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
 
   // Collider 컴포넌트 — 선택 시 충돌 박스를 초록 와이어프레임으로 표시 (크기 확인/조절용)
   const colliderComp = obj.components?.find(c => c.type === 'collider');
-  // 바람 흔들림 — 있으면 mesh 를 WindSway 로 감싸 매 프레임 기울임 (콜라이더 기즈모는 제외)
-  const windComp = obj.components?.find(c => c.type === 'wind');
+  // 바람 흔들림 — 글로벌 바람이 있으면 모든 asset 모델을 흔듦 (바람 제외 체크한 건 빼고).
+  const sway = !!globalWind && obj.kind === 'asset' && !obj.noWind;
 
   // Terrain — 데이터 rotation 무시 (TerrainMesh 가 내부에서 -π/2 X 회전 적용).
   // 옛 .alp (rotation [-π/2,0,0]) 와 새 .alp (rotation [0,0,0]) 모두 호환.
@@ -2178,8 +2181,8 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
   return (
     /* userData.id는 이 group에 → TransformControls이 이 group(월드 TRS)을 조작 */
     <group position={wpos} rotation={effectiveRot} scale={wscale} userData={{ id: obj.id }}>
-      {windComp ? (
-        <WindSway wind={deriveWind(windComp.props)}>
+      {sway && globalWind ? (
+        <WindSway wind={globalWind}>
           <Mesh3D obj={obj} selected={isSelected} onClick={() => onObjectClick(obj.id)} assetConfig={assetConfig} noTransform sculpt={isSelected ? sculpt : undefined} worldPos={wpos} />
         </WindSway>
       ) : (
@@ -2444,7 +2447,7 @@ function buildColliderEvents(objId: string, trig: boolean, onColliderEvent?: (ob
 }
 
 /** 오브젝트 1개 렌더 + body/light ref 등록 (스크립트에서 제어 가능하도록) */
-function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onColliderEvent, buoyancyRef }: {
+function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onColliderEvent, buoyancyRef, globalWind }: {
   obj: MapObject;
   transforms: SimTransforms;
   myAssets: Asset[];
@@ -2452,6 +2455,7 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
   lightRefs: React.MutableRefObject<Map<string, THREE.Light>>;
   onColliderEvent?: (objId: string, otherId: string, kind: ColliderEventKind) => void;
   buoyancyRef?: React.MutableRefObject<BuoyancyVolume[]>;
+  globalWind?: WindSettings | null;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bodyRef = useRef<any>(null);
@@ -2627,7 +2631,11 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
   );
 
   const assetConfig = getAssetMaterialConfig(myAssets.find(a => a.modelUrl === obj.assetUrl));
-  const mesh = <Mesh3D obj={obj} selected={false} onClick={() => {}} assetConfig={assetConfig} noTransform />;
+  const rawMesh = <Mesh3D obj={obj} selected={false} onClick={() => {}} assetConfig={assetConfig} noTransform />;
+  // 글로벌 바람 — asset 모델만, 바람 제외 안 한 것만 (시뮬레이션에서도 흔들림)
+  const mesh = (globalWind && obj.kind === 'asset' && !obj.noWind)
+    ? <WindSway wind={globalWind}>{rawMesh}</WindSway>
+    : rawMesh;
   // 물리: Physics 컴포넌트 우선 → 레거시 obj.physics → 없으면 'none' (콜라이더 X)
   const physicsComp = obj.components?.find(c => c.type === 'physics');
   const phys: 'none' | 'fixed' | 'dynamic' = physicsComp
@@ -3023,6 +3031,11 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
   // parent transform propagation 용 ref — useFrame 안에서 최신 list 접근
   const allObjectsRef = useRef<MapObject[]>([]);
   useEffect(() => { allObjectsRef.current = allObjects; }, [allObjects]);
+  // 글로벌 바람 — 시뮬레이션에서도 모든 모델 흔들림
+  const globalWind = useMemo<WindSettings | null>(() => {
+    for (const o of allObjects) { const wc = o.components?.find(c => c.type === 'wind'); if (wc) return deriveWind(wc.props); }
+    return null;
+  }, [allObjects]);
 
   // ── Cutter 컴포넌트 (시뮬) — 박스가 지나간 자리를 대상 큐브에서 영구 깎기 ──
   const simCutterLast = useRef<Map<string, { x: number; y: number; z: number }>>(new Map());
@@ -3568,7 +3581,7 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
       {allObjects.map(obj => (
         <SimObject key={obj.id} obj={obj} transforms={transforms}
           myAssets={myAssets} scriptBodyRefs={scriptBodyRefs} lightRefs={lightRefs}
-          onColliderEvent={dispatchColliderEvent} buoyancyRef={simBuoyancyRef} />
+          onColliderEvent={dispatchColliderEvent} buoyancyRef={simBuoyancyRef} globalWind={globalWind} />
       ))}
       {/* 파티클 레이어 — 빈 오브젝트 포함 모든 kind. 물리 바디 밖에 두어 충돌에 영향 X */}
       {allObjects.filter(o => o.components?.some(c => c.type === 'particle')).map(obj => {
@@ -5008,6 +5021,14 @@ export default function StudioCanvas() {
     }
     return { gravity: gravityY, jumpPower };
   }, [objects, gravityY, jumpPower]);
+  // 글로벌 바람 — 아무 오브젝트에 붙은 wind 컴포넌트(첫 번째)가 전체 모델을 흔듦. 없으면 null.
+  const globalWind = useMemo<WindSettings | null>(() => {
+    for (const o of objects) {
+      const inst = findComponent(o.components, 'wind');
+      if (inst) return deriveWind(inst.props);
+    }
+    return null;
+  }, [objects]);
   // 후처리 볼륨 — postProcess 컴포넌트 설정 (편집/시뮬 공통)
   const postFX = useMemo(() => derivePostFX(objects), [objects]);
   // 물에 잠겼을 때만 적용 후처리 (underwaterOnly) — 카메라가 보이는 물 부피 안인지로 판정 (편집·시뮬 공통).
@@ -8266,6 +8287,13 @@ export default function StudioCanvas() {
                   )}
                 </div>
               )}
+              {selected.kind === 'asset' && globalWind && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'rgba(255,255,255,0.72)', marginBottom: 10, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={!!selected.noWind}
+                    onChange={e => { updateMaterialField('noWind', e.target.checked || undefined); pushHistory(objects); }} />
+                  🍃 {t('excludeWind')}
+                </label>
+              )}
               <button type="button" onClick={() => setMatPanelOpen(v => !v)}
                 style={{ width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, color: 'rgba(255,255,255,0.65)', fontSize: 11, padding: '5px 8px', cursor: 'pointer', fontWeight: 600, marginBottom: matPanelOpen ? 8 : 10 }}>
                 {t('inspMatPanelTitle')} {matPanelOpen ? '▲' : '▼'}
@@ -8729,6 +8757,7 @@ export default function StudioCanvas() {
                     selectedId={selectedId}
                     multiSelectedIds={multiSelectedIds}
                     myAssets={myAssets}
+                    globalWind={globalWind}
                     sculpt={(terrainTool && obj.kind === 'terrain' && obj.id === selectedId) ? {
                       tool: terrainTool, radius: brushSize, strength: brushStrength,
                       onCommit: (heights) => {

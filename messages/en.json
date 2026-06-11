@@ -1029,6 +1029,7 @@
     "dragTextureHint": "Drag a texture onto a slot",
     "myTextures": "My Textures",
     "allFolders": "All",
+    "excludeWind": "Exclude from wind",
     "texRemove": "Remove",
     "texTilingX": "Tile X",
     "texTilingY": "Tile Y",

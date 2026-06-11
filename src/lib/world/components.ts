@@ -95,9 +95,9 @@ export const COMPONENT_DEFS: ComponentDef[] = [
   },
   {
     type: 'wind',
-    name: '바람 흔들림',
+    name: '바람 (글로벌)',
     icon: '🍃',
-    description: '오브젝트가 바람에 흔들림(기울임). 나무·풀·깃발 등에 부착. 모델 원점이 바닥이면 밑동에서 휘어지고, 같은 바람이어도 오브젝트마다 위상이 달라 제각각 흔들림. 편집·시뮬·플레이 모두 반영.',
+    description: '한 오브젝트(예: 빈 Manager)에 하나만 붙이면 씬의 모든 3D 모델(나무 등)이 이 바람으로 흔들림. 같은 바람이어도 오브젝트마다 위상이 달라 제각각 흔들리고, 모델 원점이 바닥이면 밑동에서 휘어짐. 안 흔들릴 오브젝트는 인스펙터의 "바람 제외" 체크. 여러 개 붙이면 첫 번째만 적용. 편집·시뮬·플레이 모두 반영.',
     props: [
       { key: 'strength',   label: '세기 (흔들림 각도)', type: 'number', default: 1,   min: 0,   max: 4, step: 0.1 },
       { key: 'speed',      label: '속도',              type: 'number', default: 1,   min: 0.1, max: 5, step: 0.1 },

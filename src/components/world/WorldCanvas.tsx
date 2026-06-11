@@ -44,7 +44,7 @@ function waterDepthAt(vols: BuoyancyVolume[] | undefined, x: number, y: number, 
 import type { ChatBubble, RemotePlayer, PlayerPose } from '@/lib/world/useGameSocket';
 import { useBlockedSet, useMutedSet } from '@/lib/world/blocklist';
 import { resolveMeshMaterial, type MaterialOverrides } from '@/lib/world/materialOverride';
-import WindSway, { deriveWind } from '@/lib/world/WindSway';
+import WindSway, { deriveWind, type WindSettings } from '@/lib/world/WindSway';
 import type { GraphicsSettings } from '@/lib/world/graphicsSettings';
 import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
 import { PerfManager } from '@/lib/world/PerfManager';
@@ -2879,6 +2879,7 @@ interface UserMapObject {
   textureTilingX?:   number;
   textureTilingY?:   number;
   materialOverrides?: MaterialOverrides;  // 부위별(머티리얼이름→텍스처) 오버라이드 — 멀티 머티리얼 모델용
+  noWind?:           boolean;  // true 면 글로벌 바람에 안 흔들림
   videoUrl?:         string;   // 표면에 재생할 영상(TV 화면)
   // 조명 전용
   lightColor?:     string;
@@ -3056,7 +3057,7 @@ function colliderOtherId(p: { other: { rigidBodyObject?: THREE.Object3D | null }
   return ud?.objectId ?? ud?.playerId ?? 'player';
 }
 
-const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scriptBodyRefs, world, onColliderEvent, buoyancyRef }: {
+const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scriptBodyRefs, world, onColliderEvent, buoyancyRef, globalWind }: {
   obj: UserMapObject;
   scriptBodyRefs?: React.MutableRefObject<Map<string, {
     body: React.MutableRefObject<RapierBodyApi | null>;
@@ -3067,6 +3068,8 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
   onColliderEvent?: (objId: string, otherId: string, kind: ColliderEventKind) => void;
   /** 물 부피 — 동적 오브젝트가 물에 들어가면 무게에 따라 뜨기/가라앉기 */
   buoyancyRef?: React.MutableRefObject<import('@/lib/world/components').BuoyancyVolume[]>;
+  /** 글로벌 바람 — 모든 asset 모델을 흔듦 (없으면 null). */
+  globalWind?: WindSettings | null;
 }) {
   const rPos = world?.position ?? obj.position;
   const rRot = world?.rotation ?? obj.rotation;
@@ -3108,9 +3111,10 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
   // physics 가 'none' 이어도 콜라이더가 있으면 고정(fixed) 바디로 충돌시킴.
   const colliderComp = obj.components?.find(c => c.type === 'collider');
   // 바람 흔들림 — 시각 메시를 매 프레임 기울임 (물리/콜라이더엔 영향 없음, 순수 시각).
-  const windComp = obj.components?.find(c => c.type === 'wind');
+  // 글로벌 바람 — asset 모델만, 바람 제외(noWind) 안 한 것만 흔들림
+  const sway = !!globalWind && obj.kind === 'asset' && !obj.noWind;
   const wrapWind = (el: React.ReactNode): React.ReactNode =>
-    windComp ? <WindSway wind={deriveWind(windComp.props)}>{el}</WindSway> : el;
+    sway && globalWind ? <WindSway wind={globalWind}>{el}</WindSway> : el;
   // 키프레임 + 콜라이더 → 충돌하는 이동 플랫폼(키네마틱 바디). dynamic 물리면 제외(물리가 우선).
   const kfAuto = !!obj.keyframeAnim?.autoplay && !!obj.keyframeAnim?.keys?.length;
   const isKinematicAnim = kfAuto && physics !== 'dynamic' && !!colliderComp;
@@ -6031,6 +6035,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                     ? { ...o, voxel: { ...o.voxel, deforms: [...o.voxel.deforms, ...voxelDeforms[o.id]] } } : o);
                 }
                 const byId = new Map(list.map(o => [o.id, o]));
+                // 글로벌 바람 — 아무 오브젝트의 wind 컴포넌트(첫 번째)가 모든 모델을 흔듦
+                let globalWind: WindSettings | null = null;
+                for (const o of list) { const wc = o.components?.find(c => c.type === 'wind'); if (wc) { globalWind = deriveWind(wc.props); break; } }
                 const meshes = list
                   .filter(o => !o.hidden && o.kind !== 'pointlight' && o.kind !== 'spotlight' && o.kind !== 'dirlight' && o.kind !== 'spawn'
                     && o.kind !== 'ui'   // UI 오브젝트는 3D 씬 X, UIRenderer 가 HTML overlay 로 처리
@@ -6039,6 +6046,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                   .map(obj => (
                     <UserMapObjectMesh key={obj.id} obj={obj}
                       world={obj.parentId ? computeWorldTRS(obj, byId) : undefined}
+                      globalWind={globalWind}
                       scriptBodyRefs={scriptBodyRefs} onColliderEvent={dispatchColliderEvent} buoyancyRef={buoyancyVolsRef} />
                   ));
                 // 파티클 레이어 — 빈 오브젝트 포함 모든 kind (물리 바디 밖, 메시 렌더와 별개)
