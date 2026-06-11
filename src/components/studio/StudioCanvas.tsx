@@ -44,6 +44,7 @@ import { MAP_APPLY_EVENT } from '@/lib/assets/kinds/map';
 import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, computeBuoyancyVolumes, computeAmbientSoundZones, findDayNightComponent, computeSeats, computeTeleporters, computeLadders, computeDoors, computeDialogues, computeVendings, computeJumpPads, computeCheckpoints, computeKillZones, computeRaceStarts, computeRaceFinishes, type ComponentInstance, type ComponentType, type BuoyancyVolume, type ComponentPropDef, type AmbientSoundZone, type SeatSpot, type TeleporterSpot, type LadderSpot, type DoorSpot, type DialogueSpot, type VendingSpot, type JumpPadSpot, type CheckpointSpot, type KillZoneSpot, type RaceStartSpot, type RaceFinishSpot } from '@/lib/world/components';
 import AmbientSoundsPlayer from '@/lib/world/AmbientSounds';
 import { buildOverrideMaterial, uniqueMaterialNames, hasOverride, type MaterialOverrides } from '@/lib/world/materialOverride';
+import WindSway, { deriveWind } from '@/lib/world/WindSway';
 import DayNightCycle from '@/lib/world/DayNightCycle';
 import SeatController from '@/lib/world/SeatController';
 import TeleporterController from '@/lib/world/TeleporterController';
@@ -2162,6 +2163,8 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
 
   // Collider 컴포넌트 — 선택 시 충돌 박스를 초록 와이어프레임으로 표시 (크기 확인/조절용)
   const colliderComp = obj.components?.find(c => c.type === 'collider');
+  // 바람 흔들림 — 있으면 mesh 를 WindSway 로 감싸 매 프레임 기울임 (콜라이더 기즈모는 제외)
+  const windComp = obj.components?.find(c => c.type === 'wind');
 
   // Terrain — 데이터 rotation 무시 (TerrainMesh 가 내부에서 -π/2 X 회전 적용).
   // 옛 .alp (rotation [-π/2,0,0]) 와 새 .alp (rotation [0,0,0]) 모두 호환.
@@ -2170,7 +2173,13 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
   return (
     /* userData.id는 이 group에 → TransformControls이 이 group(월드 TRS)을 조작 */
     <group position={wpos} rotation={effectiveRot} scale={wscale} userData={{ id: obj.id }}>
-      <Mesh3D obj={obj} selected={isSelected} onClick={() => onObjectClick(obj.id)} assetConfig={assetConfig} noTransform sculpt={isSelected ? sculpt : undefined} worldPos={wpos} />
+      {windComp ? (
+        <WindSway wind={deriveWind(windComp.props)}>
+          <Mesh3D obj={obj} selected={isSelected} onClick={() => onObjectClick(obj.id)} assetConfig={assetConfig} noTransform sculpt={isSelected ? sculpt : undefined} worldPos={wpos} />
+        </WindSway>
+      ) : (
+        <Mesh3D obj={obj} selected={isSelected} onClick={() => onObjectClick(obj.id)} assetConfig={assetConfig} noTransform sculpt={isSelected ? sculpt : undefined} worldPos={wpos} />
+      )}
       {isSelected && colliderComp && (
         <mesh userData={{ __collider: true }} raycast={() => null}
           position={[

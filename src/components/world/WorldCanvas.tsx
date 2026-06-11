@@ -44,6 +44,7 @@ function waterDepthAt(vols: BuoyancyVolume[] | undefined, x: number, y: number, 
 import type { ChatBubble, RemotePlayer, PlayerPose } from '@/lib/world/useGameSocket';
 import { useBlockedSet, useMutedSet } from '@/lib/world/blocklist';
 import { buildOverrideMaterial, hasOverride, type MaterialOverrides } from '@/lib/world/materialOverride';
+import WindSway, { deriveWind } from '@/lib/world/WindSway';
 import type { GraphicsSettings } from '@/lib/world/graphicsSettings';
 import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
 import { PerfManager } from '@/lib/world/PerfManager';
@@ -3089,6 +3090,10 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
   // Collider 컴포넌트 — 있으면 명시적 박스 콜라이더 (자동 콜라이더 대신).
   // physics 가 'none' 이어도 콜라이더가 있으면 고정(fixed) 바디로 충돌시킴.
   const colliderComp = obj.components?.find(c => c.type === 'collider');
+  // 바람 흔들림 — 시각 메시를 매 프레임 기울임 (물리/콜라이더엔 영향 없음, 순수 시각).
+  const windComp = obj.components?.find(c => c.type === 'wind');
+  const wrapWind = (el: React.ReactNode): React.ReactNode =>
+    windComp ? <WindSway wind={deriveWind(windComp.props)}>{el}</WindSway> : el;
   // 키프레임 + 콜라이더 → 충돌하는 이동 플랫폼(키네마틱 바디). dynamic 물리면 제외(물리가 우선).
   const kfAuto = !!obj.keyframeAnim?.autoplay && !!obj.keyframeAnim?.keys?.length;
   const isKinematicAnim = kfAuto && physics !== 'dynamic' && !!colliderComp;
@@ -3310,14 +3315,14 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
     if (physics === 'none' && !colliderArgs) {
       return (
         <group ref={groupRef} position={rPos} rotation={rRot} scale={rScale}>
-          <UserAsset url={obj.assetUrl} matObj={obj} anim={animProps} />
+          {wrapWind(<UserAsset url={obj.assetUrl} matObj={obj} anim={animProps} />)}
         </group>
       );
     }
     return (
       <RigidBody ref={bodyRef} type={bodyType} colliders={false} position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }} {...colliderEvents}>
         {colliderArgs && <CuboidCollider args={colliderArgs} position={colliderOffset} sensor={trig} />}
-        <UserAsset url={obj.assetUrl} matObj={obj} anim={animProps} />
+        {wrapWind(<UserAsset url={obj.assetUrl} matObj={obj} anim={animProps} />)}
       </RigidBody>
     );
   }
@@ -3325,14 +3330,14 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
   if (physics === 'none' && !colliderArgs) {
     return (
       <group ref={groupRef} position={rPos} rotation={rRot} scale={rScale}>
-        <PrimitiveMesh obj={obj} shape={shape} />
+        {wrapWind(<PrimitiveMesh obj={obj} shape={shape} />)}
       </group>
     );
   }
   return (
     <RigidBody ref={bodyRef} type={bodyType} colliders={false} position={rPos} rotation={rRot} scale={rScale} userData={{ objectId: obj.id }} {...colliderEvents}>
       {colliderArgs && <CuboidCollider args={colliderArgs} position={colliderOffset} sensor={trig} />}
-      <PrimitiveMesh obj={obj} shape={shape} />
+      {wrapWind(<PrimitiveMesh obj={obj} shape={shape} />)}
     </RigidBody>
   );
 });

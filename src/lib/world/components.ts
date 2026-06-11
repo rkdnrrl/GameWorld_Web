@@ -10,7 +10,7 @@
  * 3. WorldCanvas 의 런타임 처리에 핸들러 추가
  */
 
-export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign' | 'seat' | 'teleporter' | 'ladder' | 'door' | 'dialogue' | 'vendingMachine' | 'jumpPad' | 'checkpoint' | 'killZone' | 'raceStart' | 'raceFinish';
+export type ComponentType = 'grab' | 'physics' | 'worldPhysics' | 'collider' | 'postProcess' | 'particle' | 'videoRemote' | 'health' | 'damage' | 'flashlight' | 'npc' | 'pickup' | 'wave' | 'wind' | 'buoyancy' | 'animator' | 'cutter' | 'timeline' | 'ambientSound' | 'dayNight' | 'sign' | 'seat' | 'teleporter' | 'ladder' | 'door' | 'dialogue' | 'vendingMachine' | 'jumpPad' | 'checkpoint' | 'killZone' | 'raceStart' | 'raceFinish';
 
 /** 오브젝트에 부착되는 컴포넌트 인스턴스. props 는 type 별로 다름. */
 export interface ComponentInstance {
@@ -91,6 +91,18 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'strength',  label: '강도 (물결 높이)', type: 'number', default: 1, min: 0, max: 10, step: 0.1 },
       { key: 'speed',     label: '속도',             type: 'number', default: 1, min: 0, max: 5,  step: 0.1 },
       { key: 'frequency', label: '촘촘함 (잔물결)',  type: 'number', default: 1, min: 0.2, max: 4, step: 0.1 },
+    ],
+  },
+  {
+    type: 'wind',
+    name: '바람 흔들림',
+    icon: '🍃',
+    description: '오브젝트가 바람에 흔들림(기울임). 나무·풀·깃발 등에 부착. 모델 원점이 바닥이면 밑동에서 휘어지고, 같은 바람이어도 오브젝트마다 위상이 달라 제각각 흔들림. 편집·시뮬·플레이 모두 반영.',
+    props: [
+      { key: 'strength',   label: '세기 (흔들림 각도)', type: 'number', default: 1,   min: 0,   max: 4, step: 0.1 },
+      { key: 'speed',      label: '속도',              type: 'number', default: 1,   min: 0.1, max: 5, step: 0.1 },
+      { key: 'direction',  label: '바람 방향 (°)',      type: 'number', default: 0,   min: 0,   max: 360, step: 5 },
+      { key: 'turbulence', label: '난기류 (불규칙함)',   type: 'number', default: 0.4, min: 0,   max: 2, step: 0.1 },
     ],
   },
   {
