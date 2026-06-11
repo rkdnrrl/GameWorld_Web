@@ -7144,18 +7144,6 @@ export default function StudioCanvas() {
       setThumbBlob(blob);
       setThumbPreview(dataUrl);
       setThumbDirty(true);
-      // ⚙ 임시 진단 — 캡처 이미지가 검은지 측정 (원인 가르기용, 확인 후 제거 예정)
-      const im = new Image();
-      im.onload = () => {
-        const c = document.createElement('canvas'); c.width = 16; c.height = 9;
-        const cx = c.getContext('2d'); if (!cx) return;
-        cx.drawImage(im, 0, 0, 16, 9);
-        const d = cx.getImageData(0, 0, 16, 9).data;
-        let sum = 0; for (let i = 0; i < d.length; i += 4) sum += d[i] + d[i + 1] + d[i + 2];
-        const avg = sum / (16 * 9 * 3);
-        alert(`[진단] 캡처 밝기 ${avg.toFixed(0)}/255 — ${avg < 8 ? '검은색(렌더 못 읽음)' : '정상 캡처됨'} · blob ${(blob.size / 1024).toFixed(1)}KB`);
-      };
-      im.src = dataUrl;
     } catch { alert(tCanvas('thumb_capture_failed')); }
   }
   // 썸네일: 내 PC 이미지 업로드 → 미리보기 + 업로드 대기 blob 으로
