@@ -16,7 +16,7 @@
  * 클릭 버스트 트리거: 호출부가 objId + burstRef(Map<objId, nonce>) 를 넘기면,
  * Player 의 클릭 핸들러가 burstRef 의 nonce 를 증가시키고, 여기서 매 프레임 폴링해 재생.
  */
-import { useEffect, useMemo, useRef, type MutableRefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type MutableRefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { getProp, type ComponentInstance } from '@/lib/world/components';
@@ -72,7 +72,7 @@ const PRESETS: Record<ParticlePreset, PresetCfg> = {
   smoke:    { color: '#8a8f99', dir:  1, baseSpeed: 0.6, baseSize: 0.55, blending: THREE.NormalBlending,   sway: 0.3,  swaySpeed: 0.3, opacityMul: 0.45 },
   fire:     { color: '#ff5a1f', dir:  1, baseSpeed: 1.9, baseSize: 0.22, blending: THREE.AdditiveBlending, sway: 0.18, swaySpeed: 1.3, opacityMul: 0.9 },
   rain:     { color: '#9bbcff', dir: -1, baseSpeed: 5.0, baseSize: 0.05, blending: THREE.NormalBlending,   sway: 0,    swaySpeed: 0,   opacityMul: 0.8 },
-  sparkles: { color: '#ffe9a3', dir:  1, baseSpeed: 0.4, baseSize: 0.07, blending: THREE.AdditiveBlending, sway: 0.4,  swaySpeed: 0.9, opacityMul: 1 },
+  sparkles: { color: '#ffe9a3', dir:  1, baseSpeed: 0.4, baseSize: 0.07, blending: THREE.AdditiveBlending, sway: 0.4,  swaySpeed: 0.9, opacityMul: 1, twinkleAmp: 0.55, twinkleHz: 2.2 },
   // 반딧불 — 노란-연두 발광, 느린 X/Z 부유 + 점멸. dir=0 (떠 있음).
   firefly:  { color: '#bef264', dir:  0, baseSpeed: 0,   baseSize: 0.10, blending: THREE.AdditiveBlending, sway: 0.6,  swaySpeed: 0.4, opacityMul: 1,    swayZ: 0.5, twinkleAmp: 0.4, twinkleHz: 1.2 },
   // 꽃잎/잎 — 분홍색(벚꽃 기본). 아래로 천천히 + 크게 좌우. 유저가 texture URL 로 잎 그림 가능.
@@ -151,6 +151,38 @@ export default function Particles({ s, objId, burstRef }: {
     }
     return { positions, speeds, phases, dirs };
   }, [count, area, height]);
+
+  // 입자별 크기 배율(scales) + 밝기(brights) — 단조로움 제거용 랜덤. count 만 바뀌면 재생성.
+  const { scales, brights } = useMemo(() => {
+    const scales = new Float32Array(count);
+    const brights = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      scales[i]  = 0.55 + Math.random() * 1.15;  // 0.55~1.7배 크기
+      brights[i] = 0.6  + Math.random() * 0.4;   // 0.6~1.0 밝기
+    }
+    return { scales, brights };
+  }, [count]);
+
+  // 입자별 색 버퍼 (baseColor × brightness). twinkle 프리셋은 useFrame 에서 매 프레임 갱신.
+  const baseCol = useMemo(() => new THREE.Color(color), [color]);
+  const colors = useMemo(() => {
+    const c = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const b = brights[i];
+      c[i * 3 + 0] = baseCol.r * b;
+      c[i * 3 + 1] = baseCol.g * b;
+      c[i * 3 + 2] = baseCol.b * b;
+    }
+    return c;
+  }, [count, baseCol, brights]);
+
+  // PointsMaterial 에 per-vertex 크기(aScale) 주입 — 기본 PointsMaterial 은 size 가 전역이라 셰이더로 곱함.
+  const onBeforeCompile = useCallback((shader: THREE.WebGLProgramParametersWithUniforms) => {
+    shader.vertexShader = 'attribute float aScale;\n' + shader.vertexShader.replace(
+      'gl_PointSize = size;',
+      'gl_PointSize = size * aScale;',
+    );
+  }, []);
 
   // 버스트 상태
   const burstAge = useRef(-1);            // -1 = 비활성(숨김)
@@ -242,12 +274,22 @@ export default function Particles({ s, objId, burstRef }: {
       }
     }
     attr.needsUpdate = true;
-    // 깜빡임(반딧불) — material.opacity 를 sin 진동. 진폭 작게.
+    // 깜빡임 — 입자마다 다른 위상으로 독립 점멸 (전역 동기 X). 입자별 color 버퍼 밝기 변조.
     if (cfg.twinkleAmp) {
-      const mat = pts.material as THREE.PointsMaterial;
-      const hz = cfg.twinkleHz ?? 1.5;
-      const amp = cfg.twinkleAmp;
-      mat.opacity = baseOpacity * (1 - amp + Math.sin(t * Math.PI * 2 * hz) * amp);
+      const cattr = pts.geometry.getAttribute('color') as THREE.BufferAttribute | undefined;
+      if (cattr) {
+        const carr = cattr.array as Float32Array;
+        const hz = cfg.twinkleHz ?? 1.5;
+        const amp = cfg.twinkleAmp;
+        const w = t * Math.PI * 2 * hz;
+        for (let i = 0; i < count; i++) {
+          const b = brights[i] * (1 - amp + Math.sin(w + phases[i]) * amp);
+          carr[i * 3 + 0] = baseCol.r * b;
+          carr[i * 3 + 1] = baseCol.g * b;
+          carr[i * 3 + 2] = baseCol.b * b;
+        }
+        cattr.needsUpdate = true;
+      }
     }
   });
 
@@ -255,10 +297,13 @@ export default function Particles({ s, objId, burstRef }: {
     <points ref={pointsRef} frustumCulled={false} raycast={() => null} visible={!isClick}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+        <bufferAttribute attach="attributes-color" args={[colors, 3]} />
+        <bufferAttribute attach="attributes-aScale" args={[scales, 1]} />
       </bufferGeometry>
       <pointsMaterial
         size={Math.max(0.001, cfg.baseSize * s.size)}
-        color={color}
+        vertexColors
+        onBeforeCompile={onBeforeCompile}
         map={sprite ?? undefined}
         transparent
         opacity={baseOpacity}
