@@ -129,7 +129,7 @@ function TextureBrowser({ images }: { images: Asset[] }) {
           ))}
         </div>
         {/* 썸네일 그리드 */}
-        <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: 8, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, alignContent: 'start' }}>
+        <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden', padding: 8, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(82px, 1fr))', gap: 6, alignContent: 'start' }}>
           {shown.length === 0 ? (
             <div style={{ gridColumn: '1 / -1', opacity: 0.4, fontSize: 11, padding: 12, textAlign: 'center' }}>{t('noTextures')}</div>
           ) : shown.map(a => (
