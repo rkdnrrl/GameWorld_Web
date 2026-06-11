@@ -48,22 +48,25 @@ const VERT_BODY = `
   vec3 sWind = max(vec3(length(modelMatrix[0].xyz), length(modelMatrix[1].xyz), length(modelMatrix[2].xyz)), vec3(0.0001));
   float hWind = max(wWind.y - uWindBaseY, 0.0);            // base 위 높이(월드 m), 밑동=0 고정
   float tWind = uWindTime * uWindSpeed;
-  // ⚠️ 웨이브 제거: 위상을 월드위치(부드러운 전파 → 파도가 숲을 가로지름)로 정하지 않는다.
-  //   - 나무별 랜덤 위상(원점 해시): 나무끼리만 어긋남, 전파(웨이브) 없음.
-  //   - 정점별 랜덤 위상(로컬 position 해시): 잎이 코히어런트 물결이 아니라 잡음성으로 셔머.
-  float treePhase = fract(sin(dot(modelMatrix[3].xyz, vec3(12.9898, 78.233, 37.719))) * 43758.5453) * 6.2831;
+  // 돌풍(gust front)이 숲을 가로질러 진행 — 바람 방향으로 위치가 멀수록 위상 지연 →
+  //   나무들이 '순서대로 휩쓸림'. ⚠️ 위상 기준은 **나무 원점**(modelMatrix[3]), per-vertex 아님 →
+  //   한 나무는 통째로 동기(내부 웨이브 없음), 전파는 나무들 '사이'에서만(원하는 숲 단위 돌풍).
+  vec3 oWind = modelMatrix[3].xyz;
+  float gustPhase = dot(oWind.xz, uWindDir) * 0.12;                 // 공간 주파수(파장 ~52m)
+  float jitter = fract(sin(dot(oWind, vec3(12.9898, 78.233, 37.719))) * 43758.5453) * 1.2; // 트리별 살짝 어긋남(완전 lockstep 방지)
+  float treePhase = tWind - gustPhase + jitter;                    // 시간 전진 − 공간 지연 = 진행파
   float leafPhase = fract(sin(dot(position, vec3(12.9898, 78.233, 37.719))) * 43758.5453) * 6.2831;
   // 메인 굽힘(줄기 포함) — **캔틸레버(낚싯대) 곡률: 변위 ∝ 높이²** → 밑동 고정·위로 갈수록
   //   부드럽게 휨(휘청). ⚠️ 하드 clamp 금지: 예전 clamp(h,0,4)·clamp(disp) 가 그 지점에서
   //   윗부분을 통째로 같은 값으로 묶어 '꺾임(hinge)' 을 만들었음 → 둘 다 제거.
   //   세기의 제곱 → 약풍엔 거의 0(줄기 정지), 강풍에만 눈에 띄게 휨.
   float strBend = uWindStr * uWindStr;
-  float sway = sin(tWind + treePhase) * 0.7 + sin(tWind * 1.7 + treePhase) * 0.3;
+  float sway = sin(treePhase) * 0.7 + sin(treePhase * 1.7) * 0.3;
   float bendWind = sway * hWind * hWind * strBend * 0.0006;
   // 잎 펄럭임 — **잎 머티리얼(uWindLeaf=1)만** (줄기는 0 → 펄럭임 0 = 부피 출렁임 없음).
-  //   정점별 랜덤 위상 → 잡음성 셔머(웨이브 아님).
+  //   정점별 랜덤 위상 + 돌풍 위상(gustPhase) → 셔머도 돌풍 따라 휩쓸림(내부 웨이브 아님).
   float flWind = clamp(
-    sin(tWind * 5.0 + leafPhase + treePhase) * hWind * uWindStr * uWindTurb * 0.012,
+    sin(tWind * 5.0 + leafPhase + gustPhase) * hWind * uWindStr * uWindTurb * 0.012,
     -0.045, 0.045) * uWindLeaf;
   transformed.x += (bendWind * uWindDir.x + flWind) / sWind.x;
   transformed.z += (bendWind * uWindDir.y + flWind * 0.6) / sWind.z;
