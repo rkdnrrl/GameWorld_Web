@@ -1195,6 +1195,7 @@
       "thumb_capture": "Capture view",
       "thumb_upload": "Upload image",
       "thumb_capture_failed": "Screen capture failed",
+      "thumb_upload_failed": "Thumbnail upload failed",
       "thumb_not_image": "Only image files can be uploaded",
       "tooltip_drag_panel_width": "Drag to resize panel width",
       "tooltip_close_panel": "Close panel",

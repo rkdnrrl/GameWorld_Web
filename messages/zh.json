@@ -1195,6 +1195,7 @@
       "thumb_capture": "当前画面",
       "thumb_upload": "上传图片",
       "thumb_capture_failed": "画面截取失败",
+      "thumb_upload_failed": "缩略图上传失败",
       "thumb_not_image": "只能上传图片文件",
       "tooltip_drag_panel_width": "拖动调整面板宽度",
       "tooltip_close_panel": "关闭面板",

@@ -4413,13 +4413,18 @@ function CameraWaterWatcher({ volsRef, onChange }: { volsRef: React.MutableRefOb
 
 /** Three.js 캔버스 캡처 함수를 외부 ref에 등록 */
 function CanvasCapture({ captureFnRef }: { captureFnRef: React.MutableRefObject<(() => string | null) | null> }) {
-  const { gl } = useThree();
+  const { gl, scene, camera } = useThree();
   useEffect(() => {
     captureFnRef.current = () => {
-      try { return gl.domElement.toDataURL('image/webp', 0.7); } catch { return null; }
+      try {
+        // 캡처 직전 강제로 한 프레임 렌더 → 드로잉 버퍼 보장 (preserveDrawingBuffer 미적용/
+        //   frameloop demand/포스트FX 로 버퍼가 비워져 검게 잡히는 문제 방지).
+        gl.render(scene, camera);
+        return gl.domElement.toDataURL('image/webp', 0.7);
+      } catch { return null; }
     };
     return () => { captureFnRef.current = null; };
-  }, [gl, captureFnRef]);
+  }, [gl, scene, camera, captureFnRef]);
   return null;
 }
 
@@ -7146,8 +7151,10 @@ export default function StudioCanvas() {
           if (upRes.ok) {
             const upData = await upRes.json();
             thumbnailUrl = upData.url;
+          } else {
+            alert(tCanvas('thumb_upload_failed'));   // 조용히 삼키지 않음 — 실패를 사용자에게 알림
           }
-        } catch { /* 썸네일 업로드 실패는 무시 — 맵 저장은 진행 */ }
+        } catch { alert(tCanvas('thumb_upload_failed')); }
       }
 
       // 중력/점프력은 World Physics 컴포넌트가 소스 — 저장 시 sceneSettings 에 반영해 월드 플레이에 적용

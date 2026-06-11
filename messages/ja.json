@@ -1195,6 +1195,7 @@
       "thumb_capture": "現在の画面",
       "thumb_upload": "画像アップロード",
       "thumb_capture_failed": "画面キャプチャに失敗しました",
+      "thumb_upload_failed": "サムネイルのアップロードに失敗しました",
       "thumb_not_image": "画像ファイルのみアップロードできます",
       "tooltip_drag_panel_width": "ドラッグでパネル幅調整",
       "tooltip_close_panel": "パネルを閉じる",

@@ -1195,6 +1195,7 @@
       "thumb_capture": "현재 화면",
       "thumb_upload": "이미지 업로드",
       "thumb_capture_failed": "화면 캡처에 실패했습니다",
+      "thumb_upload_failed": "썸네일 업로드에 실패했습니다",
       "thumb_not_image": "이미지 파일만 업로드할 수 있습니다",
       "tooltip_drag_panel_width": "드래그로 패널 너비 조절",
       "tooltip_close_panel": "패널 닫기",
