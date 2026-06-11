@@ -92,10 +92,10 @@ export async function createHumanoidCharacter(
         const s = joint.settings;
         if (s) {
           if (typeof s.stiffness === 'number') {
-            s.stiffness = Math.max(s.stiffness, 1.5);
+            s.stiffness = Math.max(s.stiffness, 1.2);   // 1.5 → 1.2: 바람에 더 잘 밀리게 (떨림 방지와 절충)
           }
           if (typeof s.dragForce === 'number') {
-            s.dragForce = Math.max(s.dragForce, 0.8);
+            s.dragForce = Math.max(s.dragForce, 0.65);  // 0.8 → 0.65: 덜 둔하게
           }
           if (s.gravityDir && typeof s.gravityPower === 'number') {
             windJoints.push({ settings: s, baseDir: s.gravityDir.clone(), basePower: s.gravityPower, phase: ji * 0.6 });
@@ -113,7 +113,7 @@ export async function createHumanoidCharacter(
     if (w.strength > 0.001) {
       for (const wj of windJoints) {
         const gust = 0.65 + 0.35 * Math.sin(w.time * w.speed * 2.0 + wj.phase);  // 시변 펄럭임
-        const wp = Math.min(w.strength * 0.06, 0.6) * gust;                       // 수평 바람 세기(상한)
+        const wp = Math.min(w.strength * 0.15, 1.4) * gust;                       // 수평 바람 세기(상한) — 빳빳한 스프링 이기게 크게
         const gx = wj.baseDir.x * wj.basePower + w.dirX * wp;
         const gy = wj.baseDir.y * wj.basePower;
         const gz = wj.baseDir.z * wj.basePower + w.dirZ * wp;

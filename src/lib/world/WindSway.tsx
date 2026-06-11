@@ -49,14 +49,14 @@ const VERT_BODY = `
   float hWind = clamp(wWind.y - uWindBaseY, 0.0, 4.0);      // base 위 높이(월드 m), 과한 굽힘 방지 클램프
   float phWind = (wWind.x * uWindDir.x + wWind.z * uWindDir.y) * 0.25;  // 위치 위상(물결)
   float tWind = uWindTime * uWindSpeed;
-  // 메인 굽힘 — 높이 비례 + **world 변위 상한 클램프**(세기 높여도 그로테스크하게 안 찢어지게).
+  // 메인 굽힘 — 높이 비례 + **world 변위 상한 클램프**(세기 높여도 과하게 안 흔들리게).
   float bendWind = clamp(
-    (sin(tWind - phWind) * 0.7 + sin(tWind * 1.7 - phWind * 1.3) * 0.3) * hWind * uWindStr * 0.05,
-    -0.5, 0.5);
+    (sin(tWind - phWind) * 0.7 + sin(tWind * 1.7 - phWind * 1.3) * 0.3) * hWind * uWindStr * 0.03,
+    -0.3, 0.3);
   // 잎 펄럭임 — 고주파 소진폭, 상한 클램프.
   float flWind = clamp(
-    sin(tWind * 5.0 - phWind + wWind.x * 3.0 + wWind.z * 3.0) * hWind * uWindStr * uWindTurb * 0.02,
-    -0.1, 0.1);
+    sin(tWind * 5.0 - phWind + wWind.x * 3.0 + wWind.z * 3.0) * hWind * uWindStr * uWindTurb * 0.015,
+    -0.06, 0.06);
   transformed.x += (bendWind * uWindDir.x + flWind) / sWind.x;
   transformed.z += (bendWind * uWindDir.y + flWind * 0.6) / sWind.z;
   transformed.y -= (abs(flWind) * 0.2) / sWind.y;
