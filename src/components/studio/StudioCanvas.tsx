@@ -5118,6 +5118,7 @@ export default function StudioCanvas() {
   // 맵 썸네일 — 사용자가 직접 지정 (현재 화면 캡처 또는 이미지 업로드). 저장 시 thumbBlob 만 업로드.
   const [thumbBlob, setThumbBlob] = useState<Blob | null>(null);
   const [thumbPreview, setThumbPreview] = useState<string | null>(null);
+  const [thumbDirty, setThumbDirty] = useState(false);   // 썸네일 변경 → dirty(변경됨) 로 표시해 저장 유도
   const thumbInputRef = useRef<HTMLInputElement | null>(null);
   const cameraRef    = useRef<THREE.Camera | null>(null);
   const viewportRef  = useRef<HTMLDivElement | null>(null);
@@ -5271,6 +5272,7 @@ export default function StudioCanvas() {
         setDescription(d.world.description || '');
         setThumbPreview(d.world.thumbnailUrl || null);
         setThumbBlob(null);
+        setThumbDirty(false);
         setIsPublic(Boolean(d.world.isPublic));
         setIsGame(Boolean(d.world.isGame));
         setGameCharacter(d.world.gameCharacter && typeof d.world.gameCharacter === 'object' ? d.world.gameCharacter : null);
@@ -7112,6 +7114,7 @@ export default function StudioCanvas() {
       const blob = await (await fetch(dataUrl)).blob();
       setThumbBlob(blob);
       setThumbPreview(dataUrl);
+      setThumbDirty(true);
     } catch { alert(tCanvas('thumb_capture_failed')); }
   }
   // 썸네일: 내 PC 이미지 업로드 → 미리보기 + 업로드 대기 blob 으로
@@ -7122,6 +7125,7 @@ export default function StudioCanvas() {
     if (!f.type.startsWith('image/')) { alert(tCanvas('thumb_not_image')); return; }
     setThumbBlob(f);
     setThumbPreview(URL.createObjectURL(f));
+    setThumbDirty(true);
   }
 
   async function save() {
@@ -7168,6 +7172,7 @@ export default function StudioCanvas() {
       }
       // 썸네일 업로드 성공 시 blob 비움 — 재저장 때 중복 업로드 방지
       if (thumbnailUrl) { setThumbBlob(null); setThumbPreview(thumbnailUrl); }
+      setThumbDirty(false);   // 저장 완료 → 썸네일 dirty 해제
       // dirty 해제 — 현재 상태를 저장된 기준점으로 마킹
       setSavedKey(JSON.stringify({ name, objects, sceneSettings }));
     } catch (e) {
@@ -7195,7 +7200,7 @@ export default function StudioCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [name, objects, lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, exposure, gravityY, jumpPower],
   );
-  const dirty = savedKey !== '' && currentKey !== savedKey;
+  const dirty = (savedKey !== '' && currentKey !== savedKey) || thumbDirty;
 
   function openMyWorld(id: string) {
     setMyWorldsOpen(false);
