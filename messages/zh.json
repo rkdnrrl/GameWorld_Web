@@ -1940,6 +1940,8 @@
     "pixelRatio": "渲染分辨率",
     "farClip": "视野距离",
     "cullDistance": "距离剔除 (远处不渲染)",
+    "frustumCull": "视锥剔除 (屏幕外不渲染)",
+    "occlusionCull": "遮挡剔除 (墙后不渲染·实验性)",
     "on": "开",
     "off": "关",
     "shadowOff": "关",

@@ -117,6 +117,24 @@ export default function GraphicsPanel({ settings, updateSettings, applyPreset, m
               style={{ width: '100%' }} />
           </Section>
 
+          {/* 프러스텀 culling — 화면 밖 오브젝트 안 그리기 */}
+          <Section label={t('frustumCull')}>
+            <ToggleButtons
+              value={settings.frustumCull}
+              onChange={v => updateSettings({ frustumCull: v })}
+              labels={[t('off'), t('on')]}
+            />
+          </Section>
+
+          {/* 오클루전 culling — 벽 뒤 가려진 오브젝트 안 그리기 (실험적) */}
+          <Section label={t('occlusionCull')}>
+            <ToggleButtons
+              value={settings.occlusionCull}
+              onChange={v => updateSettings({ occlusionCull: v })}
+              labels={[t('off'), t('on')]}
+            />
+          </Section>
+
       {/* 리셋 */}
       <button onClick={() => applyPreset('ultra')}
         style={{

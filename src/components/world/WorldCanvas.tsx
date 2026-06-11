@@ -5934,8 +5934,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         />
         {/* 그림자맵을 매 프레임이 아니라 ~30Hz 로만 갱신 → 큰 그림자맵 렌더 부하 절감 */}
         {shadowsEnabled && <ShadowUpdateThrottle hz={30} />}
-        {/* 거리 기반 culling — 카메라에서 cullDistance 너머 mesh 안 그림 */}
-        <PerfManager cullDistance={graphics.cullDistance} />
+        {/* 거리/프러스텀/오클루전 culling — 안 보이는 mesh 안 그림 */}
+        <PerfManager cullDistance={graphics.cullDistance} frustumCull={graphics.frustumCull} occlusionCull={graphics.occlusionCull} />
         {/* fps 자동 측정 — 60fps 못 유지하면 dpr 0.75 단계로 낮춤. 회복되면 다시 올림.
             min/max bound 로 0.5~1.0 사이만 조정 — 너무 흐려지지 않게.
             ⚠ DPR 변경 = WebGL drawing buffer resize = 한 프레임 전체 flash(맵 깜빡임).
