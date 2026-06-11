@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { session } from '@/lib/api';
 import { buildMat, disposeMat, loadTex, type MaterialConfig } from '@/lib/assets/material';
 import { resolveMeshMaterial, uniqueMaterialNames, type MatSlot } from '@/lib/world/materialOverride';
-import { normalizeFolder } from '@/lib/assets/folders';
+import { normalizeFolder, listFolders, buildFolderTree, type FolderNode } from '@/lib/assets/folders';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
@@ -107,47 +107,80 @@ function TexturePicker({ images, onSelect, onClose, title }: {
   );
 }
 
-/* ── 좌측 내 에셋 패널 (폴더 필터 + 드래그) ── */
+/* ── 좌측 내 텍스처 패널 — 폴더 트리 + 썸네일 그리드 (드래그) ── */
 function TextureBrowser({ images }: { images: Asset[] }) {
   const t = useTranslations('Studio');
-  const [folder, setFolder] = useState<string | null>(null); // null = 전체
-  const folders = useMemo(() => {
-    const set = new Set<string>();
-    images.forEach(a => { const f = normalizeFolder(a.folder); if (f) set.add(f); });
-    return Array.from(set).sort();
-  }, [images]);
-  const shown = folder === null ? images : images.filter(a => normalizeFolder(a.folder) === folder);
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null); // null = 전체
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const tree = useMemo(() => buildFolderTree(listFolders(images)), [images]);
+  const shown = selectedFolder === null
+    ? images
+    : images.filter(a => { const f = normalizeFolder(a.folder); return f === selectedFolder || (f != null && f.startsWith(selectedFolder + '/')); });
 
   return (
-    <div style={{ width: 250, flexShrink: 0, background: '#0b1220', borderRight: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ width: 400, flexShrink: 0, background: '#0b1220', borderRight: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '14px 14px 10px', fontWeight: 700, fontSize: 13, borderBottom: '1px solid rgba(255,255,255,0.08)', color: '#fff' }}>🖼 {t('myTextures')}</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: 8, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <FolderChip active={folder === null} onClick={() => setFolder(null)} label={t('allFolders')} />
-        {folders.map(f => <FolderChip key={f} active={folder === f} onClick={() => setFolder(f)} label={f.split('/').pop() || f} />)}
-      </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: 8, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, alignContent: 'start' }}>
-        {shown.length === 0 ? (
-          <div style={{ gridColumn: '1 / -1', opacity: 0.4, fontSize: 11, padding: 12, textAlign: 'center' }}>{t('noTextures')}</div>
-        ) : shown.map(a => (
-          <div key={a.id} draggable
-            onDragStart={e => { e.dataTransfer.setData('text/plain', a.modelUrl); e.dataTransfer.effectAllowed = 'copy'; }}
-            title={a.name} style={{ cursor: 'grab' }}>
-            <div style={{ width: '100%', aspectRatio: '1', background: `url(${a.modelUrl}) center/cover`, borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)' }} />
-            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.6)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
-          </div>
-        ))}
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        {/* 폴더 트리 */}
+        <div style={{ width: 148, flexShrink: 0, overflowY: 'auto', padding: 6, borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+          <FolderRow label={t('allFolders')} depth={0} active={selectedFolder === null} hasChildren={false} open={false} onToggle={() => {}} onSelect={() => setSelectedFolder(null)} icon="📂" />
+          {tree.map(node => (
+            <FolderTreeNode key={node.path} node={node} depth={0} expanded={expanded} setExpanded={setExpanded} selected={selectedFolder} onSelect={setSelectedFolder} />
+          ))}
+        </div>
+        {/* 썸네일 그리드 */}
+        <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: 8, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, alignContent: 'start' }}>
+          {shown.length === 0 ? (
+            <div style={{ gridColumn: '1 / -1', opacity: 0.4, fontSize: 11, padding: 12, textAlign: 'center' }}>{t('noTextures')}</div>
+          ) : shown.map(a => (
+            <div key={a.id} draggable
+              onDragStart={e => { e.dataTransfer.setData('text/plain', a.modelUrl); e.dataTransfer.effectAllowed = 'copy'; }}
+              title={a.name} style={{ cursor: 'grab' }}>
+              <div style={{ width: '100%', aspectRatio: '1', background: `url(${a.modelUrl}) center/cover`, borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)' }} />
+              <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.6)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-function FolderChip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+function FolderTreeNode({ node, depth, expanded, setExpanded, selected, onSelect }: {
+  node: FolderNode; depth: number; expanded: Set<string>;
+  setExpanded: React.Dispatch<React.SetStateAction<Set<string>>>;
+  selected: string | null; onSelect: (p: string) => void;
+}) {
+  const open = expanded.has(node.path);
+  const hasChildren = node.children.length > 0;
   return (
-    <button onClick={onClick} style={{
-      fontSize: 10, padding: '4px 8px', borderRadius: 12, cursor: 'pointer',
-      border: 'none', maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-      background: active ? '#4f46e5' : 'rgba(255,255,255,0.07)', color: active ? '#fff' : 'rgba(255,255,255,0.7)',
-    }}>{label}</button>
+    <>
+      <FolderRow label={node.name} depth={depth} active={selected === node.path} hasChildren={hasChildren} open={open}
+        onToggle={() => setExpanded(prev => { const n = new Set(prev); if (n.has(node.path)) n.delete(node.path); else n.add(node.path); return n; })}
+        onSelect={() => onSelect(node.path)} icon="📁" />
+      {open && node.children.map(c => (
+        <FolderTreeNode key={c.path} node={c} depth={depth + 1} expanded={expanded} setExpanded={setExpanded} selected={selected} onSelect={onSelect} />
+      ))}
+    </>
+  );
+}
+
+function FolderRow({ label, depth, active, hasChildren, open, onToggle, onSelect, icon }: {
+  label: string; depth: number; active: boolean; hasChildren: boolean; open: boolean;
+  onToggle: () => void; onSelect: () => void; icon: string;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', paddingLeft: depth * 12 }}>
+      <button onClick={e => { e.stopPropagation(); onToggle(); }}
+        style={{ width: 14, flexShrink: 0, background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 9, cursor: hasChildren ? 'pointer' : 'default', padding: 0 }}>
+        {hasChildren ? (open ? '▾' : '▸') : ''}
+      </button>
+      <button onClick={onSelect}
+        style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 4, background: active ? 'rgba(99,102,241,0.25)' : 'none', border: 'none', borderRadius: 5, color: active ? '#c7d2fe' : 'rgba(255,255,255,0.75)', fontSize: 11, padding: '4px 5px', cursor: 'pointer', textAlign: 'left' }}>
+        <span style={{ flexShrink: 0 }}>{icon}</span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+      </button>
+    </div>
   );
 }
 
@@ -228,7 +261,7 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}
       onClick={onClose}>
       <div style={{
-        background: '#0f172a', borderRadius: 16, width: 1060, maxWidth: '96vw', maxHeight: '85vh', display: 'flex',
+        background: '#0f172a', borderRadius: 16, width: 1160, maxWidth: '96vw', maxHeight: '85vh', display: 'flex',
         boxShadow: '0 20px 50px rgba(0,0,0,0.6)', overflow: 'hidden',
       }} onClick={e => e.stopPropagation()}>
 
