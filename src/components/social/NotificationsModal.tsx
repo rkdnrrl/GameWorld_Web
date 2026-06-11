@@ -6,7 +6,7 @@
  *  - 열면 자동 읽음 처리(api.markAllNotificationsRead)
  */
 import { useEffect, useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { api, session, ApiError } from '@/lib/api';
 
@@ -24,6 +24,7 @@ const LIMIT = 15;
 export default function NotificationsModal({ onClose, onAllRead, embedded = false }: { onClose?: () => void; onAllRead?: () => void; embedded?: boolean }) {
   const t = useTranslations('Social');
   const tn = useTranslations('Notifications');
+  const locale = useLocale();
   const [items, setItems] = useState<Notif[] | null>(null);
   const [error, setError] = useState('');
 
@@ -53,7 +54,7 @@ export default function NotificationsModal({ onClose, onAllRead, embedded = fals
           {t('notifEmpty')}
         </div>
       )}
-      {items && items.map(n => <Row key={n.id} notif={n} onNavigate={() => onClose?.()} tn={tn} />)}
+      {items && items.map(n => <Row key={n.id} notif={n} onNavigate={() => onClose?.()} tn={tn} locale={locale} />)}
     </div>
   );
 
@@ -99,7 +100,7 @@ export default function NotificationsModal({ onClose, onAllRead, embedded = fals
   );
 }
 
-function Row({ notif, onNavigate, tn }: { notif: Notif; onNavigate: () => void; tn: ReturnType<typeof useTranslations> }) {
+function Row({ notif, onNavigate, tn, locale }: { notif: Notif; onNavigate: () => void; tn: ReturnType<typeof useTranslations>; locale: string }) {
   const { type, payload } = notif;
   const wasUnread = !notif.readAt;
 
@@ -138,7 +139,7 @@ function Row({ notif, onNavigate, tn }: { notif: Notif; onNavigate: () => void; 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, lineHeight: 1.4 }}>{text}</div>
         <div style={{ fontSize: 11, opacity: 0.45, marginTop: 4 }}>
-          {new Date(notif.createdAt).toLocaleString()}
+          {new Date(notif.createdAt).toLocaleString(locale)}
         </div>
       </div>
       {wasUnread && <span style={{ width: 7, height: 7, borderRadius: 4, background: '#6366f1', marginTop: 8, flexShrink: 0 }} />}

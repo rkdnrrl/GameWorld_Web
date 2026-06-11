@@ -4,7 +4,7 @@
  */
 import { useState, useEffect, useRef, useCallback, use } from 'react';
 import Link from 'next/link';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { api, session, ApiError } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { setActiveDmConversation, DM_PUSH_EVENT, DM_READ_EVENT, type DmPush } from '@/lib/notifications/useNotificationStream';
@@ -14,6 +14,7 @@ interface OtherUser { id: string; username: string; profileImageUrl: string | nu
 
 export default function DmRoom({ params }: { params: Promise<{ id: string }> }) {
   const t = useTranslations('Messages');
+  const locale = useLocale();
   const { id } = use(params);
 
   const [other, setOther] = useState<OtherUser | null>(null);
@@ -148,7 +149,7 @@ export default function DmRoom({ params }: { params: Promise<{ id: string }> }) 
         {loading && <p className="text-slate-500 text-sm text-center">{t('loading')}</p>}
         {!loading && messages.length === 0 && <p className="text-slate-500 text-sm text-center py-8">{t('noMessages')}</p>}
         {messages.map(m => (
-          <Bubble key={m.id} msg={m} isMine={m.senderId === myId} />
+          <Bubble key={m.id} msg={m} isMine={m.senderId === myId} locale={locale} />
         ))}
       </div>
 
@@ -174,8 +175,8 @@ export default function DmRoom({ params }: { params: Promise<{ id: string }> }) 
   );
 }
 
-function Bubble({ msg, isMine }: { msg: Message; isMine: boolean }) {
-  const time = new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function Bubble({ msg, isMine, locale }: { msg: Message; isMine: boolean; locale: string }) {
+  const time = new Date(msg.createdAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
   return (
     <div className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-[75%] px-3 py-2 rounded-lg ${isMine ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-100'}`}>

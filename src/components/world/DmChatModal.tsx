@@ -7,7 +7,7 @@
  */
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { api, session, ApiError } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { setActiveDmConversation, DM_PUSH_EVENT, DM_READ_EVENT, type DmPush } from '@/lib/notifications/useNotificationStream';
@@ -22,6 +22,7 @@ export function DmChatModal({ conversationId, other, onClose }: {
   onClose: () => void;
 }) {
   const t = useTranslations('Messages');
+  const locale = useLocale();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -141,7 +142,7 @@ export function DmChatModal({ conversationId, other, onClose }: {
           {!loading && messages.length === 0 && <p style={{ textAlign: 'center', opacity: 0.5, fontSize: 12, padding: '24px 0' }}>{t('noMessages')}</p>}
           {messages.map(m => {
             const mine = m.senderId === myId;
-            const time = new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const time = new Date(m.createdAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
             return (
               <div key={m.id} style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start' }}>
                 <div style={{
