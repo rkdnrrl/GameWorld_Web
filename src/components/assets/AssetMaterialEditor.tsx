@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState, Suspense } from 'react';
+import { useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { useTranslations } from 'next-intl';
@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { session } from '@/lib/api';
 import { buildMat, disposeMat, loadTex, type MaterialConfig } from '@/lib/assets/material';
 import { resolveMeshMaterial, uniqueMaterialNames, type MatSlot } from '@/lib/world/materialOverride';
+import { normalizeFolder } from '@/lib/assets/folders';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
@@ -106,6 +107,50 @@ function TexturePicker({ images, onSelect, onClose, title }: {
   );
 }
 
+/* ── 좌측 내 에셋 패널 (폴더 필터 + 드래그) ── */
+function TextureBrowser({ images }: { images: Asset[] }) {
+  const t = useTranslations('Studio');
+  const [folder, setFolder] = useState<string | null>(null); // null = 전체
+  const folders = useMemo(() => {
+    const set = new Set<string>();
+    images.forEach(a => { const f = normalizeFolder(a.folder); if (f) set.add(f); });
+    return Array.from(set).sort();
+  }, [images]);
+  const shown = folder === null ? images : images.filter(a => normalizeFolder(a.folder) === folder);
+
+  return (
+    <div style={{ width: 250, flexShrink: 0, background: '#0b1220', borderRight: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '14px 14px 10px', fontWeight: 700, fontSize: 13, borderBottom: '1px solid rgba(255,255,255,0.08)', color: '#fff' }}>🖼 {t('myTextures')}</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: 8, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <FolderChip active={folder === null} onClick={() => setFolder(null)} label={t('allFolders')} />
+        {folders.map(f => <FolderChip key={f} active={folder === f} onClick={() => setFolder(f)} label={f.split('/').pop() || f} />)}
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 8, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, alignContent: 'start' }}>
+        {shown.length === 0 ? (
+          <div style={{ gridColumn: '1 / -1', opacity: 0.4, fontSize: 11, padding: 12, textAlign: 'center' }}>{t('noTextures')}</div>
+        ) : shown.map(a => (
+          <div key={a.id} draggable
+            onDragStart={e => { e.dataTransfer.setData('text/plain', a.modelUrl); e.dataTransfer.effectAllowed = 'copy'; }}
+            title={a.name} style={{ cursor: 'grab' }}>
+            <div style={{ width: '100%', aspectRatio: '1', background: `url(${a.modelUrl}) center/cover`, borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)' }} />
+            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.6)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FolderChip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+  return (
+    <button onClick={onClick} style={{
+      fontSize: 10, padding: '4px 8px', borderRadius: 12, cursor: 'pointer',
+      border: 'none', maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      background: active ? '#4f46e5' : 'rgba(255,255,255,0.07)', color: active ? '#fff' : 'rgba(255,255,255,0.7)',
+    }}>{label}</button>
+  );
+}
+
 /* ── 메인 에디터 모달 ────────────────────── */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved }: {
@@ -183,11 +228,14 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}
       onClick={onClose}>
       <div style={{
-        background: '#0f172a', borderRadius: 16, width: 820, maxHeight: '85vh', display: 'flex',
+        background: '#0f172a', borderRadius: 16, width: 1060, maxWidth: '96vw', maxHeight: '85vh', display: 'flex',
         boxShadow: '0 20px 50px rgba(0,0,0,0.6)', overflow: 'hidden',
       }} onClick={e => e.stopPropagation()}>
 
-        {/* 좌측 — 미리보기 */}
+        {/* 좌측 — 내 에셋 (폴더 + 드래그) */}
+        <TextureBrowser images={imageAssets} />
+
+        {/* 중앙 — 미리보기 */}
         <div style={{ width: 380, background: '#1e293b', display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>📦 {asset.name}</div>
@@ -217,25 +265,6 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
             </Canvas>
           </div>
 
-          {/* 텍스처 드래그 소스 — 이미지 에셋을 슬롯으로 끌어다 놓기 */}
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', padding: '8px 10px', maxHeight: 130, display: 'flex', flexDirection: 'column' }}>
-            <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 6 }}>🖼 {t('dragTextureHint')}</div>
-            {imageAssets.length === 0 ? (
-              <div style={{ fontSize: 10, opacity: 0.4, padding: '8px 2px' }}>{t('noTextures')}</div>
-            ) : (
-              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
-                {imageAssets.map(a => (
-                  <div key={a.id} draggable
-                    onDragStart={e => { e.dataTransfer.setData('text/plain', a.modelUrl); e.dataTransfer.effectAllowed = 'copy'; }}
-                    title={a.name}
-                    style={{ width: 52, flexShrink: 0, cursor: 'grab' }}>
-                    <div style={{ width: 52, height: 52, background: `url(${a.modelUrl}) center/cover`, borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)' }} />
-                    <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.55)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
         {/* 우측 — 컨트롤 */}

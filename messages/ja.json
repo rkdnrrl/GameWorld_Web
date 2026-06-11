@@ -1027,6 +1027,8 @@
     "texChoose": "選択…",
     "perMaterialTexture": "パーツ別テクスチャ",
     "dragTextureHint": "テクスチャをスロットにドラッグ",
+    "myTextures": "マイテクスチャ",
+    "allFolders": "すべて",
     "texRemove": "削除",
     "texTilingX": "タイル X",
     "texTilingY": "タイル Y",

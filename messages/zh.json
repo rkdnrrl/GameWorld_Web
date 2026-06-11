@@ -1027,6 +1027,8 @@
     "texChoose": "选择…",
     "perMaterialTexture": "各部位贴图",
     "dragTextureHint": "把贴图拖到插槽",
+    "myTextures": "我的贴图",
+    "allFolders": "全部",
     "texRemove": "移除",
     "texTilingX": "平铺 X",
     "texTilingY": "平铺 Y",
