@@ -43,7 +43,7 @@ function waterDepthAt(vols: BuoyancyVolume[] | undefined, x: number, y: number, 
 }
 import type { ChatBubble, RemotePlayer, PlayerPose } from '@/lib/world/useGameSocket';
 import { useBlockedSet, useMutedSet } from '@/lib/world/blocklist';
-import { buildOverrideMaterial, hasOverride, type MaterialOverrides } from '@/lib/world/materialOverride';
+import { resolveMeshMaterial, type MaterialOverrides } from '@/lib/world/materialOverride';
 import WindSway, { deriveWind } from '@/lib/world/WindSway';
 import type { GraphicsSettings } from '@/lib/world/graphicsSettings';
 import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
@@ -3478,17 +3478,8 @@ function UserAsset({ url, matObj, anim }: { url: string; matObj: UserMapObject; 
     obj.traverse(c => {
       const m = c as THREE.Mesh;
       if (!m.isMesh) return;
-      const orig = originalMats.current.get(m);
-      const name = orig && !Array.isArray(orig) ? orig.name : null;
-      const ov = name && overrides ? overrides[name] : undefined;
-      if (hasOverride(ov)) {
-        const nm = buildOverrideMaterial(orig, ov, loadFreshTexture);
-        m.material = nm; made.push(nm);
-      } else if (globalMat) {
-        m.material = globalMat;
-      } else if (orig) {
-        m.material = orig;
-      }
+      const res = resolveMeshMaterial(originalMats.current.get(m), overrides, globalMat, loadFreshTexture, undefined, made);
+      if (res) m.material = res;
     });
     if (globalMat) made.push(globalMat);
     return () => {

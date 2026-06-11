@@ -45,6 +45,39 @@ export function hasOverride(ov: MatOverride | undefined): ov is MatOverride {
 }
 
 /**
+ * 메시 하나의 최종 머티리얼을 결정한다. 단일 머티리얼 + **머티리얼 배열(서브머티리얼)** 둘 다 처리.
+ * 우선순위: 부위별 오버라이드 > 글로벌 머티리얼 > 원본.
+ * 모델이 "한 메시 + 머티리얼 배열"(줄기/잎이 서브머티리얼) 구조여도 이름별로 정확히 교체됨.
+ *
+ * @param made  새로 만든 머티리얼을 여기에 push (호출부가 dispose 용으로 수집). globalMat 은 push 안 함(호출부가 따로 관리).
+ * @returns 메시에 할당할 머티리얼(배열일 수 있음). null 이면 변경 없음.
+ */
+export function resolveMeshMaterial(
+  orig: THREE.Material | THREE.Material[] | undefined,
+  overrides: MaterialOverrides | undefined,
+  globalMat: THREE.MeshStandardMaterial | null,
+  loadTex: LoadTexFn,
+  onLoad: (() => void) | undefined,
+  made: THREE.MeshStandardMaterial[],
+): THREE.Material | THREE.Material[] | null {
+  if (Array.isArray(orig)) {
+    let changed = false;
+    const arr = orig.map((sub) => {
+      const ov = sub?.name && overrides ? overrides[sub.name] : undefined;
+      if (hasOverride(ov)) { const nm = buildOverrideMaterial(sub, ov, loadTex, onLoad); made.push(nm); changed = true; return nm; }
+      if (globalMat) { changed = true; return globalMat; }
+      return sub;
+    });
+    return changed ? arr : orig;
+  }
+  const name = orig?.name;
+  const ov = name && overrides ? overrides[name] : undefined;
+  if (hasOverride(ov)) { const nm = buildOverrideMaterial(orig, ov, loadTex, onLoad); made.push(nm); return nm; }
+  if (globalMat) return globalMat;
+  return orig ?? null;
+}
+
+/**
  * 원본 머티리얼의 컷아웃 속성(투명/alphaTest/면/정점색)을 보존한 채,
  * 오버라이드 텍스처(앨베도/노멀/러프니스)를 입힌 새 MeshStandardMaterial 을 만든다.
  * 새로 만든 맵은 전부 이 머티리얼 소유 → dispose 안전.

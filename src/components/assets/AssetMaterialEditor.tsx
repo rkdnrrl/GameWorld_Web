@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import * as THREE from 'three';
 import { session } from '@/lib/api';
 import { buildMat, disposeMat, loadTex, type MaterialConfig } from '@/lib/assets/material';
-import { buildOverrideMaterial, hasOverride, uniqueMaterialNames } from '@/lib/world/materialOverride';
+import { resolveMeshMaterial, uniqueMaterialNames } from '@/lib/world/materialOverride';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
@@ -57,12 +57,8 @@ function PreviewModel({ url, config, onMaterials }: { url: string; config: Mater
     obj.traverse(c => {
       const m = c as THREE.Mesh;
       if (!m.isMesh) return;
-      const orig = originalMats.current.get(m);
-      const name = orig && !Array.isArray(orig) ? orig.name : null;
-      const ov = name && overrides ? overrides[name] : undefined;
-      if (hasOverride(ov)) { const nm = buildOverrideMaterial(orig, ov, loadTex); m.material = nm; made.push(nm); }
-      else if (globalMat) m.material = globalMat;
-      else if (orig) m.material = orig;
+      const res = resolveMeshMaterial(originalMats.current.get(m), overrides, globalMat, loadTex, undefined, made);
+      if (res) m.material = res;
     });
     if (globalMat) made.push(globalMat);
     return () => { restore(); made.forEach(disposeMat); };

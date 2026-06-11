@@ -43,7 +43,7 @@ import StudioMarketModal from '@/components/studio/StudioMarketModal';
 import { MAP_APPLY_EVENT } from '@/lib/assets/kinds/map';
 import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, computeBuoyancyVolumes, computeAmbientSoundZones, findDayNightComponent, computeSeats, computeTeleporters, computeLadders, computeDoors, computeDialogues, computeVendings, computeJumpPads, computeCheckpoints, computeKillZones, computeRaceStarts, computeRaceFinishes, type ComponentInstance, type ComponentType, type BuoyancyVolume, type ComponentPropDef, type AmbientSoundZone, type SeatSpot, type TeleporterSpot, type LadderSpot, type DoorSpot, type DialogueSpot, type VendingSpot, type JumpPadSpot, type CheckpointSpot, type KillZoneSpot, type RaceStartSpot, type RaceFinishSpot } from '@/lib/world/components';
 import AmbientSoundsPlayer from '@/lib/world/AmbientSounds';
-import { buildOverrideMaterial, uniqueMaterialNames, hasOverride, type MaterialOverrides } from '@/lib/world/materialOverride';
+import { resolveMeshMaterial, uniqueMaterialNames, type MaterialOverrides } from '@/lib/world/materialOverride';
 import WindSway, { deriveWind } from '@/lib/world/WindSway';
 import DayNightCycle from '@/lib/world/DayNightCycle';
 import SeatController from '@/lib/world/SeatController';
@@ -1945,20 +1945,11 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }:
     appliedMatsRef.current = [];
 
     const globalMat = buildMat(effectiveCfg, () => forceUpdate(n => n + 1));
-    const overrides = obj.materialOverrides;
+    // 오브젝트 오버라이드 우선, 없으면 에셋(materialConfig)의 부위별 오버라이드 사용
+    const overrides = obj.materialOverrides ?? (assetConfig?.materialOverrides as MaterialOverrides | undefined);
     originalMatsRef.current.forEach((origMat, mesh) => {
-      // 부위별 오버라이드 우선 (단일 머티리얼 메시만) → 없으면 글로벌 → 없으면 원본
-      const name = !Array.isArray(origMat) ? origMat.name : null;
-      const ov = name && overrides ? overrides[name] : undefined;
-      if (hasOverride(ov)) {
-        const m = buildOverrideMaterial(origMat, ov, loadTex, () => forceUpdate(n => n + 1));
-        mesh.material = m;
-        appliedMatsRef.current.push(m);
-      } else if (globalMat) {
-        mesh.material = globalMat;
-      } else {
-        mesh.material = origMat;
-      }
+      const res = resolveMeshMaterial(origMat, overrides, globalMat, loadTex, () => forceUpdate(n => n + 1), appliedMatsRef.current);
+      if (res) mesh.material = res;
     });
     if (globalMat) appliedMatsRef.current.push(globalMat);
     forceUpdate(n => n + 1);
