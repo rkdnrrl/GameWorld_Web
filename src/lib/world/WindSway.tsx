@@ -37,7 +37,7 @@ export function deriveWind(props: Record<string, unknown> | undefined): WindSett
 let activeCount = 0;
 
 const VERT_UNIFORMS =
-  'uniform float uWindTime; uniform vec2 uWindDir; uniform float uWindStr; uniform float uWindSpeed; uniform float uWindTurb; uniform float uWindBaseY;\n';
+  'uniform float uWindTime; uniform vec2 uWindDir; uniform float uWindStr; uniform float uWindSpeed; uniform float uWindTurb; uniform float uWindBaseY; uniform float uWindLeaf;\n';
 
 // #include <begin_vertex> 뒤에 주입 — transformed(로컬 정점), modelMatrix(월드 변환) 사용
 const VERT_BODY = `
@@ -53,14 +53,17 @@ const VERT_BODY = `
   //   - 정점별 랜덤 위상(로컬 position 해시): 잎이 코히어런트 물결이 아니라 잡음성으로 셔머.
   float treePhase = fract(sin(dot(modelMatrix[3].xyz, vec3(12.9898, 78.233, 37.719))) * 43758.5453) * 6.2831;
   float leafPhase = fract(sin(dot(position, vec3(12.9898, 78.233, 37.719))) * 43758.5453) * 6.2831;
-  // 메인 굽힘(줄기 전체) — 나무 한 그루가 **한 위상으로 통째 기욺**(줄기 내부 S-웨이브 없음). 아주 작게.
+  // 메인 굽힘(줄기 포함 전체) — 나무 한 그루가 한 위상으로 통째 기욺(웨이브 없음).
+  //   **세기의 제곱에 비례** → 약풍엔 거의 0(줄기 정지), 강풍에만 눈에 띄게 휨.
+  float strBend = uWindStr * uWindStr;
   float bendWind = clamp(
-    (sin(tWind + treePhase) * 0.7 + sin(tWind * 1.7 + treePhase) * 0.3) * hWind * uWindStr * 0.008,
-    -0.04, 0.04);
-  // 잎 펄럭임 — 정점별 랜덤 위상 → 잡음성 셔머(웨이브 아님). 굽힘보다 약간 크게.
+    (sin(tWind + treePhase) * 0.7 + sin(tWind * 1.7 + treePhase) * 0.3) * hWind * strBend * 0.001,
+    -0.35, 0.35);
+  // 잎 펄럭임 — **잎 머티리얼(uWindLeaf=1)만** (줄기는 0 → 펄럭임 0 = 부피 출렁임 없음).
+  //   정점별 랜덤 위상 → 잡음성 셔머(웨이브 아님).
   float flWind = clamp(
     sin(tWind * 5.0 + leafPhase + treePhase) * hWind * uWindStr * uWindTurb * 0.012,
-    -0.045, 0.045);
+    -0.045, 0.045) * uWindLeaf;
   transformed.x += (bendWind * uWindDir.x + flWind) / sWind.x;
   transformed.z += (bendWind * uWindDir.y + flWind * 0.6) / sWind.z;
   transformed.y -= (abs(flWind) * 0.2) / sWind.y;
@@ -72,12 +75,18 @@ const VERT_BODY = `
  * AssetMesh 가 compileAsync **전에** 호출 → 바람 포함 셰이더로 한 번에 컴파일(재컴파일 hitch 제거).
  * WindSway 의 useFrame 도 매 프레임 호출하지만 이미 패치됐으면 값만 갱신 → 재컴파일 X.
  */
-export function patchWindMaterial(mat: THREE.Material, baseYValue: number) {
+export function patchWindMaterial(mat: THREE.Material, baseYValue: number, isLeaf: boolean) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ud = mat.userData as any;
-  if (ud.__windUniform) { ud.__windUniform.value = baseYValue; return; } // 이미 패치 — 값만 갱신
+  if (ud.__windUniform) {
+    ud.__windUniform.value = baseYValue;                         // 이미 패치 — 값만 갱신
+    if (ud.__windLeafUniform) ud.__windLeafUniform.value = isLeaf ? 1 : 0;
+    return;
+  }
   const u = { value: baseYValue };
+  const ul = { value: isLeaf ? 1 : 0 };  // 잎 머티리얼이면 1(펄럭임 ON), 줄기면 0(굽힘만)
   ud.__windUniform = u;
+  ud.__windLeafUniform = ul;
   const prev = mat.onBeforeCompile;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mat.onBeforeCompile = (shader: any, renderer: any) => {
@@ -88,6 +97,7 @@ export function patchWindMaterial(mat: THREE.Material, baseYValue: number) {
     shader.uniforms.uWindSpeed = G.uWindSpeed;
     shader.uniforms.uWindTurb  = G.uWindTurb;
     shader.uniforms.uWindBaseY = u;
+    shader.uniforms.uWindLeaf  = ul;
     if (!shader.vertexShader.includes('uWindTime')) {
       shader.vertexShader = VERT_UNIFORMS + shader.vertexShader.replace(
         '#include <begin_vertex>',
@@ -120,16 +130,16 @@ export default function WindSway({ wind, children }: { wind: WindSettings; child
     if (!g) return;
     g.getWorldPosition(wpos.current);
     const by = wpos.current.y;
-    // **잎(cutout) 머티리얼 슬롯만 흔든다** — 로더가 mesh.userData.__windLeafSlots(슬롯별 잎 여부)로 표시.
-    // 줄기/몸통(불투명)·통나무·바닥 등은 패치 안 함 → 나무 부피 출렁임 없이 잎만 흔들림.
+    // **식물 오브젝트(__windFoliage) 전체를 패치** — 줄기 포함. 단 펄럭임은 잎 슬롯(__windLeafSlots[i])만(uWindLeaf).
+    // 줄기: 굽힘만(강풍에서만 휨) / 잎: 굽힘+펄럭임. 통나무·바닥 등 비-식물은 __windFoliage 없어 패치 안 됨.
     // (baseY 갱신도 겸함. AssetMesh 가 compileAsync 전에 미리 패치하므로 여기선 보통 값 갱신만.)
     g.traverse((o) => {
       const mesh = o as THREE.Mesh;
       const m = mesh.material;
-      const slots = mesh.userData?.__windLeafSlots as boolean[] | null | undefined;
-      if (!m || !slots) return;
-      if (Array.isArray(m)) m.forEach((mm, i) => { if (slots[i]) patchWindMaterial(mm, by); });
-      else if (slots[0]) patchWindMaterial(m, by);
+      if (!m || !mesh.userData?.__windFoliage) return;
+      const slots = mesh.userData?.__windLeafSlots as boolean[] | undefined;
+      if (Array.isArray(m)) m.forEach((mm, i) => patchWindMaterial(mm, by, !!(slots && slots[i])));
+      else patchWindMaterial(m, by, !!(slots && slots[0]));
     });
   });
 
