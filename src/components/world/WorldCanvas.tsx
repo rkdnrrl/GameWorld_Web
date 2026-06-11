@@ -43,6 +43,7 @@ function waterDepthAt(vols: BuoyancyVolume[] | undefined, x: number, y: number, 
 }
 import type { ChatBubble, RemotePlayer, PlayerPose } from '@/lib/world/useGameSocket';
 import { useBlockedSet, useMutedSet } from '@/lib/world/blocklist';
+import { buildOverrideMaterial, hasOverride, type MaterialOverrides } from '@/lib/world/materialOverride';
 import type { GraphicsSettings } from '@/lib/world/graphicsSettings';
 import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
 import { PerfManager } from '@/lib/world/PerfManager';
@@ -2873,6 +2874,7 @@ interface UserMapObject {
   textureRoughness?: string;
   textureTilingX?:   number;
   textureTilingY?:   number;
+  materialOverrides?: MaterialOverrides;  // 부위별(머티리얼이름→텍스처) 오버라이드 — 멀티 머티리얼 모델용
   videoUrl?:         string;   // 표면에 재생할 영상(TV 화면)
   // 조명 전용
   lightColor?:     string;
@@ -3450,43 +3452,46 @@ function UserAsset({ url, matObj, anim }: { url: string; matObj: UserMapObject; 
     return () => { cancelled = true; };
   }, [url]);
 
-  // 머티리얼/텍스처 변경 적용
+  // 머티리얼/텍스처 변경 적용 (글로벌 + 부위별 오버라이드)
   useEffect(() => {
     if (!obj) return;
-    const hasOverride = matObj.material && matObj.material !== 'default'
-      || matObj.materialColor || matObj.textureAlbedo
-      || matObj.textureNormal || matObj.textureRoughness;
+    const overrides = matObj.materialOverrides;
+    const hasGlobal = (matObj.material && matObj.material !== 'default')
+      || !!matObj.materialColor || !!matObj.textureAlbedo
+      || !!matObj.textureNormal || !!matObj.textureRoughness;
+    const hasOv = !!overrides && Object.keys(overrides).length > 0;
 
-    if (!hasOverride) {
-      // 원본 복원
-      obj.traverse(c => {
-        const m = c as THREE.Mesh;
-        if (m.isMesh) {
-          const orig = originalMats.current.get(m);
-          if (orig) m.material = orig;
-        }
-      });
-      return;
-    }
+    const restore = () => obj.traverse(c => {
+      const m = c as THREE.Mesh;
+      if (m.isMesh) { const orig = originalMats.current.get(m); if (orig) m.material = orig; }
+    });
 
-    // 새 머티리얼로 교체
-    const newMat = buildMaterial(matObj);
+    if (!hasGlobal && !hasOv) { restore(); return; }
+
+    const globalMat = hasGlobal ? buildMaterial(matObj) : null;
+    const made: THREE.MeshStandardMaterial[] = [];
     obj.traverse(c => {
       const m = c as THREE.Mesh;
-      if (m.isMesh) m.material = newMat;
+      if (!m.isMesh) return;
+      const orig = originalMats.current.get(m);
+      const name = orig && !Array.isArray(orig) ? orig.name : null;
+      const ov = name && overrides ? overrides[name] : undefined;
+      if (hasOverride(ov)) {
+        const nm = buildOverrideMaterial(orig, ov, loadFreshTexture);
+        m.material = nm; made.push(nm);
+      } else if (globalMat) {
+        m.material = globalMat;
+      } else if (orig) {
+        m.material = orig;
+      }
     });
+    if (globalMat) made.push(globalMat);
     return () => {
       // 정리 전에 원본으로 복원 (disposed 머티리얼이 mesh에 남지 않도록)
-      obj.traverse(c => {
-        const m = c as THREE.Mesh;
-        if (m.isMesh) {
-          const orig = originalMats.current.get(m);
-          if (orig) m.material = orig;
-        }
-      });
-      disposeMaterial(newMat);
+      restore();
+      made.forEach(disposeMaterial);
     };
-  }, [obj, matObj.material, matObj.materialColor, matObj.textureAlbedo, matObj.textureNormal, matObj.textureRoughness, matObj.textureTilingX, matObj.textureTilingY]);
+  }, [obj, matObj.material, matObj.materialColor, matObj.textureAlbedo, matObj.textureNormal, matObj.textureRoughness, matObj.textureTilingX, matObj.textureTilingY, JSON.stringify(matObj.materialOverrides || null)]);
 
   // Animator — clip 재생. obj/anim 변경 시 mixer 재구성.
   useEffect(() => {

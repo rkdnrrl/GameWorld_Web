@@ -43,6 +43,7 @@ import StudioMarketModal from '@/components/studio/StudioMarketModal';
 import { MAP_APPLY_EVENT } from '@/lib/assets/kinds/map';
 import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, computeBuoyancyVolumes, computeAmbientSoundZones, findDayNightComponent, computeSeats, computeTeleporters, computeLadders, computeDoors, computeDialogues, computeVendings, computeJumpPads, computeCheckpoints, computeKillZones, computeRaceStarts, computeRaceFinishes, type ComponentInstance, type ComponentType, type BuoyancyVolume, type ComponentPropDef, type AmbientSoundZone, type SeatSpot, type TeleporterSpot, type LadderSpot, type DoorSpot, type DialogueSpot, type VendingSpot, type JumpPadSpot, type CheckpointSpot, type KillZoneSpot, type RaceStartSpot, type RaceFinishSpot } from '@/lib/world/components';
 import AmbientSoundsPlayer from '@/lib/world/AmbientSounds';
+import { buildOverrideMaterial, uniqueMaterialNames, hasOverride, type MaterialOverrides } from '@/lib/world/materialOverride';
 import DayNightCycle from '@/lib/world/DayNightCycle';
 import SeatController from '@/lib/world/SeatController';
 import TeleporterController from '@/lib/world/TeleporterController';
@@ -189,6 +190,7 @@ interface MapObject {
   textureRoughness?: string;
   textureTilingX?:   number;
   textureTilingY?:   number;
+  materialOverrides?: MaterialOverrides;  // 부위별(머티리얼이름→텍스처) 오버라이드 — 멀티 머티리얼 모델용
   videoUrl?:         string;   // 표면에 재생할 영상(TV 화면). 설정 시 텍스처 대신 비디오 재질.
   // 조명 전용
   lightColor?:     string;
@@ -239,6 +241,8 @@ interface Asset {
 
 /** assetUrl → 모델 내장 애니메이션 클립 이름 목록. AssetMesh 가 로드 시 채움. Animator 인스펙터 드롭다운용. */
 const _assetClipCache = new Map<string, string[]>();
+/** assetUrl → 모델 머티리얼 이름 목록. AssetMesh 가 로드 시 채움. 부위별 텍스처 인스펙터용. */
+const _assetMaterialCache = new Map<string, string[]>();
 /** 키프레임 시뮬 키네마틱 + 편집 미리보기 합성용 재사용 임시 객체 */
 const _simKfPos = { x: 0, y: 0, z: 0 };
 const _simKfQuat = { x: 0, y: 0, z: 0, w: 1 };
@@ -1914,6 +1918,9 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }:
           const names = ((model.animations || []) as THREE.AnimationClip[]).map(a => a.name).filter(Boolean);
           _assetClipCache.set(obj.assetUrl, names);
           window.dispatchEvent(new CustomEvent('alp-clips-loaded'));
+          // 부위별 텍스처 인스펙터용 — 머티리얼 이름 캐시 + 알림
+          _assetMaterialCache.set(obj.assetUrl, uniqueMaterialNames(origMap));
+          window.dispatchEvent(new CustomEvent('alp-materials-loaded'));
         }
         setModel(model);
       }).catch(err => console.error('[studio] 모델 로드 실패:', err))
@@ -1936,18 +1943,26 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }:
     appliedMatsRef.current.forEach(disposeMat);
     appliedMatsRef.current = [];
 
-    const mat = buildMat(effectiveCfg, () => forceUpdate(n => n + 1));
+    const globalMat = buildMat(effectiveCfg, () => forceUpdate(n => n + 1));
+    const overrides = obj.materialOverrides;
     originalMatsRef.current.forEach((origMat, mesh) => {
-      if (mat) {
-        mesh.material = mat;
+      // 부위별 오버라이드 우선 (단일 머티리얼 메시만) → 없으면 글로벌 → 없으면 원본
+      const name = !Array.isArray(origMat) ? origMat.name : null;
+      const ov = name && overrides ? overrides[name] : undefined;
+      if (hasOverride(ov)) {
+        const m = buildOverrideMaterial(origMat, ov, loadTex, () => forceUpdate(n => n + 1));
+        mesh.material = m;
+        appliedMatsRef.current.push(m);
+      } else if (globalMat) {
+        mesh.material = globalMat;
       } else {
         mesh.material = origMat;
       }
     });
-    if (mat) appliedMatsRef.current.push(mat);
+    if (globalMat) appliedMatsRef.current.push(globalMat);
     forceUpdate(n => n + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, cfgKey]);
+  }, [model, cfgKey, JSON.stringify(obj.materialOverrides || null)]);
 
   useEffect(() => () => {
     appliedMatsRef.current.forEach(disposeMat);
@@ -4838,7 +4853,14 @@ export default function StudioCanvas() {
   const treeDragRef = useRef<{ id: string; startX: number; startY: number; active: boolean; pointerId: number } | null>(null);
   const treeDragOverRef = useRef<{ overId: string | null; overMode: 'reorder' | 'reparent' | null }>({ overId: null, overMode: null });
   const [uploading, setUploading] = useState(false);
-  const [texPicker, setTexPicker] = useState<null | 'albedo' | 'normal' | 'roughness'>(null);
+  const [texPicker, setTexPicker] = useState<null | { slot: 'albedo' | 'normal' | 'roughness'; matName?: string }>(null);
+  // 모델 머티리얼 이름 로드 알림 → 인스펙터 부위별 슬롯 갱신
+  const [, bumpMatNames] = useState(0);
+  useEffect(() => {
+    const h = () => bumpMatNames(n => n + 1);
+    window.addEventListener('alp-materials-loaded', h);
+    return () => window.removeEventListener('alp-materials-loaded', h);
+  }, []);
   const [videoPicker, setVideoPicker] = useState(false);
   const [dragOverTex, setDragOverTex] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -6859,6 +6881,19 @@ export default function StudioCanvas() {
     setObjects(prev => prev.map(o => o.id === selectedId ? { ...o, [field]: value } : o));
   }
 
+  // 부위별(머티리얼 이름) 텍스처 오버라이드 설정/해제 — 멀티 머티리얼 모델용
+  function updateMaterialOverride(matName: string, slot: 'albedo' | 'normal' | 'roughness', url: string | undefined) {
+    if (!selectedId) return;
+    setObjects(prev => prev.map(o => {
+      if (o.id !== selectedId) return o;
+      const mo: MaterialOverrides = { ...(o.materialOverrides || {}) };
+      const entry = { ...(mo[matName] || {}) };
+      if (url) entry[slot] = url; else delete entry[slot];
+      if (Object.keys(entry).length) mo[matName] = entry; else delete mo[matName];
+      return { ...o, materialOverrides: Object.keys(mo).length ? mo : undefined };
+    }));
+  }
+
   function updateAxis(field: 'position' | 'rotation' | 'scale', axisIdx: number, value: number) {
     if (!selectedId) return;
     setObjects(prev => prev.map(o => {
@@ -8292,14 +8327,14 @@ export default function StudioCanvas() {
                         {value ? (
                           <>
                             <div
-                              onClick={() => setTexPicker(slot)}
+                              onClick={() => setTexPicker({ slot })}
                               title={tCanvas("tooltip_click_change_texture")}
                               style={{ width: 22, height: 22, background: `url(${value}) center/cover`, borderRadius: 3, cursor: 'pointer', flexShrink: 0 }} />
                             <button onClick={() => { updateMaterialField(field, undefined); pushHistory(objects); }}
                               style={{ flex: 1, fontSize: 9, padding: '3px', background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: 'none', borderRadius: 3, cursor: 'pointer' }}>{t('texRemove')}</button>
                           </>
                         ) : (
-                          <button onClick={() => setTexPicker(slot)}
+                          <button onClick={() => setTexPicker({ slot })}
                             style={{ flex: 1, fontSize: 10, padding: '3px', background: dragOverTex === slot ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.06)', color: '#a5b4fc', border: `1px dashed ${dragOverTex === slot ? '#818cf8' : 'rgba(255,255,255,0.15)'}`, borderRadius: 3, cursor: 'pointer' }}>
                             {dragOverTex === slot ? tCanvas("msg_drop_here") : t('texChoose')}
                           </button>
@@ -8320,6 +8355,47 @@ export default function StudioCanvas() {
                       </div>
                     )}
                   </div>
+
+                  {/* 부위별 텍스처 — 멀티 머티리얼 모델(나무 줄기/잎 등) 각 부위에 다른 텍스처 */}
+                  {selected.kind === 'asset' && selected.assetUrl && (() => {
+                    const matNames = _assetMaterialCache.get(selected.assetUrl) || [];
+                    if (matNames.length < 2) return null;
+                    return (
+                      <div style={{ marginBottom: 10, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                        <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4 }}>{tCanvas("section_per_material_texture")}</div>
+                        {matNames.map(mn => {
+                          const cur = selected.materialOverrides?.[mn]?.albedo;
+                          const key = 'mat:' + mn;
+                          return (
+                            <div key={mn}
+                              onDragOver={e => { if (e.dataTransfer.types.includes('text/plain')) { e.preventDefault(); e.stopPropagation(); setDragOverTex(key); } }}
+                              onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverTex(null); }}
+                              onDrop={e => {
+                                e.preventDefault(); e.stopPropagation(); setDragOverTex(null);
+                                const asset = myAssets.find(a => a.id === e.dataTransfer.getData('text/plain'));
+                                if (asset && /\.(png|jpe?g|webp|gif|svg)$/i.test(asset.modelUrl)) { updateMaterialOverride(mn, 'albedo', asset.modelUrl); pushHistory(objects); }
+                              }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3, borderRadius: 4, padding: '1px 2px', background: dragOverTex === key ? 'rgba(99,102,241,0.2)' : 'transparent', outline: dragOverTex === key ? '1px dashed #6366f1' : 'none' }}>
+                              <span style={{ fontSize: 9, opacity: 0.7, width: 70, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={mn}>{mn}</span>
+                              {cur ? (
+                                <>
+                                  <div onClick={() => setTexPicker({ slot: 'albedo', matName: mn })} title={tCanvas("tooltip_click_change_texture")}
+                                    style={{ width: 22, height: 22, background: `url(${cur}) center/cover`, borderRadius: 3, cursor: 'pointer', flexShrink: 0 }} />
+                                  <button onClick={() => { updateMaterialOverride(mn, 'albedo', undefined); pushHistory(objects); }}
+                                    style={{ flex: 1, fontSize: 9, padding: '3px', background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: 'none', borderRadius: 3, cursor: 'pointer' }}>{t('texRemove')}</button>
+                                </>
+                              ) : (
+                                <button onClick={() => setTexPicker({ slot: 'albedo', matName: mn })}
+                                  style={{ flex: 1, fontSize: 10, padding: '3px', background: dragOverTex === key ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.06)', color: '#a5b4fc', border: `1px dashed ${dragOverTex === key ? '#818cf8' : 'rgba(255,255,255,0.15)'}`, borderRadius: 3, cursor: 'pointer' }}>
+                                  {dragOverTex === key ? tCanvas("msg_drop_here") : t('texChoose')}
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
 
                   {/* 📺 비디오 스크린 — 표면에 영상 재생 (TV 화면) */}
                   <div style={{ marginBottom: 10, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.08)' }}
@@ -9027,11 +9103,16 @@ export default function StudioCanvas() {
             title={t('texPickerTitle')}
             onClose={() => setTexPicker(null)}
             onSelect={(url) => {
-              const field =
-                texPicker === 'albedo'    ? 'textureAlbedo' :
-                texPicker === 'normal'    ? 'textureNormal' :
-                                            'textureRoughness';
-              updateMaterialField(field, url);
+              if (!texPicker) return;
+              if (texPicker.matName) {
+                updateMaterialOverride(texPicker.matName, texPicker.slot, url);
+              } else {
+                const field =
+                  texPicker.slot === 'albedo' ? 'textureAlbedo' :
+                  texPicker.slot === 'normal' ? 'textureNormal' :
+                                                'textureRoughness';
+                updateMaterialField(field, url);
+              }
               pushHistory(objects);
               setTexPicker(null);
             }}

@@ -1266,6 +1266,7 @@
       "tooltip_click_change_texture": "点击更换纹理",
       "msg_drop_here": "📥 放到这里",
       "section_video_screen": "📺 视频屏幕",
+      "section_per_material_texture": "🧩 各部位贴图",
       "msg_youtube_set": "▶ 已设置 YouTube",
       "msg_video_file_set": "✓ 已设置视频文件",
       "btn_pick_video": "选择视频文件 (或拖入资源)",

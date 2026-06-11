@@ -1266,6 +1266,7 @@
       "tooltip_click_change_texture": "클릭하여 텍스처 변경",
       "msg_drop_here": "📥 여기에 놓기",
       "section_video_screen": "📺 비디오 스크린",
+      "section_per_material_texture": "🧩 부위별 텍스처",
       "msg_youtube_set": "▶ YouTube 설정됨",
       "msg_video_file_set": "✓ 영상 파일 설정됨",
       "btn_pick_video": "영상 파일 선택 (또는 에셋 드래그)",

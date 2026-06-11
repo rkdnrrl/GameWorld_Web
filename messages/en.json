@@ -1266,6 +1266,7 @@
       "tooltip_click_change_texture": "Click to change texture",
       "msg_drop_here": "📥 Drop here",
       "section_video_screen": "📺 Video Screen",
+      "section_per_material_texture": "🧩 Per-Part Texture",
       "msg_youtube_set": "▶ YouTube configured",
       "msg_video_file_set": "✓ Video file configured",
       "btn_pick_video": "Choose video file (or drag an asset)",
