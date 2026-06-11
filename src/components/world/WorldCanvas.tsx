@@ -3461,6 +3461,13 @@ function UserAsset({ url, matObj, anim }: { url: string; matObj: UserMapObject; 
             progressiveMeshes.push(m);
           }
         });
+        // 식물(잎 cutout)만 바람에 흔들리게 — 원본 머티리얼 알파블렌드/cutout 여부로 판정 (스튜디오 AssetMesh 와 동일).
+        const isFoliage = [...originalMats.current.values()].some(mat =>
+          (Array.isArray(mat) ? mat : [mat]).some(mm => {
+            const s = mm as THREE.MeshStandardMaterial;
+            return !!s && ((s.alphaTest ?? 0) > 0 || s.transparent === true);
+          }));
+        model.traverse(c => { if ((c as THREE.Mesh).isMesh) c.userData.__windFoliage = isFoliage; });
         setObj(model);
         // 매 frame 2 mesh 씩 노출 — 큰 에셋도 빠르게 완전 표시
         let idx = 0;

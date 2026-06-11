@@ -55,10 +55,14 @@ const VERT_BODY = `
   float hWind = clamp(wWind.y - uWindBaseY, 0.0, 4.0);      // base 위 높이(월드 m), 과한 굽힘 방지 클램프
   float phWind = (wWind.x * uWindDir.x + wWind.z * uWindDir.y) * 0.25;  // 위치 위상(물결)
   float tWind = uWindTime * uWindSpeed;
-  // 메인 굽힘 — 높이에 비례(밑동 고정, 위로 휨). 2종 사인 합성으로 자연스럽게.
-  float bendWind = (sin(tWind - phWind) * 0.7 + sin(tWind * 1.7 - phWind * 1.3) * 0.3) * hWind * uWindStr * 0.06;
-  // 잎 펄럭임 — 고주파 소진폭, 높이·정점 위치 기반.
-  float flWind = sin(tWind * 5.0 - phWind + wWind.x * 3.0 + wWind.z * 3.0) * hWind * uWindStr * uWindTurb * 0.03;
+  // 메인 굽힘 — 높이 비례 + **world 변위 상한 클램프**(세기 높여도 그로테스크하게 안 찢어지게).
+  float bendWind = clamp(
+    (sin(tWind - phWind) * 0.7 + sin(tWind * 1.7 - phWind * 1.3) * 0.3) * hWind * uWindStr * 0.05,
+    -0.5, 0.5);
+  // 잎 펄럭임 — 고주파 소진폭, 상한 클램프.
+  float flWind = clamp(
+    sin(tWind * 5.0 - phWind + wWind.x * 3.0 + wWind.z * 3.0) * hWind * uWindStr * uWindTurb * 0.02,
+    -0.1, 0.1);
   transformed.x += (bendWind * uWindDir.x + flWind) / sWind.x;
   transformed.z += (bendWind * uWindDir.y + flWind * 0.6) / sWind.z;
   transformed.y -= (abs(flWind) * 0.2) / sWind.y;
@@ -118,10 +122,12 @@ export default function WindSway({ wind, children }: { wind: WindSettings; child
     if (!g) return;
     g.getWorldPosition(wpos.current);
     const by = wpos.current.y;
-    // 서브트리 머티리얼 baseY 갱신(이미 패치됨 → 값만). AssetMesh 가 compileAsync 전에 패치하므로 여기선 보통 값 갱신만.
+    // **식물(잎 cutout)만 흔든다** — 로더가 mesh.userData.__windFoliage 로 표시. 통나무·바닥 등은 패치 안 함.
+    // (baseY 갱신도 겸함. AssetMesh 가 compileAsync 전에 미리 패치하므로 여기선 보통 값 갱신만.)
     g.traverse((o) => {
-      const m = (o as THREE.Mesh).material;
-      if (!m) return;
+      const mesh = o as THREE.Mesh;
+      const m = mesh.material;
+      if (!m || !mesh.userData?.__windFoliage) return;
       if (Array.isArray(m)) m.forEach((mm) => patchWindMaterial(mm, by));
       else patchWindMaterial(m, by);
     });

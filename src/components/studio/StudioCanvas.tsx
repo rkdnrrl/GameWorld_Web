@@ -1906,6 +1906,7 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false, w
   const [, forceUpdate] = useState(0);
   const { gl, scene, camera, invalidate } = useThree();
   const revealedRef = useRef(false);   // 셰이더 컴파일 후 1회 표시
+  const foliageRef = useRef(false);    // 식물(잎 cutout) 모델인지 — 바람은 식물만 흔듦
 
   useEffect(() => {
     if (!obj.assetUrl) return;
@@ -1930,6 +1931,15 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false, w
           }
         });
         originalMatsRef.current = origMap;
+        // 식물(잎 cutout) 감지 — 원본 머티리얼이 알파블렌드/cutout 이면 식물(나무·풀). 통나무·바닥 등 불투명은 제외.
+        // (origMap 은 override 오염 전 = fixModelMaterials 의 깨끗한 신호). 바람은 식물 오브젝트만 흔든다.
+        const isFoliage = [...origMap.values()].some(mat =>
+          (Array.isArray(mat) ? mat : [mat]).some(mm => {
+            const s = mm as THREE.MeshStandardMaterial;
+            return !!s && ((s.alphaTest ?? 0) > 0 || s.transparent === true);
+          }));
+        foliageRef.current = isFoliage;
+        model.traverse(c => { if ((c as THREE.Mesh).isMesh) c.userData.__windFoliage = isFoliage; });
         // Animator 인스펙터용 — 내장 클립 이름 캐시 + 알림
         if (obj.assetUrl) {
           // 이 URL 을 "처음" 로드할 때만 이벤트 발행 — 인스펙터 이름 캐시 채우기용.
@@ -1978,7 +1988,7 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false, w
     forceUpdate(n => n + 1);
     // 바람 대상이면 — compileAsync 전에 바람 셰이더를 미리 주입해 "바람 포함" 으로 한 번에 컴파일.
     // (안 하면 compileAsync 는 바람 없는 셰이더를 컴파일하고, WindSway 가 나중에 패치하며 메인스레드 재컴파일 → 렉)
-    if (windActive && model) {
+    if (windActive && foliageRef.current && model) {
       const by = worldPos?.[1] ?? 0;
       model.traverse(c => {
         const mm = c as THREE.Mesh;
