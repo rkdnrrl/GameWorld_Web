@@ -108,14 +108,21 @@ function TexturePicker({ images, onSelect, onClose, title }: {
 }
 
 /* ── 좌측 내 텍스처 패널 — 폴더 트리 + 썸네일 그리드 (드래그) ── */
-function TextureBrowser({ images }: { images: Asset[] }) {
+function assetIcon(url: string): string {
+  if (/\.(glb|gltf|fbx|obj|dae|vrm)$/i.test(url)) return '📦';
+  if (/\.(mp3|wav|ogg|m4a)$/i.test(url)) return '🔊';
+  if (/\.(mp4|webm|mov)$/i.test(url)) return '🎬';
+  return '📄';
+}
+
+function TextureBrowser({ assets }: { assets: Asset[] }) {
   const t = useTranslations('Studio');
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null); // null = 전체
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const tree = useMemo(() => buildFolderTree(listFolders(images)), [images]);
+  const tree = useMemo(() => buildFolderTree(listFolders(assets)), [assets]);
   const shown = selectedFolder === null
-    ? images
-    : images.filter(a => { const f = normalizeFolder(a.folder); return f === selectedFolder || (f != null && f.startsWith(selectedFolder + '/')); });
+    ? assets
+    : assets.filter(a => { const f = normalizeFolder(a.folder); return f === selectedFolder || (f != null && f.startsWith(selectedFolder + '/')); });
 
   return (
     <div style={{ width: 400, flexShrink: 0, background: '#0b1220', borderRight: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column' }}>
@@ -132,14 +139,21 @@ function TextureBrowser({ images }: { images: Asset[] }) {
         <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden', padding: 8, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(82px, 1fr))', gap: 6, alignContent: 'start' }}>
           {shown.length === 0 ? (
             <div style={{ gridColumn: '1 / -1', opacity: 0.4, fontSize: 11, padding: 12, textAlign: 'center' }}>{t('noTextures')}</div>
-          ) : shown.map(a => (
-            <div key={a.id} draggable
-              onDragStart={e => { e.dataTransfer.setData('text/plain', a.modelUrl); e.dataTransfer.effectAllowed = 'copy'; }}
-              title={a.name} style={{ cursor: 'grab' }}>
-              <div style={{ width: '100%', aspectRatio: '1', background: `url(${a.modelUrl}) center/cover`, borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)' }} />
-              <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.6)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
-            </div>
-          ))}
+          ) : shown.map(a => {
+            const isImg = /\.(png|jpe?g|webp|gif|svg)$/i.test(a.modelUrl);
+            return (
+              <div key={a.id} draggable={isImg}
+                onDragStart={isImg ? e => { e.dataTransfer.setData('text/plain', a.modelUrl); e.dataTransfer.effectAllowed = 'copy'; } : undefined}
+                title={a.name} style={{ cursor: isImg ? 'grab' : 'default', opacity: isImg ? 1 : 0.65 }}>
+                {isImg ? (
+                  <div style={{ width: '100%', aspectRatio: '1', background: `url(${a.modelUrl}) center/cover`, borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)' }} />
+                ) : (
+                  <div style={{ width: '100%', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, background: 'rgba(255,255,255,0.04)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)' }}>{assetIcon(a.modelUrl)}</div>
+                )}
+                <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.6)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -265,8 +279,8 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
         boxShadow: '0 20px 50px rgba(0,0,0,0.6)', overflow: 'hidden',
       }} onClick={e => e.stopPropagation()}>
 
-        {/* 좌측 — 내 에셋 (폴더 + 드래그) */}
-        <TextureBrowser images={imageAssets} />
+        {/* 좌측 — 내 에셋 (모든 폴더·에셋, 폴더 트리 + 드래그) */}
+        <TextureBrowser assets={allAssets} />
 
         {/* 중앙 — 미리보기 */}
         <div style={{ width: 380, background: '#1e293b', display: 'flex', flexDirection: 'column' }}>
