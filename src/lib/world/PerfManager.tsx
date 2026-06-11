@@ -58,6 +58,7 @@ export function PerfManager({ cullDistance, frustumCull = false, occlusionCull =
   const _smp        = useRef(new THREE.Vector3()).current;
   const _occluders  = useRef<THREE.Mesh[]>([]).current;
   const _candidates = useRef<THREE.Mesh[]>([]).current;
+  const occTick     = useRef(0);   // 오클루전은 cull-tick 3번에 1번만 (레이캐스트 비용 ↓)
 
   useFrame((state) => {
     // 탭이 백그라운드면 무거운 작업 skip — R3F 렌더는 브라우저가 자동 throttle 함.
@@ -131,6 +132,10 @@ export function PerfManager({ cullDistance, frustumCull = false, occlusionCull =
     const onCutoff  = distOn ? cullDistance * cullDistance : 0;
     const offCutoff = distOn ? (cullDistance * 1.05) ** 2 : 0;
 
+    // 오클루전은 비싸므로 cull-tick 3번에 1번만 실제 레이캐스트 (≈매 24프레임)
+    occTick.current++;
+    const doOcc = occlusionCull && occTick.current % 3 === 0;
+
     _occluders.length = 0;
     _candidates.length = 0;
 
@@ -175,6 +180,7 @@ export function PerfManager({ cullDistance, frustumCull = false, occlusionCull =
         }
         return;
       }
+      if (!doOcc) return;                              // 이 틱은 오클루전 스킵(이전 상태 유지)
       if (skinned || obj.userData.alpCulled) return;   // 캐릭터·거리컬된 건 오클루전 제외
       const g = m.geometry as THREE.BufferGeometry;
       if (!g.boundingSphere) g.computeBoundingSphere();
@@ -187,7 +193,7 @@ export function PerfManager({ cullDistance, frustumCull = false, occlusionCull =
     });
 
     // ── (3) Occlusion pass: 후보를 occluder 들에 레이캐스트 ──
-    if (occlusionCull && _candidates.length) {
+    if (doOcc && _candidates.length) {
       _camPos.copy(state.camera.position);
       for (const m of _candidates) {
         const bs = (m.geometry as THREE.BufferGeometry).boundingSphere;
