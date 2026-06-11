@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import * as THREE from 'three';
 import { session } from '@/lib/api';
 import { buildMat, disposeMat, loadTex, type MaterialConfig } from '@/lib/assets/material';
-import { resolveMeshMaterial, uniqueMaterialNames } from '@/lib/world/materialOverride';
+import { resolveMeshMaterial, uniqueMaterialNames, type MatSlot } from '@/lib/world/materialOverride';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
@@ -121,7 +121,7 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
   const initialCfg = (asset as any).metadata?.materialConfig || asset.materialConfig || {};
   const [cfg, setCfg] = useState<MaterialConfig>(initialCfg);
   const [saving, setSaving] = useState(false);
-  const [picker, setPicker] = useState<null | { slot: 'albedo' | 'normal' | 'roughness'; matName?: string }>(null);
+  const [picker, setPicker] = useState<null | { slot: MatSlot; matName?: string }>(null);
   const [matNames, setMatNames] = useState<string[]>([]);
 
   // ESC 닫기 — 다른 asset 모달과 일관성. picker 모달 떠있으면 그것만 닫음.
@@ -142,7 +142,7 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
   }
 
   // 부위별(머티리얼 이름) 텍스처 오버라이드 — 멀티 머티리얼 모델용
-  function updateOverride(matName: string, slot: 'albedo' | 'normal' | 'roughness', url: string | undefined) {
+  function updateOverride(matName: string, slot: MatSlot, url: string | undefined) {
     setCfg(prev => {
       const mo = { ...(prev.materialOverrides || {}) };
       const entry = { ...(mo[matName] || {}) };
@@ -251,6 +251,9 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
               ['albedo',    t('texAlbedo'),    cfg.textureAlbedo,    'textureAlbedo'],
               ['normal',    t('texNormal'),    cfg.textureNormal,    'textureNormal'],
               ['roughness', t('texRoughness'), cfg.textureRoughness, 'textureRoughness'],
+              ['metalness', t('texMetalness'), cfg.textureMetalness, 'textureMetalness'],
+              ['ao',        t('texAo'),        cfg.textureAo,        'textureAo'],
+              ['emissive',  t('texEmissive'),  cfg.textureEmissive,  'textureEmissive'],
             ] as const).map(([slot, label, value, field]) => (
               <div key={slot} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
                 <span style={{ fontSize: 11, opacity: 0.6, width: 78 }}>{label}</span>
@@ -337,10 +340,8 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
               if (picker.matName) {
                 updateOverride(picker.matName, picker.slot, url);
               } else {
-                const field =
-                  picker.slot === 'albedo' ? 'textureAlbedo' :
-                  picker.slot === 'normal' ? 'textureNormal' :
-                                              'textureRoughness';
+                const s = picker.slot;
+                const field = ('texture' + s.charAt(0).toUpperCase() + s.slice(1)) as 'textureAlbedo';
                 update(field, url);
               }
               setPicker(null);

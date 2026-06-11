@@ -11,7 +11,11 @@ export interface MatOverride {
   albedo?: string;
   normal?: string;
   roughness?: string;
+  metalness?: string;
+  ao?: string;
+  emissive?: string;
 }
+export type MatSlot = keyof MatOverride;
 export type MaterialOverrides = Record<string, MatOverride>;
 
 /** loadTex / loadFreshTexture 의 공통 시그니처 — 각 파일의 로더를 주입받는다. */
@@ -41,7 +45,7 @@ export function meshMaterialName(orig: THREE.Material | THREE.Material[] | undef
 }
 
 export function hasOverride(ov: MatOverride | undefined): ov is MatOverride {
-  return !!ov && !!(ov.albedo || ov.normal || ov.roughness);
+  return !!ov && !!(ov.albedo || ov.normal || ov.roughness || ov.metalness || ov.ao || ov.emissive);
 }
 
 /**
@@ -102,6 +106,9 @@ export function buildOverrideMaterial(
   if (ov.albedo)    m.map          = loadTex(ov.albedo,    THREE.SRGBColorSpace, 1, 1, trig);
   if (ov.normal)    m.normalMap    = loadTex(ov.normal,    THREE.NoColorSpace,   1, 1, trig);
   if (ov.roughness) m.roughnessMap = loadTex(ov.roughness, THREE.NoColorSpace,   1, 1, trig);
+  if (ov.metalness) { m.metalnessMap = loadTex(ov.metalness, THREE.NoColorSpace, 1, 1, trig); m.metalness = 1; }
+  if (ov.ao)        { m.aoMap = loadTex(ov.ao, THREE.NoColorSpace, 1, 1, trig); m.aoMap.channel = 0; }
+  if (ov.emissive)  { m.emissiveMap = loadTex(ov.emissive, THREE.SRGBColorSpace, 1, 1, trig); m.emissive.set('#ffffff'); if (!m.emissiveIntensity) m.emissiveIntensity = 1; }
   m.needsUpdate = true;
   return m;
 }

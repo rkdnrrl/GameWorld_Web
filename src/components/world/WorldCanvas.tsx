@@ -2873,6 +2873,9 @@ interface UserMapObject {
   textureAlbedo?:    string;  // URL
   textureNormal?:    string;
   textureRoughness?: string;
+  textureMetalness?: string;
+  textureAo?:        string;
+  textureEmissive?:  string;
   textureTilingX?:   number;
   textureTilingY?:   number;
   materialOverrides?: MaterialOverrides;  // 부위별(머티리얼이름→텍스처) 오버라이드 — 멀티 머티리얼 모델용
@@ -2970,6 +2973,19 @@ function buildMaterial(obj: UserMapObject, fallbackColor?: string, onTextureLoad
   }
   if (obj.textureRoughness) {
     mat.roughnessMap = loadFreshTexture(obj.textureRoughness, THREE.NoColorSpace, tilingX, tilingY, trigger);
+  }
+  if (obj.textureMetalness) {
+    mat.metalnessMap = loadFreshTexture(obj.textureMetalness, THREE.NoColorSpace, tilingX, tilingY, trigger);
+    mat.metalness = 1;
+  }
+  if (obj.textureAo) {
+    mat.aoMap = loadFreshTexture(obj.textureAo, THREE.NoColorSpace, tilingX, tilingY, trigger);
+    mat.aoMap.channel = 0;
+  }
+  if (obj.textureEmissive) {
+    mat.emissiveMap = loadFreshTexture(obj.textureEmissive, THREE.SRGBColorSpace, tilingX, tilingY, trigger);
+    mat.emissive.set('#ffffff');
+    if (!mat.emissiveIntensity) mat.emissiveIntensity = 1;
   }
   return mat;
 }
@@ -3348,7 +3364,7 @@ const PrimitiveMesh = React.memo(function PrimitiveMeshImpl({ obj, shape }: { ob
     // 양면 — 큐브로 방/천장을 만들면 안쪽에서 뒷면이 컬링돼 뚫려 보이던 버그(밝은 바깥 비침) 수정. 스튜디오와 동일.
     mat.side = THREE.DoubleSide;
     return mat;
-  }, [obj.material, obj.materialColor, obj.color, obj.textureAlbedo, obj.textureNormal, obj.textureRoughness, obj.textureTilingX, obj.textureTilingY, obj.kind]);
+  }, [obj.material, obj.materialColor, obj.color, obj.textureAlbedo, obj.textureNormal, obj.textureRoughness, obj.textureMetalness, obj.textureAo, obj.textureEmissive, obj.textureTilingX, obj.textureTilingY, obj.kind]);
 
   React.useEffect(() => () => disposeMaterial(material), [material]);
 
@@ -3463,7 +3479,8 @@ function UserAsset({ url, matObj, anim }: { url: string; matObj: UserMapObject; 
     const overrides = matObj.materialOverrides;
     const hasGlobal = (matObj.material && matObj.material !== 'default')
       || !!matObj.materialColor || !!matObj.textureAlbedo
-      || !!matObj.textureNormal || !!matObj.textureRoughness;
+      || !!matObj.textureNormal || !!matObj.textureRoughness
+      || !!matObj.textureMetalness || !!matObj.textureAo || !!matObj.textureEmissive;
     const hasOv = !!overrides && Object.keys(overrides).length > 0;
 
     const restore = () => obj.traverse(c => {
@@ -3487,7 +3504,7 @@ function UserAsset({ url, matObj, anim }: { url: string; matObj: UserMapObject; 
       restore();
       made.forEach(disposeMaterial);
     };
-  }, [obj, matObj.material, matObj.materialColor, matObj.textureAlbedo, matObj.textureNormal, matObj.textureRoughness, matObj.textureTilingX, matObj.textureTilingY, JSON.stringify(matObj.materialOverrides || null)]);
+  }, [obj, matObj.material, matObj.materialColor, matObj.textureAlbedo, matObj.textureNormal, matObj.textureRoughness, matObj.textureMetalness, matObj.textureAo, matObj.textureEmissive, matObj.textureTilingX, matObj.textureTilingY, JSON.stringify(matObj.materialOverrides || null)]);
 
   // Animator — clip 재생. obj/anim 변경 시 mixer 재구성.
   useEffect(() => {

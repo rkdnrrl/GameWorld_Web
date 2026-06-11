@@ -43,7 +43,7 @@ import StudioMarketModal from '@/components/studio/StudioMarketModal';
 import { MAP_APPLY_EVENT } from '@/lib/assets/kinds/map';
 import { COMPONENT_DEFS, getComponentDef, findComponent, getProp, computeBuoyancyVolumes, computeAmbientSoundZones, findDayNightComponent, computeSeats, computeTeleporters, computeLadders, computeDoors, computeDialogues, computeVendings, computeJumpPads, computeCheckpoints, computeKillZones, computeRaceStarts, computeRaceFinishes, type ComponentInstance, type ComponentType, type BuoyancyVolume, type ComponentPropDef, type AmbientSoundZone, type SeatSpot, type TeleporterSpot, type LadderSpot, type DoorSpot, type DialogueSpot, type VendingSpot, type JumpPadSpot, type CheckpointSpot, type KillZoneSpot, type RaceStartSpot, type RaceFinishSpot } from '@/lib/world/components';
 import AmbientSoundsPlayer from '@/lib/world/AmbientSounds';
-import { resolveMeshMaterial, uniqueMaterialNames, type MaterialOverrides } from '@/lib/world/materialOverride';
+import { resolveMeshMaterial, uniqueMaterialNames, type MaterialOverrides, type MatSlot } from '@/lib/world/materialOverride';
 import WindSway, { deriveWind } from '@/lib/world/WindSway';
 import DayNightCycle from '@/lib/world/DayNightCycle';
 import SeatController from '@/lib/world/SeatController';
@@ -89,7 +89,8 @@ function buildMat(cfg: any, onTex?: () => void): THREE.MeshStandardMaterial | nu
   if (!cfg) return null;
   const presetKey = cfg.material && cfg.material !== 'default' ? cfg.material : null;
   const preset = presetKey ? MAT_PRESETS[presetKey] : null;
-  const hasTex = cfg.textureAlbedo || cfg.textureNormal || cfg.textureRoughness;
+  const hasTex = cfg.textureAlbedo || cfg.textureNormal || cfg.textureRoughness
+    || cfg.textureMetalness || cfg.textureAo || cfg.textureEmissive;
   if (!presetKey && !hasTex && !cfg.materialColor) return null;
 
   const baseColor = cfg.materialColor || (preset ? preset.defaultColor : '#ffffff');
@@ -108,11 +109,16 @@ function buildMat(cfg: any, onTex?: () => void): THREE.MeshStandardMaterial | nu
   if (cfg.textureAlbedo)    mat.map         = loadTex(cfg.textureAlbedo,    THREE.SRGBColorSpace, tx, ty, trig);
   if (cfg.textureNormal)    mat.normalMap   = loadTex(cfg.textureNormal,    THREE.NoColorSpace,   tx, ty, trig);
   if (cfg.textureRoughness) mat.roughnessMap = loadTex(cfg.textureRoughness, THREE.NoColorSpace,   tx, ty, trig);
+  if (cfg.textureMetalness) { mat.metalnessMap = loadTex(cfg.textureMetalness, THREE.NoColorSpace, tx, ty, trig); mat.metalness = 1; }
+  if (cfg.textureAo)        { mat.aoMap = loadTex(cfg.textureAo, THREE.NoColorSpace, tx, ty, trig); mat.aoMap.channel = 0; }
+  if (cfg.textureEmissive)  { mat.emissiveMap = loadTex(cfg.textureEmissive, THREE.SRGBColorSpace, tx, ty, trig); mat.emissive.set('#ffffff'); if (!mat.emissiveIntensity) mat.emissiveIntensity = 1; }
   return mat;
 }
 
 function disposeMat(mat: THREE.MeshStandardMaterial) {
-  mat.map?.dispose(); mat.normalMap?.dispose(); mat.roughnessMap?.dispose(); mat.dispose();
+  mat.map?.dispose(); mat.normalMap?.dispose(); mat.roughnessMap?.dispose();
+  mat.metalnessMap?.dispose(); mat.aoMap?.dispose(); mat.emissiveMap?.dispose();
+  mat.dispose();
 }
 
 /** 외부 모델(GLB/FBX) 머티리얼 보정 — 검정/투명하게 나오는 문제 해결.
@@ -189,6 +195,9 @@ interface MapObject {
   textureAlbedo?:    string;
   textureNormal?:    string;
   textureRoughness?: string;
+  textureMetalness?: string;
+  textureAo?:        string;
+  textureEmissive?:  string;
   textureTilingX?:   number;
   textureTilingY?:   number;
   materialOverrides?: MaterialOverrides;  // 부위별(머티리얼이름→텍스처) 오버라이드 — 멀티 머티리얼 모델용
@@ -1848,6 +1857,9 @@ function PrimitiveMaterial({ obj, selected }: { obj: MapObject; selected?: boole
     textureAlbedo:    obj.textureAlbedo,
     textureNormal:    obj.textureNormal,
     textureRoughness: obj.textureRoughness,
+    textureMetalness: obj.textureMetalness,
+    textureAo:        obj.textureAo,
+    textureEmissive:  obj.textureEmissive,
     textureTilingX:   obj.textureTilingX,
     textureTilingY:   obj.textureTilingY,
   };
@@ -1930,10 +1942,12 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false }:
   }, [obj.assetUrl]);
 
   // obj 자체 머티리얼 필드 우선, 없으면 에셋의 저장된 materialConfig 사용
-  const objHasMat = obj.material || obj.materialColor || obj.textureAlbedo || obj.textureNormal || obj.textureRoughness;
+  const objHasMat = obj.material || obj.materialColor || obj.textureAlbedo || obj.textureNormal || obj.textureRoughness
+    || obj.textureMetalness || obj.textureAo || obj.textureEmissive;
   const effectiveCfg = objHasMat
     ? { material: obj.material, materialColor: obj.materialColor,
         textureAlbedo: obj.textureAlbedo, textureNormal: obj.textureNormal, textureRoughness: obj.textureRoughness,
+        textureMetalness: obj.textureMetalness, textureAo: obj.textureAo, textureEmissive: obj.textureEmissive,
         textureTilingX: obj.textureTilingX, textureTilingY: obj.textureTilingY }
     : assetConfig;
   const cfgKey = JSON.stringify(effectiveCfg || null);
@@ -4853,7 +4867,7 @@ export default function StudioCanvas() {
   const treeDragRef = useRef<{ id: string; startX: number; startY: number; active: boolean; pointerId: number } | null>(null);
   const treeDragOverRef = useRef<{ overId: string | null; overMode: 'reorder' | 'reparent' | null }>({ overId: null, overMode: null });
   const [uploading, setUploading] = useState(false);
-  const [texPicker, setTexPicker] = useState<null | { slot: 'albedo' | 'normal' | 'roughness'; matName?: string }>(null);
+  const [texPicker, setTexPicker] = useState<null | { slot: MatSlot; matName?: string }>(null);
   // 모델 머티리얼 이름 로드 알림 → 인스펙터 부위별 슬롯 갱신
   const [, bumpMatNames] = useState(0);
   useEffect(() => {
@@ -6882,7 +6896,7 @@ export default function StudioCanvas() {
   }
 
   // 부위별(머티리얼 이름) 텍스처 오버라이드 설정/해제 — 멀티 머티리얼 모델용
-  function updateMaterialOverride(matName: string, slot: 'albedo' | 'normal' | 'roughness', url: string | undefined) {
+  function updateMaterialOverride(matName: string, slot: MatSlot, url: string | undefined) {
     if (!selectedId) return;
     setObjects(prev => prev.map(o => {
       if (o.id !== selectedId) return o;
@@ -8298,7 +8312,7 @@ export default function StudioCanvas() {
                   {/* 텍스처 */}
                   <div style={{ marginBottom: 10, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                     <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 4 }}>{t('texture')}</div>
-                    {([['albedo', t('texAlbedo'), selected.textureAlbedo, 'textureAlbedo'], ['normal', t('texNormal'), selected.textureNormal, 'textureNormal'], ['roughness', t('texRoughness'), selected.textureRoughness, 'textureRoughness']] as const).map(([slot, label, value, field]) => (
+                    {([['albedo', t('texAlbedo'), selected.textureAlbedo, 'textureAlbedo'], ['normal', t('texNormal'), selected.textureNormal, 'textureNormal'], ['roughness', t('texRoughness'), selected.textureRoughness, 'textureRoughness'], ['metalness', t('texMetalness'), selected.textureMetalness, 'textureMetalness'], ['ao', t('texAo'), selected.textureAo, 'textureAo'], ['emissive', t('texEmissive'), selected.textureEmissive, 'textureEmissive']] as const).map(([slot, label, value, field]) => (
                       <div key={slot}
                         onDragOver={e => {
                           if (!e.dataTransfer.types.includes('text/plain')) return;
@@ -9107,10 +9121,9 @@ export default function StudioCanvas() {
               if (texPicker.matName) {
                 updateMaterialOverride(texPicker.matName, texPicker.slot, url);
               } else {
-                const field =
-                  texPicker.slot === 'albedo' ? 'textureAlbedo' :
-                  texPicker.slot === 'normal' ? 'textureNormal' :
-                                                'textureRoughness';
+                // slot('albedo'..) → 필드('textureAlbedo'..). 6개 텍스처 필드 모두 string|undefined 라 캐스트 안전.
+                const s = texPicker.slot;
+                const field = ('texture' + s.charAt(0).toUpperCase() + s.slice(1)) as 'textureAlbedo';
                 updateMaterialField(field, url);
               }
               pushHistory(objects);

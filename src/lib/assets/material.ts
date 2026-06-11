@@ -13,6 +13,9 @@ export interface MaterialConfig {
   textureAlbedo?:    string;
   textureNormal?:    string;
   textureRoughness?: string;
+  textureMetalness?: string;
+  textureAo?:        string;   // ambient occlusion
+  textureEmissive?:  string;
   textureTilingX?:   number;
   textureTilingY?:   number;
   materialOverrides?: MaterialOverrides;  // 부위별(머티리얼이름→텍스처) — 멀티 머티리얼 모델
@@ -44,7 +47,8 @@ export function loadTex(url: string, colorSpace: THREE.ColorSpace, tx: number, t
 export function buildMat(cfg: MaterialConfig, onTexLoad?: () => void): THREE.MeshStandardMaterial | null {
   const presetKey = cfg.material && cfg.material !== 'default' ? cfg.material : null;
   const preset = presetKey ? PRESETS[presetKey] : null;
-  const hasAnyTex = cfg.textureAlbedo || cfg.textureNormal || cfg.textureRoughness;
+  const hasAnyTex = cfg.textureAlbedo || cfg.textureNormal || cfg.textureRoughness
+    || cfg.textureMetalness || cfg.textureAo || cfg.textureEmissive;
   if (!presetKey && !hasAnyTex && !cfg.materialColor) return null; // default = 원본 유지
 
   const baseColor = cfg.materialColor || (preset ? preset.defaultColor : '#ffffff');
@@ -63,9 +67,14 @@ export function buildMat(cfg: MaterialConfig, onTexLoad?: () => void): THREE.Mes
   if (cfg.textureAlbedo)    mat.map          = loadTex(cfg.textureAlbedo,    THREE.SRGBColorSpace, tx, ty, trig);
   if (cfg.textureNormal)    mat.normalMap    = loadTex(cfg.textureNormal,    THREE.NoColorSpace,   tx, ty, trig);
   if (cfg.textureRoughness) mat.roughnessMap = loadTex(cfg.textureRoughness, THREE.NoColorSpace,   tx, ty, trig);
+  if (cfg.textureMetalness) { mat.metalnessMap = loadTex(cfg.textureMetalness, THREE.NoColorSpace, tx, ty, trig); mat.metalness = 1; }
+  if (cfg.textureAo)        { mat.aoMap = loadTex(cfg.textureAo, THREE.NoColorSpace, tx, ty, trig); mat.aoMap.channel = 0; }
+  if (cfg.textureEmissive)  { mat.emissiveMap = loadTex(cfg.textureEmissive, THREE.SRGBColorSpace, tx, ty, trig); mat.emissive.set('#ffffff'); if (!mat.emissiveIntensity) mat.emissiveIntensity = 1; }
   return mat;
 }
 
 export function disposeMat(mat: THREE.MeshStandardMaterial) {
-  mat.map?.dispose(); mat.normalMap?.dispose(); mat.roughnessMap?.dispose(); mat.dispose();
+  mat.map?.dispose(); mat.normalMap?.dispose(); mat.roughnessMap?.dispose();
+  mat.metalnessMap?.dispose(); mat.aoMap?.dispose(); mat.emissiveMap?.dispose();
+  mat.dispose();
 }
