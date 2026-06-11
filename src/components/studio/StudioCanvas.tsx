@@ -5310,6 +5310,17 @@ export default function StudioCanvas() {
       else if (!rmbHeldRef.current && (e.key === 'e' || e.key === 'E')) setMode('rotate');
       else if (!rmbHeldRef.current && (e.key === 'r' || e.key === 'R')) setMode('scale');
       else if ((e.key === 'f' || e.key === 'F') && selectedId) focusObject(selectedId);
+      // F2 — 트리에서 선택 오브젝트 이름 인라인 편집 (트리 더블클릭과 동일 동작).
+      else if (e.key === 'F2' && selectedId) {
+        e.preventDefault();
+        const cur = objectsRef.current;
+        const obj = cur.find(o => o.id === selectedId);
+        if (obj) {
+          const i = cur.findIndex(o => o.id === selectedId);
+          setEditingLabelId(obj.id);
+          setEditingLabelValue(obj.label || `${KIND_LABELS[obj.kind] ?? obj.kind} ${i + 1}`);
+        }
+      }
       // 패널 토글 — T=트리(좌측) / N=인스펙터(우측). Blender 식.
       else if (!rmbHeldRef.current && (e.key === 't' || e.key === 'T')) setLeftPanelOpen(prev => !prev);
       else if (!rmbHeldRef.current && (e.key === 'n' || e.key === 'N')) setRightPanelOpen(prev => !prev);
