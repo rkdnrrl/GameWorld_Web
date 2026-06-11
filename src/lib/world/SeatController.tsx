@@ -10,10 +10,10 @@
  * Canvas 외부에 React state 로 prompt 노출 → HUD 컴포넌트가 읽어 표시.
  */
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useFrame } from '@react-three/fiber';
 import type { SeatSpot } from './components';
 import { setInteractPrompt } from './interactPrompt';
+import HudPortal from './HudPortal';
 
 export interface PlayerControl {
   teleport?: (x: number, y: number, z: number) => void;
@@ -134,17 +134,19 @@ export default function SeatController({
     setInteractPrompt(null);
   }, [playerCtlRef]);
 
-  // HUD prompt — 화면 하단 중앙. createPortal 로 document.body 에 띄워 R3F 외부 위치.
-  if (!hudText || typeof document === 'undefined') return null;
-  return createPortal(
-    <div style={{
-      position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
-      zIndex: 2147480000, pointerEvents: 'none',
-      padding: '8px 16px', borderRadius: 999,
-      background: 'rgba(0,0,0,0.65)', color: '#fff',
-      fontSize: 14, fontWeight: 700, fontFamily: 'system-ui, sans-serif',
-      backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.18)',
-    }}>{hudText}</div>,
-    document.body,
+  // HUD prompt — ⚠️ R3F <Canvas> 안이라 createPortal(<div>) 직접 쓰면 크래시 → HudPortal(별도 react-dom root) 사용.
+  return (
+    <HudPortal>
+      {hudText ? (
+        <div style={{
+          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 2147480000, pointerEvents: 'none',
+          padding: '8px 16px', borderRadius: 999,
+          background: 'rgba(0,0,0,0.65)', color: '#fff',
+          fontSize: 14, fontWeight: 700, fontFamily: 'system-ui, sans-serif',
+          backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.18)',
+        }}>{hudText}</div>
+      ) : null}
+    </HudPortal>
   );
 }

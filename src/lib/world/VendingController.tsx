@@ -9,7 +9,7 @@
  *  - 멀티: 본인 화면만 (구매는 서버 단일 유저 행위).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import HudPortal from './HudPortal';
 import { useFrame } from '@react-three/fiber';
 import type { VendingSpot, VendingItem } from './components';
 import { api, session } from '@/lib/api';
@@ -163,20 +163,22 @@ export default function VendingController({
   return (
     <>
       {/* 머리 위 안내 HUD */}
-      {hudText && typeof document !== 'undefined' && createPortal(
-        <div style={{
-          position: 'fixed', bottom: 120, left: '50%', transform: 'translateX(-50%)',
-          zIndex: 2147480000, pointerEvents: 'none',
-          padding: '8px 16px', borderRadius: 999,
-          background: 'rgba(0,0,0,0.65)', color: '#fff',
-          fontSize: 14, fontWeight: 700, fontFamily: 'system-ui, sans-serif',
-          backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.18)',
-        }}>{hudText}</div>,
-        document.body,
+      {hudText && (
+        <HudPortal>
+          <div style={{
+            position: 'fixed', bottom: 120, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 2147480000, pointerEvents: 'none',
+            padding: '8px 16px', borderRadius: 999,
+            background: 'rgba(0,0,0,0.65)', color: '#fff',
+            fontSize: 14, fontWeight: 700, fontFamily: 'system-ui, sans-serif',
+            backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.18)',
+          }}>{hudText}</div>
+        </HudPortal>
       )}
 
       {/* 상점 모달 */}
-      {open && typeof document !== 'undefined' && createPortal(
+      {open && (
+        <HudPortal>
         <div
           style={{
             position: 'fixed', inset: 0, zIndex: 2147480002,
@@ -253,22 +255,23 @@ export default function VendingController({
               E / ESC 또는 바깥 클릭 → 닫기
             </div>
           </div>
-        </div>,
-        document.body,
+        </div>
+        </HudPortal>
       )}
 
       {/* 토스트 */}
-      {toast && typeof document !== 'undefined' && createPortal(
-        <div style={{
-          position: 'fixed', bottom: 180, left: '50%', transform: 'translateX(-50%)',
-          zIndex: 2147480003, pointerEvents: 'none',
-          padding: '10px 18px', borderRadius: 999,
-          background: toast.kind === 'ok' ? '#10b981' : '#dc2626',
-          color: '#fff', fontSize: 14, fontWeight: 700,
-          fontFamily: 'system-ui, sans-serif',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-        }}>{toast.text}</div>,
-        document.body,
+      {toast && (
+        <HudPortal>
+          <div style={{
+            position: 'fixed', bottom: 180, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 2147480003, pointerEvents: 'none',
+            padding: '10px 18px', borderRadius: 999,
+            background: toast.kind === 'ok' ? '#10b981' : '#dc2626',
+            color: '#fff', fontSize: 14, fontWeight: 700,
+            fontFamily: 'system-ui, sans-serif',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+          }}>{toast.text}</div>
+        </HudPortal>
       )}
     </>
   );

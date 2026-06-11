@@ -12,7 +12,7 @@
  *   즉 문짝의 hinge 가 오브젝트 position 에 위치.
  */
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import HudPortal from './HudPortal';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { DoorSpot } from './components';
@@ -126,16 +126,17 @@ export default function DoorController({
           </group>
         </group>
       ))}
-      {hudText && typeof document !== 'undefined' && createPortal(
-        <div style={{
-          position: 'fixed', bottom: 120, left: '50%', transform: 'translateX(-50%)',
-          zIndex: 2147480000, pointerEvents: 'none',
-          padding: '8px 16px', borderRadius: 999,
-          background: 'rgba(0,0,0,0.65)', color: '#fff',
-          fontSize: 14, fontWeight: 700, fontFamily: 'system-ui, sans-serif',
-          backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.18)',
-        }}>{hudText}</div>,
-        document.body,
+      {hudText && (
+        <HudPortal>
+          <div style={{
+            position: 'fixed', bottom: 120, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 2147480000, pointerEvents: 'none',
+            padding: '8px 16px', borderRadius: 999,
+            background: 'rgba(0,0,0,0.65)', color: '#fff',
+            fontSize: 14, fontWeight: 700, fontFamily: 'system-ui, sans-serif',
+            backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.18)',
+          }}>{hudText}</div>
+        </HudPortal>
       )}
     </>
   );

@@ -10,7 +10,7 @@
  * 멀티: 본인만. 글로벌 리더보드는 V2.
  */
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import HudPortal from './HudPortal';
 import { useFrame } from '@react-three/fiber';
 import type { RaceStartSpot, RaceFinishSpot } from './components';
 
@@ -142,45 +142,47 @@ export default function RaceController({
   return (
     <>
       {/* 진행 중 timer HUD (상단 가운데) */}
-      {active && typeof document !== 'undefined' && createPortal(
-        <div style={{
-          position: 'fixed', top: 24, left: '50%', transform: 'translateX(-50%)',
-          zIndex: 2147480000, pointerEvents: 'none',
-          padding: '10px 24px', borderRadius: 14,
-          background: 'rgba(15,23,42,0.85)',
-          border: '1px solid rgba(255,255,255,0.18)',
-          color: '#fff', fontFamily: 'system-ui, sans-serif',
-          textAlign: 'center', minWidth: 200,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-        }}>
-          <div style={{ fontSize: 11, opacity: 0.7, letterSpacing: 1.2, textTransform: 'uppercase' }}>
-            🏁 {active.raceName}
-          </div>
-          <div style={{ fontSize: 30, fontWeight: 800, fontVariantNumeric: 'tabular-nums', marginTop: 2 }}>
-            {fmt(activeMs)}
-          </div>
-          {bestForActive != null && (
-            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
-              베스트 {fmt(bestForActive)}
+      {active && (
+        <HudPortal>
+          <div style={{
+            position: 'fixed', top: 24, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 2147480000, pointerEvents: 'none',
+            padding: '10px 24px', borderRadius: 14,
+            background: 'rgba(15,23,42,0.85)',
+            border: '1px solid rgba(255,255,255,0.18)',
+            color: '#fff', fontFamily: 'system-ui, sans-serif',
+            textAlign: 'center', minWidth: 200,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          }}>
+            <div style={{ fontSize: 11, opacity: 0.7, letterSpacing: 1.2, textTransform: 'uppercase' }}>
+              🏁 {active.raceName}
             </div>
-          )}
-        </div>,
-        document.body,
+            <div style={{ fontSize: 30, fontWeight: 800, fontVariantNumeric: 'tabular-nums', marginTop: 2 }}>
+              {fmt(activeMs)}
+            </div>
+            {bestForActive != null && (
+              <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
+                베스트 {fmt(bestForActive)}
+              </div>
+            )}
+          </div>
+        </HudPortal>
       )}
 
       {/* 완주 토스트 */}
-      {toast && typeof document !== 'undefined' && createPortal(
-        <div style={{
-          position: 'fixed', top: '38%', left: '50%', transform: 'translate(-50%, -50%)',
-          zIndex: 2147480001, pointerEvents: 'none',
-          padding: '14px 28px', borderRadius: 14,
-          background: toast.isBest ? '#fbbf24' : 'rgba(15,23,42,0.95)',
-          color: toast.isBest ? '#1f2937' : '#fff',
-          fontSize: 20, fontWeight: 800, fontFamily: 'system-ui, sans-serif',
-          boxShadow: '0 16px 40px rgba(0,0,0,0.5)',
-          border: toast.isBest ? '2px solid #fff7ed' : '1px solid rgba(255,255,255,0.2)',
-        }}>{toast.text}</div>,
-        document.body,
+      {toast && (
+        <HudPortal>
+          <div style={{
+            position: 'fixed', top: '38%', left: '50%', transform: 'translate(-50%, -50%)',
+            zIndex: 2147480001, pointerEvents: 'none',
+            padding: '14px 28px', borderRadius: 14,
+            background: toast.isBest ? '#fbbf24' : 'rgba(15,23,42,0.95)',
+            color: toast.isBest ? '#1f2937' : '#fff',
+            fontSize: 20, fontWeight: 800, fontFamily: 'system-ui, sans-serif',
+            boxShadow: '0 16px 40px rgba(0,0,0,0.5)',
+            border: toast.isBest ? '2px solid #fff7ed' : '1px solid rgba(255,255,255,0.2)',
+          }}>{toast.text}</div>
+        </HudPortal>
       )}
     </>
   );

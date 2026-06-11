@@ -10,7 +10,7 @@
  *  - 멀티: 본인 화면만 (V2 sync).
  */
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import HudPortal from './HudPortal';
 import { useFrame } from '@react-three/fiber';
 import type { DialogueSpot } from './components';
 import { setInteractPrompt } from './interactPrompt';
@@ -156,20 +156,22 @@ export default function DialogueController({
   return (
     <>
       {/* 머리 위 안내 HUD (대화 시작 전) */}
-      {hudText && typeof document !== 'undefined' && createPortal(
-        <div style={{
-          position: 'fixed', bottom: 120, left: '50%', transform: 'translateX(-50%)',
-          zIndex: 2147480000, pointerEvents: 'none',
-          padding: '8px 16px', borderRadius: 999,
-          background: 'rgba(0,0,0,0.65)', color: '#fff',
-          fontSize: 14, fontWeight: 700, fontFamily: 'system-ui, sans-serif',
-          backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.18)',
-        }}>{hudText}</div>,
-        document.body,
+      {hudText && (
+        <HudPortal>
+          <div style={{
+            position: 'fixed', bottom: 120, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 2147480000, pointerEvents: 'none',
+            padding: '8px 16px', borderRadius: 999,
+            background: 'rgba(0,0,0,0.65)', color: '#fff',
+            fontSize: 14, fontWeight: 700, fontFamily: 'system-ui, sans-serif',
+            backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.18)',
+          }}>{hudText}</div>
+        </HudPortal>
       )}
       {/* 대화 말풍선 (대화 중) */}
-      {dialogState && typeof document !== 'undefined' && createPortal(
-        <div style={{
+      {dialogState && (
+        <HudPortal>
+          <div style={{
           position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
           zIndex: 2147480001, pointerEvents: 'none',
           width: 'min(720px, 92vw)',
@@ -201,8 +203,8 @@ export default function DialogueController({
               {dialogState.lineIndex + 1 < dialogState.total ? 'E: 다음 ▸' : 'E: 닫기'}
             </span>
           </div>
-        </div>,
-        document.body,
+          </div>
+        </HudPortal>
       )}
     </>
   );

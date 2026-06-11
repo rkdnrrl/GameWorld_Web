@@ -10,7 +10,7 @@
  * 멀티: 본인 캐릭터만. 다른 플레이어는 본인 클라가 자체 부활.
  */
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import HudPortal from './HudPortal';
 import { useFrame } from '@react-three/fiber';
 import type { CheckpointSpot, KillZoneSpot } from './components';
 import type { PlayerControl } from './SeatController';
@@ -105,17 +105,18 @@ export default function CheckpointController({
 
   return (
     <>
-      {toast && typeof document !== 'undefined' && createPortal(
-        <div style={{
-          position: 'fixed', top: 96, left: '50%', transform: 'translateX(-50%)',
-          zIndex: 2147480000, pointerEvents: 'none',
-          padding: '10px 18px', borderRadius: 999,
-          background: 'rgba(15,23,42,0.9)', color: '#fff',
-          fontSize: 15, fontWeight: 700, fontFamily: 'system-ui, sans-serif',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-          border: '1px solid rgba(255,255,255,0.15)',
-        }}>{toast.text}</div>,
-        document.body,
+      {toast && (
+        <HudPortal>
+          <div style={{
+            position: 'fixed', top: 96, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 2147480000, pointerEvents: 'none',
+            padding: '10px 18px', borderRadius: 999,
+            background: 'rgba(15,23,42,0.9)', color: '#fff',
+            fontSize: 15, fontWeight: 700, fontFamily: 'system-ui, sans-serif',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+            border: '1px solid rgba(255,255,255,0.15)',
+          }}>{toast.text}</div>
+        </HudPortal>
       )}
     </>
   );
