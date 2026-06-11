@@ -97,6 +97,7 @@ export function DmChatModal({ conversationId, other, onClose }: {
       const d = await api.sendMessage(tk, conversationId, body);
       setMessages(prev => prev.find(m => m.id === d.message.id) ? prev : [...prev, d.message]);
       setInput('');
+      window.dispatchEvent(new Event(DM_READ_EVENT)); // 대화목록 미리보기·정렬 즉시 갱신
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'send failed');
     } finally { setSending(false); }
