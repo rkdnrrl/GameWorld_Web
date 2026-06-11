@@ -11,6 +11,7 @@ import { filterAssets, sortAssets } from '@/lib/assets/filters';
 import { buildFolderTree, normalizeFolder } from '@/lib/assets/folders';
 import type { FolderNode } from '@/lib/assets/folders';
 import { getKind } from '@/lib/assets/registry';
+import { bakeModelToGlb } from '@/lib/assets/bakeModel';
 // 사이드이펙트 import — 모든 kind 핸들러 등록
 import '@/lib/assets/kinds';
 
@@ -309,8 +310,12 @@ export default function AssetsPage() {
         reject(new Error(t('sizeOverLimit', { maxMb: kind.maxSizeMb }))); return;
       }
 
+      // 업로드 전 클라이언트 베이킹 — FBX → GLB (서버 부하 없이, 브라우저에서 빠른 포맷으로 구움). 실패 시 원본.
+      let uploadFile = file;
+      try { uploadFile = await bakeModelToGlb(file); } catch { uploadFile = file; }
+
       const form = new FormData();
-      form.append('model', file);
+      form.append('model', uploadFile);
       form.append('name', file.name.replace(/\.[^.]+$/, ''));
       if (folder) form.append('folder', folder);
 
