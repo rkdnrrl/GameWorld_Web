@@ -1026,6 +1026,7 @@
     "texEmissive": "이미시브 (발광)",
     "texChoose": "선택…",
     "perMaterialTexture": "부위별 텍스처",
+    "dragTextureHint": "텍스처를 슬롯으로 드래그",
     "texRemove": "제거",
     "texTilingX": "반복 X",
     "texTilingY": "반복 Y",

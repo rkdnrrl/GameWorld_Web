@@ -123,6 +123,13 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
   const [saving, setSaving] = useState(false);
   const [picker, setPicker] = useState<null | { slot: MatSlot; matName?: string }>(null);
   const [matNames, setMatNames] = useState<string[]>([]);
+  // 텍스처 슬롯 드래그앤드롭 — 어떤 슬롯 위에 끌고 있는지 (하이라이트)
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+
+  function dropUrlFromEvent(e: React.DragEvent): string | null {
+    const url = e.dataTransfer.getData('text/plain');
+    return /\.(png|jpe?g|webp)$/i.test(url) ? url : null;
+  }
 
   // ESC 닫기 — 다른 asset 모달과 일관성. picker 모달 떠있으면 그것만 닫음.
   useEffect(() => {
@@ -209,6 +216,26 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
               />
             </Canvas>
           </div>
+
+          {/* 텍스처 드래그 소스 — 이미지 에셋을 슬롯으로 끌어다 놓기 */}
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', padding: '8px 10px', maxHeight: 130, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontSize: 10, opacity: 0.5, marginBottom: 6 }}>🖼 {t('dragTextureHint')}</div>
+            {imageAssets.length === 0 ? (
+              <div style={{ fontSize: 10, opacity: 0.4, padding: '8px 2px' }}>{t('noTextures')}</div>
+            ) : (
+              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+                {imageAssets.map(a => (
+                  <div key={a.id} draggable
+                    onDragStart={e => { e.dataTransfer.setData('text/plain', a.modelUrl); e.dataTransfer.effectAllowed = 'copy'; }}
+                    title={a.name}
+                    style={{ width: 52, flexShrink: 0, cursor: 'grab' }}>
+                    <div style={{ width: 52, height: 52, background: `url(${a.modelUrl}) center/cover`, borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)' }} />
+                    <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.55)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* 우측 — 컨트롤 */}
@@ -255,7 +282,15 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
               ['ao',        t('texAo'),        cfg.textureAo,        'textureAo'],
               ['emissive',  t('texEmissive'),  cfg.textureEmissive,  'textureEmissive'],
             ] as const).map(([slot, label, value, field]) => (
-              <div key={slot} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+              <div key={slot}
+                onDragOver={e => { if (e.dataTransfer.types.includes('text/plain')) { e.preventDefault(); setDragOverKey(field); } }}
+                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverKey(null); }}
+                onDrop={e => { e.preventDefault(); setDragOverKey(null); const url = dropUrlFromEvent(e); if (url) update(field, url); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5, padding: '2px', borderRadius: 5,
+                  background: dragOverKey === field ? 'rgba(99,102,241,0.18)' : 'transparent',
+                  outline: dragOverKey === field ? '1px dashed #6366f1' : 'none',
+                }}>
                 <span style={{ fontSize: 11, opacity: 0.6, width: 78 }}>{label}</span>
                 {value ? (
                   <>
@@ -300,8 +335,17 @@ export default function AssetMaterialEditor({ asset, allAssets, onClose, onSaved
               <div style={{ fontSize: 12, opacity: 0.55, marginBottom: 8 }}>🧩 {t('perMaterialTexture')}</div>
               {matNames.map(mn => {
                 const cur = cfg.materialOverrides?.[mn]?.albedo;
+                const dk = 'mat:' + mn;
                 return (
-                  <div key={mn} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                  <div key={mn}
+                    onDragOver={e => { if (e.dataTransfer.types.includes('text/plain')) { e.preventDefault(); setDragOverKey(dk); } }}
+                    onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverKey(null); }}
+                    onDrop={e => { e.preventDefault(); setDragOverKey(null); const url = dropUrlFromEvent(e); if (url) updateOverride(mn, 'albedo', url); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5, padding: '2px', borderRadius: 5,
+                      background: dragOverKey === dk ? 'rgba(99,102,241,0.18)' : 'transparent',
+                      outline: dragOverKey === dk ? '1px dashed #6366f1' : 'none',
+                    }}>
                     <span style={{ fontSize: 11, opacity: 0.7, width: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={mn}>{mn}</span>
                     {cur ? (
                       <>

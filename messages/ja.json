@@ -1026,6 +1026,7 @@
     "texEmissive": "エミッシブ",
     "texChoose": "選択…",
     "perMaterialTexture": "パーツ別テクスチャ",
+    "dragTextureHint": "テクスチャをスロットにドラッグ",
     "texRemove": "削除",
     "texTilingX": "タイル X",
     "texTilingY": "タイル Y",

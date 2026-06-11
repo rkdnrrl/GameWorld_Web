@@ -1026,6 +1026,7 @@
     "texEmissive": "Emissive",
     "texChoose": "Choose…",
     "perMaterialTexture": "Per-Part Texture",
+    "dragTextureHint": "Drag a texture onto a slot",
     "texRemove": "Remove",
     "texTilingX": "Tile X",
     "texTilingY": "Tile Y",
