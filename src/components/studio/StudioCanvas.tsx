@@ -4928,6 +4928,14 @@ export default function StudioCanvas() {
     setVisibleLayers(prev => { const s = new Set(prev); if (s.has(n)) s.delete(n); else s.add(n); return s; });
   }, []);
   const isLayerVisible = useCallback((layer?: number) => visibleLayers.has(layer ?? 0), [visibleLayers]);
+  // 점진 렌더 — 씬 로드 시 모든 오브젝트를 한 프레임에 그리면 프레임 드랍. 프레임당 몇 개씩 늘려가며 마운트.
+  const visForRender = objects.filter(o => !o.hidden && isLayerVisible(o.layer));
+  const [renderLimit, setRenderLimit] = useState(24);
+  useEffect(() => {
+    if (renderLimit >= visForRender.length) return;
+    const raf = requestAnimationFrame(() => setRenderLimit(c => Math.min(c + 6, visForRender.length)));
+    return () => cancelAnimationFrame(raf);
+  }, [renderLimit, visForRender.length]);
   // 트리 노드 접힘 상태 (collapsed 에 든 id = 접힘). 자식이 선택되면 조상을 자동 펼침.
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
   const toggleCollapse = useCallback((id: string) => {
@@ -8748,8 +8756,11 @@ export default function StudioCanvas() {
           ) : (
             /* ── 편집 모드 ── */
             <>
-              {/* 모든 오브젝트를 평탄 렌더 — 각자 월드 TRS 로. 부모 비균등 스케일에 의한 자식 전단 방지 */}
-              {objects.filter(o => !o.hidden && isLayerVisible(o.layer)).map(obj => {
+              {/* 평탄 렌더(각자 월드 TRS) — 점진 마운트(renderLimit). 선택 오브젝트는 한계 밖이어도 항상 포함. */}
+              {(renderLimit >= visForRender.length
+                ? visForRender
+                : visForRender.filter((o, i) => i < renderLimit || o.id === selectedId)
+              ).map(obj => {
                 const w = worldTRSFor(obj);
                 return (
                   <SceneNode key={obj.id} obj={obj}
