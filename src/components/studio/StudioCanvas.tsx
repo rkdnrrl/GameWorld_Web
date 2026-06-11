@@ -4417,10 +4417,34 @@ function CanvasCapture({ captureFnRef }: { captureFnRef: React.MutableRefObject<
   useEffect(() => {
     captureFnRef.current = () => {
       try {
-        // 캡처 직전 강제로 한 프레임 렌더 → 드로잉 버퍼 보장 (preserveDrawingBuffer 미적용/
-        //   frameloop demand/포스트FX 로 버퍼가 비워져 검게 잡히는 문제 방지).
+        // ⚠ canvas.toDataURL 은 드로잉 버퍼가 비워졌거나(preserveDrawingBuffer off) 포스트FX 가
+        //   렌더타깃을 가로채면 검게 나옴. → 캔버스 버퍼에 의존하지 않고 **오프스크린 렌더타깃에
+        //   직접 렌더 후 픽셀을 읽어** 2D 캔버스로 이미지를 만든다. 화면이 보이는 한 절대 검지 않음.
+        const src = gl.domElement;
+        const aspect = (src.width && src.height) ? src.width / src.height : 16 / 9;
+        const w = 480, h = Math.max(1, Math.round(w / aspect));
+        const rt = new THREE.WebGLRenderTarget(w, h);
+        const prevRT = gl.getRenderTarget();
+        gl.setRenderTarget(rt);
         gl.render(scene, camera);
-        return gl.domElement.toDataURL('image/webp', 0.7);
+        const buf = new Uint8Array(w * h * 4);
+        gl.readRenderTargetPixels(rt, 0, 0, w, h, buf);
+        gl.setRenderTarget(prevRT);
+        rt.dispose();
+        // WebGL 은 좌하단 원점 → Y 뒤집어 2D 캔버스로
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        const ctx = cv.getContext('2d');
+        if (!ctx) return null;
+        const img = ctx.createImageData(w, h);
+        for (let y = 0; y < h; y++) {
+          const sy = (h - 1 - y) * w * 4, dy = y * w * 4;
+          for (let x = 0; x < w; x++) {
+            const s = sy + x * 4, d = dy + x * 4;
+            img.data[d] = buf[s]; img.data[d + 1] = buf[s + 1]; img.data[d + 2] = buf[s + 2]; img.data[d + 3] = 255;
+          }
+        }
+        ctx.putImageData(img, 0, 0);
+        return cv.toDataURL('image/webp', 0.8);
       } catch { return null; }
     };
     return () => { captureFnRef.current = null; };
