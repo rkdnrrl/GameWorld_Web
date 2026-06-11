@@ -1932,12 +1932,16 @@ function AssetMesh({ obj, selected, onClick, assetConfig, noTransform = false, w
         originalMatsRef.current = origMap;
         // Animator 인스펙터용 — 내장 클립 이름 캐시 + 알림
         if (obj.assetUrl) {
+          // 이 URL 을 "처음" 로드할 때만 이벤트 발행 — 인스펙터 이름 캐시 채우기용.
+          // 같은 모델 두 번째 그루부터는 캐시가 이미 있으니 생략(이벤트가 거대한 StudioCanvas 를 리렌더 → 그루마다 렉이라).
+          const firstTime = !_assetMaterialCache.has(obj.assetUrl);
           const names = ((model.animations || []) as THREE.AnimationClip[]).map(a => a.name).filter(Boolean);
           _assetClipCache.set(obj.assetUrl, names);
-          window.dispatchEvent(new CustomEvent('alp-clips-loaded'));
-          // 부위별 텍스처 인스펙터용 — 머티리얼 이름 캐시 + 알림
           _assetMaterialCache.set(obj.assetUrl, uniqueMaterialNames(origMap));
-          window.dispatchEvent(new CustomEvent('alp-materials-loaded'));
+          if (firstTime) {
+            window.dispatchEvent(new CustomEvent('alp-clips-loaded'));
+            window.dispatchEvent(new CustomEvent('alp-materials-loaded'));
+          }
         }
         setModel(model);
         // reveal 은 머티리얼 적용+병렬 셰이더 컴파일 후 (아래 머티리얼 effect) — 컴파일 hitch 제거.
