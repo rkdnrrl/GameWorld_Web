@@ -167,6 +167,23 @@ function Instanced({ items, geo, mat, t, base, cast, receive, vary }: {
 // ── 사용자 에셋(GLB 등) 식생 — 모델을 instanced 로 흩뿌림 ──
 interface FoliageParts { parts: { geo: THREE.BufferGeometry; mat: THREE.Material | THREE.Material[] }[]; }
 const _foliagePartsCache = new Map<string, Promise<FoliageParts>>();
+/** 잎/식생 머티리얼 보정 — 양면 렌더 + 알파 컷아웃.
+ *  단면 잎 카드는 컬러에서 backface 컬링돼 안 보이고(그림자는 shadowSide 로 찍힘), 투명 잎은
+ *  인스턴싱 시 블렌딩 정렬이 안 돼 사라진다. DoubleSide + alphaTest 로 둘 다 해결(잎 모양 그림자도 덤). */
+function prepFoliageMaterial(mat: THREE.Material | THREE.Material[]): THREE.Material | THREE.Material[] {
+  const fix = (m: THREE.Material): THREE.Material => {
+    m.side = THREE.DoubleSide;
+    const sm = m as THREE.MeshStandardMaterial;
+    if (sm.map || sm.alphaMap || sm.transparent) {
+      sm.alphaTest = Math.max(sm.alphaTest || 0, 0.35);   // 잎 알파 컷아웃 → 정렬 무관 렌더 + 컷아웃 그림자
+      sm.transparent = false;
+      sm.depthWrite = true;
+    }
+    m.needsUpdate = true;
+    return m;
+  };
+  return Array.isArray(mat) ? mat.map(fix) : fix(mat);
+}
 /** url 모델 1회 로드 → 메시별 (변환 베이크된)지오/머티리얼 추출. 베이스를 y=0·xz중심으로 재배치. 세션 캐시. */
 function loadFoliageParts(url: string): Promise<FoliageParts> {
   let entry = _foliagePartsCache.get(url);
@@ -179,7 +196,7 @@ function loadFoliageParts(url: string): Promise<FoliageParts> {
         if (m.isMesh && m.geometry) {
           const g = m.geometry.clone();
           g.applyMatrix4(m.matrixWorld);   // 모델 내부 변환(+2m 정규화 스케일) 베이크
-          parts.push({ geo: g, mat: m.material });
+          parts.push({ geo: g, mat: prepFoliageMaterial(m.material) });
         }
       });
       const box = new THREE.Box3();
