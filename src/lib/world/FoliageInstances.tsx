@@ -83,10 +83,13 @@ const playerPosUniform = { value: new THREE.Vector3() };
 const playerRUniform = { value: 0 };           // 반경(0=비활성)
 const bendStrUniform = { value: 0.6 };          // 수평 밀어내기 세기
 const bendDownUniform = { value: 0.35 };        // 눌림(아래로)
-function makeWindMaterial(amt: number, props: THREE.MeshStandardMaterialParameters): THREE.MeshStandardMaterial {
-  const mat = new THREE.MeshStandardMaterial(props);
+/** 바람 흔들림 + 플레이어 밴드 셰이더를 임의 머티리얼에 주입. 기존 onBeforeCompile 은 보존(체인).
+ *  Standard/Phong/Lambert 등 begin_vertex·project_vertex 청크를 쓰는 lit 머티리얼이면 동작(에셋 식생 포함). */
+function injectWindBend<T extends THREE.Material>(mat: T, amt: number): T {
   const amtU = { value: amt };
-  mat.onBeforeCompile = (shader) => {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    if (prev) { try { prev.call(mat, shader, renderer); } catch { /* noop */ } }
     shader.uniforms.uWindTime = windUniform;
     shader.uniforms.uWindAmt = amtU;
     shader.uniforms.uPlayer = playerPosUniform;
@@ -133,7 +136,11 @@ function makeWindMaterial(amt: number, props: THREE.MeshStandardMaterialParamete
       mvPosition = viewMatrix * _wp;
       gl_Position = projectionMatrix * mvPosition;`);
   };
+  mat.needsUpdate = true;
   return mat;
+}
+function makeWindMaterial(amt: number, props: THREE.MeshStandardMaterialParameters): THREE.MeshStandardMaterial {
+  return injectWindBend(new THREE.MeshStandardMaterial(props), amt);
 }
 
 /** 로컬 플레이어 위치를 풀 셰이더로 — 매 프레임 envFx.playerPos 갱신(반경 활성). */
@@ -222,7 +229,7 @@ const _foliagePartsCache = new Map<string, Promise<FoliageParts>>();
  *  - 양면(DoubleSide): 단면 잎 카드가 backface 컬링돼 컬러에서 안 보이는 문제 해결(절대 가려지지 않음).
  *  - 원래 "투명(블렌딩)"이던 잎만 alphaTest 컷아웃으로 전환 — 인스턴싱은 블렌딩 정렬이 안 되므로.
  *    ⚠ 불투명(OPAQUE) 머티리얼엔 alphaTest 를 절대 걸지 않는다(알파 채널이 0/무의미해 통째로 사라짐). */
-function prepFoliageMaterial(mat: THREE.Material | THREE.Material[]): THREE.Material | THREE.Material[] {
+function prepFoliageMaterial(mat: THREE.Material | THREE.Material[], sway = false): THREE.Material | THREE.Material[] {
   const fix = (m: THREE.Material): THREE.Material => {
     m.side = THREE.DoubleSide;
     const sm = m as THREE.MeshStandardMaterial;
@@ -231,6 +238,7 @@ function prepFoliageMaterial(mat: THREE.Material | THREE.Material[]): THREE.Mate
       sm.transparent = false;
       sm.depthWrite = true;
     }
+    if (sway) injectWindBend(m, 0.06);   // 풀/꽃 에셋 → 바람 흔들림 + 플레이어 밴드 (밑동 고정, 위로 갈수록 휨)
     m.needsUpdate = true;
     return m;
   };
@@ -247,9 +255,9 @@ const _foliageLoadTex: LoadTexFn = (url, colorSpace, tx, ty, onLoad) => {
 
 /** url 모델 1회 로드 → 메시별 (변환 베이크된)지오/머티리얼 추출. 베이스를 y=0·xz중심으로 재배치. 세션 캐시.
  *  overrides(부위별 텍스처)가 있으면 잎 등 머티리얼에 입힘 — 캐시 키에 overrides 유무 포함. */
-function loadFoliageParts(url: string, overrides?: MaterialOverrides): Promise<FoliageParts> {
+function loadFoliageParts(url: string, overrides?: MaterialOverrides, sway = false): Promise<FoliageParts> {
   const ovKeys = overrides ? Object.keys(overrides).sort().join(',') : '';
-  const key = url + '|' + ovKeys;
+  const key = url + '|' + ovKeys + (sway ? '|sway' : '');
   let entry = _foliagePartsCache.get(key);
   if (!entry) {
     entry = loadStaticModelCached(url).then((model) => {
@@ -267,7 +275,7 @@ function loadFoliageParts(url: string, overrides?: MaterialOverrides): Promise<F
             const resolved = resolveMeshMaterial(m.material, overrides, null, _foliageLoadTex, undefined, made);
             if (resolved) mat = resolved;
           }
-          parts.push({ geo: g, mat: prepFoliageMaterial(mat) });
+          parts.push({ geo: g, mat: prepFoliageMaterial(mat, sway) });
         }
       });
       const box = new THREE.Box3();
@@ -281,18 +289,18 @@ function loadFoliageParts(url: string, overrides?: MaterialOverrides): Promise<F
   return entry;
 }
 
-function AssetFoliageInstances({ url, scale, items, t, cast, overrides }: {
-  url: string; scale: number; items: FoliageInstance[]; t: TerrainData; cast: boolean; overrides?: MaterialOverrides;
+function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = false }: {
+  url: string; scale: number; items: FoliageInstance[]; t: TerrainData; cast: boolean; overrides?: MaterialOverrides; sway?: boolean;
 }) {
   const [parts, setParts] = useState<FoliageParts | null>(null);
   const ovKey = overrides ? Object.keys(overrides).sort().join(',') : '';
   useEffect(() => {
     let alive = true;
     // 로드 완료 시에만 교체 — 전환 중 이전 모델 유지(빈 깜빡임 방지). 스테일은 alive 로 차단.
-    loadFoliageParts(url, overrides).then(p => { if (alive) setParts(p); }).catch(() => { if (alive) setParts(null); });
+    loadFoliageParts(url, overrides, sway).then(p => { if (alive) setParts(p); }).catch(() => { if (alive) setParts(null); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url, ovKey]);
+  }, [url, ovKey, sway]);
   const refs = useRef<THREE.InstancedMesh[]>([]);
   const capacity = Math.max(256, Math.ceil((items.length + 1) / 256) * 256);
   useEffect(() => {
@@ -362,10 +370,10 @@ export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
   return (
     <>
       {fa.grass?.url
-        ? <AssetFoliageInstances url={fa.grass.url} scale={fa.grass.scale ?? 1} overrides={fa.grass.overrides} items={grass} t={t} cast={false} />
+        ? <AssetFoliageInstances url={fa.grass.url} scale={fa.grass.scale ?? 1} overrides={fa.grass.overrides} items={grass} t={t} cast={false} sway />
         : <Instanced items={grass} geo={grassGeo} mat={grassMat} t={t} base={1} cast={false} receive={false} vary="grass" />}
       {fa.flower?.url
-        ? <AssetFoliageInstances url={fa.flower.url} scale={fa.flower.scale ?? 1} overrides={fa.flower.overrides} items={flowers} t={t} cast={false} />
+        ? <AssetFoliageInstances url={fa.flower.url} scale={fa.flower.scale ?? 1} overrides={fa.flower.overrides} items={flowers} t={t} cast={false} sway />
         : <Instanced items={flowers} geo={flowerGeo} mat={flowerMat} t={t} base={1} cast={false} receive={false} vary="flower" />}
       {fa.tree?.url
         ? <AssetFoliageInstances url={fa.tree.url} scale={fa.tree.scale ?? 1} overrides={fa.tree.overrides} items={trees} t={t} cast />
