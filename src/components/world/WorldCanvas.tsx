@@ -3522,6 +3522,35 @@ const PrimitiveMesh = React.memo(function PrimitiveMeshImpl({ obj, shape }: { ob
   );
 });
 
+/** [임시 진단] 입장 후 12초간 매초 프레임 지표를 콘솔에 출력 — 초반 프레임 드랍 원인 규명용.
+ *  dpr 급락=해상도, programs 증가=셰이더컴파일, calls/tris 계단=reveal, 전부 그대로+저fps=로딩/디코드/GC. */
+function StartupPerfDiag() {
+  const { gl } = useThree();
+  const el = useRef(0);
+  const worst = useRef(0);
+  const count = useRef(0);
+  const bucket = useRef(0);
+  const done = useRef(false);
+  useFrame((_, delta) => {
+    if (done.current) return;
+    el.current += delta;
+    if (el.current > 12) { done.current = true; console.log('[diag] 진단 종료(12s)'); return; }
+    const ms = delta * 1000;
+    if (ms > worst.current) worst.current = ms;
+    count.current++;
+    bucket.current += delta;
+    if (bucket.current >= 1) {
+      const info = gl.info;
+      const fps = Math.round(count.current / bucket.current);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const programs = (info as any).programs?.length ?? -1;
+      console.log(`[diag t=${el.current.toFixed(0)}s] fps=${fps} worst=${worst.current.toFixed(0)}ms dpr=${gl.getPixelRatio().toFixed(2)} calls=${info.render.calls} tris=${info.render.triangles} programs=${programs}`);
+      bucket.current = 0; count.current = 0; worst.current = 0;
+    }
+  });
+  return null;
+}
+
 function UserAsset({ url, matObj, anim }: { url: string; matObj: UserMapObject; anim?: { clip: string; autoplay: boolean; loop: boolean; speed: number } }) {
   const [obj, setObj] = useState<THREE.Object3D | null>(null);
   // 원본 머티리얼 백업 (Map<mesh, originalMaterial>)
@@ -6351,6 +6380,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           onValueChange={(_id, script, value) => execUiButtonScript(script, gameRuntime.api, value)}
         />
         <PostFX s={effectivePostFX} raining={raining} />
+        <StartupPerfDiag />
         <CameraWaterWatcher volsRef={waterPostFXRef} onChange={setActiveWaterFX} />
         </XR>
       </Canvas>
