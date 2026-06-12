@@ -3528,6 +3528,8 @@ function UserAsset({ url, matObj, anim }: { url: string; matObj: UserMapObject; 
   const originalMats = useRef<Map<THREE.Mesh, THREE.Material | THREE.Material[]>>(new Map());
   // Animator — 모델 내장 클립 재생 (mixer + 선택 액션)
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+  // 셰이더 프리워밍용 (reveal 전에 compileAsync) — 캐릭터(HumanoidMesh)와 동일 패턴
+  const { gl, camera, scene } = useThree();
 
   useEffect(() => {
     let cancelled = false;
@@ -3575,16 +3577,31 @@ function UserAsset({ url, matObj, anim }: { url: string; matObj: UserMapObject; 
         for (const mesh of windMeshes) mesh.userData.__windFoliage = anyLeaf;
         setObj(model);
         // 매 frame 2 mesh 씩 노출 — 큰 에셋도 빠르게 완전 표시
-        let idx = 0;
-        const revealNext = () => {
-          if (cancelled) return;
-          for (let n = 0; n < 2 && idx < progressiveMeshes.length; n++) {
-            progressiveMeshes[idx].visible = true;
-            idx++;
-          }
-          if (idx < progressiveMeshes.length) requestAnimationFrame(revealNext);
+        const startReveal = () => {
+          let idx = 0;
+          const revealNext = () => {
+            if (cancelled) return;
+            for (let n = 0; n < 2 && idx < progressiveMeshes.length; n++) {
+              progressiveMeshes[idx].visible = true;
+              idx++;
+            }
+            if (idx < progressiveMeshes.length) requestAnimationFrame(revealNext);
+          };
+          requestAnimationFrame(revealNext);
         };
-        requestAnimationFrame(revealNext);
+        // 셰이더 프리워밍 — reveal 전에 KHR_parallel_shader_compile 로 머티리얼을 미리(병렬) 컴파일.
+        // 안 하면 각 mesh 가 처음 보일 때 메인스레드 동기 컴파일 → 입장 초반 프레임 드랍.
+        // (캐릭터 HumanoidMesh 와 동일 패턴. 1.5s 안전망으로 compileAsync 지연 시에도 reveal 보장.)
+        const rc = gl as unknown as { compileAsync?: (a: THREE.Object3D, b: THREE.Camera, c?: THREE.Object3D) => Promise<unknown> };
+        if (typeof rc.compileAsync === 'function') {
+          let started = false;
+          const once = () => { if (started || cancelled) return; started = true; startReveal(); };
+          rc.compileAsync(model, camera, scene).then(once, once);
+          setTimeout(once, 1500);
+        } else {
+          try { gl.compile(scene, camera); } catch {}
+          startReveal();
+        }
       }).catch(err => console.error('[world] 모델 로드 실패:', err))
     );
     return () => { cancelled = true; };
