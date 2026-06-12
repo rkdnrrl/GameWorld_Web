@@ -484,11 +484,13 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     let compileCancelled = false;
     (async () => {
       try {
-        const glAny = gl as unknown as { compileAsync?: (obj: THREE.Object3D, cam: THREE.Camera) => Promise<unknown> };
+        // ⚠️ 3번째 인자(targetScene=실제 씬)를 넘겨야 조명/그림자/안개 컨텍스트 포함해 컴파일됨.
+        // 안 넘기면 char.scene(조명 없음) 기준으로 굽고 → 진짜 씬 렌더 시 재컴파일(입장 초반 큰 hitch).
+        const glAny = gl as unknown as { compileAsync?: (obj: THREE.Object3D, cam: THREE.Camera, target?: THREE.Object3D) => Promise<unknown> };
         if (typeof glAny.compileAsync === 'function') {
-          await glAny.compileAsync(char.scene, camera);
+          await glAny.compileAsync(char.scene, camera, scene);
         } else {
-          gl.compile(char.scene, camera);
+          gl.compile(char.scene, camera, scene);
         }
       } catch { /* noop */ }
       if (compileCancelled) return;
@@ -545,7 +547,7 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
       // scene 을 group 에서 분리 (실제 GPU dispose 는 로드 effect cleanup 의 disposeCharacter 가 담당)
       if (char.scene.parent) char.scene.parent.remove(char.scene);
     };
-  }, [char, castShadow, gl, camera]);
+  }, [char, castShadow, gl, camera, scene]);
 
   // 머리 숨김 (1인칭)
   useEffect(() => {
