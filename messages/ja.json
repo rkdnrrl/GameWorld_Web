@@ -1017,6 +1017,7 @@
     "matPlastic": "🟦 プラスチック",
     "matEmissive": "✨ 発光",
     "materialColor": "マテリアルカラー",
+    "matPalette": "🎨 アートパレット (統一カラー)",
     "texture": "テクスチャ",
     "texAlbedo": "ベース (Albedo)",
     "texNormal": "ノーマル",

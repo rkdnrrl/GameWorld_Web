@@ -1017,6 +1017,7 @@
     "matPlastic": "🟦 플라스틱",
     "matEmissive": "✨ 발광",
     "materialColor": "재질 색상",
+    "matPalette": "🎨 아트 팔레트 (통일된 색)",
     "texture": "텍스처",
     "texAlbedo": "베이스 (Albedo)",
     "texNormal": "노멀",

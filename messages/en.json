@@ -1017,6 +1017,7 @@
     "matPlastic": "🟦 Plastic",
     "matEmissive": "✨ Emissive",
     "materialColor": "Material Color",
+    "matPalette": "🎨 Art Palette (cohesive colors)",
     "texture": "Texture",
     "texAlbedo": "Base (Albedo)",
     "texNormal": "Normal",

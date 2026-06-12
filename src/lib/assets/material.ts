@@ -33,6 +33,24 @@ export const PRESETS: Record<Exclude<MaterialPreset, 'default'>, {
   emissive: { defaultColor: '#ffffff', metalness: 0,   roughness: 0.6, emissive: '#ffaa44', emissiveIntensity: 1.5 },
 };
 
+/** 큐레이팅된 아트 팔레트 — 살짝 채도를 낮춘 조화로운 12색(흙·자연 톤 + 절제된 악센트).
+ *  머티리얼 색상 피커의 스와치로 노출 → 유저가 통일된 팔레트에서 골라 모든 월드가 응집감 있게.
+ *  (저폴리·Bruno 류 룩의 핵심은 화려함이 아니라 '제한된 조화 팔레트'.) */
+export const ART_PALETTE: readonly string[] = [
+  '#e8ddca', // 웜 오프화이트 (모래)
+  '#d9b382', // 탠
+  '#c08552', // 테라코타
+  '#8b5e3c', // 브라운
+  '#6b8e5a', // 세이지 그린
+  '#3f6b4a', // 포레스트 그린
+  '#5b8aa6', // 더스티 블루
+  '#36617f', // 딥 블루
+  '#c75d54', // 뮤트 코랄
+  '#e0a458', // 앰버
+  '#9b7fb0', // 뮤트 퍼플
+  '#44454d', // 슬레이트
+];
+
 export function loadTex(url: string, colorSpace: THREE.ColorSpace, tx: number, ty: number, onLoad: () => void): THREE.Texture {
   const loader = new THREE.TextureLoader();
   loader.setCrossOrigin('anonymous');

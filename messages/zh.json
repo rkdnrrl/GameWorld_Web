@@ -1017,6 +1017,7 @@
     "matPlastic": "🟦 塑料",
     "matEmissive": "✨ 发光",
     "materialColor": "材质颜色",
+    "matPalette": "🎨 美术调色板 (统一色)",
     "texture": "纹理",
     "texAlbedo": "基础 (Albedo)",
     "texNormal": "法线",

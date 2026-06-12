@@ -19,6 +19,7 @@ import { PerfManager } from '@/lib/world/PerfManager';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
 import { SceneFog, SkyClouds, SkyMoon, SkyStars, skySunPosition, skyFogColor, nightFactor, EnvFxUpdater } from '@/lib/world/SkyEnv';
+import { ART_PALETTE } from '@/lib/assets/material';
 import { makeWaterMaterial } from '@/lib/world/waterMaterial';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UIRenderer } from '@/lib/world/UIRenderer';
@@ -8671,6 +8672,19 @@ export default function StudioCanvas() {
                         onChange={e => updateMaterialField('materialColor', e.target.value)}
                         onBlur={() => pushHistory(objects)}
                         style={{ width: '100%', height: 24, border: 'none', borderRadius: 5, padding: 0, cursor: 'pointer' }} />
+                      {/* 큐레이팅된 아트 팔레트 — 통일된 색에서 골라 월드 응집감 ↑ */}
+                      <div style={{ fontSize: 10, opacity: 0.5, margin: '5px 0 3px' }}>{t('matPalette')}</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                        {ART_PALETTE.map(c => {
+                          const active = (selected.materialColor || '').toLowerCase() === c;
+                          return (
+                            <button key={c} title={c}
+                              onClick={() => { updateMaterialField('materialColor', c); pushHistory(objects); }}
+                              style={{ width: 18, height: 18, background: c, borderRadius: 4, cursor: 'pointer', padding: 0,
+                                border: active ? '2px solid #fff' : '1px solid rgba(255,255,255,0.25)', boxShadow: active ? '0 0 0 1px #000' : 'none' }} />
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 
