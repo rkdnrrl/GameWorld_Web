@@ -85,18 +85,22 @@ const bendStrUniform = { value: 0.6 };          // 수평 밀어내기 세기
 const bendDownUniform = { value: 0.35 };        // 눌림(아래로)
 /** 바람 흔들림 + 플레이어 밴드 셰이더를 임의 머티리얼에 주입. 기존 onBeforeCompile 은 보존(체인).
  *  Standard/Phong/Lambert 등 begin_vertex·project_vertex 청크를 쓰는 lit 머티리얼이면 동작(에셋 식생 포함). */
-function injectWindBend<T extends THREE.Material>(mat: T, amt: number): T {
+function injectWindBend<T extends THREE.Material>(mat: T, amt: number, bend = true): T {
   const amtU = { value: amt };
   const prev = mat.onBeforeCompile;
   mat.onBeforeCompile = (shader, renderer) => {
     if (prev) { try { prev.call(mat, shader, renderer); } catch { /* noop */ } }
     shader.uniforms.uWindTime = windUniform;
     shader.uniforms.uWindAmt = amtU;
-    shader.uniforms.uPlayer = playerPosUniform;
-    shader.uniforms.uPlayerR = playerRUniform;
-    shader.uniforms.uBendStr = bendStrUniform;
-    shader.uniforms.uBendDown = bendDownUniform;
-    shader.vertexShader = 'uniform float uWindTime;\nuniform float uWindAmt;\nuniform vec3 uPlayer;\nuniform float uPlayerR;\nuniform float uBendStr;\nuniform float uBendDown;\n' + shader.vertexShader
+    let header = 'uniform float uWindTime;\nuniform float uWindAmt;\n';
+    if (bend) {
+      shader.uniforms.uPlayer = playerPosUniform;
+      shader.uniforms.uPlayerR = playerRUniform;
+      shader.uniforms.uBendStr = bendStrUniform;
+      shader.uniforms.uBendDown = bendDownUniform;
+      header += 'uniform vec3 uPlayer;\nuniform float uPlayerR;\nuniform float uBendStr;\nuniform float uBendDown;\n';
+    }
+    shader.vertexShader = header + shader.vertexShader
       .replace('#include <begin_vertex>',
       `#include <begin_vertex>
       #ifdef USE_INSTANCING
@@ -106,9 +110,12 @@ function injectWindBend<T extends THREE.Material>(mat: T, amt: number): T {
       #endif
       float wsw = position.y * uWindAmt;
       transformed.x += sin(uWindTime * 1.6 + wph) * wsw;
-      transformed.z += cos(uWindTime * 1.25 + wph) * wsw * 0.6;`)
-      // project_vertex 를 확장 — instanceMatrix 적용 후 "월드공간"에서 플레이어 발 주변을 밀어냄/눌림.
-      // (object 공간에 더하면 인스턴스 랜덤 회전에 방향이 섞여 엉킴 → 반드시 월드공간에서.)
+      transformed.z += cos(uWindTime * 1.25 + wph) * wsw * 0.6;`);
+    if (!bend) return;
+    // project_vertex 를 확장 — instanceMatrix 적용 후 "월드공간"에서 플레이어 발 주변을 밀어냄/눌림.
+    // 휨 방향·세기는 정점이 아니라 "인스턴스 밑동"(_wb) 기준 — 전 정점이 같은 방향으로 기울어 밑동을 축으로 눕는다.
+    // (정점 기준으로 하면 플레이어가 식생 중앙에 서면 꽃잎이 사방으로 퍼져 풍선처럼 커짐.)
+    shader.vertexShader = shader.vertexShader
       .replace('#include <project_vertex>',
       `vec4 mvPosition = vec4( transformed, 1.0 );
       #ifdef USE_BATCHING
@@ -124,14 +131,16 @@ function injectWindBend<T extends THREE.Material>(mat: T, amt: number): T {
         #else
           vec4 _wb = modelMatrix * vec4(0.0, 0.0, 0.0, 1.0);
         #endif
-        float _ph = max(0.0, _wp.y - _wb.y);          // 밑동 기준 높이(위일수록 더 휨)
-        vec2 _toP = _wp.xz - uPlayer.xz;
+        vec2 _toP = _wb.xz - uPlayer.xz;              // 밑동→플레이어 반대 방향(인스턴스 공통)
         float _pd = length(_toP);
         float _infl = 1.0 - smoothstep(0.0, uPlayerR, _pd);
-        vec2 _pdir = _toP / max(_pd, 1e-3);
-        _wp.x += _pdir.x * _infl * uBendStr * _ph;     // 플레이어 반대쪽으로 밀림
-        _wp.z += _pdir.y * _infl * uBendStr * _ph;
-        _wp.y -= _infl * uBendDown * _ph;              // 살짝 눌림
+        if (_infl > 0.0) {
+          float _ph = max(0.0, _wp.y - _wb.y);        // 밑동 기준 높이(위일수록 더 눕음)
+          vec2 _pdir = _toP / max(_pd, 1e-3);
+          _wp.x += _pdir.x * _infl * uBendStr * _ph;  // 식생 전체가 한 방향으로 눕음(풍선 X)
+          _wp.z += _pdir.y * _infl * uBendStr * _ph;
+          _wp.y -= _infl * uBendDown * _ph;           // 살짝 눌림
+        }
       }
       mvPosition = viewMatrix * _wp;
       gl_Position = projectionMatrix * mvPosition;`);
@@ -229,7 +238,8 @@ const _foliagePartsCache = new Map<string, Promise<FoliageParts>>();
  *  - 양면(DoubleSide): 단면 잎 카드가 backface 컬링돼 컬러에서 안 보이는 문제 해결(절대 가려지지 않음).
  *  - 원래 "투명(블렌딩)"이던 잎만 alphaTest 컷아웃으로 전환 — 인스턴싱은 블렌딩 정렬이 안 되므로.
  *    ⚠ 불투명(OPAQUE) 머티리얼엔 alphaTest 를 절대 걸지 않는다(알파 채널이 0/무의미해 통째로 사라짐). */
-function prepFoliageMaterial(mat: THREE.Material | THREE.Material[], sway = false): THREE.Material | THREE.Material[] {
+type SwayMode = 'bend' | 'wind' | false;
+function prepFoliageMaterial(mat: THREE.Material | THREE.Material[], sway: SwayMode = false): THREE.Material | THREE.Material[] {
   const fix = (m: THREE.Material): THREE.Material => {
     m.side = THREE.DoubleSide;
     const sm = m as THREE.MeshStandardMaterial;
@@ -238,7 +248,10 @@ function prepFoliageMaterial(mat: THREE.Material | THREE.Material[], sway = fals
       sm.transparent = false;
       sm.depthWrite = true;
     }
-    if (sway) injectWindBend(m, 0.06);   // 풀/꽃 에셋 → 바람 흔들림 + 플레이어 밴드 (밑동 고정, 위로 갈수록 휨)
+    // 'bend' 풀/꽃 → 바람 흔들림 + 플레이어 밴드(밑동 고정, 위로 갈수록 눕음)
+    // 'wind' 나무 → 약한 바람 흔들림만(밴드 X — 큰 나무가 플레이어 쪽으로 눕는 건 부자연스러움)
+    if (sway === 'bend') injectWindBend(m, 0.06, true);
+    else if (sway === 'wind') injectWindBend(m, 0.025, false);
     m.needsUpdate = true;
     return m;
   };
@@ -255,9 +268,9 @@ const _foliageLoadTex: LoadTexFn = (url, colorSpace, tx, ty, onLoad) => {
 
 /** url 모델 1회 로드 → 메시별 (변환 베이크된)지오/머티리얼 추출. 베이스를 y=0·xz중심으로 재배치. 세션 캐시.
  *  overrides(부위별 텍스처)가 있으면 잎 등 머티리얼에 입힘 — 캐시 키에 overrides 유무 포함. */
-function loadFoliageParts(url: string, overrides?: MaterialOverrides, sway = false): Promise<FoliageParts> {
+function loadFoliageParts(url: string, overrides?: MaterialOverrides, sway: SwayMode = false): Promise<FoliageParts> {
   const ovKeys = overrides ? Object.keys(overrides).sort().join(',') : '';
-  const key = url + '|' + ovKeys + (sway ? '|sway' : '');
+  const key = url + '|' + ovKeys + (sway ? '|' + sway : '');
   let entry = _foliagePartsCache.get(key);
   if (!entry) {
     entry = loadStaticModelCached(url).then((model) => {
@@ -290,7 +303,7 @@ function loadFoliageParts(url: string, overrides?: MaterialOverrides, sway = fal
 }
 
 function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = false }: {
-  url: string; scale: number; items: FoliageInstance[]; t: TerrainData; cast: boolean; overrides?: MaterialOverrides; sway?: boolean;
+  url: string; scale: number; items: FoliageInstance[]; t: TerrainData; cast: boolean; overrides?: MaterialOverrides; sway?: SwayMode;
 }) {
   const [parts, setParts] = useState<FoliageParts | null>(null);
   const ovKey = overrides ? Object.keys(overrides).sort().join(',') : '';
@@ -351,7 +364,7 @@ export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
   const grassMat = useMemo(() => makeWindMaterial(0.16, { vertexColors: true, side: THREE.DoubleSide, roughness: 1, metalness: 0 }), []);
   const flowerMat = useMemo(() => makeWindMaterial(0.12, { vertexColors: true, side: THREE.DoubleSide, roughness: 1, metalness: 0 }), []);
   const trunkMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#6b4a2b', roughness: 0.95, metalness: 0 }), []);
-  const canopyMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#2f6b25', roughness: 1, metalness: 0 }), []);
+  const canopyMat = useMemo(() => injectWindBend(new THREE.MeshStandardMaterial({ color: '#2f6b25', roughness: 1, metalness: 0 }), 0.012, false), []);  // 잎만 약한 바람(밴드 X)
   const rockMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#9a9a96', roughness: 1, metalness: 0, flatShading: true }), []);
   useEffect(() => () => {
     grassGeo.dispose(); flowerGeo.dispose(); trunkGeo.dispose(); canopyGeo.dispose(); rockGeo.dispose();
@@ -370,13 +383,13 @@ export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
   return (
     <>
       {fa.grass?.url
-        ? <AssetFoliageInstances url={fa.grass.url} scale={fa.grass.scale ?? 1} overrides={fa.grass.overrides} items={grass} t={t} cast={false} sway />
+        ? <AssetFoliageInstances url={fa.grass.url} scale={fa.grass.scale ?? 1} overrides={fa.grass.overrides} items={grass} t={t} cast={false} sway="bend" />
         : <Instanced items={grass} geo={grassGeo} mat={grassMat} t={t} base={1} cast={false} receive={false} vary="grass" />}
       {fa.flower?.url
-        ? <AssetFoliageInstances url={fa.flower.url} scale={fa.flower.scale ?? 1} overrides={fa.flower.overrides} items={flowers} t={t} cast={false} sway />
+        ? <AssetFoliageInstances url={fa.flower.url} scale={fa.flower.scale ?? 1} overrides={fa.flower.overrides} items={flowers} t={t} cast={false} sway="bend" />
         : <Instanced items={flowers} geo={flowerGeo} mat={flowerMat} t={t} base={1} cast={false} receive={false} vary="flower" />}
       {fa.tree?.url
-        ? <AssetFoliageInstances url={fa.tree.url} scale={fa.tree.scale ?? 1} overrides={fa.tree.overrides} items={trees} t={t} cast />
+        ? <AssetFoliageInstances url={fa.tree.url} scale={fa.tree.scale ?? 1} overrides={fa.tree.overrides} items={trees} t={t} cast sway="wind" />
         : (<>
             {/* 나무: 기둥 + 잎 — 같은 인스턴스 변환(지오메트리가 미리 y 오프셋됨) */}
             <Instanced items={trees} geo={trunkGeo} mat={trunkMat} t={t} base={1} cast receive={false} />
