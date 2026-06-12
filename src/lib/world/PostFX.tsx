@@ -125,18 +125,6 @@ export function derivePostFX(objects: ReadonlyArray<{ kind?: string; components?
   return OFF;
 }
 
-/** 전역 postProcess 볼륨이 (활성/비활성 무관) 존재하는가 — 톤매핑 일관성 판정용.
- *  EffectComposer 는 NoToneMapping 으로 렌더하므로, 이런 맵은 후처리를 꺼도 같은 톤매핑을 유지해야
- *  토글 시 밝기가 ACES 로 튀어 깨지지 않는다. */
-export function hasGlobalPostProcess(objects: ReadonlyArray<{ kind?: string; components?: ComponentInstance[] }>): boolean {
-  for (const o of objects) {
-    if (o.kind === 'water') continue;
-    const inst = findComponent(o.components, 'postProcess');
-    if (inst && !getProp(inst, 'zone', false)) return true;
-  }
-  return false;
-}
-
 /** 물(water) 오브젝트에 붙은 postProcess → 물 부피(수면~바닥) + 설정. 카메라/플레이어가 그 물 안일 때만 적용. */
 export interface WaterPostFX {
   cx: number; cy: number; cz: number;   // 수면 중심 (cy = 수면 Y)

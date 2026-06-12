@@ -81,7 +81,7 @@ import { api as backendApi } from '@/lib/api';
 // ⚠ T10 임시 — dead CustomModel/loadFBXCached 가 아직 의존. 다음 step 에서 전체 삭제 시 함께 제거
 import { retargetClipsToModel } from '@/lib/character/mixamoRig';
 import { loadPlatformAnimationStateClips } from '@/lib/character/platformAnimations';
-import PostFX, { derivePostFX, collectPostFXZones, collectWaterPostFX, hasGlobalPostProcess, type PostFXZone, type WaterPostFX } from '@/lib/world/PostFX';
+import PostFX, { derivePostFX, collectPostFXZones, collectWaterPostFX, type PostFXZone, type WaterPostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import SignText from '@/lib/world/SignText';
 import { VideoScreenMaterial, YouTubeMeshMaterial, YouTubeMaybeOverlay, parseYouTubeId, parseUrlKind, normalizeMediaUrl, ImageMaterial, GenericIframeOverlay, VideoScreenCtx, VIDEO_SYNC_EVENT, VIDEO_CTL_EVENT, applyVideoSync, VideoRemotePanel, VideoDistanceUpdater, VideoInitialStateApplier, type VideoRegistry, type VideoHandle, type VideoControlCmd } from './VideoScreen';
@@ -1062,16 +1062,10 @@ function LuaUpdateLoop({
 /* ── 그래픽 설정 변경 시 셰도우맵 강제 갱신 ── */
 /* 노출(toneMapping) + HDRI IBL 강도 라이브 업데이트
    gl prop / Environment prop 은 초기 마운트만 적용되므로 매 렌더마다 직접 세팅. */
-function ExposureUpdater({ exposure, hdriIntensity, forceLinear }: { exposure: number; hdriIntensity: number; forceLinear: boolean }) {
+function ExposureUpdater({ exposure, hdriIntensity }: { exposure: number; hdriIntensity: number }) {
   const { gl, scene } = useThree();
-  useFrame(() => {
-    gl.toneMappingExposure = exposure;
-    // 톤매핑 일관성: 후처리 볼륨이 있는 맵은 EffectComposer 가 NoToneMapping 으로 렌더하므로, 후처리를 꺼도
-    // 같은 NoToneMapping 을 유지 → 토글 시 ACES 로 튀어 어둡게/깨져 보이는 것 방지. 없는 맵은 기본 ACES.
-    const want = forceLinear ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping;
-    if (gl.toneMapping !== want) gl.toneMapping = want;
-    (scene as THREE.Scene & { environmentIntensity?: number }).environmentIntensity = hdriIntensity;
-  });
+  gl.toneMappingExposure = exposure;
+  (scene as THREE.Scene & { environmentIntensity?: number }).environmentIntensity = hdriIntensity;
   return null;
 }
 
@@ -4045,8 +4039,6 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const effectivePostFX = (activeWaterFX >= 0 && waterPostFX[activeWaterFX]) ? waterPostFX[activeWaterFX].s
     : (activePostFXZone >= 0 && postFXZones[activePostFXZone]) ? postFXZones[activePostFXZone].s
     : postFX;
-  // 전역 후처리 볼륨 존재 여부(활성 무관) — 톤매핑 일관성용(끄든 켜든 NoToneMapping 유지).
-  const hasGlobalPP = useMemo(() => hasGlobalPostProcess(customObjects ?? []), [customObjects]);
   // VR(WebXR) — 로컬 전용 모드. 비-VR(데스크탑/모바일) 유저는 영향 없음. 멀티는 기존 위치 동기화 그대로.
   const xrStore = useMemo(() => createXRStore(), []);
   const [vrSupported, setVrSupported] = useState(false);
@@ -5985,7 +5977,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             onFallback={() => setDprFactor(0.5)}
           />
         )}
-        <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} forceLinear={hasGlobalPP} />
+        <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
         <CanvasPointerEventsKeeper />
         <RemotePlayerCrosshairClick players={players} onPlayerClick={handleRemoteClick} />
 

@@ -11,7 +11,7 @@ import { getKind } from '@/lib/assets/registry';
 import '@/lib/assets/kinds'; // kind 핸들러(Thumbnail/Preview) 등록 — 사이드이펙트
 import AssetPreviewModal from '@/components/assets/AssetPreviewModal';
 import type { Asset as RegistryAsset } from '@/lib/assets/types';
-import PostFX, { derivePostFX, collectPostFXZones, collectWaterPostFX, hasGlobalPostProcess, type PostFXZone, type WaterPostFX } from '@/lib/world/PostFX';
+import PostFX, { derivePostFX, collectPostFXZones, collectWaterPostFX, type PostFXZone, type WaterPostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import SignText from '@/lib/world/SignText';
 import { devLog } from '@/lib/devLog';
@@ -2458,17 +2458,11 @@ function FollowingStudioSun({ intensity, dir, color }: { intensity: number; dir:
   );
 }
 
-function ExposureUpdater({ exposure, hdriIntensity, forceLinear }: { exposure: number; hdriIntensity: number; forceLinear: boolean }) {
+function ExposureUpdater({ exposure, hdriIntensity }: { exposure: number; hdriIntensity: number }) {
   const { gl, scene } = useThree();
-  useFrame(() => {
-    gl.toneMappingExposure = exposure;
-    // 톤매핑 일관성: 후처리 볼륨이 있는 맵은 EffectComposer 가 NoToneMapping 으로 렌더하므로, 후처리를 꺼도
-    // 같은 NoToneMapping 을 유지 → 토글 시 ACES 로 튀어 어둡게/깨져 보이는 것 방지. 없는 맵은 기본 ACES.
-    const want = forceLinear ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping;
-    if (gl.toneMapping !== want) gl.toneMapping = want;
-    // scene.environmentIntensity 는 Three.js r155+ 지원. HDRI 가 머티리얼에 주는 빛 세기를 곱함.
-    (scene as THREE.Scene & { environmentIntensity?: number }).environmentIntensity = hdriIntensity;
-  });
+  gl.toneMappingExposure = exposure;
+  // scene.environmentIntensity 는 Three.js r155+ 지원. HDRI 가 머티리얼에 주는 빛 세기를 곱함.
+  (scene as THREE.Scene & { environmentIntensity?: number }).environmentIntensity = hdriIntensity;
   return null;
 }
 
@@ -5172,8 +5166,6 @@ export default function StudioCanvas() {
   const effectivePostFX = (activeWaterFX >= 0 && waterPostFX[activeWaterFX]) ? waterPostFX[activeWaterFX].s
     : (activePostFXZone >= 0 && postFXZones[activePostFXZone]) ? postFXZones[activePostFXZone].s
     : postFX;
-  // 전역 후처리 볼륨 존재 여부(활성 무관) — 톤매핑 일관성용.
-  const hasGlobalPP = useMemo(() => hasGlobalPostProcess(objects), [objects]);
   // 썸네일 캡처 함수 (Canvas 내부에서 등록)
   const captureFnRef = useRef<(() => string | null) | null>(null);
   // 맵 썸네일 — 사용자가 직접 지정 (현재 화면 캡처 또는 이미지 업로드). 저장 시 thumbBlob 만 업로드.
@@ -8959,13 +8951,13 @@ export default function StudioCanvas() {
           shadows={{ enabled: true, type: THREE.PCFSoftShadowMap, autoUpdate: true }}
           camera={{ position: [8, 8, 8], fov: 50 }}
           dpr={[1, 2]}
-          gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: exposure, preserveDrawingBuffer: true }}
+          gl={{ alpha: true, antialias: true, powerPreference: 'high-performance', stencil: false, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: exposure }}
           onPointerMissed={() => {
             // 터레인 조각 도구 사용 중엔 빈 곳 클릭/브러시 드래그 해제로 선택이 풀리지 않게 (유니티식 — ESC 나 도구 버튼으로만 종료)
             if (!isGizmoActive() && !terrainTool) { setSelectedId(null); setStudioMode('scene'); }
           }}
         >
-          <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} forceLinear={hasGlobalPP} />
+          <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
           <CanvasPointerEventsKeeper simulating={simulating} />
           <ambientLight intensity={lightAmbient} />
           {/* 하늘 채움광 제거 — 전역 hemisphere 는 밀폐 공간 안까지 밝혀서(GI 없음) "빛 없는 곳 캄캄" 목표와 충돌.
