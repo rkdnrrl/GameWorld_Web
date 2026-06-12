@@ -8362,7 +8362,8 @@ export default function StudioCanvas() {
                   {/* 강도 */}
                   <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
                     {t('lightIntensity')} {(selected.lightIntensity ?? 1).toFixed(1)}
-                    <input type="range" min={0} max={10} step={0.1} value={selected.lightIntensity ?? 1}
+                    {/* point/spot 는 칸델라(candela) 단위라 10 으로는 너무 약함 → 100 까지. dirlight 는 lux 라 10 이면 충분. */}
+                    <input type="range" min={0} max={selected.kind === 'dirlight' ? 10 : 100} step={0.1} value={selected.lightIntensity ?? 1}
                       onChange={e => setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, lightIntensity: Number(e.target.value) } : o))}
                       onMouseUp={() => pushHistory(objects)}
                       style={{ accentColor: '#fbbf24' }} />
