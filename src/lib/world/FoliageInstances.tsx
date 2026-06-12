@@ -18,6 +18,7 @@
 import React, { useMemo, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
+import { RigidBody, CapsuleCollider, BallCollider } from '@react-three/rapier';
 import { normalizeTerrain, sampleTerrainHeight, type TerrainData, type FoliageInstance } from './terrain';
 import { loadStaticModelCached } from './modelLoader';
 import { resolveMeshMaterial, type MaterialOverrides, type LoadTexFn } from './materialOverride';
@@ -344,6 +345,43 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
         />
       ))}
     </>
+  );
+}
+
+/** 나무·돌 자동 콜라이더 — 인스턴스마다 캡슐(나무 기둥)/볼(돌) 하나.
+ *  하나의 fixed RigidBody 에 콜라이더만 여러 개(메시 X) — 가볍고 정적.
+ *  ⚠ 반드시 <Physics> 안 + 지형 trimesh RigidBody 의 형제(같은 group 변환)로 렌더할 것.
+ *  풀·꽃은 충돌 없음(걸어서 지나감). */
+export function TreeRockColliders({ terrain }: { terrain: TerrainData }) {
+  const t = normalizeTerrain(terrain);
+  const treeScale = t.foliageAssets?.tree?.url ? (t.foliageAssets.tree.scale ?? 1) : 0;  // 0 = 절차적
+  const rockScale = t.foliageAssets?.rock?.url ? (t.foliageAssets.rock.scale ?? 1) : 0;
+  const cols = useMemo(() => {
+    const trees: { x: number; y: number; z: number; r: number; hh: number }[] = [];
+    const rocks: { x: number; y: number; z: number; r: number }[] = [];
+    for (const f of t.foliage || []) {
+      const base = sampleTerrainHeight(t, f.x, f.z);
+      if (f.k === 'tree') {
+        if (treeScale > 0) {           // 에셋 나무: 정규화 ~2m × scale × 인스턴스 — 기둥 근사 캡슐
+          const es = f.s * treeScale, r = 0.22 * es, hh = Math.max(0.05, 0.6 * es);
+          trees.push({ x: f.x, y: base + hh + r, z: f.z, r, hh });
+        } else {                       // 절차적 기둥: 반경 0.13, 높이 1.2 (밑동 y=0)
+          const r = 0.13 * f.s, hh = 0.45 * f.s;
+          trees.push({ x: f.x, y: base + hh + r, z: f.z, r, hh });
+        }
+      } else if (f.k === 'rock') {
+        if (rockScale > 0) { const es = f.s * rockScale; rocks.push({ x: f.x, y: base + 0.45 * es, z: f.z, r: 0.6 * es }); }
+        else rocks.push({ x: f.x, y: base + 0.22 * f.s, z: f.z, r: 0.36 * f.s });  // 절차적 바위(반경 0.4·납작)
+      }
+    }
+    return { trees, rocks };
+  }, [t, treeScale, rockScale]);
+  if (!cols.trees.length && !cols.rocks.length) return null;
+  return (
+    <RigidBody type="fixed" colliders={false}>
+      {cols.trees.map((c, i) => <CapsuleCollider key={'t' + i} args={[c.hh, c.r]} position={[c.x, c.y, c.z]} />)}
+      {cols.rocks.map((c, i) => <BallCollider key={'r' + i} args={[c.r]} position={[c.x, c.y, c.z]} />)}
+    </RigidBody>
   );
 }
 

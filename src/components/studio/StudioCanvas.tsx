@@ -25,7 +25,7 @@ import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
-import { FoliageInstances, GrassPlayerProbe } from '@/lib/world/FoliageInstances';
+import { FoliageInstances, GrassPlayerProbe, TreeRockColliders } from '@/lib/world/FoliageInstances';
 import { CarvedMesh, type CsgCut } from '@/lib/world/CarvedMesh';
 import { VoxelTerrainMesh } from '@/lib/world/VoxelTerrainMesh';
 import { ChunkedVoxelTerrain } from '@/lib/world/ChunkedVoxelTerrain';
@@ -2679,6 +2679,8 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
         {/* 식생 — 콜라이더 밖 형제(trimesh 가 잔디를 먹으면 폭발). 같은 변환 직접 적용. */}
         <group position={t.pos} rotation={[0, 0, 0]} scale={t.scl ?? obj.scale}>
           <FoliageInstances terrain={obj.terrain} />
+          {/* 나무·돌 자동 콜라이더(캡슐/볼) — 별도 fixed body라 trimesh 폭발 무관. */}
+          <TreeRockColliders terrain={obj.terrain} />
         </group>
       </>
     );
