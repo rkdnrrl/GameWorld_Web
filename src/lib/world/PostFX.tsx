@@ -103,6 +103,7 @@ export interface PostFXSettings {
   grayscale: boolean;        // 흑백
   dof: boolean; dofFocus: number; dofFocalLength: number; dofBokeh: number;
   toneMapping: boolean;
+  toneMapMode: string;       // 'aces' | 'agx' | 'neutral' — 톤매핑 곡선 (toneMapping 켜졌을 때)
 }
 
 const OFF: PostFXSettings = {
@@ -111,7 +112,7 @@ const OFF: PostFXSettings = {
   vignette: 0, ao: false, aoIntensity: 0, chromatic: 0, brightness: 0, contrast: 0,
   tintColor: '#ffffff', tintStrength: 0, wobble: 0,
   saturation: 0, hue: 0, grain: 0, pixelate: 0, scanline: 0, sepia: false, grayscale: false,
-  dof: false, dofFocus: 0, dofFocalLength: 0, dofBokeh: 0, toneMapping: false,
+  dof: false, dofFocus: 0, dofFocalLength: 0, dofBokeh: 0, toneMapping: false, toneMapMode: 'aces',
 };
 
 function settingsFromInst(inst: ComponentInstance): PostFXSettings {
@@ -145,6 +146,7 @@ function settingsFromInst(inst: ComponentInstance): PostFXSettings {
     dofFocalLength: getProp(inst, 'dofFocalLength', 0.5),
     dofBokeh:       getProp(inst, 'dofBokeh', 2),
     toneMapping:    getProp(inst, 'toneMapping', false),
+    toneMapMode:    getProp(inst, 'toneMapMode', 'aces'),
   };
 }
 
@@ -272,7 +274,13 @@ export default function PostFX({ s: raw }: { s: PostFXSettings }) {
   if (s.scanline > 0) fx.push(<Scanline key="sl" density={s.scanline} />);
   if (s.grain > 0) fx.push(<Noise key="noise" premultiply opacity={s.grain} />);
   if (s.vignette > 0) fx.push(<Vignette key="vig" offset={0.3} darkness={s.vignette} />);
-  if (s.toneMapping) fx.push(<ToneMapping key="tm" mode={ToneMappingMode.ACES_FILMIC} />);
+  if (s.toneMapping) {
+    // ACES(기본) / AgX(더 자연스러운 필믹, 하이라이트 덜 탐) / Neutral(Khronos PBR 중립)
+    const tmMode = s.toneMapMode === 'agx' ? ToneMappingMode.AGX
+      : s.toneMapMode === 'neutral' ? ToneMappingMode.NEUTRAL
+      : ToneMappingMode.ACES_FILMIC;
+    fx.push(<ToneMapping key="tm" mode={tmMode} />);
+  }
 
   if (fx.length === 0) return null;
   // SMAA — 컴포저가 켜지면 캔버스 MSAA 가 무시되므로(자체 버퍼 렌더) 가장자리 계단 방지용으로 마지막에 적용.

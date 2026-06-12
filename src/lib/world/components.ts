@@ -156,7 +156,8 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'grain',          label: '필름 노이즈 (0=끔)',     type: 'number', default: 0,    min: 0, max: 1,    step: 0.02, group: 'advanced' },
       { key: 'scanline',       label: 'CRT 스캔라인 (0=끔)',    type: 'number', default: 0,    min: 0, max: 2,    step: 0.05, group: 'advanced' },
       { key: 'pixelate',       label: '픽셀화 (0=끔, 픽셀 크기)', type: 'number', default: 0,  min: 0, max: 16,   step: 1, group: 'advanced' },
-      { key: 'toneMapping',    label: 'ACES 톤매핑',            type: 'boolean', default: false, group: 'advanced' },
+      { key: 'toneMapping',    label: '톤매핑 (필믹 톤)',       type: 'boolean', default: false, group: 'advanced' },
+      { key: 'toneMapMode',    label: '톤매핑 곡선 (aces / agx=더 자연스러움 / neutral)', type: 'enum', default: 'aces', options: ['aces', 'agx', 'neutral'], group: 'advanced' },
     ],
   },
   {
