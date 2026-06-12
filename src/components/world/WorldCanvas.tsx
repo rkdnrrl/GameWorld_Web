@@ -1062,10 +1062,15 @@ function LuaUpdateLoop({
 /* ── 그래픽 설정 변경 시 셰도우맵 강제 갱신 ── */
 /* 노출(toneMapping) + HDRI IBL 강도 라이브 업데이트
    gl prop / Environment prop 은 초기 마운트만 적용되므로 매 렌더마다 직접 세팅. */
-function ExposureUpdater({ exposure, hdriIntensity }: { exposure: number; hdriIntensity: number }) {
+function ExposureUpdater({ exposure, hdriIntensity, postProcessActive }: { exposure: number; hdriIntensity: number; postProcessActive: boolean }) {
   const { gl, scene } = useThree();
-  gl.toneMappingExposure = exposure;
-  (scene as THREE.Scene & { environmentIntensity?: number }).environmentIntensity = hdriIntensity;
+  useFrame(() => {
+    gl.toneMappingExposure = exposure;
+    // 후처리(EffectComposer)가 꺼져 있으면 톤매핑을 ACES 로 강제 — 컴포저가 마운트 시 NoToneMapping 으로
+    // 바꿔놓고 토글 시 원복이 누락되면 톤매핑 없는 날것 렌더로 깨지는 것 방지(자가 복구). 켜져 있을 땐 컴포저에 위임.
+    if (!postProcessActive && gl.toneMapping !== THREE.ACESFilmicToneMapping) gl.toneMapping = THREE.ACESFilmicToneMapping;
+    (scene as THREE.Scene & { environmentIntensity?: number }).environmentIntensity = hdriIntensity;
+  });
   return null;
 }
 
@@ -4035,6 +4040,11 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const waterPostFXRef = useRef<WaterPostFX[]>(waterPostFX);
   useEffect(() => { waterPostFXRef.current = waterPostFX; }, [waterPostFX]);
   const [activeWaterFX, setActiveWaterFX] = useState(-1);
+  // 현재 적용될 후처리 설정 (물 > 영역 > 전역) — ExposureUpdater 의 톤매핑 가드와 PostFX 가 공유.
+  const effectivePostFX = (activeWaterFX >= 0 && waterPostFX[activeWaterFX]) ? waterPostFX[activeWaterFX].s
+    : (activePostFXZone >= 0 && postFXZones[activePostFXZone]) ? postFXZones[activePostFXZone].s
+    : postFX;
+  const postProcessActive = !!effectivePostFX.enabled;
   // VR(WebXR) — 로컬 전용 모드. 비-VR(데스크탑/모바일) 유저는 영향 없음. 멀티는 기존 위치 동기화 그대로.
   const xrStore = useMemo(() => createXRStore(), []);
   const [vrSupported, setVrSupported] = useState(false);
@@ -5973,7 +5983,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             onFallback={() => setDprFactor(0.5)}
           />
         )}
-        <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
+        <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} postProcessActive={postProcessActive} />
         <CanvasPointerEventsKeeper />
         <RemotePlayerCrosshairClick players={players} onPlayerClick={handleRemoteClick} />
 
@@ -6226,11 +6236,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           onButtonClick={(_id, script) => execUiButtonScript(script, gameRuntime.api)}
           onValueChange={(_id, script, value) => execUiButtonScript(script, gameRuntime.api, value)}
         />
-        <PostFX s={
-          (activeWaterFX >= 0 && waterPostFX[activeWaterFX]) ? waterPostFX[activeWaterFX].s
-          : (activePostFXZone >= 0 && postFXZones[activePostFXZone]) ? postFXZones[activePostFXZone].s
-          : postFX
-        } />
+        <PostFX s={effectivePostFX} />
         <CameraWaterWatcher volsRef={waterPostFXRef} onChange={setActiveWaterFX} />
         </XR>
       </Canvas>

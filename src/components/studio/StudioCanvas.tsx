@@ -2458,11 +2458,16 @@ function FollowingStudioSun({ intensity, dir, color }: { intensity: number; dir:
   );
 }
 
-function ExposureUpdater({ exposure, hdriIntensity }: { exposure: number; hdriIntensity: number }) {
+function ExposureUpdater({ exposure, hdriIntensity, postProcessActive }: { exposure: number; hdriIntensity: number; postProcessActive: boolean }) {
   const { gl, scene } = useThree();
-  gl.toneMappingExposure = exposure;
-  // scene.environmentIntensity 는 Three.js r155+ 지원. HDRI 가 머티리얼에 주는 빛 세기를 곱함.
-  (scene as THREE.Scene & { environmentIntensity?: number }).environmentIntensity = hdriIntensity;
+  useFrame(() => {
+    gl.toneMappingExposure = exposure;
+    // 후처리(EffectComposer)가 꺼져 있으면 톤매핑 ACES 강제 — 컴포저가 NoToneMapping 으로 바꿔놓고
+    // 토글 시 원복이 누락되면 톤매핑 없는 날것 렌더로 깨지는 것 방지(자가 복구). 켜져 있을 땐 컴포저에 위임.
+    if (!postProcessActive && gl.toneMapping !== THREE.ACESFilmicToneMapping) gl.toneMapping = THREE.ACESFilmicToneMapping;
+    // scene.environmentIntensity 는 Three.js r155+ 지원. HDRI 가 머티리얼에 주는 빛 세기를 곱함.
+    (scene as THREE.Scene & { environmentIntensity?: number }).environmentIntensity = hdriIntensity;
+  });
   return null;
 }
 
@@ -5162,6 +5167,11 @@ export default function StudioCanvas() {
   // 영역(zone) 후처리 — 편집/시뮬 카메라가 그 박스 안이면 해당 볼륨 미리보기.
   const postFXZones = useMemo(() => collectPostFXZones(objects), [objects]);
   const [activePostFXZone, setActivePostFXZone] = useState(-1);
+  // 현재 적용될 후처리 설정 (물 > 영역 > 전역) — ExposureUpdater 톤매핑 가드 + PostFX 공유.
+  const effectivePostFX = (activeWaterFX >= 0 && waterPostFX[activeWaterFX]) ? waterPostFX[activeWaterFX].s
+    : (activePostFXZone >= 0 && postFXZones[activePostFXZone]) ? postFXZones[activePostFXZone].s
+    : postFX;
+  const postProcessActive = !!effectivePostFX.enabled;
   // 썸네일 캡처 함수 (Canvas 내부에서 등록)
   const captureFnRef = useRef<(() => string | null) | null>(null);
   // 맵 썸네일 — 사용자가 직접 지정 (현재 화면 캡처 또는 이미지 업로드). 저장 시 thumbBlob 만 업로드.
@@ -8953,7 +8963,7 @@ export default function StudioCanvas() {
             if (!isGizmoActive() && !terrainTool) { setSelectedId(null); setStudioMode('scene'); }
           }}
         >
-          <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
+          <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} postProcessActive={postProcessActive} />
           <CanvasPointerEventsKeeper simulating={simulating} />
           <ambientLight intensity={lightAmbient} />
           {/* 하늘 채움광 제거 — 전역 hemisphere 는 밀폐 공간 안까지 밝혀서(GI 없음) "빛 없는 곳 캄캄" 목표와 충돌.
@@ -9231,11 +9241,7 @@ export default function StudioCanvas() {
           onValueChange={simulating ? (_id, script, value) => execUiButtonScript(script, simGameRuntime.api, value) : undefined}
           onLocalValueChange={(id, patch) => setObjects(prev => prev.map(o => o.id === id && o.ui ? { ...o, ui: { ...o.ui, ...patch } } : o))}
           />
-          <PostFX s={
-            (activeWaterFX >= 0 && waterPostFX[activeWaterFX]) ? waterPostFX[activeWaterFX].s
-            : (activePostFXZone >= 0 && postFXZones[activePostFXZone]) ? postFXZones[activePostFXZone].s
-            : postFX
-          } />
+          <PostFX s={effectivePostFX} />
         </Canvas>
 
         {/* UI Renderer — Screen Space HTML overlay (Phase 1). 편집 모드에선 editMode=true.
