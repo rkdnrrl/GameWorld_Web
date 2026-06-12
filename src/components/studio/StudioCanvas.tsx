@@ -26,6 +26,7 @@ import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
 import { FoliageInstances, GrassPlayerProbe, TreeRockColliders } from '@/lib/world/FoliageInstances';
+import { WaterRipples } from '@/components/world/WaterRipples';
 import { CarvedMesh, type CsgCut } from '@/lib/world/CarvedMesh';
 import { VoxelTerrainMesh } from '@/lib/world/VoxelTerrainMesh';
 import { ChunkedVoxelTerrain } from '@/lib/world/ChunkedVoxelTerrain';
@@ -3651,6 +3652,8 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
       {simDayNightInst && <DayNightCycle inst={simDayNightInst} />}
       {/* 인터랙티브 풀 — 스튜디오 플레이 중 sim 플레이어 위치를 풀 셰이더로(발 주변 휘어짐). */}
       {player && <GrassPlayerProbe poseRef={simPlayerPoseRef} />}
+      {/* 물 파문 — 수면 진입/이동 시 동심원 링(sim 플레이어). */}
+      {player && <WaterRipples buoyancyRef={simBuoyancyRef} />}
       {player && simSeats.length > 0 && (
         <SeatController seats={simSeats} localPoseRef={simPlayerPoseRef} playerCtlRef={playerCtlRef} />
       )}

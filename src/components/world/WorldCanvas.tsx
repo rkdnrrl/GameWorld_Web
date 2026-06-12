@@ -53,6 +53,7 @@ import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
 import { FoliageInstances, GrassPlayerProbe, TreeRockColliders } from '@/lib/world/FoliageInstances';
+import { WaterRipples } from '@/components/world/WaterRipples';
 import { generateNoiseTerrain } from '@/lib/world/terrain';
 import { CarvedMesh } from '@/lib/world/CarvedMesh';
 import { ChunkedVoxelTerrain } from '@/lib/world/ChunkedVoxelTerrain';
@@ -6012,6 +6013,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         })()}
         {/* 인터랙티브 풀 — 로컬 플레이어 위치를 풀 셰이더로 전달(발 주변 휘어짐). */}
         <GrassPlayerProbe poseRef={localPoseRef} />
+        {/* 물 파문 — 수면 진입/이동 시 동심원 링. envFx.playerPos + 부력볼륨으로 자체 감지. */}
+        <WaterRipples buoyancyRef={buoyancyVolsRef} />
         {/* HDRI 환경맵 — 커스텀 URL 우선, 없으면 프리셋, none 이면 미사용 */}
         {hdriUrl.trim() ? (
           <Environment files={hdriUrl.trim()} background={hdriBackground} />

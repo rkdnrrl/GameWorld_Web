@@ -19,6 +19,7 @@ import { createHumanoidFootIK, type HumanoidFootIK } from '@/lib/character/human
 import { createHumanoidHandIK, type HumanoidHandIK } from '@/lib/character/humanoidHandIK';
 import { envFx } from '@/lib/world/envFx';
 import { FootstepDust } from '@/components/world/FootstepDust';
+import { BreathFog } from '@/components/world/BreathFog';
 
 /** 손 IK 타깃 ref 형태 — 스크립트(world.setHandTarget)가 채움. null=미적용. */
 export type HandTargets = {
@@ -742,6 +743,7 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
     <group ref={groupRef} position={[0, offsetY, 0]} scale={userScale}>
       {!compileReady && <LoadingEffect targetHeight={targetHeight} />}
       {char && <FootstepDust groupRef={groupRef} animStateRef={animStateRef} userScale={userScale} />}
+      {char && <BreathFog groupRef={groupRef} userScale={userScale} />}
     </group>
   );
 }
