@@ -15,8 +15,11 @@ import { type ThreeEvent } from '@react-three/fiber';
 import { normalizeTerrain, type TerrainData, type FoliageInstance } from './terrain';
 import { FoliageInstances } from './FoliageInstances';
 
-export type TerrainTool = 'raise' | 'lower' | 'smooth' | 'flatten' | 'grass' | 'tree' | 'erase';
-const FOLIAGE_TOOLS = new Set<TerrainTool>(['grass', 'tree', 'erase']);
+export type TerrainTool = 'raise' | 'lower' | 'smooth' | 'flatten' | 'grass' | 'tree' | 'flower' | 'rock' | 'erase';
+const FOLIAGE_TOOLS = new Set<TerrainTool>(['grass', 'tree', 'flower', 'rock', 'erase']);
+// 흩뿌리기(밀집) vs 간격 배치(드문드문).
+const SCATTER_TOOLS = new Set<TerrainTool>(['grass', 'flower']);
+const SPACED_TOOLS = new Set<TerrainTool>(['tree', 'rock']);
 const TAU = Math.PI * 2;
 
 interface Props {
@@ -141,8 +144,10 @@ export function TerrainSculptMesh({ terrain, worldPos, tool, radius, strength, o
     geom.computeVertexNormals();
   };
 
-  // 식생 페인트 — 풀/나무 흩뿌리기 or 지우개. hit 월드 지점 → terrain-local 변환 후 적용.
-  const GRASS_CAP = 6000, TREE_CAP = 400, TREE_SPACING = 2.2;
+  // 식생 페인트 — 풀/꽃 흩뿌리기, 나무/돌 간격 배치, 지우개. hit 월드 지점 → terrain-local 변환 후 적용.
+  // 종류별 상한 + 간격(드문드문 배치용) + 크기 변주 범위.
+  const FOL_CAP: Record<string, number> = { grass: 6000, flower: 2000, tree: 400, rock: 300 };
+  const FOL_SPACING: Record<string, number> = { tree: 2.2, rock: 1.4 };
   const paintFoliage = (worldX: number, worldZ: number) => {
     const lx0 = worldX - worldPos[0], lz0 = worldZ - worldPos[2];
     const arr = foliageRef.current;
@@ -156,25 +161,26 @@ export function TerrainSculptMesh({ terrain, worldPos, tool, radius, strength, o
     const now = Date.now();
     if (now - lastPaintRef.current < 35) return;
     lastPaintRef.current = now;
-    const isTree = tool === 'tree';
-    const cap = isTree ? TREE_CAP : GRASS_CAP;
-    if (arr.filter(f => f.k === tool).length >= cap) return;
-    const count = isTree ? 1 : Math.max(1, Math.round(strength * 6));
+    const k = tool as 'grass' | 'flower' | 'tree' | 'rock';
+    if (arr.filter(f => f.k === k).length >= (FOL_CAP[k] ?? 2000)) return;
+    const spaced = SPACED_TOOLS.has(tool);
+    const spacing = FOL_SPACING[k] ?? 0;
+    // 흩뿌리기는 세기만큼 여러 개, 간격 배치는 한 번에 1개(밀도 게이트로 솎음).
+    const count = spaced ? 1 : (k === 'flower' ? Math.max(1, Math.round(strength * 3)) : Math.max(1, Math.round(strength * 6)));
+    const sLo = k === 'tree' ? 0.8 : k === 'rock' ? 0.6 : 0.7;
+    const sRange = k === 'rock' ? 0.8 : k === 'flower' ? 0.5 : 0.6;
     const added: FoliageInstance[] = [];
     for (let i = 0; i < count; i++) {
       // 브러시 원 안 균일 분포.
       const ang = Math.random() * TAU, rr = Math.sqrt(Math.random()) * radius;
       const lx = lx0 + Math.cos(ang) * rr, lz = lz0 + Math.sin(ang) * rr;
-      if (isTree) {
+      if (spaced) {
         if (Math.random() > strength) continue; // 밀도 게이트
-        const near = arr.concat(added).some(f => f.k === 'tree' && (f.x - lx) ** 2 + (f.z - lz) ** 2 < TREE_SPACING * TREE_SPACING);
+        const sp2 = spacing * spacing;
+        const near = arr.concat(added).some(f => f.k === k && (f.x - lx) ** 2 + (f.z - lz) ** 2 < sp2);
         if (near) continue; // 최소 간격
       }
-      added.push({
-        k: tool as 'grass' | 'tree', x: lx, z: lz,
-        s: isTree ? 0.8 + Math.random() * 0.6 : 0.7 + Math.random() * 0.6,
-        r: Math.random() * TAU,
-      });
+      added.push({ k, x: lx, z: lz, s: sLo + Math.random() * sRange, r: Math.random() * TAU });
     }
     if (added.length) {
       foliageRef.current = arr.concat(added);

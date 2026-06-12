@@ -18,6 +18,7 @@ import { devLog } from '@/lib/devLog';
 import { PerfManager } from '@/lib/world/PerfManager';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
+import { SceneFog, SkyClouds, skySunPosition } from '@/lib/world/SkyEnv';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
@@ -8845,7 +8846,16 @@ export default function StudioCanvas() {
             const dir = dl ? computeSunDir(dl.rotation) : ([-0.53, -0.80, -0.27] as [number, number, number]);
             return <FollowingStudioSun intensity={dl?.lightIntensity ?? lightDir} dir={dir} color={dl?.lightColor || '#ffffff'} />;
           })()}
-          {skyEnabled && !hdriBackground && <Sky sunPosition={[20, 10, 10]} />}
+          {skyEnabled && !hdriBackground && (() => {
+            const sdl = objects.find(o => o.kind === 'dirlight' && !o.hidden);
+            return (
+              <>
+                <Sky sunPosition={skySunPosition(sdl?.rotation)} />
+                <SkyClouds />
+                <SceneFog />
+              </>
+            );
+          })()}
           {/* HDRI 환경맵 — 커스텀 URL 우선, 없으면 프리셋, none이면 미사용 */}
           {hdriUrl.trim() ? (
             <Environment files={hdriUrl.trim()} background={hdriBackground} />
@@ -9230,7 +9240,7 @@ export default function StudioCanvas() {
             { id: 'smooth', label: '🌫️ 부드럽게' }, { id: 'flatten', label: '▭ 평탄화' },
           ];
           const foliageTools: { id: TerrainTool; label: string }[] = [
-            { id: 'grass', label: '🌿 풀' }, { id: 'tree', label: '🌳 나무' }, { id: 'erase', label: '🧹 지우개' },
+            { id: 'grass', label: '🌿 풀' }, { id: 'flower', label: '🌸 꽃' }, { id: 'tree', label: '🌳 나무' }, { id: 'rock', label: '🪨 돌' }, { id: 'erase', label: '🧹 지우개' },
           ];
           return (
             <div style={{ position: 'fixed', left: '50%', bottom: 16, transform: 'translateX(-50%)', zIndex: 51,

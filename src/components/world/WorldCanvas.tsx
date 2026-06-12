@@ -73,6 +73,7 @@ import SeatButton from '@/lib/world/SeatButton';
 import LadderButton from '@/lib/world/LadderButton';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
+import { SceneFog, SkyClouds, skySunPosition } from '@/lib/world/SkyEnv';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UI_SYNC_EVENT, DATA_SYNC_EVENT, type UiData } from '@/lib/world/uiObjects';
 import { api as backendApi } from '@/lib/api';
@@ -5965,8 +5966,17 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         <CanvasPointerEventsKeeper />
         <RemotePlayerCrosshairClick players={players} onPlayerClick={handleRemoteClick} />
 
-        {/* 스튜디오 시뮬레이션과 동일한 Sky 파라미터(기본 turbidity/rayleigh) — WYSIWYG 일치 */}
-        {showSky && !hdriBackground && <Sky sunPosition={[20, 10, 10]} />}
+        {/* 야외 하늘 묶음 — Sky(태양=dirlight 방향 일치) + 구름 + 거리 안개. 스튜디오 sim 과 동일(WYSIWYG). */}
+        {showSky && !hdriBackground && (() => {
+          const dl = lightObjects.find(o => o.kind === 'dirlight' && !o.hidden);
+          return (
+            <>
+              <Sky sunPosition={skySunPosition(dl?.rotation)} />
+              <SkyClouds />
+              <SceneFog />
+            </>
+          );
+        })()}
         {/* HDRI 환경맵 — 커스텀 URL 우선, 없으면 프리셋, none 이면 미사용 */}
         {hdriUrl.trim() ? (
           <Environment files={hdriUrl.trim()} background={hdriBackground} />
