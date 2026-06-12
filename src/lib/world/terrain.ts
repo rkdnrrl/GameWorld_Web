@@ -8,6 +8,20 @@
  * Phase 2~: 브러시 편집, 텍스처 페인팅, 물리.
  */
 
+/** 지형 위에 심은 식생(풀/나무) 1개. 좌표는 terrain-local (스케일/회전 적용 전). */
+export interface FoliageInstance {
+  /** 종류 — 풀 or 나무. */
+  k: 'grass' | 'tree';
+  /** terrain-local X (-size/2 ~ +size/2). */
+  x: number;
+  /** terrain-local Z (-size/2 ~ +size/2). */
+  z: number;
+  /** 크기 배율 (개체 변주). */
+  s: number;
+  /** Y축 회전 (rad). */
+  r: number;
+}
+
 export interface TerrainData {
   /** 가로/세로 길이 (m). 정사각형. */
   size: number;
@@ -21,6 +35,31 @@ export interface TerrainData {
   textureUrl?: string;
   /** 텍스처 반복 횟수 (UV 곱). */
   textureRepeat?: number;
+  /** 지형 위에 심은 풀/나무 (선택). */
+  foliage?: FoliageInstance[];
+}
+
+/** terrain-local (lx,lz) 에서 heightmap 을 bilinear 샘플 → Y 높이 (m).
+ *  식생을 지형 표면에 앉히는 데 사용. 좌표 매핑은 TerrainMesh/TerrainSculptMesh 와 동일
+ *  (col = (lx+half)/size*seg, row = (lz+half)/size*seg, idx = row*n1 + col). */
+export function sampleTerrainHeight(t: TerrainData, lx: number, lz: number): number {
+  const n1 = t.segments + 1;
+  const half = t.size / 2;
+  const gx = (lx + half) / t.size * t.segments;
+  const gz = (lz + half) / t.size * t.segments;
+  let x0 = Math.floor(gx), z0 = Math.floor(gz);
+  // 범위 밖이면 가장자리로 clamp.
+  if (x0 < 0 || z0 < 0 || x0 >= t.segments || z0 >= t.segments) {
+    const cx = Math.max(0, Math.min(t.segments, Math.round(gx)));
+    const cz = Math.max(0, Math.min(t.segments, Math.round(gz)));
+    return t.heights[cz * n1 + cx] ?? 0;
+  }
+  const tx = gx - x0, tz = gz - z0;
+  const h00 = t.heights[z0 * n1 + x0] ?? 0;
+  const h10 = t.heights[z0 * n1 + x0 + 1] ?? 0;
+  const h01 = t.heights[(z0 + 1) * n1 + x0] ?? 0;
+  const h11 = t.heights[(z0 + 1) * n1 + x0 + 1] ?? 0;
+  return (h00 * (1 - tx) + h10 * tx) * (1 - tz) + (h01 * (1 - tx) + h11 * tx) * tz;
 }
 
 /** 평탄 (모두 0) 기본 terrain. */

@@ -9,12 +9,15 @@
  *  - smooth: 주변 평균으로 부드럽게
  * 라이브로 geometry 를 직접 mutate(반응 빠름), 드래그 끝나면 onCommit(heights) 로 데이터 저장.
  */
-import React, { useRef, useMemo, useEffect } from 'react';
+import React, { useRef, useMemo, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { type ThreeEvent } from '@react-three/fiber';
-import { normalizeTerrain, type TerrainData } from './terrain';
+import { normalizeTerrain, type TerrainData, type FoliageInstance } from './terrain';
+import { FoliageInstances } from './FoliageInstances';
 
-export type TerrainTool = 'raise' | 'lower' | 'smooth' | 'flatten';
+export type TerrainTool = 'raise' | 'lower' | 'smooth' | 'flatten' | 'grass' | 'tree' | 'erase';
+const FOLIAGE_TOOLS = new Set<TerrainTool>(['grass', 'tree', 'erase']);
+const TAU = Math.PI * 2;
 
 interface Props {
   terrain: TerrainData;
@@ -27,16 +30,27 @@ interface Props {
   strength: number;
   /** 드래그 끝나면 수정된 heights 배열 전달 (데이터 저장). */
   onCommit: (heights: number[]) => void;
+  /** 풀/나무/지우개 도구 — 드래그 끝나면 수정된 foliage 배열 전달. */
+  onFoliageCommit?: (foliage: FoliageInstance[]) => void;
   /** 드래그 시작/종료 알림 — OrbitControls 등 비활성화용. */
   onActiveChange?: (active: boolean) => void;
 }
 
-export function TerrainSculptMesh({ terrain, worldPos, tool, radius, strength, onCommit, onActiveChange }: Props) {
+export function TerrainSculptMesh({ terrain, worldPos, tool, radius, strength, onCommit, onFoliageCommit, onActiveChange }: Props) {
   const t = normalizeTerrain(terrain);
   // 작업용 높이 복사본 — geom 의 정점 index 와 1:1.
   const heightsRef = useRef<number[]>(t.heights.slice());
   // terrain 데이터가 바뀌면(다른 도구 커밋 등) 복사본 동기화.
   useEffect(() => { heightsRef.current = normalizeTerrain(terrain).heights.slice(); }, [terrain]);
+
+  // ── 식생(풀/나무) 작업용 복사본 + 라이브 표시 상태 ──
+  const foliageRef = useRef<FoliageInstance[]>((terrain.foliage || []).slice());
+  const [liveFoliage, setLiveFoliage] = useState<FoliageInstance[]>(foliageRef.current);
+  useEffect(() => {
+    foliageRef.current = (terrain.foliage || []).slice();
+    setLiveFoliage(foliageRef.current);
+  }, [terrain]);
+  const lastPaintRef = useRef(0);
 
   const geom = useMemo(() => {
     const g = new THREE.PlaneGeometry(t.size, t.size, t.segments, t.segments);
@@ -53,18 +67,26 @@ export function TerrainSculptMesh({ terrain, worldPos, tool, radius, strength, o
   const dragging = useRef(false);
   // 콜백을 ref 로 — 윈도우 리스너에서 항상 최신 호출 (재구독 없이).
   const onCommitRef = useRef(onCommit); onCommitRef.current = onCommit;
+  const onFoliageCommitRef = useRef(onFoliageCommit); onFoliageCommitRef.current = onFoliageCommit;
   const onActiveChangeRef = useRef(onActiveChange); onActiveChangeRef.current = onActiveChange;
+  const toolRef = useRef(tool); toolRef.current = tool;
+  // 도구 종류에 따라 heights or foliage 커밋.
+  const commit = () => {
+    if (FOLIAGE_TOOLS.has(toolRef.current)) onFoliageCommitRef.current?.(foliageRef.current.slice());
+    else onCommitRef.current(heightsRef.current.slice());
+  };
   // 윈도우 pointerup — 드래그를 메시 밖에서 떼도(또는 setPointerCapture 실패해도) 반드시 커밋. (취소 버그 수정)
   useEffect(() => {
     const onUp = () => {
       if (!dragging.current) return;
       dragging.current = false;
       onActiveChangeRef.current?.(false);
-      onCommitRef.current(heightsRef.current.slice());
+      commit();
     };
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
     return () => { window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 브러시 1회 적용 — hit 월드 지점 중심.
@@ -119,24 +141,71 @@ export function TerrainSculptMesh({ terrain, worldPos, tool, radius, strength, o
     geom.computeVertexNormals();
   };
 
+  // 식생 페인트 — 풀/나무 흩뿌리기 or 지우개. hit 월드 지점 → terrain-local 변환 후 적용.
+  const GRASS_CAP = 6000, TREE_CAP = 400, TREE_SPACING = 2.2;
+  const paintFoliage = (worldX: number, worldZ: number) => {
+    const lx0 = worldX - worldPos[0], lz0 = worldZ - worldPos[2];
+    const arr = foliageRef.current;
+    if (tool === 'erase') {
+      const r2 = radius * radius;
+      foliageRef.current = arr.filter(f => (f.x - lx0) ** 2 + (f.z - lz0) ** 2 > r2);
+      setLiveFoliage(foliageRef.current);
+      return;
+    }
+    // 드래그 중 과다 생성 방지 — 35ms 스로틀.
+    const now = Date.now();
+    if (now - lastPaintRef.current < 35) return;
+    lastPaintRef.current = now;
+    const isTree = tool === 'tree';
+    const cap = isTree ? TREE_CAP : GRASS_CAP;
+    if (arr.filter(f => f.k === tool).length >= cap) return;
+    const count = isTree ? 1 : Math.max(1, Math.round(strength * 6));
+    const added: FoliageInstance[] = [];
+    for (let i = 0; i < count; i++) {
+      // 브러시 원 안 균일 분포.
+      const ang = Math.random() * TAU, rr = Math.sqrt(Math.random()) * radius;
+      const lx = lx0 + Math.cos(ang) * rr, lz = lz0 + Math.sin(ang) * rr;
+      if (isTree) {
+        if (Math.random() > strength) continue; // 밀도 게이트
+        const near = arr.concat(added).some(f => f.k === 'tree' && (f.x - lx) ** 2 + (f.z - lz) ** 2 < TREE_SPACING * TREE_SPACING);
+        if (near) continue; // 최소 간격
+      }
+      added.push({
+        k: tool as 'grass' | 'tree', x: lx, z: lz,
+        s: isTree ? 0.8 + Math.random() * 0.6 : 0.7 + Math.random() * 0.6,
+        r: Math.random() * TAU,
+      });
+    }
+    if (added.length) {
+      foliageRef.current = arr.concat(added);
+      setLiveFoliage(foliageRef.current);
+    }
+  };
+
+  // 도구에 따라 높이 조각 or 식생 페인트.
+  const applyAt = (worldX: number, worldZ: number) => {
+    if (FOLIAGE_TOOLS.has(tool)) paintFoliage(worldX, worldZ);
+    else applyBrush(worldX, worldZ);
+  };
+
   const handleDown = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
     dragging.current = true;
     onActiveChange?.(true);
     try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch { /* noop */ }
-    applyBrush(e.point.x, e.point.z);
+    applyAt(e.point.x, e.point.z);
   };
   const handleMove = (e: ThreeEvent<PointerEvent>) => {
     if (!dragging.current) return;
     e.stopPropagation();
-    applyBrush(e.point.x, e.point.z);
+    applyAt(e.point.x, e.point.z);
   };
   const endDrag = (e: ThreeEvent<PointerEvent>) => {
     if (!dragging.current) return;
     dragging.current = false;
     onActiveChange?.(false);
     try { (e.target as Element).releasePointerCapture?.(e.pointerId); } catch { /* noop */ }
-    onCommit(heightsRef.current.slice());
+    commit();
   };
 
   const texture = useMemo(() => {
@@ -150,15 +219,19 @@ export function TerrainSculptMesh({ terrain, worldPos, tool, radius, strength, o
   useEffect(() => () => { texture?.dispose(); }, [texture]);
 
   return (
-    <mesh
-      geometry={geom}
-      rotation={[-Math.PI / 2, 0, 0]}
-      receiveShadow
-      onPointerDown={handleDown}
-      onPointerMove={handleMove}
-      onPointerUp={endDrag}
-    >
-      <meshStandardMaterial map={texture ?? undefined} color={t.baseColor || '#5a8a4a'} roughness={0.95} metalness={0} />
-    </mesh>
+    <group>
+      <mesh
+        geometry={geom}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+        onPointerDown={handleDown}
+        onPointerMove={handleMove}
+        onPointerUp={endDrag}
+      >
+        <meshStandardMaterial map={texture ?? undefined} color={t.baseColor || '#5a8a4a'} roughness={0.95} metalness={0} />
+      </mesh>
+      {/* 라이브 식생 — 페인트 중 즉시 보이게. group-local (x,h,z) 라 회전된 메시와 별개 형제. */}
+      <FoliageInstances terrain={{ ...t, foliage: liveFoliage }} />
+    </group>
   );
 }

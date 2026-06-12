@@ -52,6 +52,7 @@ import PerfHUD from '@/lib/world/PerfHUD';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
+import { FoliageInstances } from '@/lib/world/FoliageInstances';
 import { generateNoiseTerrain } from '@/lib/world/terrain';
 import { CarvedMesh } from '@/lib/world/CarvedMesh';
 import { ChunkedVoxelTerrain } from '@/lib/world/ChunkedVoxelTerrain';
@@ -3081,10 +3082,16 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
   // 물리: trimesh auto-collider (TerrainMesh 의 실제 geometry).
   if (obj.kind === 'terrain' && obj.terrain) {
     return (
-      <RigidBody type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
-        position={rPos} rotation={[0, 0, 0]} scale={rScale}>
-        <TerrainMesh terrain={obj.terrain} castShadow receiveShadow />
-      </RigidBody>
+      <>
+        <RigidBody type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
+          position={rPos} rotation={[0, 0, 0]} scale={rScale}>
+          <TerrainMesh terrain={obj.terrain} castShadow receiveShadow />
+        </RigidBody>
+        {/* 식생 — 콜라이더 밖 형제(trimesh 가 잔디를 먹으면 폭발). 같은 변환 직접 적용. */}
+        <group position={rPos} rotation={[0, 0, 0]} scale={rScale}>
+          <FoliageInstances terrain={obj.terrain} />
+        </group>
+      </>
     );
   }
   // 복셀 지형 (아스트로니어식) — 청크별 마칭큐브 메시 + trimesh 콜라이더. 파기 시 닿은 청크만 재빌드.

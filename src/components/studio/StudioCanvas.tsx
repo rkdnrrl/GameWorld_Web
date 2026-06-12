@@ -22,11 +22,12 @@ import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
+import { FoliageInstances } from '@/lib/world/FoliageInstances';
 import { CarvedMesh, type CsgCut } from '@/lib/world/CarvedMesh';
 import { VoxelTerrainMesh } from '@/lib/world/VoxelTerrainMesh';
 import { ChunkedVoxelTerrain } from '@/lib/world/ChunkedVoxelTerrain';
 import { TerrainSculptMesh, type TerrainTool } from '@/lib/world/TerrainSculptMesh';
-import { makeFlatTerrain, generateNoiseTerrain, type TerrainData } from '@/lib/world/terrain';
+import { makeFlatTerrain, generateNoiseTerrain, type TerrainData, type FoliageInstance } from '@/lib/world/terrain';
 import { makeDefaultUiData, parseAiUiRoot, AI_UI_PROMPT_GUIDE, type UiElementType, type UiData, type RectTransform, type AiUiRoot } from '@/lib/world/uiObjects';
 import { UiInspector } from './UiInspector';
 import { createGameRuntime } from '@/lib/world/gameRuntime';
@@ -1627,7 +1628,7 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false, scul
   assetConfig?: any;
   noTransform?: boolean;
   /** 터레인 조각 설정 — 활성이고 이 터레인이 선택됐을 때 sculpt 메시로 교체. */
-  sculpt?: { tool: import('@/lib/world/TerrainSculptMesh').TerrainTool; radius: number; strength: number; onCommit: (heights: number[]) => void; onActiveChange?: (a: boolean) => void };
+  sculpt?: { tool: import('@/lib/world/TerrainSculptMesh').TerrainTool; radius: number; strength: number; onCommit: (heights: number[]) => void; onFoliageCommit?: (foliage: import('@/lib/world/terrain').FoliageInstance[]) => void; onActiveChange?: (a: boolean) => void };
   /** 터레인 조각 좌표 변환용 월드 위치 (SceneNode wpos). */
   worldPos?: [number, number, number];
   /** 글로벌 바람 대상이면 true (AssetMesh 가 compileAsync 전에 바람 셰이더 미리 패치). */
@@ -1698,7 +1699,7 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false, scul
           userData={noTransform ? undefined : { id: obj.id }}>
           <TerrainSculptMesh terrain={obj.terrain} worldPos={worldPos ?? obj.position}
             tool={sculpt.tool} radius={sculpt.radius} strength={sculpt.strength}
-            onCommit={sculpt.onCommit} onActiveChange={sculpt.onActiveChange} />
+            onCommit={sculpt.onCommit} onFoliageCommit={sculpt.onFoliageCommit} onActiveChange={sculpt.onActiveChange} />
         </group>
       );
     }
@@ -1710,6 +1711,7 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false, scul
         onPointerDown={handle}
         userData={noTransform ? undefined : { id: obj.id }}>
         <TerrainMesh terrain={obj.terrain} selected={selected} castShadow receiveShadow />
+        <FoliageInstances terrain={obj.terrain} />
       </group>
     );
   }
@@ -2173,7 +2175,7 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   myAssets: any[];
   /** 터레인 조각 설정 (선택 터레인일 때만 전달). */
-  sculpt?: { tool: TerrainTool; radius: number; strength: number; onCommit: (heights: number[]) => void; onActiveChange?: (a: boolean) => void };
+  sculpt?: { tool: TerrainTool; radius: number; strength: number; onCommit: (heights: number[]) => void; onFoliageCommit?: (foliage: FoliageInstance[]) => void; onActiveChange?: (a: boolean) => void };
   /** 글로벌 바람 — 모든 asset 모델을 흔듦 (없으면 null). */
   globalWind?: WindSettings | null;
 }) {
@@ -2639,10 +2641,16 @@ function SimObject({ obj, transforms, myAssets, scriptBodyRefs, lightRefs, onCol
   // 물리: trimesh auto-collider — TerrainMesh 의 실제 geometry 로 정확한 충돌. fixed body.
   if (obj.kind === 'terrain' && obj.terrain) {
     return (
-      <RigidBody ref={bodyRef} type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
-        position={t.pos} rotation={[0, 0, 0]} scale={t.scl ?? obj.scale}>
-        <TerrainMesh terrain={obj.terrain} castShadow receiveShadow />
-      </RigidBody>
+      <>
+        <RigidBody ref={bodyRef} type="fixed" colliders="trimesh" userData={{ objectId: obj.id }}
+          position={t.pos} rotation={[0, 0, 0]} scale={t.scl ?? obj.scale}>
+          <TerrainMesh terrain={obj.terrain} castShadow receiveShadow />
+        </RigidBody>
+        {/* 식생 — 콜라이더 밖 형제(trimesh 가 잔디를 먹으면 폭발). 같은 변환 직접 적용. */}
+        <group position={t.pos} rotation={[0, 0, 0]} scale={t.scl ?? obj.scale}>
+          <FoliageInstances terrain={obj.terrain} />
+        </group>
+      </>
     );
   }
   // 복셀 지형 (아스트로니어식) — 시뮬: 청크별 trimesh 콜라이더. 파기 시 닿은 청크만 재빌드.
@@ -8949,6 +8957,10 @@ export default function StudioCanvas() {
                         pushHistory(objects);
                         setObjects(prev => prev.map(o => o.id === obj.id && o.terrain ? { ...o, terrain: { ...o.terrain, heights } } : o));
                       },
+                      onFoliageCommit: (foliage) => {
+                        pushHistory(objects);
+                        setObjects(prev => prev.map(o => o.id === obj.id && o.terrain ? { ...o, terrain: { ...o.terrain, foliage } } : o));
+                      },
                       onActiveChange: setSculptDragging,
                     } : undefined}
                     onObjectClick={id => {
@@ -9217,6 +9229,9 @@ export default function StudioCanvas() {
             { id: 'raise', label: '⛰️ 올리기' }, { id: 'lower', label: '🕳️ 내리기' },
             { id: 'smooth', label: '🌫️ 부드럽게' }, { id: 'flatten', label: '▭ 평탄화' },
           ];
+          const foliageTools: { id: TerrainTool; label: string }[] = [
+            { id: 'grass', label: '🌿 풀' }, { id: 'tree', label: '🌳 나무' }, { id: 'erase', label: '🧹 지우개' },
+          ];
           return (
             <div style={{ position: 'fixed', left: '50%', bottom: 16, transform: 'translateX(-50%)', zIndex: 51,
               display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'center',
@@ -9227,6 +9242,12 @@ export default function StudioCanvas() {
                 <button key={tl.id} onClick={() => setTerrainTool(t => t === tl.id ? null : tl.id)}
                   style={{ padding: '5px 10px', borderRadius: 7, border: 'none', cursor: 'pointer', fontWeight: 700,
                     background: terrainTool === tl.id ? '#6366f1' : 'rgba(255,255,255,0.08)', color: '#fff' }}>{tl.label}</button>
+              ))}
+              <span style={{ width: 1, alignSelf: 'stretch', background: '#3a3a44', margin: '0 2px' }} />
+              {foliageTools.map(tl => (
+                <button key={tl.id} onClick={() => setTerrainTool(t => t === tl.id ? null : tl.id)}
+                  style={{ padding: '5px 10px', borderRadius: 7, border: 'none', cursor: 'pointer', fontWeight: 700,
+                    background: terrainTool === tl.id ? '#22c55e' : 'rgba(255,255,255,0.08)', color: '#fff' }}>{tl.label}</button>
               ))}
               <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>크기
                 <input type="range" min={1} max={20} step={0.5} value={brushSize} onChange={e => setBrushSize(Number(e.target.value))} style={{ width: 90 }} />{brushSize}m</label>
