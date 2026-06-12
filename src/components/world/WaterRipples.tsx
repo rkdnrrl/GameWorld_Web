@@ -15,6 +15,7 @@ import { useFrame, useThree, createPortal } from '@react-three/fiber';
 import * as THREE from 'three';
 import { envFx } from '@/lib/world/envFx';
 import { sfxSplash } from '@/lib/world/sfx';
+import { setWaterVolumes } from '@/lib/world/waterRegistry';
 import type { BuoyancyVolume } from '@/lib/world/components';
 
 const N = 10;          // 링 풀 크기
@@ -61,10 +62,13 @@ export function WaterRipples({ buoyancyRef }: {
     B.life[i] = big ? 1.5 : 1.0;
     B.maxR[i] = big ? 2.4 : 1.2;
     B.amp[i] = big ? 0.5 : 0.32;
-    // 첨벙 소리 — 카메라 거리로 볼륨 감쇠
-    const dist = Math.hypot(x - camera.position.x, y - camera.position.y, z - camera.position.z);
-    const vol = Math.max(0, 1 - dist / 18);
-    if (vol > 0.02) sfxSplash({ volume: vol, big });
+    // 첨벙 소리 — 진입(big)만 재생. 물속 이동 wake 소리는 FootstepDust 의 '젖은 걸음'이
+    // 담당(이중 재생 방지) — 여기선 시각 링만 남긴다.
+    if (big) {
+      const dist = Math.hypot(x - camera.position.x, y - camera.position.y, z - camera.position.z);
+      const vol = Math.max(0, 1 - dist / 18);
+      if (vol > 0.02) sfxSplash({ volume: vol, big: true });
+    }
   };
 
   useFrame((_, dt) => {
@@ -73,6 +77,7 @@ export function WaterRipples({ buoyancyRef }: {
 
     // ── 수면 교차 감지 (부력 루프의 판정식 축약) ──
     const vols = buoyancyRef?.current;
+    setWaterVolumes(vols);   // 전역 publish → FootstepDust 등이 '젖은 걸음' 질의에 사용
     let inWater = false; let surfY = 0;
     if (vols) {
       for (let i = 0; i < vols.length; i++) {

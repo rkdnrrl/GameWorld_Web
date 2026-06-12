@@ -11,7 +11,8 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { useFrame, useThree, createPortal } from '@react-three/fiber';
 import * as THREE from 'three';
-import { sfxStep } from '@/lib/world/sfx';
+import { sfxStep, sfxSplash } from '@/lib/world/sfx';
+import { footstepWet } from '@/lib/world/waterRegistry';
 
 const N = 20;  // 퍼프 풀 크기
 
@@ -98,7 +99,11 @@ export function FootstepDust({ groupRef, animStateRef, userScale = 1 }: {
         // 발소리 — 카메라 거리로 볼륨 감쇠(로컬=가까움→큼, 원격=멀수록 작음)
         const dist = _wp.distanceTo(camera.position);
         const vol = Math.max(0, 1 - dist / 18);
-        if (vol > 0.02) sfxStep({ volume: vol, running });
+        if (vol > 0.02) {
+          // 발밑이 물이면 '젖은 걸음'(작은 첨벙), 아니면 마른 발소리
+          if (footstepWet(B.emit[k], _wp.y, B.emit[k + 2])) sfxSplash({ volume: vol * 0.7, big: false });
+          else sfxStep({ volume: vol, running });
+        }
       }
     }
 
