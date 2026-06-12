@@ -17,6 +17,7 @@ import { loadAnimationSource, retargetWithSkeletonUtils, normalizeClipToHumanoid
 import { ANIM_SLOTS, ANIM_SLOT_LEGACY_ALIAS, type AnimSlot } from '@/lib/character/humanoid';
 import { createHumanoidFootIK, type HumanoidFootIK } from '@/lib/character/humanoidFootIK';
 import { createHumanoidHandIK, type HumanoidHandIK } from '@/lib/character/humanoidHandIK';
+import { envFx } from '@/lib/world/envFx';
 
 /** 손 IK 타깃 ref 형태 — 스크립트(world.setHandTarget)가 채움. null=미적용. */
 export type HandTargets = {
@@ -212,6 +213,21 @@ function disposeCharacter(c: HumanoidCharacter) {
   } catch { /* noop */ }
 }
 
+/** 비 젖음을 머티리얼에 적용 — 모든 타입 안전(원본값 1회 캡처 후 보간).
+ *  공통: 색 어둡게(젖은 톤). 표준/물리 머티리얼만: 거칠기↓(광택) + 환경 반사↑.
+ *  VRM MToon 등 roughness/envMapIntensity 없는 머티리얼은 색만 — 가드로 NaN 방지. */
+function applyCharWet(mat: THREE.Material, w: number) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const m = mat as any;
+  const ud = mat.userData;
+  if (m.color && ud.__dryColor === undefined) ud.__dryColor = m.color.clone();
+  if (typeof m.roughness === 'number' && ud.__dryRough === undefined) ud.__dryRough = m.roughness;
+  if (typeof m.envMapIntensity === 'number' && ud.__dryEnv === undefined) ud.__dryEnv = m.envMapIntensity;
+  if (m.color && ud.__dryColor) m.color.copy(ud.__dryColor).multiplyScalar(1 - 0.22 * w);
+  if (typeof m.roughness === 'number' && ud.__dryRough !== undefined) m.roughness = ud.__dryRough * (1 - 0.55 * w);
+  if (typeof m.envMapIntensity === 'number' && ud.__dryEnv !== undefined) m.envMapIntensity = ud.__dryEnv * (1 + 1.2 * w);
+}
+
 export function HumanoidMesh(props: HumanoidMeshProps) {
   const {
     url, manualBoneMap, clipUrls, animStateRef, getAnalyser,
@@ -243,6 +259,9 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
   const shadowOnRef = useRef<boolean>(true);
   /** lookAt 거리 cutoff 상태 — 멀리는 vrm.lookAt 비활성화 (head bone matrix 재계산 비용 절감). */
   const lookAtOnRef = useRef<boolean>(true);
+  /** 비 젖음 — 현재 보간값 + 마지막으로 머티리얼에 반영한 값(변화 클 때만 traverse). */
+  const wetRef = useRef(0);
+  const appliedWetRef = useRef(0);
 
   // 모델 로드 + 클립 로드 + 슬롯 등록 (한 번)
   useEffect(() => {
@@ -608,6 +627,24 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
         for (let i = 0; i < lipSyncBuf.length; i++) sum += lipSyncBuf[i];
         const avg = sum / lipSyncBuf.length / 255;  // 0~1
         char.lipSync.set(avg);
+      }
+    }
+    // 2.5) 비 젖음 — 씬에 비 내리면(envFx.rainWet) 캐릭터 머티리얼을 젖은 느낌으로.
+    //      젖는 건 빠르게(~2.5s)·마르는 건 천천히(~9s). 변화가 클 때만 traverse(정착 시 비용 0).
+    {
+      const cur = wetRef.current;
+      const target = envFx.rainWet;
+      const tau = target > cur ? 2.5 : 9;
+      wetRef.current = cur + (target - cur) * (1 - Math.exp(-Math.min(dt, 0.1) / tau));
+      if (Math.abs(wetRef.current - appliedWetRef.current) > 0.01) {
+        appliedWetRef.current = wetRef.current;
+        const w = wetRef.current;
+        char.scene.traverse((o) => {
+          const mm = o as THREE.Mesh;
+          if (!mm.isMesh) return;
+          const mats = Array.isArray(mm.material) ? mm.material : (mm.material ? [mm.material] : []);
+          for (const mat of mats) if (mat) applyCharWet(mat, w);
+        });
       }
     }
     // 3) mixer + vrm.update + lookAt + 그림자 — 카메라 거리별 LOD (공격적)
