@@ -4009,6 +4009,12 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const objectsById = useMemo(() => new Map((customObjects ?? []).map(o => [o.id, o])), [customObjects]);
   // 후처리 볼륨 — postProcess 컴포넌트 설정
   const postFX = useMemo(() => derivePostFX(customObjects ?? []), [customObjects]);
+  // 비 내림 여부 — 빗방울 화면효과 + EnvFxUpdater 공용. rain 파티클(연속) 있으면 true.
+  const raining = useMemo(() => (customObjects ?? []).some(o => !o.hidden && o.components?.some(c => {
+    if (c.type !== 'particle') return false;
+    const ps = deriveParticleSettings(c);
+    return ps.preset === 'rain' && ps.mode !== 'click';
+  })), [customObjects]);
   // 영역(zone) 한정 후처리 — 플레이어가 그 박스 안에 들어가면 해당 볼륨 설정 적용.
   const postFXZones = useMemo(() => collectPostFXZones(customObjects ?? []), [customObjects]);
   const postFXZonesRef = useRef<PostFXZone[]>(postFXZones);
@@ -6000,11 +6006,6 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         {(() => {
           const dl = lightObjects.find(o => o.kind === 'dirlight' && !o.hidden);
           const sunPos = skySunPosition(dl?.rotation);
-          const raining = (customObjects ?? []).some(o => !o.hidden && o.components?.some(c => {
-            if (c.type !== 'particle') return false;
-            const ps = deriveParticleSettings(c);
-            return ps.preset === 'rain' && ps.mode !== 'click';
-          }));
           return <EnvFxUpdater sunPos={sunPos} night={nightFactor(sunPos)} raining={raining} />;
         })()}
         {/* HDRI 환경맵 — 커스텀 URL 우선, 없으면 프리셋, none 이면 미사용 */}
@@ -6244,7 +6245,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           onButtonClick={(_id, script) => execUiButtonScript(script, gameRuntime.api)}
           onValueChange={(_id, script, value) => execUiButtonScript(script, gameRuntime.api, value)}
         />
-        <PostFX s={effectivePostFX} />
+        <PostFX s={effectivePostFX} raining={raining} />
         <CameraWaterWatcher volsRef={waterPostFXRef} onChange={setActiveWaterFX} />
         </XR>
       </Canvas>

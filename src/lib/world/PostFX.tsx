@@ -14,6 +14,7 @@ import {
   HueSaturation, Noise, Pixelation, Scanline, Sepia, ColorAverage, N8AO, DepthOfField, SMAA, wrapEffect,
 } from '@react-three/postprocessing';
 import { ToneMappingMode, Effect } from 'postprocessing';
+import { envFx } from './envFx';
 
 /** 색상 틴트 — 화면 전체를 지정 색으로 물들임 (강도 0~1). 언리얼 Color Grading 의 간이판. */
 class TintEffectImpl extends Effect {
@@ -82,6 +83,57 @@ class FilmicGradeImpl extends Effect {
   }
 }
 const FilmicGrade = wrapEffect(FilmicGradeImpl);
+
+/** 빗방울 화면 효과 — 비 올 때 화면(렌즈)에 물방울이 맺힌 듯 굴절 + 가장자리 하이라이트.
+ *  uInt 는 envFx.rainWet 로 부드럽게 ramp(자체 update). 비 멈추면 0 → 효과 사라짐. */
+class RainDropletsImpl extends Effect {
+  constructor() {
+    super(
+      'RainDroplets',
+      `uniform float uTime; uniform float uInt;
+       vec3 _drop(vec2 uv){
+         vec2 gv = uv * vec2(7.0, 5.0);
+         gv.y += uTime * 0.35;                          // 방울 전체가 천천히 아래로
+         vec2 id = floor(gv);
+         vec2 f = fract(gv) - 0.5;
+         float n  = fract(sin(dot(id, vec2(12.9898, 78.233))) * 43758.5453);
+         float n2 = fract(n * 91.7);
+         vec2 c = (vec2(n, n2) - 0.5) * 0.7;
+         c.y += sin(uTime * (0.4 + n) + n * 6.2831) * 0.05;
+         float d = length((f - c) * vec2(1.0, 1.2));
+         float r = 0.12 + n2 * 0.10;
+         float present = step(0.55, n);                 // 일부 셀에만 방울
+         float mask = smoothstep(r, r * 0.4, d) * present;
+         vec2 off = normalize(f - c + 1e-5) * mask;      // 방울 중심 향한 굴절 방향
+         return vec3(off, mask);
+       }
+       void mainUv(inout vec2 uv){
+         vec3 dp = _drop(uv);
+         uv -= dp.xy * 0.012 * uInt;                     // 렌즈 굴절(작게)
+       }
+       void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor){
+         float m = _drop(uv).z * uInt;
+         vec3 col = inputColor.rgb;
+         col += m * 0.12;                                // 방울 가장자리 하이라이트
+         col *= 1.0 - m * 0.05;                          // 중심 살짝 어둡게
+         outputColor = vec4(col, inputColor.a);
+       }`,
+      { uniforms: new Map<string, THREE.Uniform>([
+        ['uTime', new THREE.Uniform(0)],
+        ['uInt', new THREE.Uniform(0)],
+      ]) },
+    );
+  }
+  update(_renderer: unknown, _input: unknown, dt: number) {
+    const tU = this.uniforms.get('uTime'); if (tU) tU.value += dt;
+    const iU = this.uniforms.get('uInt');
+    if (iU) {
+      const tgt = envFx.rainWet;
+      iU.value += (tgt - iU.value) * (1 - Math.exp(-Math.min(dt, 0.1) / (tgt > iU.value ? 2.0 : 5.0)));
+    }
+  }
+}
+const RainDroplets = wrapEffect(RainDropletsImpl);
 import { findComponent, getProp, type ComponentInstance } from '@/lib/world/components';
 
 export interface PostFXSettings {
@@ -250,9 +302,10 @@ function withPreset(s: PostFXSettings): PostFXSettings {
   return { ...OFF, ...PRESETS[s.preset], enabled: s.enabled };
 }
 
-export default function PostFX({ s: raw }: { s: PostFXSettings }) {
-  if (!raw.enabled) return null;
-  const s = withPreset(raw);
+export default function PostFX({ s: raw, raining = false }: { s: PostFXSettings; raining?: boolean }) {
+  // 비 올 때는 유저 postProcess 볼륨이 없어도(또는 꺼져 있어도) 빗방울만 위해 컴포저를 띄운다.
+  if (!raw.enabled && !raining) return null;
+  const s = raw.enabled ? withPreset(raw) : OFF;
 
   const fx: React.ReactElement[] = [];
   // SSAO 는 가장 먼저 (씬 깊이 기반 접지 음영) — 색보정·블룸 전에 적용.
@@ -282,6 +335,8 @@ export default function PostFX({ s: raw }: { s: PostFXSettings }) {
     fx.push(<ToneMapping key="tm" mode={tmMode} />);
   }
 
+  // 빗방울 렌즈 효과 — 색보정·블룸 다 끝난 최종 이미지 위에(렌즈처럼). 비 올 때만.
+  if (raining) fx.push(<RainDroplets key="raindrops" />);
   if (fx.length === 0) return null;
   // SMAA — 컴포저가 켜지면 캔버스 MSAA 가 무시되므로(자체 버퍼 렌더) 가장자리 계단 방지용으로 마지막에 적용.
   fx.push(<SMAA key="smaa" />);

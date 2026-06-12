@@ -5186,6 +5186,12 @@ export default function StudioCanvas() {
   const effectivePostFX = (activeWaterFX >= 0 && waterPostFX[activeWaterFX]) ? waterPostFX[activeWaterFX].s
     : (activePostFXZone >= 0 && postFXZones[activePostFXZone]) ? postFXZones[activePostFXZone].s
     : postFX;
+  // 비 내림 여부 — 빗방울 화면효과 + EnvFxUpdater 공용 (시뮬은 simObjs, 편집은 objects 기준).
+  const raining = useMemo(() => (simulating ? simObjs : objects).some(o => !o.hidden && o.components?.some(c => {
+    if (c.type !== 'particle') return false;
+    const ps = deriveParticleSettings(c);
+    return ps.preset === 'rain' && ps.mode !== 'click';
+  })), [simulating, simObjs, objects]);
   // 썸네일 캡처 함수 (Canvas 내부에서 등록)
   const captureFnRef = useRef<(() => string | null) | null>(null);
   // 맵 썸네일 — 사용자가 직접 지정 (현재 화면 캡처 또는 이미지 업로드). 저장 시 thumbBlob 만 업로드.
@@ -9036,12 +9042,6 @@ export default function StudioCanvas() {
           {(() => {
             const sdl = objects.find(o => o.kind === 'dirlight' && !o.hidden);
             const sunPos = skySunPosition(sdl?.rotation);
-            const rainList = simulating ? simObjs : objects;
-            const raining = rainList.some(o => !o.hidden && o.components?.some(c => {
-              if (c.type !== 'particle') return false;
-              const ps = deriveParticleSettings(c);
-              return ps.preset === 'rain' && ps.mode !== 'click';
-            }));
             return <EnvFxUpdater sunPos={sunPos} night={nightFactor(sunPos)} raining={raining} />;
           })()}
           {/* HDRI 환경맵 — 커스텀 URL 우선, 없으면 프리셋, none이면 미사용 */}
@@ -9298,7 +9298,7 @@ export default function StudioCanvas() {
           onValueChange={simulating ? (_id, script, value) => execUiButtonScript(script, simGameRuntime.api, value) : undefined}
           onLocalValueChange={(id, patch) => setObjects(prev => prev.map(o => o.id === id && o.ui ? { ...o, ui: { ...o.ui, ...patch } } : o))}
           />
-          <PostFX s={effectivePostFX} />
+          <PostFX s={effectivePostFX} raining={raining} />
         </Canvas>
 
         {/* UI Renderer — Screen Space HTML overlay (Phase 1). 편집 모드에선 editMode=true.
