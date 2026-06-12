@@ -24,13 +24,15 @@ export interface GraphicsSettings {
   /** 최대 렌더 FPS 상한. 0 = 무제한(디스플레이 주사율 그대로). 고주사율(120/144Hz) 기기에서
    *  GPU/배터리 절감용. XR(VR) 세션 중에는 무시(헤드셋이 자체 주사율로 구동). */
   maxFps: number;
+  /** 절차적 효과음(발소리·물 첨벙·바람) 마스터 볼륨 0~1. 0 = 끔. (BGM/앰비언트와 별개) */
+  sfxVolume: number;
 }
 
 export const PRESETS: Record<Exclude<GraphicsSettings['preset'], 'custom'>, GraphicsSettings> = {
-  low:    { preset: 'low',    dpr: 1.0, shadowSize: 0,    antialias: false, farClip: 200, remoteShadows: false, shadowFilter: 'basic',   shadowRadius: 0, cullDistance: 120, frustumCull: true, occlusionCull: false, showStats: false, maxFps: 0 },
-  medium: { preset: 'medium', dpr: 1.0, shadowSize: 1024, antialias: true,  farClip: 400, remoteShadows: false, shadowFilter: 'pcf',     shadowRadius: 1, cullDistance: 250, frustumCull: true, occlusionCull: false, showStats: false, maxFps: 0 },
-  high:   { preset: 'high',   dpr: 1.5, shadowSize: 2048, antialias: true,  farClip: 600, remoteShadows: true,  shadowFilter: 'pcfsoft', shadowRadius: 1, cullDistance: 500, frustumCull: true, occlusionCull: false, showStats: false, maxFps: 0 },
-  ultra:  { preset: 'ultra',  dpr: 2.0, shadowSize: 4096, antialias: true,  farClip: 800, remoteShadows: true,  shadowFilter: 'pcfsoft', shadowRadius: 2, cullDistance: 0,   frustumCull: true, occlusionCull: false, showStats: false, maxFps: 0 },
+  low:    { preset: 'low',    dpr: 1.0, shadowSize: 0,    antialias: false, farClip: 200, remoteShadows: false, shadowFilter: 'basic',   shadowRadius: 0, cullDistance: 120, frustumCull: true, occlusionCull: false, showStats: false, maxFps: 0, sfxVolume: 0.5 },
+  medium: { preset: 'medium', dpr: 1.0, shadowSize: 1024, antialias: true,  farClip: 400, remoteShadows: false, shadowFilter: 'pcf',     shadowRadius: 1, cullDistance: 250, frustumCull: true, occlusionCull: false, showStats: false, maxFps: 0, sfxVolume: 0.5 },
+  high:   { preset: 'high',   dpr: 1.5, shadowSize: 2048, antialias: true,  farClip: 600, remoteShadows: true,  shadowFilter: 'pcfsoft', shadowRadius: 1, cullDistance: 500, frustumCull: true, occlusionCull: false, showStats: false, maxFps: 0, sfxVolume: 0.5 },
+  ultra:  { preset: 'ultra',  dpr: 2.0, shadowSize: 4096, antialias: true,  farClip: 800, remoteShadows: true,  shadowFilter: 'pcfsoft', shadowRadius: 2, cullDistance: 0,   frustumCull: true, occlusionCull: false, showStats: false, maxFps: 0, sfxVolume: 0.5 },
 };
 
 export const DEFAULT_SETTINGS: GraphicsSettings = PRESETS.ultra;

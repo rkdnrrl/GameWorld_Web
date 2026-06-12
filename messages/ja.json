@@ -1969,6 +1969,7 @@
     "pixelRatio": "レンダー解像度",
     "maxFps": "最大FPS (高リフレッシュ機の省電力)",
     "fpsUnlimited": "無制限",
+    "sfxVolume": "効果音 (足音·水·風)",
     "farClip": "視野距離",
     "cullDistance": "距離カリング (遠くを描画しない)",
     "frustumCull": "フラスタムカリング (画面外を描画しない)",

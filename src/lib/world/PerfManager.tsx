@@ -136,10 +136,29 @@ export function PerfManager({ cullDistance, frustumCull = false, occlusionCull =
     occTick.current++;
     const doOcc = occlusionCull && occTick.current % 3 === 0;
 
+    // (5) light shadow cull 파라미터 — 같은 traverse 안에서 처리 (별도 순회 제거)
+    const lightCullOn = lightShadowCullDistance > 0;
+    const lightCap2 = lightCullOn ? lightShadowCullDistance * lightShadowCullDistance : 0;
+
     _occluders.length = 0;
     _candidates.length = 0;
 
     state.scene.traverse((obj) => {
+      // ── (5) Light shadow cull — point/spot 라이트 (mesh 분기 전에 처리하고 빠짐) ──
+      if (lightCullOn) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const l = obj as any;
+        if (l.isPointLight || l.isSpotLight) {
+          if (l.userData.alpOrigCastShadow === undefined) l.userData.alpOrigCastShadow = l.castShadow === true;
+          if (l.userData.alpOrigCastShadow) {
+            obj.getWorldPosition(v);
+            const shouldCast = v.distanceToSquared(cam) <= lightCap2;
+            if (l.castShadow !== shouldCast) l.castShadow = shouldCast;
+          }
+          return;
+        }
+      }
+
       const m = obj as THREE.Mesh;
       const skinned = (m as unknown as THREE.SkinnedMesh).isSkinnedMesh === true;
       if (!m.isMesh && !skinned) return;
@@ -248,24 +267,7 @@ export function PerfManager({ cullDistance, frustumCull = false, occlusionCull =
       }
     }
 
-    // ── (5) Light shadow cull — pointLight / spotLight 만 (directionalLight 는 항상 그림자) ──
-    if (lightShadowCullDistance > 0) {
-      const cap2 = lightShadowCullDistance * lightShadowCullDistance;
-      state.scene.traverse((obj) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const l = obj as any;
-        if (!(l.isPointLight || l.isSpotLight)) return;
-        // 원래 castShadow 값 백업 후 거리에 따라 토글
-        if (l.userData.alpOrigCastShadow === undefined) {
-          l.userData.alpOrigCastShadow = l.castShadow === true;
-        }
-        if (!l.userData.alpOrigCastShadow) return;  // 원래 그림자 안 캐스트면 건드림 X
-        l.getWorldPosition(v);
-        const d2 = v.distanceToSquared(cam);
-        const shouldCast = d2 <= cap2;
-        if (l.castShadow !== shouldCast) l.castShadow = shouldCast;
-      });
-    }
+    // (5) Light shadow cull 은 위 메인 traverse 안에서 함께 처리됨 (별도 순회 제거).
   });
 
   return null;

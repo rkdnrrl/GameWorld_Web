@@ -11,6 +11,7 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { useFrame, useThree, createPortal } from '@react-three/fiber';
 import * as THREE from 'three';
+import { sfxStep } from '@/lib/world/sfx';
 
 const N = 20;  // 퍼프 풀 크기
 
@@ -40,6 +41,7 @@ export function FootstepDust({ groupRef, animStateRef, userScale = 1 }: {
   userScale?: number;
 }) {
   const scene = useThree(s => s.scene);
+  const camera = useThree(s => s.camera);
   const ptsRef = useRef<THREE.Points>(null);
   const sprite = useMemo(dustSprite, []);
   const DUST = useMemo(() => new THREE.Color('#cdbb9a'), []);
@@ -93,6 +95,10 @@ export function FootstepDust({ groupRef, animStateRef, userScale = 1 }: {
         B.life[i] = running ? 0.5 : 0.65;
         B.base[i] = (running ? 1.5 : 1.1) * userScale;
         B.vy[i] = 0.35 * userScale;
+        // 발소리 — 카메라 거리로 볼륨 감쇠(로컬=가까움→큼, 원격=멀수록 작음)
+        const dist = _wp.distanceTo(camera.position);
+        const vol = Math.max(0, 1 - dist / 18);
+        if (vol > 0.02) sfxStep({ volume: vol, running });
       }
     }
 

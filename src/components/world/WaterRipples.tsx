@@ -14,6 +14,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame, useThree, createPortal } from '@react-three/fiber';
 import * as THREE from 'three';
 import { envFx } from '@/lib/world/envFx';
+import { sfxSplash } from '@/lib/world/sfx';
 import type { BuoyancyVolume } from '@/lib/world/components';
 
 const N = 10;          // 링 풀 크기
@@ -23,6 +24,7 @@ export function WaterRipples({ buoyancyRef }: {
   buoyancyRef?: React.RefObject<BuoyancyVolume[]> | React.MutableRefObject<BuoyancyVolume[]>;
 }) {
   const scene = useThree(s => s.scene);
+  const camera = useThree(s => s.camera);
   const geom = useMemo(() => {
     const g = new THREE.RingGeometry(GEOM_OUTER * 0.84, GEOM_OUTER, 36);
     g.rotateX(-Math.PI / 2);   // 수평 (수면에 누움)
@@ -59,6 +61,10 @@ export function WaterRipples({ buoyancyRef }: {
     B.life[i] = big ? 1.5 : 1.0;
     B.maxR[i] = big ? 2.4 : 1.2;
     B.amp[i] = big ? 0.5 : 0.32;
+    // 첨벙 소리 — 카메라 거리로 볼륨 감쇠
+    const dist = Math.hypot(x - camera.position.x, y - camera.position.y, z - camera.position.z);
+    const vol = Math.max(0, 1 - dist / 18);
+    if (vol > 0.02) sfxSplash({ volume: vol, big });
   };
 
   useFrame((_, dt) => {

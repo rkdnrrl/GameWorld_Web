@@ -1969,6 +1969,7 @@
     "pixelRatio": "Render Resolution",
     "maxFps": "Max FPS (saves power on high-refresh)",
     "fpsUnlimited": "Unlimited",
+    "sfxVolume": "Sound FX (footsteps·water·wind)",
     "farClip": "View Distance",
     "cullDistance": "Distance Culling (skip far)",
     "frustumCull": "Frustum Culling (skip off-screen)",

@@ -16,6 +16,8 @@ import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import SignText from '@/lib/world/SignText';
 import { devLog } from '@/lib/devLog';
 import { PerfManager } from '@/lib/world/PerfManager';
+import { FpsLimiter } from '@/lib/world/FpsLimiter';
+import { useGraphicsSettings } from '@/lib/world/graphicsSettings';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
 import { SceneFog, SkyClouds, SkyMoon, SkyStars, skySunPosition, skyFogColor, nightFactor, EnvFxUpdater } from '@/lib/world/SkyEnv';
@@ -27,6 +29,7 @@ import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
 import { FoliageInstances, GrassPlayerProbe, TreeRockColliders } from '@/lib/world/FoliageInstances';
 import { WaterRipples } from '@/components/world/WaterRipples';
+import { WorldAudio } from '@/components/world/WorldAudio';
 import { CarvedMesh, type CsgCut } from '@/lib/world/CarvedMesh';
 import { VoxelTerrainMesh } from '@/lib/world/VoxelTerrainMesh';
 import { ChunkedVoxelTerrain } from '@/lib/world/ChunkedVoxelTerrain';
@@ -5156,6 +5159,10 @@ export default function StudioCanvas() {
   const [hdriIntensity, setHdriIntensity] = useState(1.0);     // HDRI 환경광 (IBL) 강도 — scene.environmentIntensity
   const [hdriDragOver, setHdriDragOver] = useState(false);     // 에셋(.hdr/.exr) 드래그 오버 하이라이트
   const [exposure, setExposure] = useState(0.7);   // tone mapping exposure — 너무 밝으면 낮춤
+  // 최대 FPS 캡 — World graphics 설정(localStorage 싱글톤)을 공유. Studio 는 자체 패널은 없고
+  // World 에서 설정한 값을 그대로 따른다(고주사율 기기 에디터 절전). XR 없음 → XR 분기 불필요.
+  const { settings: graphicsSettings } = useGraphicsSettings();
+  const fpsCapActive = graphicsSettings.maxFps > 0;
   // 맵 물리 — 빈 오브젝트의 World Physics 컴포넌트가 소스. 아래 gravityY/jumpPower 는
   // 구버전 맵(sceneSettings) 로드용 fallback. UI 패널은 제거됨(컴포넌트로 관리).
   const [gravityY, setGravityY]   = useState(-22);
@@ -9011,6 +9018,7 @@ export default function StudioCanvas() {
         <Canvas
           shadows={{ enabled: true, type: THREE.PCFSoftShadowMap, autoUpdate: true }}
           camera={{ position: [8, 8, 8], fov: 50 }}
+          frameloop={fpsCapActive ? 'never' : 'always'}
           dpr={[1, 2]}
           gl={{ alpha: true, antialias: true, powerPreference: 'high-performance', stencil: false, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: exposure }}
           onPointerMissed={() => {
@@ -9019,6 +9027,8 @@ export default function StudioCanvas() {
           }}
         >
           <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
+          {fpsCapActive && <FpsLimiter fps={graphicsSettings.maxFps} />}
+          <WorldAudio volume={graphicsSettings.sfxVolume} />
           <CanvasPointerEventsKeeper simulating={simulating} />
           <ambientLight intensity={lightAmbient} />
           {/* 하늘 채움광 제거 — 전역 hemisphere 는 밀폐 공간 안까지 밝혀서(GI 없음) "빛 없는 곳 캄캄" 목표와 충돌.

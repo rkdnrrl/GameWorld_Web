@@ -116,6 +116,14 @@ export default function GraphicsPanel({ settings, updateSettings, applyPreset, m
             </select>
           </Section>
 
+          {/* 효과음 볼륨 — 발소리·물 첨벙·바람 (0=끔). BGM/앰비언트와 별개 */}
+          <Section label={`${t('sfxVolume')} (${settings.sfxVolume === 0 ? t('off') : Math.round(settings.sfxVolume * 100) + '%'})`}>
+            <input type="range" min={0} max={1} step={0.1}
+              value={settings.sfxVolume}
+              onChange={e => updateSettings({ sfxVolume: Number(e.target.value) })}
+              style={{ width: '100%' }} />
+          </Section>
+
           {/* 시야 거리 */}
           <Section label={`${t('farClip')} (${settings.farClip}m)`}>
             <input type="range" min={100} max={1000} step={50}
