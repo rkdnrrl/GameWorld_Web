@@ -12,6 +12,9 @@ export const G = {
   uWindStr:   { value: 0 },
   uWindSpeed: { value: 1 },
   uWindTurb:  { value: 0.4 },
+  /** 활성 '바람' 컴포넌트 수 — WindSway 가 마운트마다 ±1. 0 이면 바람 컴포넌트 없음
+   *  → 터레인 식생(FoliageInstances)은 기본 미풍으로 폴백, >0 이면 위 strength/speed 따름. */
+  active: 0,
 };
 
 export interface GlobalWind {

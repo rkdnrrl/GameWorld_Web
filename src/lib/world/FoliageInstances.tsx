@@ -26,6 +26,7 @@ import { normalizeTerrain, sampleTerrainHeight, type TerrainData, type FoliageIn
 import { loadStaticModelCached } from './modelLoader';
 import { resolveMeshMaterial, type MaterialOverrides, type LoadTexFn } from './materialOverride';
 import { envFx } from './envFx';
+import { G } from './globalWind';
 
 // ── 절차적 지오메트리 (모듈 1회 생성, 공유) ──
 function crossQuads(angles: number[], w: number, h: number, bottom: number[], top: number[]): THREE.BufferGeometry {
@@ -81,7 +82,9 @@ function buildRockGeo(): THREE.BufferGeometry {
 }
 
 // ── 바람 흔들림 + 플레이어 인터랙션 (풀/꽃 공용 셰이더 주입). 공유 유니폼을 매 프레임 갱신. ──
+// windUniform 은 '위상 누적'(시간×속도) — 속도를 바꿔도 점프 없이 부드럽게. 진폭은 windStrUniform(전역 바람 세기).
 const windUniform = { value: 0 };
+const windStrUniform = { value: 1 };   // 머티리얼별 기본 진폭(uWindAmt)에 곱하는 전역 세기 배수. 바람 컴포넌트 없으면 1(기본 미풍).
 // 플레이어 인터랙션 공유 유니폼 — 모든 풀/꽃 머티리얼이 같은 객체 참조(useFrame 1회 갱신).
 const playerPosUniform = { value: new THREE.Vector3() };
 const playerRUniform = { value: 0 };           // 반경(0=비활성)
@@ -96,7 +99,8 @@ function injectWindBend<T extends THREE.Material>(mat: T, amt: number, bend = tr
     if (prev) { try { prev.call(mat, shader, renderer); } catch { /* noop */ } }
     shader.uniforms.uWindTime = windUniform;
     shader.uniforms.uWindAmt = amtU;
-    let header = 'uniform float uWindTime;\nuniform float uWindAmt;\n';
+    shader.uniforms.uWindStr = windStrUniform;
+    let header = 'uniform float uWindTime;\nuniform float uWindAmt;\nuniform float uWindStr;\n';
     if (bend) {
       shader.uniforms.uPlayer = playerPosUniform;
       shader.uniforms.uPlayerR = playerRUniform;
@@ -112,7 +116,7 @@ function injectWindBend<T extends THREE.Material>(mat: T, amt: number, bend = tr
       #else
         float wph = 0.0;
       #endif
-      float wsw = position.y * uWindAmt;
+      float wsw = position.y * uWindAmt * uWindStr;
       transformed.x += sin(uWindTime * 1.6 + wph) * wsw;
       transformed.z += cos(uWindTime * 1.25 + wph) * wsw * 0.6;`);
     if (!bend) return;
@@ -497,8 +501,12 @@ export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
   }, [grassGeo, flowerGeo, trunkGeo, canopyGeo, rockGeo, grassMat, flowerMat, trunkMat, canopyMat, rockMat]);
 
   // 공유 바람 시계 + 플레이어 인터랙션 위치/반경 갱신 (공유 유니폼이라 1회 갱신으로 전 풀에 반영).
-  useFrame((st) => {
-    windUniform.value = st.clock.elapsedTime;
+  // 바람 컴포넌트(G.active>0)가 있으면 그 세기/속도를 따르고, 없으면 기본 미풍(세기 1·속도 1)으로 폴백.
+  useFrame((_, dt) => {
+    const on = G.active > 0;
+    const spd = on ? Math.max(0.05, G.uWindSpeed.value) : 1;
+    windUniform.value += Math.min(dt, 0.05) * spd;          // 위상 누적 — 속도 바꿔도 점프 없음
+    windStrUniform.value = on ? Math.max(0, G.uWindStr.value) : 1;
     playerPosUniform.value.copy(envFx.playerPos);
     playerRUniform.value = envFx.playerBend;
   });

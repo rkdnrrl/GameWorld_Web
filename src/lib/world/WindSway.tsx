@@ -117,8 +117,8 @@ export default function WindSway({ wind, children }: { wind: WindSettings; child
   const wpos = useRef(new THREE.Vector3());
 
   useEffect(() => {
-    activeCount++;
-    return () => { activeCount--; if (activeCount <= 0) G.uWindStr.value = 0; };
+    activeCount++; G.active++;
+    return () => { activeCount--; G.active = Math.max(0, G.active - 1); if (activeCount <= 0) G.uWindStr.value = 0; };
   }, []);
 
   useFrame((state) => {
