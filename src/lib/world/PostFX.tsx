@@ -221,8 +221,9 @@ export function collectPostFXZones(
 /** 원클릭 시네마틱 프리셋 — 큐레이팅된 효과 조합(노브 안 만져도 좋은 룩).
  *  toneMapping:true 필수 — PostFX 활성 시 캔버스 톤매핑이 꺼지므로 여기서 ACES 복원. */
 const PRESETS: Record<string, Partial<PostFXSettings>> = {
-  // 따뜻하고 영화적 — 부드러운 블룸 + 약한 비네팅·그레인 + 웜 그레이드 + 접지 음영
-  cinematic: { toneMapping: true, ao: true, aoIntensity: 1.2, bloom: true, bloomIntensity: 0.5, bloomThreshold: 0.85,
+  // 따뜻하고 영화적 — 부드러운 블룸 + 약한 비네팅·그레인 + 웜 그레이드
+  // (SSAO[ao]는 프리셋에서 제외 — 무거운 depth 패스라 일부 GPU에서 멈춤. 필요하면 고급 토글로 수동 ON.)
+  cinematic: { toneMapping: true, bloom: true, bloomIntensity: 0.5, bloomThreshold: 0.85,
     vignette: 0.4, grain: 0.03, contrast: 0.06, saturation: 0.1, temperature: 0.15, filmic: 0.5, lift: 0.03 },
   // 골든아워 — 강한 웜 + 부드러운 대비
   warm: { toneMapping: true, bloom: true, bloomIntensity: 0.5, vignette: 0.3, grain: 0.02,
