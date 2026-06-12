@@ -25,7 +25,7 @@ import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
-import { FoliageInstances } from '@/lib/world/FoliageInstances';
+import { FoliageInstances, GrassPlayerProbe } from '@/lib/world/FoliageInstances';
 import { CarvedMesh, type CsgCut } from '@/lib/world/CarvedMesh';
 import { VoxelTerrainMesh } from '@/lib/world/VoxelTerrainMesh';
 import { ChunkedVoxelTerrain } from '@/lib/world/ChunkedVoxelTerrain';
@@ -3647,6 +3647,8 @@ function SimScene({ objects, transforms, myAssets, player, gameApi, gameStore }:
     <>
       <AmbientSoundsPlayer zones={simAmbientZones} />
       {simDayNightInst && <DayNightCycle inst={simDayNightInst} />}
+      {/* 인터랙티브 풀 — 스튜디오 플레이 중 sim 플레이어 위치를 풀 셰이더로(발 주변 휘어짐). */}
+      {player && <GrassPlayerProbe poseRef={simPlayerPoseRef} />}
       {player && simSeats.length > 0 && (
         <SeatController seats={simSeats} localPoseRef={simPlayerPoseRef} playerCtlRef={playerCtlRef} />
       )}
