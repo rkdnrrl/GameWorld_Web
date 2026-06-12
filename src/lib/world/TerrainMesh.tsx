@@ -30,6 +30,7 @@ function makeRepeatTexture(url: string | undefined, repeat: number): THREE.Textu
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(repeat, repeat);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;   // 비스듬히 보는 지면 텍스처 선명도 ↑ (하드웨어 max 로 자동 클램프)
   return tex;
 }
 

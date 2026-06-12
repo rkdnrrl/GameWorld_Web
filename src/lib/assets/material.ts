@@ -58,6 +58,7 @@ export function loadTex(url: string, colorSpace: THREE.ColorSpace, tx: number, t
   tex.colorSpace = colorSpace;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(tx, ty);
+  tex.anisotropy = 8;   // 비스듬한 면 텍스처 선명도 ↑ (three 가 하드웨어 max 로 자동 클램프)
   return tex;
 }
 

@@ -11,7 +11,7 @@
 import * as THREE from 'three';
 import {
   EffectComposer, Bloom, Vignette, ChromaticAberration, BrightnessContrast, ToneMapping,
-  HueSaturation, Noise, Pixelation, Scanline, Sepia, ColorAverage, N8AO, wrapEffect,
+  HueSaturation, Noise, Pixelation, Scanline, Sepia, ColorAverage, N8AO, DepthOfField, SMAA, wrapEffect,
 } from '@react-three/postprocessing';
 import { ToneMappingMode, Effect } from 'postprocessing';
 
@@ -257,6 +257,8 @@ export default function PostFX({ s: raw }: { s: PostFXSettings }) {
   if (s.ao) fx.push(<N8AO key="ao" halfRes aoRadius={1.5} intensity={s.aoIntensity} distanceFalloff={1} />);
   if (s.wobble > 0) fx.push(<Wobble key="wob" amount={s.wobble} speed={1.2} frequency={9} />);
   if (s.pixelate > 0) fx.push(<Pixelation key="px" granularity={s.pixelate} />);
+  // 피사계심도(DoF) — 깊이 기반이라 색보정·블룸 전에 (보케 하이라이트가 블룸을 타게)
+  if (s.dof) fx.push(<DepthOfField key="dof" focusDistance={s.dofFocus} focalLength={s.dofFocalLength} bokehScale={s.dofBokeh} />);
   // 컬러그레이드 (웜/쿨·필름 S커브·섀도 리프트) — 톤 보정의 핵심
   if (s.temperature !== 0 || s.filmic > 0 || s.lift !== 0) fx.push(<FilmicGrade key="grade" temperature={s.temperature} filmic={s.filmic} lift={s.lift} />);
   // 색 보정
@@ -273,5 +275,7 @@ export default function PostFX({ s: raw }: { s: PostFXSettings }) {
   if (s.toneMapping) fx.push(<ToneMapping key="tm" mode={ToneMappingMode.ACES_FILMIC} />);
 
   if (fx.length === 0) return null;
+  // SMAA — 컴포저가 켜지면 캔버스 MSAA 가 무시되므로(자체 버퍼 렌더) 가장자리 계단 방지용으로 마지막에 적용.
+  fx.push(<SMAA key="smaa" />);
   return <EffectComposer>{fx}</EffectComposer>;
 }
