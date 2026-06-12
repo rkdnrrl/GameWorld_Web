@@ -1243,6 +1243,8 @@
       "opt_none": "无",
       "label_hdri_url": "HDRI URL (.hdr / .exr, 可选)",
       "placeholder_hdri_url": "https://... (留空则使用预设)",
+      "hdri_drop_hint": "也可将「我的素材」中的 .hdr / .exr 文件拖到此处应用。",
+      "hdri_drop_only": "天空 HDRI 仅支持 .hdr 或 .exr 文件。",
       "label_hdri_background": "将 HDRI 显示为背景",
       "label_exposure": "曝光 (exposure): {value}",
       "hint_exposure": "地面过亮调至 0.4~0.6,过暗调至 1.0+",

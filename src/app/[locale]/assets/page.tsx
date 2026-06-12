@@ -255,11 +255,7 @@ export default function AssetsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assets]);
 
-  /* ── 업로드 허용 확장자 (DB kinds 기반) ── */
-  const acceptAttr = useMemo(
-    () => kinds.flatMap(k => k.extensions).map(e => `.${e}`).join(','),
-    [kinds],
-  );
+  /* ── 업로드: 블랙리스트 방식 — 위험 확장자(서버 차단)만 빼고 전부 허용. 파일 선택창은 제한 없음. ── */
   const maxSizeMb = useMemo(
     () => Math.max(5, ...kinds.map(k => k.maxSizeMb)),
     [kinds],
@@ -304,10 +300,11 @@ export default function AssetsPage() {
         return;
       }
 
+      // 블랙리스트 방식 — 등록된 kind 가 없어도 업로드 허용(서버가 위험 확장자만 차단). 미등록은 기본 200MB 상한.
       const kind = kinds.find(k => k.extensions.includes(ext));
-      if (!kind) { reject(new Error(t('unsupportedType', { ext }))); return; }
-      if (file.size > kind.maxSizeMb * 1024 * 1024) {
-        reject(new Error(t('sizeOverLimit', { maxMb: kind.maxSizeMb }))); return;
+      const maxMb = kind ? kind.maxSizeMb : 200;
+      if (file.size > maxMb * 1024 * 1024) {
+        reject(new Error(t('sizeOverLimit', { maxMb }))); return;
       }
 
       // 업로드 전 클라이언트 베이킹 — FBX → GLB (서버 부하 없이, 브라우저에서 빠른 포맷으로 구움). 실패 시 원본.
@@ -718,7 +715,6 @@ export default function AssetsPage() {
                 ref={fileRef}
                 type="file"
                 multiple
-                accept={acceptAttr}
                 style={{ display: 'none' }}
                 onChange={e => {
                   const files = Array.from(e.target.files || []);

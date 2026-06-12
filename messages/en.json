@@ -1243,6 +1243,8 @@
       "opt_none": "None",
       "label_hdri_url": "HDRI URL (.hdr / .exr, optional)",
       "placeholder_hdri_url": "https://... (leave empty to use preset)",
+      "hdri_drop_hint": "You can also drag a .hdr / .exr file from My Assets here.",
+      "hdri_drop_only": "Sky HDRI accepts only .hdr or .exr files.",
       "label_hdri_background": "Show HDRI as background",
       "label_exposure": "Exposure: {value}",
       "hint_exposure": "If the ground looks too bright, set 0.4–0.6; if too dark, set 1.0+",

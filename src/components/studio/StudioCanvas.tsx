@@ -5109,6 +5109,7 @@ export default function StudioCanvas() {
   const [hdriUrl, setHdriUrl] = useState('');          // 커스텀 URL (.hdr/.exr)
   const [hdriBackground, setHdriBackground] = useState(false); // HDRI를 배경으로 표시
   const [hdriIntensity, setHdriIntensity] = useState(1.0);     // HDRI 환경광 (IBL) 강도 — scene.environmentIntensity
+  const [hdriDragOver, setHdriDragOver] = useState(false);     // 에셋(.hdr/.exr) 드래그 오버 하이라이트
   const [exposure, setExposure] = useState(0.7);   // tone mapping exposure — 너무 밝으면 낮춤
   // 맵 물리 — 빈 오브젝트의 World Physics 컴포넌트가 소스. 아래 gravityY/jumpPower 는
   // 구버전 맵(sceneSettings) 로드용 fallback. UI 패널은 제거됨(컴포넌트로 관리).
@@ -7764,14 +7765,31 @@ export default function StudioCanvas() {
                 </select>
               </label>
 
-              {/* HDRI URL (커스텀) — preset 보다 우선 */}
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.75 }}>
+              {/* HDRI URL (커스텀) — preset 보다 우선. 내 에셋의 .hdr/.exr 을 드래그해서도 적용 가능. */}
+              <label
+                onDragOver={e => {
+                  if (e.dataTransfer.types.includes('application/x-alp-asset-url')) {
+                    e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setHdriDragOver(true);
+                  }
+                }}
+                onDragLeave={() => setHdriDragOver(false)}
+                onDrop={e => {
+                  setHdriDragOver(false);
+                  const url = e.dataTransfer.getData('application/x-alp-asset-url');
+                  if (!url) return;
+                  e.preventDefault();
+                  if (!/\.(hdr|exr)(\?|$)/i.test(url)) { alert(tCanvas("hdri_drop_only")); return; }
+                  setHdriUrl(url);
+                  pushHistory(objects);
+                }}
+                style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.75 }}>
                 {tCanvas("label_hdri_url")}
                 <input type="text" value={hdriUrl}
                   onChange={e => setHdriUrl(e.target.value)}
                   onBlur={() => pushHistory(objects)}
                   placeholder={tCanvas("placeholder_hdri_url")}
-                  style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 5, padding: '5px 7px', fontSize: 11, outline: 'none' }} />
+                  style={{ background: hdriDragOver ? 'rgba(99,102,241,0.22)' : 'rgba(0,0,0,0.35)', border: `1px ${hdriDragOver ? 'dashed' : 'solid'} ${hdriDragOver ? '#818cf8' : 'rgba(255,255,255,0.15)'}`, color: '#fff', borderRadius: 5, padding: '5px 7px', fontSize: 11, outline: 'none' }} />
+                <span style={{ fontSize: 10, opacity: 0.55, marginTop: 1 }}>{tCanvas("hdri_drop_hint")}</span>
               </label>
 
               {/* HDRI 를 배경으로도 표시 */}

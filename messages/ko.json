@@ -1243,6 +1243,8 @@
       "opt_none": "없음",
       "label_hdri_url": "HDRI URL (.hdr / .exr, 선택)",
       "placeholder_hdri_url": "https://... (비우면 프리셋 사용)",
+      "hdri_drop_hint": "내 에셋의 .hdr / .exr 파일을 여기로 드래그해도 적용됩니다.",
+      "hdri_drop_only": "하늘 HDRI는 .hdr 또는 .exr 파일만 가능합니다.",
       "label_hdri_background": "HDRI 를 배경으로 표시",
       "label_exposure": "노출 (exposure): {value}",
       "hint_exposure": "땅이 너무 밝으면 0.4~0.6, 너무 어두우면 1.0+ 로 조정",
