@@ -1574,6 +1574,8 @@
     "youSuffix": "(自分)",
     "playersList": "👥 プレイヤー",
     "controlHint": "クリックでマウスロック | WASD 移動 | Shift 走る | Space ジャンプ | C しゃがむ | Z 伏せる | ESC 解除",
+    "emoteWheelOpen": "エモートホイール",
+    "emoteWheelTitle": "エモート",
     "chatPlaceholder": "メッセージ入力…",
     "chatEmpty": "まだチャットがありません",
     "send": "送信",

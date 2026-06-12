@@ -10,6 +10,7 @@ import { useGraphicsSettings } from '@/lib/world/graphicsSettings';
 import { session } from '@/lib/api';
 import { WorldSpawnModal, type SpawnPayload, type PrefabSpawnPayload } from '@/components/world/WorldSpawnModal';
 import { PlacementOverlay } from '@/components/world/PlacementOverlay';
+import { EmoteWheel } from '@/components/world/EmoteWheel';
 import { MyObjectsModal } from '@/components/world/MyObjectsModal';
 import { UserApiKeysModal } from '@/components/world/UserApiKeysModal';
 import { ghostFromSpawnPayload, ghostFromPrefab, type PlacementGhost } from '@/lib/world/placementGhost';
@@ -261,6 +262,7 @@ export default function WorldPage() {
   // 이모트 (커스텀 애니메이션 슬롯 트리거)
   const [emoteSlot, setEmoteSlot] = useState<string | null>(null);
   const [emotePanel, setEmotePanel] = useState(false);
+  const [emoteWheel, setEmoteWheel] = useState(false);   // 라디얼 이모트 휠 열림
   const [emoteLoopMap, setEmoteLoopMap] = useState<Record<string, boolean>>({}); // true=루프, false=한번만
   const [platformEmoteSlots, setPlatformEmoteSlots] = useState<string[]>([]);
   // CORE (코어) 슬롯 = 이동·점프·앉기·prone — 이모트 바에서 제외 (자동으로 캐릭터 컨트롤러가 사용).
@@ -1752,6 +1754,33 @@ export default function WorldPage() {
         >
           🎭
         </button>
+      )}
+
+      {/* 이모트 라디얼 휠 열기 (🎭 바 버튼 왼쪽) */}
+      {emoteSlots.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setEmoteWheel(true)}
+          style={{
+            position: 'absolute', bottom: 72, right: 72, zIndex: 16777274,
+            width: 48, height: 48, borderRadius: '50%', border: 'none', cursor: 'pointer',
+            background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: 22, backdropFilter: 'blur(8px)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.4)', transition: 'background 0.15s',
+          }}
+          title={t('emoteWheelOpen')}
+        >
+          😄
+        </button>
+      )}
+
+      {emoteWheel && emoteSlots.length > 0 && (
+        <EmoteWheel
+          slots={emoteSlots}
+          active={emoteSlot}
+          title={t('emoteWheelTitle')}
+          onSelect={(slot) => { setEmoteSlot(emoteSlot === slot ? null : slot); setEmoteWheel(false); }}
+          onClose={() => setEmoteWheel(false)}
+        />
       )}
 
       {/* 이모트 패널 */}

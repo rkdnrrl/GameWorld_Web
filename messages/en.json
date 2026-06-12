@@ -1574,6 +1574,8 @@
     "youSuffix": "(You)",
     "playersList": "👥 Players",
     "controlHint": "Click to lock mouse | WASD move | Shift sprint | Space jump | C crouch | Z prone | ESC release",
+    "emoteWheelOpen": "Emote wheel",
+    "emoteWheelTitle": "Emotes",
     "chatPlaceholder": "Type message…",
     "chatEmpty": "No messages yet",
     "send": "Send",

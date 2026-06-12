@@ -1574,6 +1574,8 @@
     "youSuffix": "(나)",
     "playersList": "👥 플레이어",
     "controlHint": "클릭하여 마우스 잠금 | WASD 이동 | Shift 달리기 | Space 점프 | C 앉기 | Z 엎드리기 | ESC 해제",
+    "emoteWheelOpen": "이모트 휠",
+    "emoteWheelTitle": "이모트",
     "chatPlaceholder": "메시지 입력…",
     "chatEmpty": "아직 채팅이 없어요",
     "send": "전송",
