@@ -73,7 +73,7 @@ import SeatButton from '@/lib/world/SeatButton';
 import LadderButton from '@/lib/world/LadderButton';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
-import { SceneFog, SkyClouds, skySunPosition, skyFogColor } from '@/lib/world/SkyEnv';
+import { SceneFog, SkyClouds, SkyMoon, SkyStars, skySunPosition, skyFogColor, nightFactor } from '@/lib/world/SkyEnv';
 import { makeWaterMaterial } from '@/lib/world/waterMaterial';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UI_SYNC_EVENT, DATA_SYNC_EVENT, type UiData } from '@/lib/world/uiObjects';
@@ -5985,11 +5985,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         {showSky && !hdriBackground && (() => {
           const dl = lightObjects.find(o => o.kind === 'dirlight' && !o.hidden);
           const sunPos = skySunPosition(dl?.rotation);
+          const night = nightFactor(sunPos);
           return (
             <>
               <Sky sunPosition={sunPos} />
               <SkyClouds />
               <SceneFog color={skyFogColor(sunPos)} />
+              {night > 0.3 && <SkyStars />}
+              {night > 0.3 && <SkyMoon sunPos={sunPos} opacity={night} />}
             </>
           );
         })()}

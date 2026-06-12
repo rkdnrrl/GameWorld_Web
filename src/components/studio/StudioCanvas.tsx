@@ -18,7 +18,7 @@ import { devLog } from '@/lib/devLog';
 import { PerfManager } from '@/lib/world/PerfManager';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
-import { SceneFog, SkyClouds, skySunPosition, skyFogColor } from '@/lib/world/SkyEnv';
+import { SceneFog, SkyClouds, SkyMoon, SkyStars, skySunPosition, skyFogColor, nightFactor } from '@/lib/world/SkyEnv';
 import { makeWaterMaterial } from '@/lib/world/waterMaterial';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UIRenderer } from '@/lib/world/UIRenderer';
@@ -8973,11 +8973,14 @@ export default function StudioCanvas() {
           {skyEnabled && !hdriBackground && (() => {
             const sdl = objects.find(o => o.kind === 'dirlight' && !o.hidden);
             const sunPos = skySunPosition(sdl?.rotation);
+            const night = nightFactor(sunPos);
             return (
               <>
                 <Sky sunPosition={sunPos} />
                 <SkyClouds />
                 <SceneFog color={skyFogColor(sunPos)} />
+                {night > 0.3 && <SkyStars />}
+                {night > 0.3 && <SkyMoon sunPos={sunPos} opacity={night} />}
               </>
             );
           })()}

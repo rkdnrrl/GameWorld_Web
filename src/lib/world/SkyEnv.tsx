@@ -9,11 +9,13 @@
  *
  * 셋 다 야외(showSky)일 때만 호출되도록 호출 측에서 게이팅한다.
  */
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { useThree } from '@react-three/fiber';
-import { Clouds, Cloud } from '@react-three/drei';
+import { useThree, useFrame } from '@react-three/fiber';
+import { Clouds, Cloud, Stars } from '@react-three/drei';
 import { computeSunDir } from './CsmSun';
+
+const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
 /** dirlight 회전(있으면) → Sky 태양 위치. 빛이 나아가는 방향의 반대편이 태양. 없으면 기본 오전 햇살. */
 export function skySunPosition(dirlightRotation?: [number, number, number]): [number, number, number] {
@@ -22,13 +24,72 @@ export function skySunPosition(dirlightRotation?: [number, number, number]): [nu
   return [-d[0] * 100, -d[1] * 100, -d[2] * 100];
 }
 
-/** 태양 높이로 안개색 결정 — 해가 높으면 하늘빛, 낮으면(노을) 따뜻한 색. 시간대 분위기 자동 반영. */
+/** 밤 정도 — 0(낮) ~ 1(완전한 밤, 해가 지평선 아래). 달·별 게이팅/페이드용. */
+export function nightFactor(sunPos: [number, number, number]): number {
+  const len = Math.hypot(sunPos[0], sunPos[1], sunPos[2]) || 1;
+  const hN = sunPos[1] / len;                  // -1(아래) ~ 1(천정)
+  return clamp01((0.05 - hN) / 0.25);           // hN≥0.05 → 0(낮), hN≤-0.2 → 1(밤)
+}
+
+/** 태양 높이로 안개색 결정 — 낮(하늘빛) → 지평선(노을) → 밤(어두운 청보라). 시간대 + 대기원근. */
 export function skyFogColor(sunPos: [number, number, number]): string {
   const len = Math.hypot(sunPos[0], sunPos[1], sunPos[2]) || 1;
-  const hN = Math.max(0, sunPos[1] / len);            // 0=지평선, 1=천정
-  const warm = Math.max(0, Math.min(1, 1 - hN / 0.4)); // 해가 0.4 이하로 낮을수록 따뜻하게
-  const lerp = (a: number, b: number) => Math.round(a + (b - a) * warm);
-  return `rgb(${lerp(0xcf, 0xf0)},${lerp(0xe8, 0xc8)},${lerp(0xf5, 0x9a)})`;  // 하늘빛 ↔ 노을빛
+  const hN = sunPos[1] / len;
+  const night = nightFactor(sunPos);
+  const day = clamp01(hN / 0.35);
+  const warm = (1 - day) * (1 - night);         // 지평선 근처에서 최대(노을)
+  let r = 0xcf, g = 0xe8, b = 0xf5;             // 낮 하늘빛
+  r += (0xf0 - r) * warm; g += (0xc8 - g) * warm; b += (0x9a - b) * warm;    // 노을빛
+  r += (0x1a - r) * night; g += (0x1a - g) * night; b += (0x32 - b) * night;  // 밤 청보라
+  return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+}
+
+/** 부드러운 원형 글로우 텍스처 (달 헤일로용). 클라이언트에서만 생성. */
+function makeGlowTexture(): THREE.Texture {
+  if (typeof document === 'undefined') return new THREE.Texture();
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const ctx = c.getContext('2d')!;
+  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.25, 'rgba(220,228,255,0.5)');
+  g.addColorStop(1, 'rgba(170,190,255,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
+/** 달 — 태양 반대편 하늘 높이에 발광 원반 + 헤일로. 카메라를 따라 고정 방향(천체처럼).
+ *  fog/톤매핑 영향 안 받아 밤에도 밝게. opacity 로 밤 정도에 따라 페이드. */
+export function SkyMoon({ sunPos, opacity = 1 }: { sunPos: [number, number, number]; opacity?: number }) {
+  const ref = useRef<THREE.Group>(null);
+  const { camera } = useThree();
+  const glow = useMemo(() => makeGlowTexture(), []);
+  useEffect(() => () => { glow.dispose(); }, [glow]);
+  const dir = useMemo<[number, number, number]>(() => {
+    const len = Math.hypot(sunPos[0], sunPos[1], sunPos[2]) || 1;
+    const dx = -sunPos[0] / len, dz = -sunPos[2] / len, dy = 0.55;   // 태양 반대편, 천정 쪽으로 띄움
+    const n = Math.hypot(dx, dy, dz) || 1;
+    return [dx / n, dy / n, dz / n];
+  }, [sunPos]);
+  const D = 300;
+  useFrame(() => {
+    if (ref.current) ref.current.position.set(camera.position.x + dir[0] * D, camera.position.y + dir[1] * D, camera.position.z + dir[2] * D);
+  });
+  return (
+    <group ref={ref}>
+      <sprite scale={[150, 150, 1]}>
+        <spriteMaterial map={glow} color="#cdd8ff" opacity={0.5 * opacity} transparent depthWrite={false} blending={THREE.AdditiveBlending} fog={false} toneMapped={false} />
+      </sprite>
+      <mesh>
+        <sphereGeometry args={[16, 28, 28]} />
+        <meshBasicMaterial color="#eef2ff" fog={false} toneMapped={false} />
+      </mesh>
+    </group>
+  );
+}
+
+/** 밤하늘 별 — drei Starfield (가벼운 Points). */
+export function SkyStars() {
+  return <Stars radius={300} depth={50} count={2500} factor={5} saturation={0} fade speed={0.4} />;
 }
 
 /** 전역 거리 안개 — 마운트 동안만 scene.fog 설정, 언마운트 시 원복(수중 PostFX 등과 충돌 없음). */
