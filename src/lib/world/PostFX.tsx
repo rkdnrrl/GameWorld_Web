@@ -302,17 +302,14 @@ function withPreset(s: PostFXSettings): PostFXSettings {
   return { ...OFF, ...PRESETS[s.preset], enabled: s.enabled };
 }
 
-export default function PostFX({ s: raw, raining = false, forceAO = false }: { s: PostFXSettings; raining?: boolean; forceAO?: boolean }) {
-  // 비 올 때 / 그래픽 tier 가 높아 AO 강제 시엔 유저 postProcess 볼륨이 없어도 컴포저를 띄운다.
-  if (!raw.enabled && !raining && !forceAO) return null;
+export default function PostFX({ s: raw, raining = false }: { s: PostFXSettings; raining?: boolean }) {
+  // 비 올 때는 유저 postProcess 볼륨이 없어도(또는 꺼져 있어도) 빗방울만 위해 컴포저를 띄운다.
+  if (!raw.enabled && !raining) return null;
   const s = raw.enabled ? withPreset(raw) : OFF;
-  // AO 만을 위해 컴포저를 켠 경우(볼륨 없음) → 캔버스 ACES 톤매핑이 꺼지므로 아래에서 복원.
-  const aoOnly = !raw.enabled && forceAO;
 
   const fx: React.ReactElement[] = [];
   // SSAO 는 가장 먼저 (씬 깊이 기반 접지 음영) — 색보정·블룸 전에 적용.
-  // 볼륨이 ao 를 켰거나(s.ao), 클라 그래픽 tier 가 높아 강제(forceAO)면 적용. AO 는 클라 품질 설정 성격.
-  if (s.ao || forceAO) fx.push(<N8AO key="ao" halfRes aoRadius={1.5} intensity={s.ao ? s.aoIntensity : 1} distanceFalloff={1} />);
+  if (s.ao) fx.push(<N8AO key="ao" halfRes aoRadius={1.5} intensity={s.aoIntensity} distanceFalloff={1} />);
   if (s.wobble > 0) fx.push(<Wobble key="wob" amount={s.wobble} speed={1.2} frequency={9} />);
   if (s.pixelate > 0) fx.push(<Pixelation key="px" granularity={s.pixelate} />);
   // 피사계심도(DoF) — 깊이 기반이라 색보정·블룸 전에 (보케 하이라이트가 블룸을 타게)
@@ -330,9 +327,8 @@ export default function PostFX({ s: raw, raining = false, forceAO = false }: { s
   if (s.scanline > 0) fx.push(<Scanline key="sl" density={s.scanline} />);
   if (s.grain > 0) fx.push(<Noise key="noise" premultiply opacity={s.grain} />);
   if (s.vignette > 0) fx.push(<Vignette key="vig" offset={0.3} darkness={s.vignette} />);
-  if (s.toneMapping || aoOnly) {
+  if (s.toneMapping) {
     // ACES(기본) / AgX(더 자연스러운 필믹, 하이라이트 덜 탐) / Neutral(Khronos PBR 중립)
-    // aoOnly(볼륨 없이 AO만) 일 땐 캔버스 ACES 를 복원.
     const tmMode = s.toneMapMode === 'agx' ? ToneMappingMode.AGX
       : s.toneMapMode === 'neutral' ? ToneMappingMode.NEUTRAL
       : ToneMappingMode.ACES_FILMIC;

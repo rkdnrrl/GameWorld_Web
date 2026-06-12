@@ -6333,7 +6333,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           onButtonClick={(_id, script) => execUiButtonScript(script, gameRuntime.api)}
           onValueChange={(_id, script, value) => execUiButtonScript(script, gameRuntime.api, value)}
         />
-        <PostFX s={effectivePostFX} raining={raining} forceAO={graphics.shadowSize >= 2048} />
+        <PostFX s={effectivePostFX} raining={raining} />
         <CameraWaterWatcher volsRef={waterPostFXRef} onChange={setActiveWaterFX} />
         </XR>
       </Canvas>
