@@ -56,11 +56,16 @@ export function TerrainMesh({ terrain, selected, castShadow = false, receiveShad
   useEffect(() => () => { baseTex?.dispose(); cliffTex?.dispose(); lowTex?.dispose(); }, [baseTex, cliffTex, lowTex]);
 
   const mat = useMemo(() => {
+    // 젖음(wetness): 거칠기↓(반들), 색 어둡게, 환경 반사↑ — 비로 축축한 땅.
+    const wet = Math.max(0, Math.min(1, t.wetness ?? 0));
+    const col = new THREE.Color(selected ? '#a5b4fc' : (t.baseColor || '#5a8a4a'));
+    if (!selected) col.multiplyScalar(1 - 0.45 * wet);
     const m = new THREE.MeshStandardMaterial({
       map: baseTex ?? undefined,
-      color: selected ? '#a5b4fc' : (t.baseColor || '#5a8a4a'),
-      roughness: 0.95,
+      color: col,
+      roughness: 0.95 - 0.78 * wet,
       metalness: 0,
+      envMapIntensity: 1 + 1.6 * wet,
     });
     if (blend) {
       const slopeCos = Math.cos((t.slopeThreshold ?? 35) * Math.PI / 180);
@@ -92,7 +97,7 @@ export function TerrainMesh({ terrain, selected, castShadow = false, receiveShad
       };
     }
     return m;
-  }, [blend, baseTex, cliffTex, lowTex, selected, t.baseColor, t.slopeThreshold, t.lowHeight, t.lowBlend]);
+  }, [blend, baseTex, cliffTex, lowTex, selected, t.baseColor, t.slopeThreshold, t.lowHeight, t.lowBlend, t.wetness]);
   useEffect(() => () => { mat.dispose(); }, [mat]);
 
   return (

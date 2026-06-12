@@ -45,6 +45,8 @@ export interface TerrainData {
   lowHeight?: number;
   /** low 블렌딩 폭(m). 기본 2. */
   lowBlend?: number;
+  /** 젖음 정도 0~1 — 비로 축축해진 땅. 높을수록 거칠기↓(반들), 색 어둡게, 환경 반사↑. */
+  wetness?: number;
   /** 지형 위에 심은 풀/나무 (선택). */
   foliage?: FoliageInstance[];
   /** 식생 종류별 사용자 에셋(모델 URL). 지정 시 절차적 기본 모양 대신 그 모델을 인스턴싱.

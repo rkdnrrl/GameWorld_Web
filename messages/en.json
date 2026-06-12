@@ -1279,6 +1279,7 @@
       "label_terrain_slope_threshold": "Slope Threshold (°)",
       "label_terrain_low_height": "Low Height (Y)",
       "label_terrain_low_blend": "Low Blend Width (m)",
+      "label_terrain_wetness": "💧 Wetness (rain/reflection) 0~1",
       "hint_terrain_texture_blend": "※ Assign cliff/low textures to auto-blend with the flat texture. Leave both empty for a single texture.",
       "section_terrain_foliage_assets": "🌿 Foliage Assets (drag from My Assets)",
       "foliage_grass": "Grass",

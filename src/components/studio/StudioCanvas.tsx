@@ -8220,6 +8220,17 @@ export default function StudioCanvas() {
                     onBlur={() => pushHistory(objects)}
                     style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
                 </div>
+                <div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_terrain_wetness")} — {(selected.terrain.wetness ?? 0).toFixed(2)}</div>
+                  <input type="range" min={0} max={1} step={0.05} value={selected.terrain.wetness ?? 0}
+                    onChange={e => {
+                      const w = Math.max(0, Math.min(1, Number(e.target.value) || 0));
+                      setObjects(prev => prev.map(o => o.id === selected.id && o.terrain
+                        ? { ...o, terrain: { ...o.terrain, wetness: w } } : o));
+                    }}
+                    onMouseUp={() => pushHistory(objects)}
+                    style={{ width: '100%' }} />
+                </div>
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ opacity: 0.7, fontSize: 11, fontWeight: 700 }}>{tCanvas("section_terrain_texture_blend")}</div>
                   <div>

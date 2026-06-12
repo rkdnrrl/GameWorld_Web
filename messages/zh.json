@@ -1279,6 +1279,7 @@
       "label_terrain_slope_threshold": "坡度阈值（°）",
       "label_terrain_low_height": "低处高度（Y）",
       "label_terrain_low_blend": "低处混合宽度（m）",
+      "label_terrain_wetness": "💧 湿润 (雨/反射) 0~1",
       "hint_terrain_texture_blend": "※ 指定陡坡/低处纹理后会与平地纹理自动混合。两者留空则为单一纹理。",
       "section_terrain_foliage_assets": "🌿 植被资源（从我的资源拖入）",
       "foliage_grass": "草",
