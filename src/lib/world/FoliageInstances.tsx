@@ -21,6 +21,7 @@ import { useFrame } from '@react-three/fiber';
 import { normalizeTerrain, sampleTerrainHeight, type TerrainData, type FoliageInstance } from './terrain';
 import { loadStaticModelCached } from './modelLoader';
 import { resolveMeshMaterial, type MaterialOverrides, type LoadTexFn } from './materialOverride';
+import { envFx } from './envFx';
 
 // ── 절차적 지오메트리 (모듈 1회 생성, 공유) ──
 function crossQuads(angles: number[], w: number, h: number, bottom: number[], top: number[]): THREE.BufferGeometry {
@@ -75,16 +76,25 @@ function buildRockGeo(): THREE.BufferGeometry {
   return g;
 }
 
-// ── 바람 흔들림 (풀/꽃 공용 셰이더 주입). 공유 uTime 을 매 프레임 갱신. ──
+// ── 바람 흔들림 + 플레이어 인터랙션 (풀/꽃 공용 셰이더 주입). 공유 유니폼을 매 프레임 갱신. ──
 const windUniform = { value: 0 };
+// 플레이어 인터랙션 공유 유니폼 — 모든 풀/꽃 머티리얼이 같은 객체 참조(useFrame 1회 갱신).
+const playerPosUniform = { value: new THREE.Vector3() };
+const playerRUniform = { value: 0 };           // 반경(0=비활성)
+const bendStrUniform = { value: 0.6 };          // 수평 밀어내기 세기
+const bendDownUniform = { value: 0.35 };        // 눌림(아래로)
 function makeWindMaterial(amt: number, props: THREE.MeshStandardMaterialParameters): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial(props);
   const amtU = { value: amt };
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uWindTime = windUniform;
     shader.uniforms.uWindAmt = amtU;
-    shader.vertexShader = 'uniform float uWindTime;\nuniform float uWindAmt;\n' + shader.vertexShader.replace(
-      '#include <begin_vertex>',
+    shader.uniforms.uPlayer = playerPosUniform;
+    shader.uniforms.uPlayerR = playerRUniform;
+    shader.uniforms.uBendStr = bendStrUniform;
+    shader.uniforms.uBendDown = bendDownUniform;
+    shader.vertexShader = 'uniform float uWindTime;\nuniform float uWindAmt;\nuniform vec3 uPlayer;\nuniform float uPlayerR;\nuniform float uBendStr;\nuniform float uBendDown;\n' + shader.vertexShader
+      .replace('#include <begin_vertex>',
       `#include <begin_vertex>
       #ifdef USE_INSTANCING
         float wph = instanceMatrix[3].x * 0.6 + instanceMatrix[3].z * 0.45;
@@ -93,10 +103,50 @@ function makeWindMaterial(amt: number, props: THREE.MeshStandardMaterialParamete
       #endif
       float wsw = position.y * uWindAmt;
       transformed.x += sin(uWindTime * 1.6 + wph) * wsw;
-      transformed.z += cos(uWindTime * 1.25 + wph) * wsw * 0.6;`,
-    );
+      transformed.z += cos(uWindTime * 1.25 + wph) * wsw * 0.6;`)
+      // project_vertex 를 확장 — instanceMatrix 적용 후 "월드공간"에서 플레이어 발 주변을 밀어냄/눌림.
+      // (object 공간에 더하면 인스턴스 랜덤 회전에 방향이 섞여 엉킴 → 반드시 월드공간에서.)
+      .replace('#include <project_vertex>',
+      `vec4 mvPosition = vec4( transformed, 1.0 );
+      #ifdef USE_BATCHING
+        mvPosition = batchingMatrix * mvPosition;
+      #endif
+      #ifdef USE_INSTANCING
+        mvPosition = instanceMatrix * mvPosition;
+      #endif
+      vec4 _wp = modelMatrix * mvPosition;
+      if (uPlayerR > 0.001) {
+        #ifdef USE_INSTANCING
+          vec4 _wb = modelMatrix * (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0));
+        #else
+          vec4 _wb = modelMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+        #endif
+        float _ph = max(0.0, _wp.y - _wb.y);          // 밑동 기준 높이(위일수록 더 휨)
+        vec2 _toP = _wp.xz - uPlayer.xz;
+        float _pd = length(_toP);
+        float _infl = 1.0 - smoothstep(0.0, uPlayerR, _pd);
+        vec2 _pdir = _toP / max(_pd, 1e-3);
+        _wp.x += _pdir.x * _infl * uBendStr * _ph;     // 플레이어 반대쪽으로 밀림
+        _wp.z += _pdir.y * _infl * uBendStr * _ph;
+        _wp.y -= _infl * uBendDown * _ph;              // 살짝 눌림
+      }
+      mvPosition = viewMatrix * _wp;
+      gl_Position = projectionMatrix * mvPosition;`);
   };
   return mat;
+}
+
+/** 로컬 플레이어 위치를 풀 셰이더로 — 매 프레임 envFx.playerPos 갱신(반경 활성). */
+export function GrassPlayerProbe({ poseRef, radius = 1.3 }: {
+  poseRef: React.RefObject<{ x: number; y: number; z: number } | null>;
+  radius?: number;
+}) {
+  useFrame(() => {
+    const p = poseRef.current;
+    if (p) { envFx.playerPos.set(p.x, p.y, p.z); envFx.playerBend = radius; }
+  });
+  useEffect(() => () => { envFx.playerBend = 0; }, []);
+  return null;
 }
 
 const _m = new THREE.Matrix4();
@@ -300,8 +350,12 @@ export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
     grassMat.dispose(); flowerMat.dispose(); trunkMat.dispose(); canopyMat.dispose(); rockMat.dispose();
   }, [grassGeo, flowerGeo, trunkGeo, canopyGeo, rockGeo, grassMat, flowerMat, trunkMat, canopyMat, rockMat]);
 
-  // 공유 바람 시계 — 풀/꽃이 하나라도 있으면만 의미 있음(없어도 비용 미미).
-  useFrame((st) => { windUniform.value = st.clock.elapsedTime; });
+  // 공유 바람 시계 + 플레이어 인터랙션 위치/반경 갱신 (공유 유니폼이라 1회 갱신으로 전 풀에 반영).
+  useFrame((st) => {
+    windUniform.value = st.clock.elapsedTime;
+    playerPosUniform.value.copy(envFx.playerPos);
+    playerRUniform.value = envFx.playerBend;
+  });
 
   // 종류별: 사용자 에셋 지정 시 그 모델 인스턴싱, 아니면 절차적 기본 모양.
   const fa = t.foliageAssets || {};

@@ -52,7 +52,7 @@ import PerfHUD from '@/lib/world/PerfHUD';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
 import { TerrainMesh } from '@/lib/world/TerrainMesh';
-import { FoliageInstances } from '@/lib/world/FoliageInstances';
+import { FoliageInstances, GrassPlayerProbe } from '@/lib/world/FoliageInstances';
 import { generateNoiseTerrain } from '@/lib/world/terrain';
 import { CarvedMesh } from '@/lib/world/CarvedMesh';
 import { ChunkedVoxelTerrain } from '@/lib/world/ChunkedVoxelTerrain';
@@ -6008,6 +6008,8 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           const sunPos = skySunPosition(dl?.rotation);
           return <EnvFxUpdater sunPos={sunPos} night={nightFactor(sunPos)} raining={raining} />;
         })()}
+        {/* 인터랙티브 풀 — 로컬 플레이어 위치를 풀 셰이더로 전달(발 주변 휘어짐). */}
+        <GrassPlayerProbe poseRef={localPoseRef} />
         {/* HDRI 환경맵 — 커스텀 URL 우선, 없으면 프리셋, none 이면 미사용 */}
         {hdriUrl.trim() ? (
           <Environment files={hdriUrl.trim()} background={hdriBackground} />

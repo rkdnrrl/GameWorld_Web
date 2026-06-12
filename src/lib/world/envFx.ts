@@ -24,6 +24,10 @@ export const envFx = {
   glintColor: new THREE.Color('#fff4e0'),
   /** 글린트 날카로움(클수록 좁고 또렷). */
   glintSharp: 250,
+  /** 로컬 플레이어 월드 위치 — 인터랙티브 풀(발 주변 휘어짐)용. */
+  playerPos: new THREE.Vector3(),
+  /** 풀 인터랙션 반경(m). 0 = 비활성. GrassPlayerProbe 가 설정. */
+  playerBend: 0,
 };
 
 /** 태양 위치 + 밤 정도 + 비 여부 → envFx 갱신. SkyEnv.applyEnvFx 가 호출. */
