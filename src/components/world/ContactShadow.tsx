@@ -12,7 +12,7 @@ import { useFrame, useThree, createPortal } from '@react-three/fiber';
 import * as THREE from 'three';
 import { footstepWet } from '@/lib/world/waterRegistry';
 
-const BASE_OPACITY = 0.3;
+const BASE_OPACITY = 0.42;
 const BASE_RADIUS = 0.34;   // m (userScale=1 기준)
 const FADE_H = 2.0;         // 이 높이(m)에서 완전히 사라짐
 
@@ -75,7 +75,7 @@ export function ContactShadow({ groupRef, animStateRef, userScale = 1 }: {
   });
 
   return createPortal(
-    <mesh ref={meshRef} geometry={geom} frustumCulled={false} raycast={() => null} renderOrder={-1}>
+    <mesh ref={meshRef} geometry={geom} frustumCulled={false} raycast={() => null} renderOrder={-1} visible={false}>
       <meshBasicMaterial
         map={sprite ?? undefined}
         transparent
