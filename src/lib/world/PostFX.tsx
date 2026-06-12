@@ -56,10 +56,38 @@ class WobbleEffectImpl extends Effect {
   }
 }
 const Wobble = wrapEffect(WobbleEffectImpl);
+
+/** 필름 컬러그레이드 — 색온도(웜/쿨) + filmic S커브 대비 + 섀도 리프트.
+ *  실시간 렌더가 "플랫" 해 보이는 핵심 원인(선형 톤·차가운 그림자)을 영화처럼 보정. */
+class FilmicGradeImpl extends Effect {
+  constructor({ temperature = 0, filmic = 0, lift = 0 }: { temperature?: number; filmic?: number; lift?: number } = {}) {
+    super(
+      'FilmicGrade',
+      `uniform float uTemp; uniform float uFilmic; uniform float uLift;
+       void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor){
+         vec3 c = inputColor.rgb;
+         c.r += uTemp * 0.06; c.b -= uTemp * 0.06;       // 색온도: +웜(R↑B↓) / -쿨
+         c = max(c, 0.0);
+         c = c + uLift * (1.0 - c);                       // 섀도 리프트(어두운 영역 띄움 = 필름 느낌)
+         vec3 s = c * c * (3.0 - 2.0 * c);                // smoothstep S커브(토/숄더)
+         c = clamp(mix(c, s, uFilmic), 0.0, 1.0);         // filmic 대비 블렌딩
+         outputColor = vec4(c, inputColor.a);
+       }`,
+      { uniforms: new Map<string, THREE.Uniform>([
+        ['uTemp', new THREE.Uniform(temperature)],
+        ['uFilmic', new THREE.Uniform(filmic)],
+        ['uLift', new THREE.Uniform(lift)],
+      ]) },
+    );
+  }
+}
+const FilmicGrade = wrapEffect(FilmicGradeImpl);
 import { findComponent, getProp, type ComponentInstance } from '@/lib/world/components';
 
 export interface PostFXSettings {
   enabled: boolean;
+  preset: string;            // 'none' = 수동, 그 외 = 큐레이팅된 시네마틱 룩 자동 적용
+  temperature: number; filmic: number; lift: number;   // 컬러그레이드 (웜/쿨, 필름 S커브, 섀도 리프트)
   bloom: boolean; bloomIntensity: number; bloomThreshold: number;
   vignette: number;          // 0 = off
   ao: boolean; aoIntensity: number;   // SSAO 앰비언트 오클루전
@@ -78,7 +106,8 @@ export interface PostFXSettings {
 }
 
 const OFF: PostFXSettings = {
-  enabled: false, bloom: false, bloomIntensity: 0, bloomThreshold: 0,
+  enabled: false, preset: 'none', temperature: 0, filmic: 0, lift: 0,
+  bloom: false, bloomIntensity: 0, bloomThreshold: 0,
   vignette: 0, ao: false, aoIntensity: 0, chromatic: 0, brightness: 0, contrast: 0,
   tintColor: '#ffffff', tintStrength: 0, wobble: 0,
   saturation: 0, hue: 0, grain: 0, pixelate: 0, scanline: 0, sepia: false, grayscale: false,
@@ -88,6 +117,10 @@ const OFF: PostFXSettings = {
 function settingsFromInst(inst: ComponentInstance): PostFXSettings {
   return {
     enabled:        getProp(inst, 'enabled', true),
+    preset:         getProp(inst, 'preset', 'none'),
+    temperature:    getProp(inst, 'temperature', 0),
+    filmic:         getProp(inst, 'filmic', 0),
+    lift:           getProp(inst, 'lift', 0),
     bloom:          getProp(inst, 'bloom', true),
     bloomIntensity: getProp(inst, 'bloomIntensity', 0.6),
     bloomThreshold: getProp(inst, 'bloomThreshold', 0.85),
@@ -185,14 +218,46 @@ export function collectPostFXZones(
   return out;
 }
 
-export default function PostFX({ s }: { s: PostFXSettings }) {
-  if (!s.enabled) return null;
+/** 원클릭 시네마틱 프리셋 — 큐레이팅된 효과 조합(노브 안 만져도 좋은 룩).
+ *  toneMapping:true 필수 — PostFX 활성 시 캔버스 톤매핑이 꺼지므로 여기서 ACES 복원. */
+const PRESETS: Record<string, Partial<PostFXSettings>> = {
+  // 따뜻하고 영화적 — 부드러운 블룸 + 약한 비네팅·그레인 + 웜 그레이드 + 접지 음영
+  cinematic: { toneMapping: true, ao: true, aoIntensity: 1.2, bloom: true, bloomIntensity: 0.5, bloomThreshold: 0.85,
+    vignette: 0.4, grain: 0.03, contrast: 0.06, saturation: 0.1, temperature: 0.15, filmic: 0.5, lift: 0.03 },
+  // 골든아워 — 강한 웜 + 부드러운 대비
+  warm: { toneMapping: true, bloom: true, bloomIntensity: 0.5, vignette: 0.3, grain: 0.02,
+    saturation: 0.12, temperature: 0.38, filmic: 0.4, lift: 0.02 },
+  // 차갑고 청량 — 쿨 틴트 + 약간 쨍
+  cool: { toneMapping: true, bloom: true, bloomIntensity: 0.45, vignette: 0.3,
+    saturation: 0.06, temperature: -0.32, filmic: 0.4, lift: 0.0 },
+  // 생생하게 — 채도·대비 강조
+  vivid: { toneMapping: true, bloom: true, bloomIntensity: 0.6, vignette: 0.25,
+    saturation: 0.35, contrast: 0.1, filmic: 0.45 },
+  // 누아르 흑백 — 강한 대비·비네팅·그레인
+  noir: { toneMapping: true, grayscale: true, bloom: true, bloomIntensity: 0.2,
+    vignette: 0.55, grain: 0.05, contrast: 0.22, filmic: 0.6 },
+  // 몽환 — 큰 블룸 + 옅은 색수차
+  dream: { toneMapping: true, bloom: true, bloomIntensity: 1.0, bloomThreshold: 0.6,
+    vignette: 0.35, saturation: 0.15, temperature: 0.1, chromatic: 0.0012, grain: 0.015, filmic: 0.3 },
+};
+
+/** preset 이 설정돼 있으면 그 룩으로 치환(enabled/zone 보존). 'none' 이면 수동 설정 그대로. */
+function withPreset(s: PostFXSettings): PostFXSettings {
+  if (!s.preset || s.preset === 'none' || !PRESETS[s.preset]) return s;
+  return { ...OFF, ...PRESETS[s.preset], enabled: s.enabled };
+}
+
+export default function PostFX({ s: raw }: { s: PostFXSettings }) {
+  if (!raw.enabled) return null;
+  const s = withPreset(raw);
 
   const fx: React.ReactElement[] = [];
   // SSAO 는 가장 먼저 (씬 깊이 기반 접지 음영) — 색보정·블룸 전에 적용.
   if (s.ao) fx.push(<N8AO key="ao" halfRes aoRadius={1.5} intensity={s.aoIntensity} distanceFalloff={1} />);
   if (s.wobble > 0) fx.push(<Wobble key="wob" amount={s.wobble} speed={1.2} frequency={9} />);
   if (s.pixelate > 0) fx.push(<Pixelation key="px" granularity={s.pixelate} />);
+  // 컬러그레이드 (웜/쿨·필름 S커브·섀도 리프트) — 톤 보정의 핵심
+  if (s.temperature !== 0 || s.filmic > 0 || s.lift !== 0) fx.push(<FilmicGrade key="grade" temperature={s.temperature} filmic={s.filmic} lift={s.lift} />);
   // 색 보정
   if (s.brightness !== 0 || s.contrast !== 0) fx.push(<BrightnessContrast key="bc" brightness={s.brightness} contrast={s.contrast} />);
   if (s.saturation !== 0 || s.hue !== 0) fx.push(<HueSaturation key="hs" hue={s.hue} saturation={s.saturation} />);

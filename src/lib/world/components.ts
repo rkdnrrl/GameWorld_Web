@@ -132,9 +132,13 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       // ── 간단 ──
       { key: 'enabled',        label: '활성화',                 type: 'boolean', default: true,  group: 'basic' },
       { key: 'zone',           label: '이 오브젝트 영역 안에서만 적용 (크기=영역, 끄면 전역)', type: 'boolean', default: false, group: 'basic' },
+      { key: 'preset',         label: '🎬 시네마틱 프리셋 (선택 시 아래 설정 무시하고 자동 룩)', type: 'enum', default: 'none', options: ['none', 'cinematic', 'warm', 'cool', 'vivid', 'noir', 'dream'], group: 'basic' },
       { key: 'brightness',     label: '밝기',                   type: 'number', default: 0,    min: -0.5, max: 0.5, step: 0.02, group: 'basic' },
       { key: 'contrast',       label: '대비',                   type: 'number', default: 0,    min: -0.5, max: 0.5, step: 0.02, group: 'basic' },
       { key: 'saturation',     label: '채도 (-1=흑백 ~ +1=쨍)', type: 'number', default: 0,    min: -1, max: 1,   step: 0.05, group: 'basic' },
+      { key: 'temperature',    label: '색온도 (+웜 / -쿨)',      type: 'number', default: 0,    min: -1, max: 1,   step: 0.05, group: 'basic' },
+      { key: 'filmic',         label: '필름 대비 (S커브, 0=끔)', type: 'number', default: 0,    min: 0, max: 1,    step: 0.05, group: 'basic' },
+      { key: 'lift',           label: '섀도 리프트 (어두운 영역 띄움)', type: 'number', default: 0, min: -0.2, max: 0.2, step: 0.01, group: 'advanced' },
       { key: 'tintColor',      label: '색상 틴트 (화면 색)',     type: 'color',  default: '#ffffff', group: 'basic' },
       { key: 'tintStrength',   label: '틴트 강도 (0=끔)',        type: 'number', default: 0,    min: 0, max: 1,    step: 0.05, group: 'basic' },
       { key: 'bloom',          label: 'Bloom 발광',             type: 'boolean', default: true, group: 'basic' },
