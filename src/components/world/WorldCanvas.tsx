@@ -74,6 +74,7 @@ import LadderButton from '@/lib/world/LadderButton';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
 import { SceneFog, SkyClouds, skySunPosition } from '@/lib/world/SkyEnv';
+import { makeWaterMaterial } from '@/lib/world/waterMaterial';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UI_SYNC_EVENT, DATA_SYNC_EVENT, type UiData } from '@/lib/world/uiObjects';
 import { api as backendApi } from '@/lib/api';
@@ -195,10 +196,13 @@ function buildWaterVolumeGeometry(N: number): { geom: THREE.BufferGeometry; topC
 function WorldWaterMesh({ color, strength = 1, speed = 1, frequency = 1, scaleY = 1 }: { color: string; strength?: number; speed?: number; frequency?: number; scaleY?: number }) {
   const N = 12;
   const { geom, topCount } = useMemo(() => buildWaterVolumeGeometry(N), []);
+  const mat = useMemo(() => makeWaterMaterial(color), [color]);
+  useEffect(() => () => { mat.dispose(); }, [mat]);
   const baseRef = useRef<Float32Array | null>(null);
   const params = useRef({ strength, speed, frequency, scaleY });
   params.current = { strength, speed, frequency, scaleY };
   useFrame(({ clock }) => {
+    (mat.userData.uTime as { value: number }).value = clock.elapsedTime;   // 물 반짝임 위상
     const pos = geom.attributes.position as THREE.BufferAttribute;
     if (!baseRef.current) baseRef.current = (pos.array as Float32Array).slice() as Float32Array;
     const base = baseRef.current;
@@ -214,10 +218,7 @@ function WorldWaterMesh({ color, strength = 1, speed = 1, frequency = 1, scaleY 
     geom.computeVertexNormals();
   });
   return (
-    <mesh geometry={geom} receiveShadow>
-      <meshStandardMaterial color={color} transparent opacity={0.78}
-        roughness={0.15} metalness={0.1} side={THREE.DoubleSide} />
-    </mesh>
+    <mesh geometry={geom} material={mat} receiveShadow />
   );
 }
 

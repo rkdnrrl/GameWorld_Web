@@ -141,6 +141,8 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'vignette',       label: '비네팅 (가장자리 어둠, 0=끔)', type: 'number', default: 0.3, min: 0, max: 1, step: 0.05, group: 'basic' },
       // ── 고급 ──
       { key: 'bloomThreshold', label: '발광 임계값',            type: 'number', default: 0.85, min: 0, max: 1,    step: 0.05, group: 'advanced' },
+      { key: 'ao',             label: 'SSAO 앰비언트 오클루전 (접지 음영)', type: 'boolean', default: false, group: 'advanced' },
+      { key: 'aoIntensity',    label: 'SSAO 강도',              type: 'number', default: 1,    min: 0, max: 4,    step: 0.1, group: 'advanced' },
       { key: 'hue',            label: '색조 (Hue, 라디안 0~6.28)', type: 'number', default: 0, min: 0, max: 6.28, step: 0.05, group: 'advanced' },
       { key: 'sepia',          label: '세피아 톤',              type: 'boolean', default: false, group: 'advanced' },
       { key: 'grayscale',      label: '흑백',                   type: 'boolean', default: false, group: 'advanced' },

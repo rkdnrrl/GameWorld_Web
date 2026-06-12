@@ -19,6 +19,7 @@ import { PerfManager } from '@/lib/world/PerfManager';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
 import { SceneFog, SkyClouds, skySunPosition } from '@/lib/world/SkyEnv';
+import { makeWaterMaterial } from '@/lib/world/waterMaterial';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UIRenderer } from '@/lib/world/UIRenderer';
 import { UIWorldRenderer } from '@/lib/world/UIWorldRenderer';
@@ -1584,11 +1585,14 @@ const WATER_BOX_EDGES = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1));
 function WaterMesh({ color, selected, strength = 1, speed = 1, frequency = 1, scaleY = 1 }: { color: string; selected: boolean; strength?: number; speed?: number; frequency?: number; scaleY?: number }) {
   const N = 12;
   const { geom, topCount } = useMemo(() => buildWaterVolumeGeometry(N), []);
+  const mat = useMemo(() => makeWaterMaterial(color), [color]);
+  useEffect(() => () => { mat.dispose(); }, [mat]);
   const baseRef = useRef<Float32Array | null>(null);
   const params = useRef({ strength, speed, frequency, scaleY });
   params.current = { strength, speed, frequency, scaleY };
 
   useFrame(({ clock }) => {
+    (mat.userData.uTime as { value: number }).value = clock.elapsedTime;   // 물 반짝임 위상
     const pos = geom.attributes.position as THREE.BufferAttribute;
     if (!baseRef.current) baseRef.current = (pos.array as Float32Array).slice() as Float32Array;
     const base = baseRef.current;
@@ -1606,10 +1610,7 @@ function WaterMesh({ color, selected, strength = 1, speed = 1, frequency = 1, sc
 
   return (
     <group>
-      <mesh geometry={geom} receiveShadow>
-        <meshStandardMaterial color={color} transparent opacity={0.78}
-          roughness={0.15} metalness={0.1} side={THREE.DoubleSide} />
-      </mesh>
+      <mesh geometry={geom} material={mat} receiveShadow />
       {/* 선택 표시 — 물 부피 경계를 깔끔한 직육면체 외곽선으로 (크기 가늠용). 수면 y=0 ~ 바닥 y=-1 */}
       {selected && (
         <lineSegments geometry={WATER_BOX_EDGES} position={[0, -0.5, 0]} raycast={() => null}>
@@ -8206,6 +8207,47 @@ export default function StudioCanvas() {
                     }}
                     onBlur={() => pushHistory(objects)}
                     style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
+                </div>
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ opacity: 0.7, fontSize: 11, fontWeight: 700 }}>{tCanvas("section_terrain_texture_blend")}</div>
+                  <div>
+                    <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_terrain_texture_cliff")}</div>
+                    <input type="text" value={selected.terrain.textureCliffUrl || ''} placeholder="https://... .jpg/.png"
+                      onChange={e => { const u = e.target.value; setObjects(prev => prev.map(o => o.id === selected.id && o.terrain ? { ...o, terrain: { ...o.terrain, textureCliffUrl: u } } : o)); }}
+                      onBlur={() => pushHistory(objects)}
+                      style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
+                  </div>
+                  <div>
+                    <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_terrain_texture_low")}</div>
+                    <input type="text" value={selected.terrain.textureLowUrl || ''} placeholder="https://... .jpg/.png"
+                      onChange={e => { const u = e.target.value; setObjects(prev => prev.map(o => o.id === selected.id && o.terrain ? { ...o, terrain: { ...o.terrain, textureLowUrl: u } } : o)); }}
+                      onBlur={() => pushHistory(objects)}
+                      style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_terrain_slope_threshold")}</div>
+                      <input type="number" min={5} max={85} step={1} value={selected.terrain.slopeThreshold ?? 35}
+                        onChange={e => { const v = Math.max(5, Math.min(85, Number(e.target.value) || 35)); setObjects(prev => prev.map(o => o.id === selected.id && o.terrain ? { ...o, terrain: { ...o.terrain, slopeThreshold: v } } : o)); }}
+                        onBlur={() => pushHistory(objects)}
+                        style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_terrain_low_height")}</div>
+                      <input type="number" step={0.5} value={selected.terrain.lowHeight ?? 0}
+                        onChange={e => { const v = Number(e.target.value) || 0; setObjects(prev => prev.map(o => o.id === selected.id && o.terrain ? { ...o, terrain: { ...o.terrain, lowHeight: v } } : o)); }}
+                        onBlur={() => pushHistory(objects)}
+                        style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_terrain_low_blend")}</div>
+                      <input type="number" min={0.1} step={0.5} value={selected.terrain.lowBlend ?? 2}
+                        onChange={e => { const v = Math.max(0.1, Number(e.target.value) || 2); setObjects(prev => prev.map(o => o.id === selected.id && o.terrain ? { ...o, terrain: { ...o.terrain, lowBlend: v } } : o)); }}
+                        onBlur={() => pushHistory(objects)}
+                        style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 10, opacity: 0.4 }}>{tCanvas("hint_terrain_texture_blend")}</div>
                 </div>
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ opacity: 0.7, fontSize: 11, fontWeight: 700 }}>{tCanvas("section_terrain_foliage_assets")}</div>

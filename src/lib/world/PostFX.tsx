@@ -11,7 +11,7 @@
 import * as THREE from 'three';
 import {
   EffectComposer, Bloom, Vignette, ChromaticAberration, BrightnessContrast, ToneMapping,
-  HueSaturation, Noise, Pixelation, Scanline, Sepia, ColorAverage, wrapEffect,
+  HueSaturation, Noise, Pixelation, Scanline, Sepia, ColorAverage, N8AO, wrapEffect,
 } from '@react-three/postprocessing';
 import { ToneMappingMode, Effect } from 'postprocessing';
 
@@ -62,6 +62,7 @@ export interface PostFXSettings {
   enabled: boolean;
   bloom: boolean; bloomIntensity: number; bloomThreshold: number;
   vignette: number;          // 0 = off
+  ao: boolean; aoIntensity: number;   // SSAO 앰비언트 오클루전
   chromatic: number;         // 0 = off
   brightness: number; contrast: number;
   tintColor: string; tintStrength: number;   // 색상 틴트 (화면을 이 색으로 물들임, 0=끔)
@@ -78,7 +79,7 @@ export interface PostFXSettings {
 
 const OFF: PostFXSettings = {
   enabled: false, bloom: false, bloomIntensity: 0, bloomThreshold: 0,
-  vignette: 0, chromatic: 0, brightness: 0, contrast: 0,
+  vignette: 0, ao: false, aoIntensity: 0, chromatic: 0, brightness: 0, contrast: 0,
   tintColor: '#ffffff', tintStrength: 0, wobble: 0,
   saturation: 0, hue: 0, grain: 0, pixelate: 0, scanline: 0, sepia: false, grayscale: false,
   dof: false, dofFocus: 0, dofFocalLength: 0, dofBokeh: 0, toneMapping: false,
@@ -91,6 +92,8 @@ function settingsFromInst(inst: ComponentInstance): PostFXSettings {
     bloomIntensity: getProp(inst, 'bloomIntensity', 0.6),
     bloomThreshold: getProp(inst, 'bloomThreshold', 0.85),
     vignette:       getProp(inst, 'vignette', 0.3),
+    ao:             getProp(inst, 'ao', false),
+    aoIntensity:    getProp(inst, 'aoIntensity', 1),
     chromatic:      getProp(inst, 'chromatic', 0),
     brightness:     getProp(inst, 'brightness', 0),
     contrast:       getProp(inst, 'contrast', 0),
@@ -186,6 +189,8 @@ export default function PostFX({ s }: { s: PostFXSettings }) {
   if (!s.enabled) return null;
 
   const fx: React.ReactElement[] = [];
+  // SSAO 는 가장 먼저 (씬 깊이 기반 접지 음영) — 색보정·블룸 전에 적용.
+  if (s.ao) fx.push(<N8AO key="ao" halfRes aoRadius={1.5} intensity={s.aoIntensity} distanceFalloff={1} />);
   if (s.wobble > 0) fx.push(<Wobble key="wob" amount={s.wobble} speed={1.2} frequency={9} />);
   if (s.pixelate > 0) fx.push(<Pixelation key="px" granularity={s.pixelate} />);
   // 색 보정

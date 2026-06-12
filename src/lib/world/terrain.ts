@@ -35,6 +35,16 @@ export interface TerrainData {
   textureUrl?: string;
   /** 텍스처 반복 횟수 (UV 곱). */
   textureRepeat?: number;
+  /** 슬로프/높이 블렌딩 — 가파른 경사면 텍스처(바위). 지정 시 textureUrl(평지)과 섞임. */
+  textureCliffUrl?: string;
+  /** 슬로프/높이 블렌딩 — 낮은 곳 텍스처(모래/흙, 물가). */
+  textureLowUrl?: string;
+  /** 경사 블렌딩 시작 각도(도). 이보다 가파르면 cliff 텍스처. 기본 35. */
+  slopeThreshold?: number;
+  /** 이 월드 높이(Y, m) 이하를 low 텍스처로. 기본 0. */
+  lowHeight?: number;
+  /** low 블렌딩 폭(m). 기본 2. */
+  lowBlend?: number;
   /** 지형 위에 심은 풀/나무 (선택). */
   foliage?: FoliageInstance[];
   /** 식생 종류별 사용자 에셋(모델 URL). 지정 시 절차적 기본 모양 대신 그 모델을 인스턴싱. */
