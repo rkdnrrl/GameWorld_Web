@@ -2686,7 +2686,9 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick,
       if (an) {
         let buf = voiceBufRef.current;
         if (!buf || buf.length !== an.fftSize) { buf = new Uint8Array(an.fftSize); voiceBufRef.current = buf; }
-        an.getByteTimeDomainData(buf);
+        // 최신 DOM 타입(TS5.7+)은 Uint8Array<ArrayBuffer> 를 요구 — 버전 호환 위해 any 캐스트.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        an.getByteTimeDomainData(buf as any);
         let sum = 0;
         for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
         const rms = Math.sqrt(sum / buf.length);
