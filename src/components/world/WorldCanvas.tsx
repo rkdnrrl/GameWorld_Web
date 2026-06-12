@@ -200,6 +200,7 @@ function WorldWaterMesh({ color, strength = 1, speed = 1, frequency = 1, scaleY 
   const mat = useMemo(() => makeWaterMaterial(color, reflect), [color, reflect]);
   useEffect(() => () => { mat.dispose(); }, [mat]);
   const baseRef = useRef<Float32Array | null>(null);
+  const normalTick = useRef(0);
   const params = useRef({ strength, speed, frequency, scaleY });
   params.current = { strength, speed, frequency, scaleY };
   useFrame(({ clock }) => {
@@ -216,7 +217,8 @@ function WorldWaterMesh({ color, strength = 1, speed = 1, frequency = 1, scaleY 
       arr[ix + 1] = Math.sin(x * 5 * freq + t * 2 * spd) * a + Math.cos(z * 5 * freq + t * 1.5 * spd) * a;
     }
     pos.needsUpdate = true;
-    geom.computeVertexNormals();
+    // 법선 재계산은 비싸므로 격프레임(~30Hz)만 — 위치는 매 프레임이라 파도 모양은 그대로, 음영만 1프레임 지연(육안 무차이).
+    if ((normalTick.current++ & 1) === 0) geom.computeVertexNormals();
   });
   return (
     <group>
@@ -1603,6 +1605,14 @@ export function Player({
   const lastPortalId    = useRef<string | null>(null);
   const { rapier, world: rWorld } = useRapier();
   const { camera, gl, scene } = useThree();
+  // 재사용 Ray — castRay 는 동기 완료라(JS 단일 스레드) 한 객체를 모든 캐스트가 공유해도 안전.
+  // 매 프레임 5~6회 new rapier.Ray(WASM 할당)를 제거. aimRay 로 origin/dir 만 갱신 후 캐스트.
+  const _playerRay = useMemo(() => new rapier.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }), [rapier]);
+  const aimRay = useCallback((ox: number, oy: number, oz: number, dx: number, dy: number, dz: number) => {
+    _playerRay.origin.x = ox; _playerRay.origin.y = oy; _playerRay.origin.z = oz;
+    _playerRay.dir.x = dx; _playerRay.dir.y = dy; _playerRay.dir.z = dz;
+    return _playerRay;
+  }, [_playerRay]);
 
   /* 직접 DOM 키 추적 — KeyboardControls 컨텍스트 문제 우회 */
   const keys = useRef(new Set<string>());
@@ -2083,10 +2093,7 @@ export function Player({
           let blocked = false;
           if (heightOf(desired) > heightOf(colliderPostureRef.current)) {
             // 발 바로 위에서 목표 키만큼 위로 — 센서(물 트리거 등) 제외, 자기 바디 제외
-            const upRay = new rapier.Ray(
-              { x: posT.x, y: posT.y - PLAYER_CAPSULE_BOTTOM + 0.05, z: posT.z },
-              { x: 0, y: 1, z: 0 },
-            );
+            const upRay = aimRay(posT.x, posT.y - PLAYER_CAPSULE_BOTTOM + 0.05, posT.z, 0, 1, 0);
             blocked = !!rWorld.castRay(upRay, heightOf(desired), true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, body.current ?? undefined);
           }
           if (blocked) {
@@ -2135,7 +2142,7 @@ export function Player({
         let walkX = mx * SPEED, walkZ = mz * SPEED;
         // ── 경사면 차단 — 발밑 normal 로 너무 가파르면 못 걸어 올라감(미끄러짐). PEAK 식: 가파른 면은 등반(좌클릭)으로만. ──
         try {
-          const nray = new rapier.Ray({ x: posT.x, y: posT.y, z: posT.z }, { x: 0, y: -1, z: 0 });
+          const nray = aimRay(posT.x, posT.y, posT.z, 0, -1, 0);
           const nh = rWorld.castRayAndGetNormal(nray, 1.5, true, undefined, undefined, undefined, body.current ?? undefined);
           if (nh && nh.normal && nh.timeOfImpact < 1.3) {
             const ny = nh.normal.y;        // 1=평지, 0=수직벽
@@ -2247,7 +2254,7 @@ export function Player({
       }
 
       // 지면 체크 — 자기 RigidBody 제외 (제외 없으면 캡슐 내부 → TOI=0 → 항상 onGround=true)
-      const ray = new rapier.Ray({ x: posT.x, y: posT.y, z: posT.z }, { x: 0, y: -1, z: 0 });
+      const ray = aimRay(posT.x, posT.y, posT.z, 0, -1, 0);
       const hit = rWorld.castRay(ray, 1.6, true, undefined, undefined, undefined, body.current ?? undefined);
       // 캡슐 바닥(중심에서 PLAYER_CAPSULE_BOTTOM=0.83 아래) + 여유 버퍼 0.27 — 살짝 떠도 접지로 인정(coyote/snap).
       const onGround = !!(hit && hit.timeOfImpact < PLAYER_CAPSULE_BOTTOM + 0.27);
@@ -2405,7 +2412,7 @@ export function Player({
         let fwdOff = 0.15;
         try {
           const fdx = Math.sin(rotY), fdz = Math.cos(rotY);
-          const wray = new rapier.Ray({ x: headPos.x, y: headPos.y, z: headPos.z }, { x: fdx, y: 0, z: fdz });
+          const wray = aimRay(headPos.x, headPos.y, headPos.z, fdx, 0, fdz);
           const wh = rWorld.castRay(wray, 0.5, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, body.current ?? undefined);
           // 벽 거리 - near(0.17) - 여유(0.12). 머리 뒤로는 안 빼므로 하한 0.05.
           if (wh) fwdOff = Math.max(0.05, Math.min(0.15, wh.timeOfImpact - 0.17 - 0.12));
@@ -2441,10 +2448,7 @@ export function Player({
       let ratio = 1;
       if (fullLen > 0.01) {
         const ir = 1 / fullLen;
-        const ray = new rapier.Ray(
-          { x: p.x, y: lookY, z: p.z },
-          { x: ox * ir, y: oy * ir, z: oz * ir },
-        );
+        const ray = aimRay(p.x, lookY, p.z, ox * ir, oy * ir, oz * ir);
         // 자기 캡슐 제외 + 센서(트리거) 제외 — 물 트리거 콜라이더를 벽으로 오인해 카메라가 당겨지는 버그 방지.
         const hit = rWorld.castRay(ray, fullLen, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, body.current ?? undefined);
         if (hit) {
@@ -2535,7 +2539,7 @@ export function Player({
           const fx = -Math.sin(_mob.camH) * Math.cos(_mob.camV);
           const fy = -Math.sin(_mob.camV);
           const fz = -Math.cos(_mob.camH) * Math.cos(_mob.camV);
-          const ray = new rapier.Ray({ x: cam.x, y: cam.y, z: cam.z }, { x: fx, y: fy, z: fz });
+          const ray = aimRay(cam.x, cam.y, cam.z, fx, fy, fz);
           const hit = rWorld.castRay(ray, 4.0, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, body.current ?? undefined);
           if (hit) {
             const hb = hit.collider?.parent();
