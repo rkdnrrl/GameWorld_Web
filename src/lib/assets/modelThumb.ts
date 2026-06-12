@@ -15,6 +15,7 @@
 import * as THREE from 'three';
 import { loadStaticModel } from '@/lib/world/modelLoader';
 import { buildMat, disposeMat, type MaterialConfig } from '@/lib/assets/material';
+import { resolveMeshMaterial, type MaterialOverrides, type LoadTexFn } from '@/lib/world/materialOverride';
 
 const SIZE = 320;
 const cache    = new Map<string, string>();                 // key -> dataURL
@@ -116,6 +117,21 @@ async function renderThumb(url: string, config?: MaterialConfig | null): Promise
   const built = config ? buildMat(config, onTexLoad) : null;
   texExpected = config ? [config.textureAlbedo, config.textureNormal, config.textureRoughness].filter(Boolean).length : 0;
   if (texExpected === 0) resolveTex();
+
+  // 부위별 텍스처(materialOverrides) — buildMat(전역)과 별개로 머티리얼 이름별 적용 (잎 등).
+  // 재질에디터·터레인 식생과 동일 경로(resolveMeshMaterial). 없으면 영향 0.
+  const overrides = (config as { materialOverrides?: MaterialOverrides } | null | undefined)?.materialOverrides;
+  const made: THREE.MeshStandardMaterial[] = [];
+  let ovPending = 0, ovResolve = () => {};
+  const ovPromise = new Promise<void>(res => { ovResolve = res; });
+  const ovTick = () => { ovPending = Math.max(0, ovPending - 1); if (ovPending <= 0) ovResolve(); };
+  const ovLoadTex: LoadTexFn = (u, cs, tx, ty, onLoad) => {
+    ovPending++;
+    const loader = new THREE.TextureLoader(); loader.setCrossOrigin('anonymous');
+    const tex = loader.load(u, () => { tex.needsUpdate = true; onLoad(); ovTick(); }, undefined, () => { onLoad(); ovTick(); });
+    tex.colorSpace = cs; tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(tx, ty);
+    return tex;
+  };
   try {
     model.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(model);
@@ -127,6 +143,12 @@ async function renderThumb(url: string, config?: MaterialConfig | null): Promise
     model.traverse(o => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
+      if (overrides) {
+        // 부위별 텍스처 우선 > 전역(built) > 원본. (멀티 머티리얼 모델: 줄기/잎 이름별 정확 교체)
+        const res = resolveMeshMaterial(mesh.material, overrides, built, ovLoadTex, undefined, made);
+        if (res) mesh.material = res;
+        return;
+      }
       if (built) {
         mesh.material = built;
         return;
@@ -160,8 +182,9 @@ async function renderThumb(url: string, config?: MaterialConfig | null): Promise
       await new Promise<void>(res => setTimeout(res, step));
       waited += step;
     } while (waited < deadline);
-    // config(materialConfig) 텍스처 + 잔여 텍스처 마무리 대기 후 최종 캡처
+    // config(materialConfig) 텍스처 + 부위별 텍스처 + 잔여 텍스처 마무리 대기 후 최종 캡처
     if (texExpected > 0) await Promise.race([texPromise, new Promise<void>(res => setTimeout(res, 800))]);
+    if (ovPending > 0) await Promise.race([ovPromise, new Promise<void>(res => setTimeout(res, 1800))]);
     await waitForTextures(model, 300);
     r.render(sc, cam);
     return r.domElement.toDataURL('image/png');
@@ -169,6 +192,7 @@ async function renderThumb(url: string, config?: MaterialConfig | null): Promise
     sc.remove(model);
     disposeOriginal(model);
     if (built) disposeMat(built);
+    made.forEach(disposeMat);
   }
 }
 
