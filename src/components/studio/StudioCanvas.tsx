@@ -8269,9 +8269,10 @@ export default function StudioCanvas() {
                           const url = e.dataTransfer.getData('application/x-alp-asset-url');
                           if (!url) return;
                           e.preventDefault();
-                          // 에셋의 부위별 텍스처(materialConfig)도 함께 저장 → 잎 알파 텍스처가 인스턴싱에 반영 (World 런타임 포함).
-                          const a = myAssets.find(x => x.modelUrl === url) as (Asset & { metadata?: { materialConfig?: unknown }; materialConfig?: unknown }) | undefined;
-                          const overrides = (a?.metadata?.materialConfig ?? a?.materialConfig) as import('@/lib/world/materialOverride').MaterialOverrides | undefined;
+                          // 에셋의 부위별 텍스처(materialConfig.materialOverrides)도 함께 저장 → 잎 알파 텍스처가 인스턴싱에 반영 (World 런타임 포함).
+                          const a = myAssets.find(x => x.modelUrl === url);
+                          const cfg = getAssetMaterialConfig(a) as { materialOverrides?: import('@/lib/world/materialOverride').MaterialOverrides } | null;
+                          const overrides = cfg?.materialOverrides;
                           setObjects(prev => prev.map(o => o.id === selected.id && o.terrain
                             ? { ...o, terrain: { ...o.terrain, foliageAssets: { ...(o.terrain.foliageAssets || {}), [fk]: { url, scale: o.terrain.foliageAssets?.[fk]?.scale ?? 1, overrides } } } } : o));
                           pushHistory(objects);
