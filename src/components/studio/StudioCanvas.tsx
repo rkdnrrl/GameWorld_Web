@@ -521,13 +521,16 @@ function ComponentsSection({
               }
               if (p.type === 'color') {
                 return (
-                  <label key={p.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, fontSize: 10, opacity: 0.75, marginTop: 4 }}>
-                    {p.label}
-                    <input type="color" value={String(val)}
-                      onChange={e => updateProp(idx, p.key, e.target.value)}
-                      onBlur={() => pushHistory(allObjects)}
-                      style={{ width: 36, height: 22, padding: 0, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
-                  </label>
+                  <div key={p.key} style={{ marginTop: 4 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, fontSize: 10, opacity: 0.75 }}>
+                      {p.label}
+                      <input type="color" value={String(val)}
+                        onChange={e => updateProp(idx, p.key, e.target.value)}
+                        onBlur={() => pushHistory(allObjects)}
+                        style={{ width: 36, height: 22, padding: 0, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
+                    </label>
+                    <PaletteSwatches value={String(val)} onPick={c => { updateProp(idx, p.key, c); pushHistory(allObjects); }} />
+                  </div>
                 );
               }
               // Animator clip — 모델 내장 클립 드롭다운 (로드되면 목록, 아니면 텍스트 입력)
@@ -2421,6 +2424,22 @@ function SceneRefCapture({ target }: { target: { current: THREE.Scene | null } }
 
 /* ── 노출(toneMapping) + HDRI IBL 강도 라이브 업데이트
    gl prop / Environment prop 은 초기 마운트만 적용되므로 매 렌더마다 직접 세팅한다. */
+/** ART_PALETTE 스와치 행 — 색상 입력 아래에 붙여 통일된 팔레트에서 빠르게 선택. */
+function PaletteSwatches({ value, onPick }: { value?: string; onPick: (c: string) => void }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
+      {ART_PALETTE.map(c => {
+        const active = (value || '').toLowerCase() === c.toLowerCase();
+        return (
+          <button key={c} title={c} onClick={() => onPick(c)}
+            style={{ width: 16, height: 16, background: c, borderRadius: 3, cursor: 'pointer', padding: 0,
+              border: active ? '2px solid #fff' : '1px solid rgba(255,255,255,0.25)' }} />
+        );
+      })}
+    </div>
+  );
+}
+
 /** 스튜디오 메인 태양광 — 카메라 위치 따라가서 shadow frustum 안에 항상 오브젝트가 들어오게.
  *  방향은 첫 dirlight 오브젝트(있으면)의 회전, 없으면 기본 각도. 단일 그림자맵(cascade 없음 → 경계 이음새 없음). */
 function FollowingStudioSun({ intensity, dir, color }: { intensity: number; dir: [number, number, number]; color: string }) {
@@ -8197,6 +8216,7 @@ export default function StudioCanvas() {
                     }}
                     onBlur={() => pushHistory(objects)}
                     style={{ width: 60, height: 28, background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, cursor: 'pointer', padding: 0 }} />
+                  <PaletteSwatches value={selected.terrain.baseColor} onPick={c => { setObjects(prev => prev.map(o => o.id === selected.id && o.terrain ? { ...o, terrain: { ...o.terrain, baseColor: c } } : o)); pushHistory(objects); }} />
                 </div>
                 <div>
                   <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_terrain_texture_url")}</div>
@@ -8533,6 +8553,7 @@ export default function StudioCanvas() {
                       onChange={e => setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, lightColor: e.target.value } : o))}
                       onBlur={() => pushHistory(objects)}
                       style={{ width: '100%', height: 28, border: 'none', borderRadius: 6, padding: 0, cursor: 'pointer' }} />
+                    <PaletteSwatches value={selected.lightColor} onPick={c => { setObjects(prev => prev.map(o => o.id === selected.id ? { ...o, lightColor: c } : o)); pushHistory(objects); }} />
                   </div>
                   {/* 강도 */}
                   <label style={{ fontSize: 10, opacity: 0.6, display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
@@ -8645,6 +8666,7 @@ export default function StudioCanvas() {
                         onChange={e => updateColor(selected.id, e.target.value)}
                         onBlur={() => pushHistory(objects)}
                         style={{ width: '100%', height: 28, border: 'none', borderRadius: 6, padding: 0, cursor: 'pointer' }} />
+                      <PaletteSwatches value={selected.color} onPick={c => { updateColor(selected.id, c); pushHistory(objects); }} />
                     </div>
                   )}
 
@@ -8673,18 +8695,8 @@ export default function StudioCanvas() {
                         onBlur={() => pushHistory(objects)}
                         style={{ width: '100%', height: 24, border: 'none', borderRadius: 5, padding: 0, cursor: 'pointer' }} />
                       {/* 큐레이팅된 아트 팔레트 — 통일된 색에서 골라 월드 응집감 ↑ */}
-                      <div style={{ fontSize: 10, opacity: 0.5, margin: '5px 0 3px' }}>{t('matPalette')}</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                        {ART_PALETTE.map(c => {
-                          const active = (selected.materialColor || '').toLowerCase() === c;
-                          return (
-                            <button key={c} title={c}
-                              onClick={() => { updateMaterialField('materialColor', c); pushHistory(objects); }}
-                              style={{ width: 18, height: 18, background: c, borderRadius: 4, cursor: 'pointer', padding: 0,
-                                border: active ? '2px solid #fff' : '1px solid rgba(255,255,255,0.25)', boxShadow: active ? '0 0 0 1px #000' : 'none' }} />
-                          );
-                        })}
-                      </div>
+                      <div style={{ fontSize: 10, opacity: 0.5, margin: '5px 0 0' }}>{t('matPalette')}</div>
+                      <PaletteSwatches value={selected.materialColor} onPick={c => { updateMaterialField('materialColor', c); pushHistory(objects); }} />
                     </div>
                   )}
 
