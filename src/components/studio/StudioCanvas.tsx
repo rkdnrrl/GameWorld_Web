@@ -8269,8 +8269,11 @@ export default function StudioCanvas() {
                           const url = e.dataTransfer.getData('application/x-alp-asset-url');
                           if (!url) return;
                           e.preventDefault();
+                          // 에셋의 부위별 텍스처(materialConfig)도 함께 저장 → 잎 알파 텍스처가 인스턴싱에 반영 (World 런타임 포함).
+                          const a = myAssets.find(x => x.modelUrl === url) as (Asset & { metadata?: { materialConfig?: unknown }; materialConfig?: unknown }) | undefined;
+                          const overrides = (a?.metadata?.materialConfig ?? a?.materialConfig) as import('@/lib/world/materialOverride').MaterialOverrides | undefined;
                           setObjects(prev => prev.map(o => o.id === selected.id && o.terrain
-                            ? { ...o, terrain: { ...o.terrain, foliageAssets: { ...(o.terrain.foliageAssets || {}), [fk]: { url, scale: o.terrain.foliageAssets?.[fk]?.scale ?? 1 } } } } : o));
+                            ? { ...o, terrain: { ...o.terrain, foliageAssets: { ...(o.terrain.foliageAssets || {}), [fk]: { url, scale: o.terrain.foliageAssets?.[fk]?.scale ?? 1, overrides } } } } : o));
                           pushHistory(objects);
                         }}>
                         <span style={{ width: 30, opacity: 0.7, flexShrink: 0 }}>{tCanvas(`foliage_${fk}`)}</span>
@@ -8283,7 +8286,7 @@ export default function StudioCanvas() {
                               onChange={e => {
                                 const sc = Math.max(0.05, Math.min(20, Number(e.target.value) || 1));
                                 setObjects(prev => prev.map(o => o.id === selected.id && o.terrain
-                                  ? { ...o, terrain: { ...o.terrain, foliageAssets: { ...(o.terrain.foliageAssets || {}), [fk]: { url: cur.url, scale: sc } } } } : o));
+                                  ? { ...o, terrain: { ...o.terrain, foliageAssets: { ...(o.terrain.foliageAssets || {}), [fk]: { url: cur.url, scale: sc, overrides: cur.overrides } } } } : o));
                               }}
                               onBlur={() => pushHistory(objects)}
                               style={{ width: 46, flexShrink: 0, background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 4px', borderRadius: 4, outline: 'none' }} />

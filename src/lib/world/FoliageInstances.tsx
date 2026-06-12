@@ -20,6 +20,7 @@ import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { normalizeTerrain, sampleTerrainHeight, type TerrainData, type FoliageInstance } from './terrain';
 import { loadStaticModelCached } from './modelLoader';
+import { resolveMeshMaterial, type MaterialOverrides, type LoadTexFn } from './materialOverride';
 
 // ── 절차적 지오메트리 (모듈 1회 생성, 공유) ──
 function crossQuads(angles: number[], w: number, h: number, bottom: number[], top: number[]): THREE.BufferGeometry {
@@ -185,9 +186,21 @@ function prepFoliageMaterial(mat: THREE.Material | THREE.Material[]): THREE.Mate
   };
   return Array.isArray(mat) ? mat.map(fix) : fix(mat);
 }
-/** url 모델 1회 로드 → 메시별 (변환 베이크된)지오/머티리얼 추출. 베이스를 y=0·xz중심으로 재배치. 세션 캐시. */
-function loadFoliageParts(url: string): Promise<FoliageParts> {
-  let entry = _foliagePartsCache.get(url);
+/** 식생용 단순 텍스처 로더 — materialOverride 헬퍼에 주입. */
+const _foliageLoadTex: LoadTexFn = (url, colorSpace, tx, ty, onLoad) => {
+  const tex = new THREE.TextureLoader().load(url, onLoad);
+  tex.colorSpace = colorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(tx, ty);
+  return tex;
+};
+
+/** url 모델 1회 로드 → 메시별 (변환 베이크된)지오/머티리얼 추출. 베이스를 y=0·xz중심으로 재배치. 세션 캐시.
+ *  overrides(부위별 텍스처)가 있으면 잎 등 머티리얼에 입힘 — 캐시 키에 overrides 유무 포함. */
+function loadFoliageParts(url: string, overrides?: MaterialOverrides): Promise<FoliageParts> {
+  const ovKeys = overrides ? Object.keys(overrides).sort().join(',') : '';
+  const key = url + '|' + ovKeys;
+  let entry = _foliagePartsCache.get(key);
   if (!entry) {
     entry = loadStaticModelCached(url).then((model) => {
       model.updateMatrixWorld(true);
@@ -197,7 +210,14 @@ function loadFoliageParts(url: string): Promise<FoliageParts> {
         if (m.isMesh && m.geometry) {
           const g = m.geometry.clone();
           g.applyMatrix4(m.matrixWorld);   // 모델 내부 변환(+2m 정규화 스케일) 베이크
-          parts.push({ geo: g, mat: prepFoliageMaterial(m.material) });
+          // 부위별 텍스처(잎 알파 etc.) 적용 후, 양면/컷아웃 보정.
+          let mat: THREE.Material | THREE.Material[] = m.material;
+          if (overrides) {
+            const made: THREE.MeshStandardMaterial[] = [];
+            const resolved = resolveMeshMaterial(m.material, overrides, null, _foliageLoadTex, undefined, made);
+            if (resolved) mat = resolved;
+          }
+          parts.push({ geo: g, mat: prepFoliageMaterial(mat) });
         }
       });
       const box = new THREE.Box3();
@@ -206,21 +226,23 @@ function loadFoliageParts(url: string): Promise<FoliageParts> {
       for (const p of parts) { p.geo.translate(-cx, -minY, -cz); p.geo.computeBoundingSphere(); }  // 밑동 y=0, xz 중심
       return { parts };
     });
-    _foliagePartsCache.set(url, entry);
+    _foliagePartsCache.set(key, entry);
   }
   return entry;
 }
 
-function AssetFoliageInstances({ url, scale, items, t, cast }: {
-  url: string; scale: number; items: FoliageInstance[]; t: TerrainData; cast: boolean;
+function AssetFoliageInstances({ url, scale, items, t, cast, overrides }: {
+  url: string; scale: number; items: FoliageInstance[]; t: TerrainData; cast: boolean; overrides?: MaterialOverrides;
 }) {
   const [parts, setParts] = useState<FoliageParts | null>(null);
+  const ovKey = overrides ? Object.keys(overrides).sort().join(',') : '';
   useEffect(() => {
     let alive = true;
     // 로드 완료 시에만 교체 — 전환 중 이전 모델 유지(빈 깜빡임 방지). 스테일은 alive 로 차단.
-    loadFoliageParts(url).then(p => { if (alive) setParts(p); }).catch(() => { if (alive) setParts(null); });
+    loadFoliageParts(url, overrides).then(p => { if (alive) setParts(p); }).catch(() => { if (alive) setParts(null); });
     return () => { alive = false; };
-  }, [url]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url, ovKey]);
   const refs = useRef<THREE.InstancedMesh[]>([]);
   const capacity = Math.max(256, Math.ceil((items.length + 1) / 256) * 256);
   useEffect(() => {
@@ -286,20 +308,20 @@ export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
   return (
     <>
       {fa.grass?.url
-        ? <AssetFoliageInstances url={fa.grass.url} scale={fa.grass.scale ?? 1} items={grass} t={t} cast={false} />
+        ? <AssetFoliageInstances url={fa.grass.url} scale={fa.grass.scale ?? 1} overrides={fa.grass.overrides} items={grass} t={t} cast={false} />
         : <Instanced items={grass} geo={grassGeo} mat={grassMat} t={t} base={1} cast={false} receive={false} vary="grass" />}
       {fa.flower?.url
-        ? <AssetFoliageInstances url={fa.flower.url} scale={fa.flower.scale ?? 1} items={flowers} t={t} cast={false} />
+        ? <AssetFoliageInstances url={fa.flower.url} scale={fa.flower.scale ?? 1} overrides={fa.flower.overrides} items={flowers} t={t} cast={false} />
         : <Instanced items={flowers} geo={flowerGeo} mat={flowerMat} t={t} base={1} cast={false} receive={false} vary="flower" />}
       {fa.tree?.url
-        ? <AssetFoliageInstances url={fa.tree.url} scale={fa.tree.scale ?? 1} items={trees} t={t} cast />
+        ? <AssetFoliageInstances url={fa.tree.url} scale={fa.tree.scale ?? 1} overrides={fa.tree.overrides} items={trees} t={t} cast />
         : (<>
             {/* 나무: 기둥 + 잎 — 같은 인스턴스 변환(지오메트리가 미리 y 오프셋됨) */}
             <Instanced items={trees} geo={trunkGeo} mat={trunkMat} t={t} base={1} cast receive={false} />
             <Instanced items={trees} geo={canopyGeo} mat={canopyMat} t={t} base={1} cast receive={false} />
           </>)}
       {fa.rock?.url
-        ? <AssetFoliageInstances url={fa.rock.url} scale={fa.rock.scale ?? 1} items={rocks} t={t} cast />
+        ? <AssetFoliageInstances url={fa.rock.url} scale={fa.rock.scale ?? 1} overrides={fa.rock.overrides} items={rocks} t={t} cast />
         : <Instanced items={rocks} geo={rockGeo} mat={rockMat} t={t} base={1} cast receive={false} vary="rock" />}
     </>
   );
