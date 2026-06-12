@@ -8208,6 +8208,54 @@ export default function StudioCanvas() {
                     style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
                 </div>
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ opacity: 0.7, fontSize: 11, fontWeight: 700 }}>{tCanvas("section_terrain_foliage_assets")}</div>
+                  {(['grass', 'flower', 'tree', 'rock'] as const).map(fk => {
+                    const cur = selected.terrain!.foliageAssets?.[fk];
+                    const assetName = cur?.url ? (myAssets.find(a => a.modelUrl === cur.url)?.name || tCanvas("foliage_default_shape")) : null;
+                    return (
+                      <div key={fk} style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                        onDragOver={e => { if (e.dataTransfer.types.includes('application/x-alp-asset-url')) e.preventDefault(); }}
+                        onDrop={e => {
+                          const url = e.dataTransfer.getData('application/x-alp-asset-url');
+                          if (!url) return;
+                          e.preventDefault();
+                          setObjects(prev => prev.map(o => o.id === selected.id && o.terrain
+                            ? { ...o, terrain: { ...o.terrain, foliageAssets: { ...(o.terrain.foliageAssets || {}), [fk]: { url, scale: o.terrain.foliageAssets?.[fk]?.scale ?? 1 } } } } : o));
+                          pushHistory(objects);
+                        }}>
+                        <span style={{ width: 30, opacity: 0.7, flexShrink: 0 }}>{tCanvas(`foliage_${fk}`)}</span>
+                        <div style={{ flex: 1, minWidth: 0, padding: '4px 7px', borderRadius: 4, border: '1px dashed rgba(255,255,255,0.18)', background: 'rgba(0,0,0,0.25)', fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: assetName ? '#a7f3d0' : '#888' }}>
+                          {assetName || tCanvas("foliage_drop_hint")}
+                        </div>
+                        {cur?.url && (
+                          <>
+                            <input type="number" min={0.05} max={20} step={0.05} value={cur.scale ?? 1} title={tCanvas("label_foliage_scale")}
+                              onChange={e => {
+                                const sc = Math.max(0.05, Math.min(20, Number(e.target.value) || 1));
+                                setObjects(prev => prev.map(o => o.id === selected.id && o.terrain
+                                  ? { ...o, terrain: { ...o.terrain, foliageAssets: { ...(o.terrain.foliageAssets || {}), [fk]: { url: cur.url, scale: sc } } } } : o));
+                              }}
+                              onBlur={() => pushHistory(objects)}
+                              style={{ width: 46, flexShrink: 0, background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 4px', borderRadius: 4, outline: 'none' }} />
+                            <button type="button" title={tCanvas("foliage_clear")}
+                              onClick={() => {
+                                setObjects(prev => prev.map(o => {
+                                  if (o.id !== selected.id || !o.terrain) return o;
+                                  const faNext = { ...(o.terrain.foliageAssets || {}) };
+                                  delete faNext[fk];
+                                  return { ...o, terrain: { ...o.terrain, foliageAssets: faNext } };
+                                }));
+                                pushHistory(objects);
+                              }}
+                              style={{ flexShrink: 0, background: 'rgba(255,80,80,0.15)', border: '1px solid rgba(255,80,80,0.35)', color: '#fca5a5', borderRadius: 4, padding: '3px 6px', fontSize: 10, cursor: 'pointer' }}>✕</button>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <div style={{ fontSize: 10, opacity: 0.4 }}>{tCanvas("hint_foliage_assets")}</div>
+                </div>
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ opacity: 0.7, fontSize: 11, fontWeight: 700 }}>{tCanvas("section_terrain_regenerate")}</div>
                   <button type="button"
                     onClick={() => {

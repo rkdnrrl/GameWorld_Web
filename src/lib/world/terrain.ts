@@ -37,6 +37,8 @@ export interface TerrainData {
   textureRepeat?: number;
   /** 지형 위에 심은 풀/나무 (선택). */
   foliage?: FoliageInstance[];
+  /** 식생 종류별 사용자 에셋(모델 URL). 지정 시 절차적 기본 모양 대신 그 모델을 인스턴싱. */
+  foliageAssets?: Partial<Record<FoliageInstance['k'], { url: string; scale?: number }>>;
 }
 
 /** terrain-local (lx,lz) 에서 heightmap 을 bilinear 샘플 → Y 높이 (m).

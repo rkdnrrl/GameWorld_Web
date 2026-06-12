@@ -27,6 +27,8 @@ export function SceneFog({ color = '#cfe8f5', density = 0.0022 }: { color?: stri
   const { scene } = useThree();
   useEffect(() => {
     const prev = scene.fog;
+    // three 씬 변이는 표준 패턴(언마운트 시 원복). react-compiler immutability 규칙만 예외.
+    // eslint-disable-next-line react-hooks/immutability
     scene.fog = new THREE.FogExp2(new THREE.Color(color), density);
     return () => { scene.fog = prev; };
   }, [scene, color, density]);

@@ -15,10 +15,11 @@
  * ⚠️ 물리 콜라이더 안에 두지 말 것 — trimesh 콜라이더가 잔디까지 먹으면 폭발한다.
  *    호출 측에서 RigidBody 바깥 형제로 렌더한다.
  */
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { normalizeTerrain, sampleTerrainHeight, type TerrainData, type FoliageInstance } from './terrain';
+import { loadStaticModelCached } from './modelLoader';
 
 // ── 절차적 지오메트리 (모듈 1회 생성, 공유) ──
 function crossQuads(angles: number[], w: number, h: number, bottom: number[], top: number[]): THREE.BufferGeometry {
@@ -163,9 +164,81 @@ function Instanced({ items, geo, mat, t, base, cast, receive, vary }: {
   );
 }
 
+// ── 사용자 에셋(GLB 등) 식생 — 모델을 instanced 로 흩뿌림 ──
+interface FoliageParts { parts: { geo: THREE.BufferGeometry; mat: THREE.Material | THREE.Material[] }[]; }
+const _foliagePartsCache = new Map<string, Promise<FoliageParts>>();
+/** url 모델 1회 로드 → 메시별 (변환 베이크된)지오/머티리얼 추출. 베이스를 y=0·xz중심으로 재배치. 세션 캐시. */
+function loadFoliageParts(url: string): Promise<FoliageParts> {
+  let entry = _foliagePartsCache.get(url);
+  if (!entry) {
+    entry = loadStaticModelCached(url).then((model) => {
+      model.updateMatrixWorld(true);
+      const parts: FoliageParts['parts'] = [];
+      model.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh && m.geometry) {
+          const g = m.geometry.clone();
+          g.applyMatrix4(m.matrixWorld);   // 모델 내부 변환(+2m 정규화 스케일) 베이크
+          parts.push({ geo: g, mat: m.material });
+        }
+      });
+      const box = new THREE.Box3();
+      for (const p of parts) { p.geo.computeBoundingBox(); if (p.geo.boundingBox) box.union(p.geo.boundingBox); }
+      const cx = (box.min.x + box.max.x) / 2, cz = (box.min.z + box.max.z) / 2, minY = box.min.y;
+      for (const p of parts) { p.geo.translate(-cx, -minY, -cz); p.geo.computeBoundingSphere(); }  // 밑동 y=0, xz 중심
+      return { parts };
+    });
+    _foliagePartsCache.set(url, entry);
+  }
+  return entry;
+}
+
+function AssetFoliageInstances({ url, scale, items, t, cast }: {
+  url: string; scale: number; items: FoliageInstance[]; t: TerrainData; cast: boolean;
+}) {
+  const [parts, setParts] = useState<FoliageParts | null>(null);
+  useEffect(() => {
+    let alive = true;
+    // 로드 완료 시에만 교체 — 전환 중 이전 모델 유지(빈 깜빡임 방지). 스테일은 alive 로 차단.
+    loadFoliageParts(url).then(p => { if (alive) setParts(p); }).catch(() => { if (alive) setParts(null); });
+    return () => { alive = false; };
+  }, [url]);
+  const refs = useRef<THREE.InstancedMesh[]>([]);
+  const capacity = Math.max(256, Math.ceil((items.length + 1) / 256) * 256);
+  useEffect(() => {
+    if (!parts) return;
+    const meshes = refs.current.slice(0, parts.parts.length);
+    if (!meshes.length) return;
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      _p.set(it.x, sampleTerrainHeight(t, it.x, it.z), it.z);
+      _q.setFromAxisAngle(_up, it.r);
+      _s.setScalar(it.s * scale);
+      _m.compose(_p, _q, _s);
+      for (const mesh of meshes) mesh.setMatrixAt(i, _m);
+    }
+    for (const mesh of meshes) { mesh.count = items.length; mesh.instanceMatrix.needsUpdate = true; mesh.computeBoundingSphere(); }
+  }, [items, t, scale, parts, capacity]);
+  if (!parts || items.length === 0) return null;
+  return (
+    <>
+      {parts.parts.map((p, i) => (
+        <instancedMesh
+          key={i + '-' + capacity}
+          ref={(m) => { if (m) refs.current[i] = m as THREE.InstancedMesh; }}
+          args={[p.geo, p.mat, capacity]}
+          castShadow={cast}
+          receiveShadow={false}
+          frustumCulled={false}
+        />
+      ))}
+    </>
+  );
+}
+
 export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
   const t = normalizeTerrain(terrain);
-  const foliage = t.foliage || [];
+  const foliage = useMemo(() => t.foliage || [], [t.foliage]);
   const grass = useMemo(() => foliage.filter(f => f.k === 'grass'), [foliage]);
   const trees = useMemo(() => foliage.filter(f => f.k === 'tree'), [foliage]);
   const flowers = useMemo(() => foliage.filter(f => f.k === 'flower'), [foliage]);
@@ -190,14 +263,26 @@ export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
   // 공유 바람 시계 — 풀/꽃이 하나라도 있으면만 의미 있음(없어도 비용 미미).
   useFrame((st) => { windUniform.value = st.clock.elapsedTime; });
 
+  // 종류별: 사용자 에셋 지정 시 그 모델 인스턴싱, 아니면 절차적 기본 모양.
+  const fa = t.foliageAssets || {};
   return (
     <>
-      <Instanced items={grass} geo={grassGeo} mat={grassMat} t={t} base={1} cast={false} receive={false} vary="grass" />
-      <Instanced items={flowers} geo={flowerGeo} mat={flowerMat} t={t} base={1} cast={false} receive={false} vary="flower" />
-      {/* 나무: 기둥 + 잎 — 같은 인스턴스 변환(지오메트리가 미리 y 오프셋됨) */}
-      <Instanced items={trees} geo={trunkGeo} mat={trunkMat} t={t} base={1} cast receive={false} />
-      <Instanced items={trees} geo={canopyGeo} mat={canopyMat} t={t} base={1} cast receive={false} />
-      <Instanced items={rocks} geo={rockGeo} mat={rockMat} t={t} base={1} cast receive={false} vary="rock" />
+      {fa.grass?.url
+        ? <AssetFoliageInstances url={fa.grass.url} scale={fa.grass.scale ?? 1} items={grass} t={t} cast={false} />
+        : <Instanced items={grass} geo={grassGeo} mat={grassMat} t={t} base={1} cast={false} receive={false} vary="grass" />}
+      {fa.flower?.url
+        ? <AssetFoliageInstances url={fa.flower.url} scale={fa.flower.scale ?? 1} items={flowers} t={t} cast={false} />
+        : <Instanced items={flowers} geo={flowerGeo} mat={flowerMat} t={t} base={1} cast={false} receive={false} vary="flower" />}
+      {fa.tree?.url
+        ? <AssetFoliageInstances url={fa.tree.url} scale={fa.tree.scale ?? 1} items={trees} t={t} cast />
+        : (<>
+            {/* 나무: 기둥 + 잎 — 같은 인스턴스 변환(지오메트리가 미리 y 오프셋됨) */}
+            <Instanced items={trees} geo={trunkGeo} mat={trunkMat} t={t} base={1} cast receive={false} />
+            <Instanced items={trees} geo={canopyGeo} mat={canopyMat} t={t} base={1} cast receive={false} />
+          </>)}
+      {fa.rock?.url
+        ? <AssetFoliageInstances url={fa.rock.url} scale={fa.rock.scale ?? 1} items={rocks} t={t} cast />
+        : <Instanced items={rocks} geo={rockGeo} mat={rockMat} t={t} base={1} cast receive={false} vary="rock" />}
     </>
   );
 }
