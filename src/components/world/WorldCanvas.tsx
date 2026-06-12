@@ -3522,8 +3522,8 @@ const PrimitiveMesh = React.memo(function PrimitiveMeshImpl({ obj, shape }: { ob
   );
 });
 
-/** [임시 진단] 입장 후 12초간 매초 프레임 지표를 콘솔에 출력 — 초반 프레임 드랍 원인 규명용.
- *  dpr 급락=해상도, programs 증가=셰이더컴파일, calls/tris 계단=reveal, 전부 그대로+저fps=로딩/디코드/GC. */
+/** [임시 진단] 입장 후 매초 프레임 지표 + 긴 프레임(LoAF)의 원인 함수 자동 출력 — 초반 드랍 규명용.
+ *  LoAF(long-animation-frames)는 80ms 넘는 프레임을 만든 스크립트/함수 이름·소요 ms 를 브라우저가 직접 보고. */
 function StartupPerfDiag() {
   const { gl } = useThree();
   const el = useRef(0);
@@ -3531,6 +3531,28 @@ function StartupPerfDiag() {
   const count = useRef(0);
   const bucket = useRef(0);
   const done = useRef(false);
+  // 긴 프레임 자동 부검 — 수동으로 스파이크 순간을 못 집어도 원인 함수를 콘솔에 찍어줌.
+  useEffect(() => {
+    let obs: PerformanceObserver | null = null;
+    const handle = (list: PerformanceObserverEntryList) => {
+      for (const e of list.getEntries()) {
+        if (e.duration < 80) continue;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ee = e as any;
+        const scripts = (ee.scripts || []).map((s: Record<string, unknown>) =>
+          `${s.sourceFunctionName || s.name || s.invoker || '?'} @${String(s.sourceURL || '').split('/').pop()} ${Math.round(Number(s.duration) || 0)}ms`);
+        console.log(`[LoAF] frame=${Math.round(e.duration)}ms block=${Math.round(Number(ee.blockingDuration) || 0)}ms`, scripts.length ? scripts : ee);
+      }
+    };
+    try {
+      obs = new PerformanceObserver(handle);
+      obs.observe({ type: 'long-animation-frames', buffered: true } as PerformanceObserverInit);
+    } catch {
+      try { obs = new PerformanceObserver(handle); obs.observe({ type: 'longtask', buffered: true } as PerformanceObserverInit); } catch { /* unsupported */ }
+    }
+    const id = setTimeout(() => obs?.disconnect(), 20000);
+    return () => { clearTimeout(id); obs?.disconnect(); };
+  }, []);
   useFrame((_, delta) => {
     if (done.current) return;
     el.current += delta;
