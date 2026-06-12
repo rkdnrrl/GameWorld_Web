@@ -2643,6 +2643,11 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick,
   // 이름표 거리 cutoff — Billboard + Text(troika SDF) 가 카메라 회전 시 매 frame 갱신.
   // 30m 밖이면 visibility off → 카메라 회전 시 비용 큰 절감.
   const nameTagRef = useRef<THREE.Group>(null);
+  // 말하는 중 표시 — 이미 배선된 voice analyser(getAnalyser, 립싱크용)를 재사용해
+  // 음성 레벨을 읽어 이름표 위 링을 펄스. 누가 말하는지 시각화(소셜 존재감).
+  const speakRingRef = useRef<THREE.Mesh>(null);
+  const voiceBufRef = useRef<Uint8Array | null>(null);
+  const voiceLevelRef = useRef(0);
   const personalHiddenRef = useRef(false);   // 퍼스널 스페이스 — 너무 가까우면 아바타 숨김
   const colliderRef = useRef<RapierCollider>(null);          // 자세별 캡슐 리사이즈용
   const colliderPostureRef = useRef<PlayerPosture>('stand');
@@ -2665,11 +2670,34 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick,
     if (!body) return;
     // 이름표 거리 cutoff — 30m 밖이면 visibility off. 카메라 회전 시 Billboard quaternion +
     // Text(troika SDF) 갱신 비용이 큰데, 멀리는 어차피 안 읽힘.
+    let nearEnough = false;
     if (nameTagRef.current) {
       const cam = state.camera.position;
       const ddx = cam.x - pose.x, ddy = cam.y - pose.y, ddz = cam.z - pose.z;
-      const nearEnough = (ddx*ddx + ddy*ddy + ddz*ddz) < 30 * 30;
+      nearEnough = (ddx*ddx + ddy*ddy + ddz*ddz) < 30 * 30;
       if (nameTagRef.current.visible !== nearEnough) nameTagRef.current.visible = nearEnough;
+    }
+
+    // ── 말하는 중 표시 ── 가까울 때만 analyser 읽음(비용 절감). 음성 RMS → 링 펄스.
+    const ring = speakRingRef.current;
+    if (ring) {
+      let speaking = false;
+      const an = nearEnough ? getAnalyser?.() : undefined;
+      if (an) {
+        let buf = voiceBufRef.current;
+        if (!buf || buf.length !== an.fftSize) { buf = new Uint8Array(an.fftSize); voiceBufRef.current = buf; }
+        an.getByteTimeDomainData(buf);
+        let sum = 0;
+        for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
+        const rms = Math.sqrt(sum / buf.length);
+        voiceLevelRef.current += (rms - voiceLevelRef.current) * 0.3;   // 스무딩
+        const lvl = voiceLevelRef.current;
+        speaking = lvl > 0.045;
+        if (speaking) ring.scale.setScalar(1 + Math.min(1.4, lvl * 12));   // 음량 따라 펄스
+      } else {
+        voiceLevelRef.current = 0;
+      }
+      if (ring.visible !== speaking) ring.visible = speaking;
     }
 
     const vx = pose.vx ?? 0;
@@ -2759,6 +2787,11 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick,
           >
             {player.username}
           </Text>
+          {/* 말하는 중 링 — useFrame 에서 음성 레벨로 visible/scale 토글 (기본 숨김) */}
+          <mesh ref={speakRingRef} position={[0, 0.3, 0]} visible={false} raycast={() => null}>
+            <ringGeometry args={[0.05, 0.085, 24]} />
+            <meshBasicMaterial color="#39d98a" transparent opacity={0.95} depthWrite={false} />
+          </mesh>
         </Billboard>
       </group>
       {bubble && (
