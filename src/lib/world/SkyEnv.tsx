@@ -131,16 +131,30 @@ export function EnvFxUpdater({ sunPos, night, raining }: {
   return null;
 }
 
-/** 전역 거리 안개 — 마운트 동안만 scene.fog 설정, 언마운트 시 원복(수중 PostFX 등과 충돌 없음). */
+/** 전역 거리 안개 — 마운트 동안만 scene.fog 설정, 언마운트 시 원복(수중 PostFX 등과 충돌 없음).
+ *  비가 오면(envFx.rainWet) 밀도를 부드럽게 올려 악천후 깊이감을 준다. */
 export function SceneFog({ color = '#cfe8f5', density = 0.0022 }: { color?: string; density?: number }) {
   const { scene } = useThree();
+  const fogRef = useRef<THREE.FogExp2 | null>(null);
+  const cur = useRef(density);
   useEffect(() => {
     const prev = scene.fog;
+    const fog = new THREE.FogExp2(new THREE.Color(color), density);
+    fogRef.current = fog;
+    cur.current = density;
     // three 씬 변이는 표준 패턴(언마운트 시 원복). react-compiler immutability 규칙만 예외.
     // eslint-disable-next-line react-hooks/immutability
-    scene.fog = new THREE.FogExp2(new THREE.Color(color), density);
-    return () => { scene.fog = prev; };
+    scene.fog = fog;
+    return () => { scene.fog = prev; fogRef.current = null; };
   }, [scene, color, density]);
+  // 비 오면 안개 짙어짐 — rainWet(0~0.9) 따라 최대 ~2.6배까지 밀도 ramp(시정수 ~1s).
+  useFrame((_, dt) => {
+    const fog = fogRef.current;
+    if (!fog) return;
+    const target = density * (1 + envFx.rainWet * 1.8);
+    cur.current += (target - cur.current) * Math.min(1, dt * 0.8);
+    fog.density = cur.current;
+  });
   return null;
 }
 

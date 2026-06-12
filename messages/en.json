@@ -1990,6 +1990,7 @@
     "shadowFilterBasic": "Hard",
     "shadowFilterPCF": "Soft",
     "shadowFilterPCFSoft": "Very Soft",
+    "shadowFilterVSM": "Soft (VSM)",
     "shadowSoftness": "Shadow Softness"
   },
   "CreatorNav": {

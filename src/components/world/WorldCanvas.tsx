@@ -1215,7 +1215,7 @@ function FollowingSunLight({ intensity, castShadow, shadowMapSize, shadowFar, di
 
 function GraphicsApplier({ shadowSize, shadowFilter, shadowRadius }: {
   shadowSize: number;
-  shadowFilter: 'basic' | 'pcf' | 'pcfsoft';
+  shadowFilter: 'basic' | 'pcf' | 'pcfsoft' | 'vsm';
   shadowRadius: number;
 }) {
   const { gl, scene } = useThree();
@@ -1224,6 +1224,7 @@ function GraphicsApplier({ shadowSize, shadowFilter, shadowRadius }: {
   useEffect(() => {
     gl.shadowMap.type =
       shadowFilter === 'basic'   ? THREE.BasicShadowMap   :
+      shadowFilter === 'vsm'     ? THREE.VSMShadowMap     :   // variance soft — radius/blurSamples 로 진짜 부드러운 그림자
       shadowFilter === 'pcfsoft' ? THREE.PCFSoftShadowMap :
                                    THREE.PCFShadowMap;
     gl.shadowMap.needsUpdate = true;
@@ -1249,6 +1250,8 @@ function GraphicsApplier({ shadowSize, shadowFilter, shadowRadius }: {
       if (!(isDir || isPoint || isSpot) || !light.shadow) return;
       light.shadow.mapSize.set(shadowSize || 1024, shadowSize || 1024);
       light.shadow.radius = shadowRadius;
+      // VSM 일 때 blur 표본 수 ↑ (부드러움 품질). 다른 필터는 영향 없으므로 기본 8.
+      light.shadow.blurSamples = shadowFilter === 'vsm' ? 16 : 8;
       // 그림자 아티팩트 (peter-panning, acne) 감소
       light.shadow.bias       = -0.0005;
       light.shadow.normalBias = 0.02;
@@ -1263,7 +1266,7 @@ function GraphicsApplier({ shadowSize, shadowFilter, shadowRadius }: {
       }
       light.shadow.camera.updateProjectionMatrix();
     });
-  }, [shadowSize, shadowRadius, gl, scene]);
+  }, [shadowSize, shadowRadius, shadowFilter, gl, scene]);
   return null;
 }
 
@@ -6330,7 +6333,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           onButtonClick={(_id, script) => execUiButtonScript(script, gameRuntime.api)}
           onValueChange={(_id, script, value) => execUiButtonScript(script, gameRuntime.api, value)}
         />
-        <PostFX s={effectivePostFX} raining={raining} />
+        <PostFX s={effectivePostFX} raining={raining} forceAO={graphics.shadowSize >= 2048} />
         <CameraWaterWatcher volsRef={waterPostFXRef} onChange={setActiveWaterFX} />
         </XR>
       </Canvas>

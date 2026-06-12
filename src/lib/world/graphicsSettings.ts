@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 
-export type ShadowFilter = 'basic' | 'pcf' | 'pcfsoft';
+export type ShadowFilter = 'basic' | 'pcf' | 'pcfsoft' | 'vsm';
 
 export interface GraphicsSettings {
   preset: 'low' | 'medium' | 'high' | 'ultra' | 'custom';

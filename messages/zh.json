@@ -1990,6 +1990,7 @@
     "shadowFilterBasic": "硬",
     "shadowFilterPCF": "柔和",
     "shadowFilterPCFSoft": "非常柔和",
+    "shadowFilterVSM": "柔和 (VSM)",
     "shadowSoftness": "阴影柔和度"
   },
   "CreatorNav": {

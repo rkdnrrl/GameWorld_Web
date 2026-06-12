@@ -64,11 +64,11 @@ export default function GraphicsPanel({ settings, updateSettings, applyPreset, m
 
           {/* 그림자 필터 */}
           <Section label={t('shadowFilter')}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
-              {(['basic','pcf','pcfsoft'] as const).map(f => (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+              {(['basic','pcf','pcfsoft','vsm'] as const).map(f => (
                 <button key={f} onClick={() => updateSettings({ shadowFilter: f })}
                   style={buttonStyle(settings.shadowFilter === f)}>
-                  {f === 'basic' ? t('shadowFilterBasic') : f === 'pcf' ? t('shadowFilterPCF') : t('shadowFilterPCFSoft')}
+                  {f === 'basic' ? t('shadowFilterBasic') : f === 'pcf' ? t('shadowFilterPCF') : f === 'pcfsoft' ? t('shadowFilterPCFSoft') : t('shadowFilterVSM')}
                 </button>
               ))}
             </div>

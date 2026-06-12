@@ -1990,6 +1990,7 @@
     "shadowFilterBasic": "ハード",
     "shadowFilterPCF": "ソフト",
     "shadowFilterPCFSoft": "非常にソフト",
+    "shadowFilterVSM": "ソフト (VSM)",
     "shadowSoftness": "影の柔らかさ"
   },
   "CreatorNav": {
