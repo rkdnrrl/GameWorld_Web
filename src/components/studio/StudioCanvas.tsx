@@ -18,7 +18,7 @@ import { devLog } from '@/lib/devLog';
 import { PerfManager } from '@/lib/world/PerfManager';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
-import { SceneFog, SkyClouds, SkyMoon, SkyStars, skySunPosition, skyFogColor, nightFactor } from '@/lib/world/SkyEnv';
+import { SceneFog, SkyClouds, SkyMoon, SkyStars, skySunPosition, skyFogColor, nightFactor, EnvFxUpdater } from '@/lib/world/SkyEnv';
 import { makeWaterMaterial } from '@/lib/world/waterMaterial';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UIRenderer } from '@/lib/world/UIRenderer';
@@ -8231,6 +8231,17 @@ export default function StudioCanvas() {
                     onMouseUp={() => pushHistory(objects)}
                     style={{ width: '100%' }} />
                 </div>
+                <div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_terrain_puddles")} — {(selected.terrain.puddles ?? 0).toFixed(2)}</div>
+                  <input type="range" min={0} max={1} step={0.05} value={selected.terrain.puddles ?? 0}
+                    onChange={e => {
+                      const p = Math.max(0, Math.min(1, Number(e.target.value) || 0));
+                      setObjects(prev => prev.map(o => o.id === selected.id && o.terrain
+                        ? { ...o, terrain: { ...o.terrain, puddles: p } } : o));
+                    }}
+                    onMouseUp={() => pushHistory(objects)}
+                    style={{ width: '100%' }} />
+                </div>
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ opacity: 0.7, fontSize: 11, fontWeight: 700 }}>{tCanvas("section_terrain_texture_blend")}</div>
                   <div>
@@ -8994,6 +9005,18 @@ export default function StudioCanvas() {
                 {night > 0.3 && <SkyMoon sunPos={sunPos} opacity={night} />}
               </>
             );
+          })()}
+          {/* 비 자동연동 + 젖은 땅 하늘 반사 — sky 토글/실내 무관 항상 갱신. */}
+          {(() => {
+            const sdl = objects.find(o => o.kind === 'dirlight' && !o.hidden);
+            const sunPos = skySunPosition(sdl?.rotation);
+            const rainList = simulating ? simObjs : objects;
+            const raining = rainList.some(o => !o.hidden && o.components?.some(c => {
+              if (c.type !== 'particle') return false;
+              const ps = deriveParticleSettings(c);
+              return ps.preset === 'rain' && ps.mode !== 'click';
+            }));
+            return <EnvFxUpdater sunPos={sunPos} night={nightFactor(sunPos)} raining={raining} />;
           })()}
           {/* HDRI 환경맵 — 커스텀 URL 우선, 없으면 프리셋, none이면 미사용 */}
           {hdriUrl.trim() ? (

@@ -73,7 +73,7 @@ import SeatButton from '@/lib/world/SeatButton';
 import LadderButton from '@/lib/world/LadderButton';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
-import { SceneFog, SkyClouds, SkyMoon, SkyStars, skySunPosition, skyFogColor, nightFactor } from '@/lib/world/SkyEnv';
+import { SceneFog, SkyClouds, SkyMoon, SkyStars, skySunPosition, skyFogColor, nightFactor, EnvFxUpdater } from '@/lib/world/SkyEnv';
 import { makeWaterMaterial } from '@/lib/world/waterMaterial';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UI_SYNC_EVENT, DATA_SYNC_EVENT, type UiData } from '@/lib/world/uiObjects';
@@ -5995,6 +5995,17 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               {night > 0.3 && <SkyMoon sunPos={sunPos} opacity={night} />}
             </>
           );
+        })()}
+        {/* 비 자동연동 + 젖은 땅 하늘 반사 — 실내/실외 무관 항상 갱신(showSky 와 별개). */}
+        {(() => {
+          const dl = lightObjects.find(o => o.kind === 'dirlight' && !o.hidden);
+          const sunPos = skySunPosition(dl?.rotation);
+          const raining = (customObjects ?? []).some(o => !o.hidden && o.components?.some(c => {
+            if (c.type !== 'particle') return false;
+            const ps = deriveParticleSettings(c);
+            return ps.preset === 'rain' && ps.mode !== 'click';
+          }));
+          return <EnvFxUpdater sunPos={sunPos} night={nightFactor(sunPos)} raining={raining} />;
         })()}
         {/* HDRI 환경맵 — 커스텀 URL 우선, 없으면 프리셋, none 이면 미사용 */}
         {hdriUrl.trim() ? (

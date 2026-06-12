@@ -47,6 +47,8 @@ export interface TerrainData {
   lowBlend?: number;
   /** 젖음 정도 0~1 — 비로 축축해진 땅. 높을수록 거칠기↓(반들), 색 어둡게, 환경 반사↑. */
   wetness?: number;
+  /** 물웅덩이 정도 0~1 — 0이면 전면 균일 젖음, 클수록 노이즈 영역(웅덩이)에만 거울 반사 집중. */
+  puddles?: number;
   /** 지형 위에 심은 풀/나무 (선택). */
   foliage?: FoliageInstance[];
   /** 식생 종류별 사용자 에셋(모델 URL). 지정 시 절차적 기본 모양 대신 그 모델을 인스턴싱.

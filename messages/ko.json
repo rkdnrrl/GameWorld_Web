@@ -1280,6 +1280,7 @@
       "label_terrain_low_height": "낮은 곳 높이 (Y)",
       "label_terrain_low_blend": "낮은 곳 블렌딩 폭 (m)",
       "label_terrain_wetness": "💧 젖음 (비/반사) 0~1",
+      "label_terrain_puddles": "🪞 물웅덩이 (반사 집중) 0~1",
       "hint_terrain_texture_blend": "※ 경사면/낮은 곳 텍스처를 지정하면 평지 텍스처와 자동으로 섞입니다. 둘 다 비우면 단일 텍스처.",
       "section_terrain_foliage_assets": "🌿 식생 에셋 (내 에셋에서 드래그)",
       "foliage_grass": "풀",

@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import { useThree, useFrame } from '@react-three/fiber';
 import { Clouds, Cloud, Stars } from '@react-three/drei';
 import { computeSunDir } from './CsmSun';
+import { envFx, setRain } from './envFx';
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
@@ -90,6 +91,44 @@ export function SkyMoon({ sunPos, opacity = 1 }: { sunPos: [number, number, numb
 /** 밤하늘 별 — drei Starfield (가벼운 Points). */
 export function SkyStars() {
   return <Stars radius={300} depth={50} count={2500} factor={5} saturation={0} fade speed={0.4} />;
+}
+
+/** 태양 위치·밤 정도·비 여부 → 젖은 땅 반사용 envFx 갱신.
+ *  하늘 반사색은 안개색(skyFogColor)을 지평선으로 재사용해 하늘/안개와 톤 일치.
+ *  글린트는 낮=태양, 밤=달(태양 반대편) 방향. */
+function applyEnvFx(sunPos: [number, number, number], night: number, raining: boolean) {
+  envFx.skyHoriz.set(skyFogColor(sunPos));
+  // 천정색 — 낮 파랑 → 밤 짙은 청보라
+  envFx.skyTop.set('#3f7fd6').lerp(_NIGHT_TOP, night);
+  envFx.night = night;
+  const len = Math.hypot(sunPos[0], sunPos[1], sunPos[2]) || 1;
+  if (night < 0.5) {
+    // 낮 — 태양 글린트(따뜻한 흰빛, 넓게)
+    envFx.glintDir.set(sunPos[0] / len, sunPos[1] / len, sunPos[2] / len);
+    envFx.glintColor.set('#fff4e0');
+    envFx.glintSharp = 250;
+  } else {
+    // 밤 — 달 글린트(SkyMoon 과 동일 방향: 태양 반대편 + 천정으로 띄움, 차가운 빛, 또렷하게)
+    let dx = -sunPos[0] / len, dz = -sunPos[2] / len;
+    const dy = 0.55, n = Math.hypot(dx, dy, dz) || 1;
+    envFx.glintDir.set(dx / n, dy / n, dz / n);
+    envFx.glintColor.set('#cdd8ff');
+    envFx.glintSharp = 600;
+  }
+  setRain(raining);
+}
+const _NIGHT_TOP = new THREE.Color('#070a18');
+
+/** 씬 전역 환경효과(비 젖음 + 하늘 반사) 갱신기. 실내/실외 무관하게 렌더해 비 자동연동이 항상 동작.
+ *  sunPos/night 는 호출측이 dirlight 로 계산해 넘김(없으면 기본 오전). */
+export function EnvFxUpdater({ sunPos, night, raining }: {
+  sunPos: [number, number, number]; night: number; raining: boolean;
+}) {
+  useEffect(() => { applyEnvFx(sunPos, night, raining); },
+    [sunPos[0], sunPos[1], sunPos[2], night, raining]);
+  // 언마운트 시 비 목표치 해제(다음 맵으로 누수 방지)
+  useEffect(() => () => { setRain(false); }, []);
+  return null;
 }
 
 /** 전역 거리 안개 — 마운트 동안만 scene.fog 설정, 언마운트 시 원복(수중 PostFX 등과 충돌 없음). */
