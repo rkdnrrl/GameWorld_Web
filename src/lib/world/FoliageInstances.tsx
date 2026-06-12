@@ -18,7 +18,7 @@
 import React, { useMemo, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { RigidBody, CapsuleCollider, CuboidCollider } from '@react-three/rapier';
+import { RigidBody, CapsuleCollider, CuboidCollider, ConvexHullCollider } from '@react-three/rapier';
 import { normalizeTerrain, sampleTerrainHeight, type TerrainData, type FoliageInstance } from './terrain';
 import { loadStaticModelCached } from './modelLoader';
 import { resolveMeshMaterial, type MaterialOverrides, type LoadTexFn } from './materialOverride';
@@ -348,45 +348,57 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
   );
 }
 
-/** 에셋 식생 모델의 실측 치수(정규화·리베이스된 단위 — 인스턴스 scale 1 기준).
- *  trunkR: 밑동(아래 22%) 단면 반경 — 기둥에 딱 맞는 캡슐용. hx/hy/hz: 전체 반-크기(박스용). */
-interface FoliageMetrics { trunkR: number; height: number; hx: number; hy: number; hz: number; }
-const _metricsCache = new Map<string, Promise<FoliageMetrics>>();
-function loadFoliageMetrics(url: string): Promise<FoliageMetrics> {
-  let e = _metricsCache.get(url);
+/** 잎 머티리얼 판정 — 알파 컷아웃/투명(잎 카드). 콜라이더에서 제외한다(걸어서 지나감). */
+function isLeafMat(mat: THREE.Material | THREE.Material[]): boolean {
+  const arr = Array.isArray(mat) ? mat : [mat];
+  if (!arr.length) return false;
+  return arr.every((m) => {
+    const sm = m as THREE.MeshStandardMaterial;
+    return (sm.transparent && !!(sm.map || sm.alphaMap)) || (sm.alphaTest ?? 0) > 0;
+  });
+}
+/** 모델 정점 → 볼록 껍질(convex hull) 점 집합. loadFoliageParts 와 동일하게 리베이스(밑동 y=0, xz중심).
+ *  trunkOnly=true 면 잎(알파) 메시 제외 → 줄기만 감싸 수관 아래로 걸어다님. 메시당 ~150점으로 다운샘플. */
+function _collectHullPoints(model: THREE.Object3D, trunkOnly: boolean): Float32Array {
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  model.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (m.isMesh && m.geometry) { m.geometry.computeBoundingBox(); if (m.geometry.boundingBox) box.union(m.geometry.boundingBox.clone().applyMatrix4(m.matrixWorld)); }
+  });
+  const cx = (box.min.x + box.max.x) / 2, cz = (box.min.z + box.max.z) / 2, minY = box.min.y;
+  const pts: number[] = []; const v = new THREE.Vector3();
+  model.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!(m.isMesh && m.geometry)) return;
+    if (trunkOnly && isLeafMat(m.material)) return;
+    const p = m.geometry.attributes.position as THREE.BufferAttribute | undefined;
+    if (!p) return;
+    const stride = Math.max(1, Math.floor(p.count / 150));
+    for (let i = 0; i < p.count; i += stride) {
+      v.set(p.getX(i), p.getY(i), p.getZ(i)).applyMatrix4(m.matrixWorld);
+      pts.push(v.x - cx, v.y - minY, v.z - cz);
+    }
+  });
+  return new Float32Array(pts);
+}
+const _hullCache = new Map<string, Promise<Float32Array>>();
+function loadFoliageHull(url: string, trunkOnly: boolean): Promise<Float32Array> {
+  const key = url + (trunkOnly ? '|t' : '|a');
+  let e = _hullCache.get(key);
   if (!e) {
     e = loadStaticModelCached(url).then((model) => {
-      model.updateMatrixWorld(true);
-      const box = new THREE.Box3();
-      model.traverse((o) => {
-        const m = o as THREE.Mesh;
-        if (m.isMesh && m.geometry) { m.geometry.computeBoundingBox(); if (m.geometry.boundingBox) box.union(m.geometry.boundingBox.clone().applyMatrix4(m.matrixWorld)); }
-      });
-      const cx = (box.min.x + box.max.x) / 2, cz = (box.min.z + box.max.z) / 2;
-      const height = box.max.y - box.min.y;
-      const hx = (box.max.x - box.min.x) / 2, hz = (box.max.z - box.min.z) / 2, hy = height / 2;
-      // 밑동 단면 반경 — 아래 22% 정점만 보고 중심축에서 가장 먼 수평거리(넓은 수관 무시 → 기둥에 딱).
-      const yThresh = box.min.y + height * 0.22;
-      let trunkR = 0; const v = new THREE.Vector3();
-      model.traverse((o) => {
-        const m = o as THREE.Mesh;
-        if (!(m.isMesh && m.geometry)) return;
-        const p = m.geometry.attributes.position as THREE.BufferAttribute | undefined;
-        if (!p) return;
-        for (let i = 0; i < p.count; i++) {
-          v.set(p.getX(i), p.getY(i), p.getZ(i)).applyMatrix4(m.matrixWorld);
-          if (v.y <= yThresh) { const d = Math.hypot(v.x - cx, v.z - cz); if (d > trunkR) trunkR = d; }
-        }
-      });
-      if (trunkR <= 1e-4) trunkR = Math.min(hx, hz) * 0.5;
-      return { trunkR, height, hx, hy, hz };
+      let pts = _collectHullPoints(model, trunkOnly);
+      if (trunkOnly && pts.length < 12) pts = _collectHullPoints(model, false);  // 줄기 메시 없음(잎만) → 전체로 폴백
+      return pts;
     });
-    _metricsCache.set(url, e);
+    _hullCache.set(key, e);
   }
   return e;
 }
 
-/** 나무·돌 자동 콜라이더 — 모델 실측으로 딱 맞춤. 나무=기둥 굵기 캡슐, 돌=바운딩박스.
+/** 나무·돌 자동 콜라이더 — 모델 메시에 맞춘 볼록 껍질(Unity 의 Convex Mesh Collider 격).
+ *  나무는 잎(알파) 제외한 "줄기 껍질" → 수관 아래로 걸어다님. 돌은 전체 껍질. 절차적은 캡슐/박스.
  *  하나의 fixed RigidBody 에 콜라이더만 여러 개(메시 X) — 가볍고 정적.
  *  ⚠ 반드시 <Physics> 안 + 지형 trimesh RigidBody 의 형제(같은 group 변환)로 렌더할 것.
  *  풀·꽃은 충돌 없음(걸어서 지나감). */
@@ -396,45 +408,41 @@ export function TreeRockColliders({ terrain }: { terrain: TerrainData }) {
   const rockUrl = t.foliageAssets?.rock?.url;
   const treeScale = treeUrl ? (t.foliageAssets!.tree!.scale ?? 1) : 0;  // 0 = 절차적
   const rockScale = rockUrl ? (t.foliageAssets!.rock!.scale ?? 1) : 0;
-  const [treeM, setTreeM] = useState<FoliageMetrics | null>(null);
-  const [rockM, setRockM] = useState<FoliageMetrics | null>(null);
-  useEffect(() => { let a = true; if (treeUrl) loadFoliageMetrics(treeUrl).then(m => { if (a) setTreeM(m); }).catch(() => {}); else setTreeM(null); return () => { a = false; }; }, [treeUrl]);
-  useEffect(() => { let a = true; if (rockUrl) loadFoliageMetrics(rockUrl).then(m => { if (a) setRockM(m); }).catch(() => {}); else setRockM(null); return () => { a = false; }; }, [rockUrl]);
+  const [treePts, setTreePts] = useState<Float32Array | null>(null);
+  const [rockPts, setRockPts] = useState<Float32Array | null>(null);
+  useEffect(() => { let a = true; if (treeUrl) loadFoliageHull(treeUrl, true).then(p => { if (a) setTreePts(p); }).catch(() => {}); else setTreePts(null); return () => { a = false; }; }, [treeUrl]);
+  useEffect(() => { let a = true; if (rockUrl) loadFoliageHull(rockUrl, false).then(p => { if (a) setRockPts(p); }).catch(() => {}); else setRockPts(null); return () => { a = false; }; }, [rockUrl]);
 
-  const cols = useMemo(() => {
-    const trees: { x: number; y: number; z: number; r: number; hh: number }[] = [];
-    const rocks: { x: number; y: number; z: number; hx: number; hy: number; hz: number }[] = [];
+  const items = useMemo(() => {
+    const trees: { x: number; y: number; z: number; r: number; s: number }[] = [];
+    const rocks: { x: number; y: number; z: number; r: number; s: number }[] = [];
     for (const f of t.foliage || []) {
       const base = sampleTerrainHeight(t, f.x, f.z);
-      if (f.k === 'tree') {
-        if (treeScale > 0) {                    // 에셋 나무 — 밑동 굵기·전체 높이 실측
-          if (!treeM) continue;
-          const es = f.s * treeScale;
-          const r = Math.max(0.04, treeM.trunkR * es);
-          const totalH = treeM.height * es;
-          const hh = Math.max(0.02, totalH * 0.5 - r);   // 캡슐 총높이 = 모델 높이
-          trees.push({ x: f.x, y: base + totalH * 0.5, z: f.z, r, hh });
-        } else {                                // 절차적 기둥(반경 0.13·높이 1.2)
-          const r = 0.13 * f.s, hh = 0.45 * f.s;
-          trees.push({ x: f.x, y: base + hh + r, z: f.z, r, hh });
-        }
-      } else if (f.k === 'rock') {
-        if (rockScale > 0) {                    // 에셋 돌 — 바운딩박스 그대로
-          if (!rockM) continue;
-          const es = f.s * rockScale;
-          rocks.push({ x: f.x, y: base + rockM.hy * es, z: f.z, hx: rockM.hx * es, hy: rockM.hy * es, hz: rockM.hz * es });
-        } else {                                // 절차적 바위(0.4 × 0.28 × 0.4, 중심 y 0.22)
-          rocks.push({ x: f.x, y: base + 0.22 * f.s, z: f.z, hx: 0.4 * f.s, hy: 0.28 * f.s, hz: 0.4 * f.s });
-        }
-      }
+      if (f.k === 'tree') trees.push({ x: f.x, y: base, z: f.z, r: f.r, s: f.s });
+      else if (f.k === 'rock') rocks.push({ x: f.x, y: base, z: f.z, r: f.r, s: f.s });
     }
     return { trees, rocks };
-  }, [t, treeScale, rockScale, treeM, rockM]);
-  if (!cols.trees.length && !cols.rocks.length) return null;
+  }, [t]);
+  if (!items.trees.length && !items.rocks.length) return null;
   return (
     <RigidBody type="fixed" colliders={false}>
-      {cols.trees.map((c, i) => <CapsuleCollider key={'t' + i} args={[c.hh, c.r]} position={[c.x, c.y, c.z]} />)}
-      {cols.rocks.map((c, i) => <CuboidCollider key={'r' + i} args={[c.hx, c.hy, c.hz]} position={[c.x, c.y, c.z]} />)}
+      {items.trees.map((f, i) => {
+        if (treeScale > 0) {                    // 에셋 나무 — 줄기 볼록 껍질
+          if (!treePts) return null;
+          const es = f.s * treeScale;
+          return <ConvexHullCollider key={'t' + i} args={[treePts]} position={[f.x, f.y, f.z]} rotation={[0, f.r, 0]} scale={[es, es, es]} />;
+        }                                       // 절차적 기둥(반경 0.13·높이 1.2)
+        const r = 0.13 * f.s, hh = 0.45 * f.s;
+        return <CapsuleCollider key={'t' + i} args={[hh, r]} position={[f.x, f.y + hh + r, f.z]} />;
+      })}
+      {items.rocks.map((f, i) => {
+        if (rockScale > 0) {                    // 에셋 돌 — 전체 볼록 껍질
+          if (!rockPts) return null;
+          const es = f.s * rockScale;
+          return <ConvexHullCollider key={'r' + i} args={[rockPts]} position={[f.x, f.y, f.z]} rotation={[0, f.r, 0]} scale={[es, es, es]} />;
+        }                                       // 절차적 바위(0.4 × 0.28 × 0.4, 중심 y 0.22)
+        return <CuboidCollider key={'r' + i} args={[0.4 * f.s, 0.28 * f.s, 0.4 * f.s]} position={[f.x, f.y + 0.22 * f.s, f.z]} />;
+      })}
     </RigidBody>
   );
 }
