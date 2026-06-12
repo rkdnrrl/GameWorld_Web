@@ -43,6 +43,7 @@ export function FlashlightLight({ comp, groupRef, objId, playerId, grabbedStateR
 
   const tmpPos = useRef(new THREE.Vector3());
   const tmpFwd = useRef(new THREE.Vector3());
+  const tmpQuat = useRef(new THREE.Quaternion());
 
   useFrame(() => {
     const l = lightRef.current;
@@ -63,7 +64,7 @@ export function FlashlightLight({ comp, groupRef, objId, playerId, grabbedStateR
       if (!g) return;
       g.getWorldPosition(tmpPos.current);
       // 그룹 forward(+Z) — three.js 기본 mesh forward 는 -Z 인데 손전등은 +Z 로 가정 (사용자가 회전으로 조정)
-      tmpFwd.current.set(0, 0, 1).applyQuaternion(g.getWorldQuaternion(new THREE.Quaternion()));
+      tmpFwd.current.set(0, 0, 1).applyQuaternion(g.getWorldQuaternion(tmpQuat.current));
       l.position.copy(tmpPos.current);
     }
     t.position.copy(tmpPos.current).addScaledVector(tmpFwd.current, range);

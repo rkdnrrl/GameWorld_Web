@@ -830,6 +830,28 @@ function BlockMesh({ appearance, hideHead = false }: { appearance: Record<string
   );
 }
 
+// ── 부모→자식 transform propagation 스크래치 (매 프레임 GC 방지: 재사용) ──
+const _ppPos = new THREE.Vector3();
+const _ppQuat = new THREE.Quaternion();
+const _ppScl = new THREE.Vector3();
+const _ppLPos = new THREE.Vector3();
+const _ppLQuat = new THREE.Quaternion();
+const _ppLScl = new THREE.Vector3();
+const _ppEuler = new THREE.Euler();
+const _ppChildLocal = new THREE.Matrix4();
+// 깊이별 world 행렬 풀 — 재귀 단계마다 별도 행렬(형제 간 재사용 안전, 자손은 +1 깊이).
+const _ppWorldPool: THREE.Matrix4[] = [];
+function _ppWorld(depth: number): THREE.Matrix4 {
+  while (_ppWorldPool.length <= depth) _ppWorldPool.push(new THREE.Matrix4());
+  return _ppWorldPool[depth];
+}
+// ── 네트워크 동기화 보간 스크래치 (오브젝트당/프레임 할당 방지) ──
+const _syncQ1 = new THREE.Quaternion();
+const _syncQ2 = new THREE.Quaternion();
+const _syncEu = new THREE.Euler();
+const _syncV1 = new THREE.Vector3();
+const _syncV2 = new THREE.Vector3();
+
 /* ── JS onUpdate 호출 루프 + 네트워크 상태 보간 (Canvas 내부 컴포넌트) ── */
 function LuaUpdateLoop({
   luaScripts,
@@ -883,35 +905,35 @@ function LuaUpdateLoop({
       const allObjects = allObjectsRef.current;
       if (allObjects && allObjects.length > 0) {
         const childrenOf = new Map<string, UserMapObject[]>();
+        const byId = new Map<string, UserMapObject>();
         for (const obj of allObjects) {
+          byId.set(obj.id, obj);
           if (!obj.parentId) continue;
           if (obj.kind === 'spawn' || obj.kind === 'empty') continue;
           if (!childrenOf.has(obj.parentId)) childrenOf.set(obj.parentId, []);
           childrenOf.get(obj.parentId)!.push(obj);
         }
         if (childrenOf.size > 0) {
-          const _tmpPos = new THREE.Vector3();
-          const _tmpQuat = new THREE.Quaternion();
-          const _tmpScl = new THREE.Vector3();
-          const propagate = (parentId: string, parentWorld: THREE.Matrix4) => {
+          // 스크래치/풀 재사용으로 매 프레임 Matrix4/Vector3/Quaternion/Euler 할당 제거.
+          const propagate = (parentId: string, parentWorld: THREE.Matrix4, depth: number) => {
             const kids = childrenOf.get(parentId);
             if (!kids) return;
             for (const child of kids) {
-              const childLocal = new THREE.Matrix4().compose(
-                new THREE.Vector3(child.position[0], child.position[1], child.position[2]),
-                new THREE.Quaternion().setFromEuler(new THREE.Euler(child.rotation[0], child.rotation[1], child.rotation[2], 'XYZ')),
-                new THREE.Vector3(child.scale[0], child.scale[1], child.scale[2]),
+              const childLocal = _ppChildLocal.compose(
+                _ppLPos.set(child.position[0], child.position[1], child.position[2]),
+                _ppLQuat.setFromEuler(_ppEuler.set(child.rotation[0], child.rotation[1], child.rotation[2], 'XYZ')),
+                _ppLScl.set(child.scale[0], child.scale[1], child.scale[2]),
               );
-              const childWorld = parentWorld.clone().multiply(childLocal);
-              childWorld.decompose(_tmpPos, _tmpQuat, _tmpScl);
+              const childWorld = _ppWorld(depth).multiplyMatrices(parentWorld, childLocal);
+              childWorld.decompose(_ppPos, _ppQuat, _ppScl);
 
               // 조명이면 lightRefs 사용 (별도 ref 맵)
               const isLight = child.kind === 'pointlight' || child.kind === 'spotlight' || child.kind === 'dirlight';
               if (isLight) {
                 const lr = lightRefs.current.get(child.id);
                 if (lr) {
-                  lr.position.set(_tmpPos.x, _tmpPos.y, _tmpPos.z);
-                  lr.quaternion.set(_tmpQuat.x, _tmpQuat.y, _tmpQuat.z, _tmpQuat.w);
+                  lr.position.set(_ppPos.x, _ppPos.y, _ppPos.z);
+                  lr.quaternion.set(_ppQuat.x, _ppQuat.y, _ppQuat.z, _ppQuat.w);
                 }
               } else {
                 const ref = scriptBodyRefs.current.get(child.id);
@@ -919,34 +941,34 @@ function LuaUpdateLoop({
                   // dynamic 은 물리 소유라 건들지 않음
                   const bodyType = (ref.body.current as RapierBodyApi & { bodyType?: () => number }).bodyType?.();
                   if (bodyType !== 0) { // 0 = Dynamic in Rapier
-                    ref.body.current.setTranslation({ x: _tmpPos.x, y: _tmpPos.y, z: _tmpPos.z }, true);
-                    ref.body.current.setRotation({ x: _tmpQuat.x, y: _tmpQuat.y, z: _tmpQuat.z, w: _tmpQuat.w }, true);
+                    ref.body.current.setTranslation({ x: _ppPos.x, y: _ppPos.y, z: _ppPos.z }, true);
+                    ref.body.current.setRotation({ x: _ppQuat.x, y: _ppQuat.y, z: _ppQuat.z, w: _ppQuat.w }, true);
                   }
                 } else if (ref?.group.current) {
-                  ref.group.current.position.set(_tmpPos.x, _tmpPos.y, _tmpPos.z);
-                  ref.group.current.quaternion.set(_tmpQuat.x, _tmpQuat.y, _tmpQuat.z, _tmpQuat.w);
-                  ref.group.current.scale.set(_tmpScl.x, _tmpScl.y, _tmpScl.z);
+                  ref.group.current.position.set(_ppPos.x, _ppPos.y, _ppPos.z);
+                  ref.group.current.quaternion.set(_ppQuat.x, _ppQuat.y, _ppQuat.z, _ppQuat.w);
+                  ref.group.current.scale.set(_ppScl.x, _ppScl.y, _ppScl.z);
                 }
               }
-              // 손자도 재귀
-              propagate(child.id, childWorld);
+              // 손자도 재귀 (다음 깊이 풀 행렬 사용)
+              propagate(child.id, childWorld, depth + 1);
             }
           };
           // 루트 부모들 — childrenOf 의 key 중 자기 자신이 child 가 아닌 (= 트리 root) 만
           // 단순화: 모든 부모에 대해 그 부모의 현재 world transform 으로 시작
           for (const parentId of childrenOf.keys()) {
             const ref = scriptBodyRefs.current.get(parentId);
-            const parentWorld = new THREE.Matrix4();
+            const parentWorld = _ppWorld(0);
             if (ref?.body.current) {
               const t = ref.body.current.translation();
               const r = ref.body.current.rotation();
               // body 는 scale 정보 없음 → data 에서 가져옴
-              const parentObj = allObjects.find(o => o.id === parentId);
+              const parentObj = byId.get(parentId);
               const sc = parentObj?.scale ?? [1, 1, 1];
               parentWorld.compose(
-                new THREE.Vector3(t.x, t.y, t.z),
-                new THREE.Quaternion(r.x, r.y, r.z, r.w),
-                new THREE.Vector3(sc[0], sc[1], sc[2]),
+                _ppPos.set(t.x, t.y, t.z),
+                _ppQuat.set(r.x, r.y, r.z, r.w),
+                _ppScl.set(sc[0], sc[1], sc[2]),
               );
             } else if (ref?.group.current) {
               ref.group.current.updateMatrix();
@@ -955,7 +977,7 @@ function LuaUpdateLoop({
               continue;
             }
             // 부모 자신이 다른 부모의 자식이면 propagate 가 이미 그쪽에서 처리됨 — 중복 OK (부드럽게 덮어씀)
-            propagate(parentId, parentWorld);
+            propagate(parentId, parentWorld, 1);
           }
         }
       }
@@ -1039,19 +1061,19 @@ function LuaUpdateLoop({
           }
           // 회전: 부드러운 slerp. threshold 두면 천천히 도는 오브젝트(AutoRotate 등)가
           // 매 broadcast 사이 임계값 미달로 안 움직이고 점프 → 항상 slerp.
-          const targetQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(target.rot[0], target.rot[1], target.rot[2]));
+          const targetQ = _syncQ1.setFromEuler(_syncEu.set(target.rot[0], target.rot[1], target.rot[2]));
           const r = ref.body.current.rotation();
-          const curQ = new THREE.Quaternion(r.x, r.y, r.z, r.w);
+          const curQ = _syncQ2.set(r.x, r.y, r.z, r.w);
           curQ.slerp(targetQ, SOFT_CORRECTION);
           ref.body.current.setRotation({ x: curQ.x, y: curQ.y, z: curQ.z, w: curQ.w }, true);
         } else if (ref.group.current) {
           // 물리 없는 오브젝트 — 그냥 부드럽게 lerp
-          ref.group.current.position.lerp(new THREE.Vector3(ex, ey, ez), SOFT_CORRECTION);
-          const targetEu = new THREE.Euler(target.rot[0], target.rot[1], target.rot[2]);
+          ref.group.current.position.lerp(_syncV1.set(ex, ey, ez), SOFT_CORRECTION);
+          const targetEu = _syncEu.set(target.rot[0], target.rot[1], target.rot[2]);
           ref.group.current.rotation.x += (targetEu.x - ref.group.current.rotation.x) * SOFT_CORRECTION;
           ref.group.current.rotation.y = lerpAngle(ref.group.current.rotation.y, targetEu.y, SOFT_CORRECTION);
           ref.group.current.rotation.z += (targetEu.z - ref.group.current.rotation.z) * SOFT_CORRECTION;
-          ref.group.current.scale.lerp(new THREE.Vector3(target.scl[0], target.scl[1], target.scl[2]), SOFT_CORRECTION);
+          ref.group.current.scale.lerp(_syncV2.set(target.scl[0], target.scl[1], target.scl[2]), SOFT_CORRECTION);
           ref.group.current.visible = target.vis;
         }
       }
@@ -1148,6 +1170,7 @@ function FollowingSunLight({ intensity, castShadow, shadowMapSize, shadowFar, di
   color?: string;
 }) {
   const ref = useRef<THREE.DirectionalLight>(null);
+  const suppressTick = useRef(0);
   useFrame((state) => {
     if (!ref.current) return;
     const cam = state.camera.position;
@@ -1157,6 +1180,8 @@ function FollowingSunLight({ intensity, castShadow, shadowMapSize, shadowFar, di
     ref.current.target.updateMatrixWorld();
     // 유저 dirlight 억제 — 고정 위치 dirlight 는 그림자 frustum 이 씬을 못 덮어 빛이 천장/지형을 뚫는다.
     // 유저 dirlight 는 방향(회전)·강도 핸들로만 쓰고, 실제 빛/그림자는 이 카메라추적 태양이 담당.
+    // 전체 scene.traverse 는 비싸므로 30프레임(~0.5s)마다만 — 억제는 멱등이고 dirlight 가 자주 추가되지 않음.
+    if (suppressTick.current++ % 30 !== 0) return;
     const me = ref.current, tgt = ref.current.target;
     state.scene.traverse((o) => {
       const dl = o as THREE.DirectionalLight;
