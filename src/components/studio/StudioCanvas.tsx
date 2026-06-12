@@ -6137,6 +6137,7 @@ export default function StudioCanvas() {
     if (e.button !== 0) return;
     if ((e.target as HTMLElement).tagName !== 'CANVAS') return; // 캔버스 위 클릭만
     if (isGizmoActive()) return;
+    if (terrainTool) return; // 지형 조각 중엔 마퀴 금지 — 브러시 드래그가 선택을 풀어버리는 버그 방지
     const rect = viewportRef.current!.getBoundingClientRect();
     setMarqueeStart({ x: e.clientX - rect.left, y: e.clientY - rect.top });
     setMarqueeEnd(null);
