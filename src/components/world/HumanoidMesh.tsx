@@ -18,6 +18,7 @@ import { ANIM_SLOTS, ANIM_SLOT_LEGACY_ALIAS, type AnimSlot } from '@/lib/charact
 import { createHumanoidFootIK, type HumanoidFootIK } from '@/lib/character/humanoidFootIK';
 import { createHumanoidHandIK, type HumanoidHandIK } from '@/lib/character/humanoidHandIK';
 import { envFx } from '@/lib/world/envFx';
+import { FootstepDust } from '@/components/world/FootstepDust';
 
 /** 손 IK 타깃 ref 형태 — 스크립트(world.setHandTarget)가 채움. null=미적용. */
 export type HandTargets = {
@@ -740,6 +741,7 @@ export function HumanoidMesh(props: HumanoidMeshProps) {
   return (
     <group ref={groupRef} position={[0, offsetY, 0]} scale={userScale}>
       {!compileReady && <LoadingEffect targetHeight={targetHeight} />}
+      {char && <FootstepDust groupRef={groupRef} animStateRef={animStateRef} userScale={userScale} />}
     </group>
   );
 }
