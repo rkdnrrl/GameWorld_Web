@@ -22,6 +22,15 @@ export function skySunPosition(dirlightRotation?: [number, number, number]): [nu
   return [-d[0] * 100, -d[1] * 100, -d[2] * 100];
 }
 
+/** 태양 높이로 안개색 결정 — 해가 높으면 하늘빛, 낮으면(노을) 따뜻한 색. 시간대 분위기 자동 반영. */
+export function skyFogColor(sunPos: [number, number, number]): string {
+  const len = Math.hypot(sunPos[0], sunPos[1], sunPos[2]) || 1;
+  const hN = Math.max(0, sunPos[1] / len);            // 0=지평선, 1=천정
+  const warm = Math.max(0, Math.min(1, 1 - hN / 0.4)); // 해가 0.4 이하로 낮을수록 따뜻하게
+  const lerp = (a: number, b: number) => Math.round(a + (b - a) * warm);
+  return `rgb(${lerp(0xcf, 0xf0)},${lerp(0xe8, 0xc8)},${lerp(0xf5, 0x9a)})`;  // 하늘빛 ↔ 노을빛
+}
+
 /** 전역 거리 안개 — 마운트 동안만 scene.fog 설정, 언마운트 시 원복(수중 PostFX 등과 충돌 없음). */
 export function SceneFog({ color = '#cfe8f5', density = 0.0022 }: { color?: string; density?: number }) {
   const { scene } = useThree();

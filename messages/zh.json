@@ -1290,6 +1290,7 @@
       "foliage_clear": "清除",
       "label_foliage_scale": "大小",
       "hint_foliage_assets": "※ 指定的模型会在每个绘制位置实例化。模型自动归一化为2m，再应用大小倍率。",
+      "btn_terrain_autoscatter": "🌱 全面铺草和花",
       "section_terrain_regenerate": "重新生成地形",
       "btn_terrain_flatten": "🟰 平坦化 (全部为 0)",
       "btn_terrain_noise": "🏔 生成自然丘陵 (随机噪声)",

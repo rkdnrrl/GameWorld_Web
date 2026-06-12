@@ -1290,6 +1290,7 @@
       "foliage_clear": "해제",
       "label_foliage_scale": "크기",
       "hint_foliage_assets": "※ 지정한 모델이 칠한 자리마다 인스턴싱됩니다. 모델은 자동 2m 정규화 후 크기 배율 적용.",
+      "btn_terrain_autoscatter": "🌱 풀·꽃 전체 깔기",
       "section_terrain_regenerate": "지형 재생성",
       "btn_terrain_flatten": "🟰 평탄화 (모두 0)",
       "btn_terrain_noise": "🏔 자연 언덕 생성 (랜덤 노이즈)",

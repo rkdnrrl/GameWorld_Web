@@ -91,6 +91,7 @@ export const COMPONENT_DEFS: ComponentDef[] = [
       { key: 'strength',  label: '강도 (물결 높이)', type: 'number', default: 1, min: 0, max: 10, step: 0.1 },
       { key: 'speed',     label: '속도',             type: 'number', default: 1, min: 0, max: 5,  step: 0.1 },
       { key: 'frequency', label: '촘촘함 (잔물결)',  type: 'number', default: 1, min: 0.2, max: 4, step: 0.1 },
+      { key: 'reflect',   label: '거울 반사 (주변이 비침 — 무거움, opt-in)', type: 'boolean', default: false },
     ],
   },
   {

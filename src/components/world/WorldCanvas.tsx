@@ -1,7 +1,7 @@
 'use client';
 import React, { Suspense, useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Billboard, Html, Sky, Text, Environment, useProgress, PerformanceMonitor } from '@react-three/drei';
+import { Billboard, Html, Sky, Text, Environment, useProgress, PerformanceMonitor, MeshReflectorMaterial } from '@react-three/drei';
 import { Physics, RigidBody, CapsuleCollider, CuboidCollider, useRapier, CoefficientCombineRule, type RapierCollider } from '@react-three/rapier';
 import { createXRStore, XR, XROrigin, useXRInputSourceState, useXR } from '@react-three/xr';
 import { devLog } from '@/lib/devLog';
@@ -73,7 +73,7 @@ import SeatButton from '@/lib/world/SeatButton';
 import LadderButton from '@/lib/world/LadderButton';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
-import { SceneFog, SkyClouds, skySunPosition } from '@/lib/world/SkyEnv';
+import { SceneFog, SkyClouds, skySunPosition, skyFogColor } from '@/lib/world/SkyEnv';
 import { makeWaterMaterial } from '@/lib/world/waterMaterial';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UI_SYNC_EVENT, DATA_SYNC_EVENT, type UiData } from '@/lib/world/uiObjects';
@@ -193,10 +193,10 @@ function buildWaterVolumeGeometry(N: number): { geom: THREE.BufferGeometry; topC
   return { geom, topCount };
 }
 
-function WorldWaterMesh({ color, strength = 1, speed = 1, frequency = 1, scaleY = 1 }: { color: string; strength?: number; speed?: number; frequency?: number; scaleY?: number }) {
+function WorldWaterMesh({ color, strength = 1, speed = 1, frequency = 1, scaleY = 1, reflect = false }: { color: string; strength?: number; speed?: number; frequency?: number; scaleY?: number; reflect?: boolean }) {
   const N = 12;
   const { geom, topCount } = useMemo(() => buildWaterVolumeGeometry(N), []);
-  const mat = useMemo(() => makeWaterMaterial(color), [color]);
+  const mat = useMemo(() => makeWaterMaterial(color, reflect), [color, reflect]);
   useEffect(() => () => { mat.dispose(); }, [mat]);
   const baseRef = useRef<Float32Array | null>(null);
   const params = useRef({ strength, speed, frequency, scaleY });
@@ -218,7 +218,16 @@ function WorldWaterMesh({ color, strength = 1, speed = 1, frequency = 1, scaleY 
     geom.computeVertexNormals();
   });
   return (
-    <mesh geometry={geom} material={mat} receiveShadow />
+    <group>
+      <mesh geometry={geom} material={mat} receiveShadow />
+      {reflect && (
+        <mesh rotation-x={-Math.PI / 2} position-y={0.001} raycast={() => null}>
+          <planeGeometry args={[1, 1]} />
+          <MeshReflectorMaterial color={color} resolution={512} blur={[160, 60]} mixBlur={1}
+            mixStrength={2.2} roughness={0.5} metalness={0.1} transparent opacity={0.7} />
+        </mesh>
+      )}
+    </group>
   );
 }
 
@@ -3268,6 +3277,7 @@ const UserMapObjectMesh = React.memo(function UserMapObjectMeshImpl({ obj, scrip
         strength={wv ? Number(wv.strength ?? 1) : 1}
         speed={wv ? Number(wv.speed ?? 1) : 1}
         frequency={wv ? Number(wv.frequency ?? 1) : 1}
+        reflect={wv ? Boolean(wv.reflect) : false}
         scaleY={Math.abs(obj.scale?.[1] ?? 1)} />
     );
     // collider 컴포넌트가 있으면 트리거/충돌 배선 (예: 물에 들어가면 onTriggerEnter → 수영 애니).
@@ -5970,11 +5980,12 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         {/* 야외 하늘 묶음 — Sky(태양=dirlight 방향 일치) + 구름 + 거리 안개. 스튜디오 sim 과 동일(WYSIWYG). */}
         {showSky && !hdriBackground && (() => {
           const dl = lightObjects.find(o => o.kind === 'dirlight' && !o.hidden);
+          const sunPos = skySunPosition(dl?.rotation);
           return (
             <>
-              <Sky sunPosition={skySunPosition(dl?.rotation)} />
+              <Sky sunPosition={sunPos} />
               <SkyClouds />
-              <SceneFog />
+              <SceneFog color={skyFogColor(sunPos)} />
             </>
           );
         })()}

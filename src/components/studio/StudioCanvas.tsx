@@ -2,7 +2,7 @@
 import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { OrbitControls, TransformControls, Grid, Sky, Environment, Edges } from '@react-three/drei';
+import { OrbitControls, TransformControls, Grid, Sky, Environment, Edges, MeshReflectorMaterial } from '@react-three/drei';
 import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
 import * as THREE from 'three';
 import { buildFolderTree, normalizeFolder } from '@/lib/assets/folders';
@@ -18,7 +18,7 @@ import { devLog } from '@/lib/devLog';
 import { PerfManager } from '@/lib/world/PerfManager';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
-import { SceneFog, SkyClouds, skySunPosition } from '@/lib/world/SkyEnv';
+import { SceneFog, SkyClouds, skySunPosition, skyFogColor } from '@/lib/world/SkyEnv';
 import { makeWaterMaterial } from '@/lib/world/waterMaterial';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UIRenderer } from '@/lib/world/UIRenderer';
@@ -1582,10 +1582,10 @@ function buildWaterVolumeGeometry(N: number): { geom: THREE.BufferGeometry; topC
 const WATER_BOX_EDGES = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1));
 
 /* ── Water mesh — 입체(파도 윗면+옆벽+바닥). 데스크탑 viewer.js 의 isWater 공식과 동일 파도. */
-function WaterMesh({ color, selected, strength = 1, speed = 1, frequency = 1, scaleY = 1 }: { color: string; selected: boolean; strength?: number; speed?: number; frequency?: number; scaleY?: number }) {
+function WaterMesh({ color, selected, strength = 1, speed = 1, frequency = 1, scaleY = 1, reflect = false }: { color: string; selected: boolean; strength?: number; speed?: number; frequency?: number; scaleY?: number; reflect?: boolean }) {
   const N = 12;
   const { geom, topCount } = useMemo(() => buildWaterVolumeGeometry(N), []);
-  const mat = useMemo(() => makeWaterMaterial(color), [color]);
+  const mat = useMemo(() => makeWaterMaterial(color, reflect), [color, reflect]);
   useEffect(() => () => { mat.dispose(); }, [mat]);
   const baseRef = useRef<Float32Array | null>(null);
   const params = useRef({ strength, speed, frequency, scaleY });
@@ -1611,6 +1611,13 @@ function WaterMesh({ color, selected, strength = 1, speed = 1, frequency = 1, sc
   return (
     <group>
       <mesh geometry={geom} material={mat} receiveShadow />
+      {reflect && (
+        <mesh rotation-x={-Math.PI / 2} position-y={0.001} raycast={() => null}>
+          <planeGeometry args={[1, 1]} />
+          <MeshReflectorMaterial color={color} resolution={512} blur={[160, 60]} mixBlur={1}
+            mixStrength={2.2} roughness={0.5} metalness={0.1} transparent opacity={0.7} />
+        </mesh>
+      )}
       {/* 선택 표시 — 물 부피 경계를 깔끔한 직육면체 외곽선으로 (크기 가늠용). 수면 y=0 ~ 바닥 y=-1 */}
       {selected && (
         <lineSegments geometry={WATER_BOX_EDGES} position={[0, -0.5, 0]} raycast={() => null}>
@@ -1783,6 +1790,7 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false, scul
           strength={wv ? Number(wv.strength ?? 1) : 1}
           speed={wv ? Number(wv.speed ?? 1) : 1}
           frequency={wv ? Number(wv.frequency ?? 1) : 1}
+          reflect={wv ? Boolean(wv.reflect) : false}
           scaleY={Math.abs(obj.scale?.[1] ?? 1)} />
       </group>
     );
@@ -8296,6 +8304,24 @@ export default function StudioCanvas() {
                     );
                   })}
                   <div style={{ fontSize: 10, opacity: 0.4 }}>{tCanvas("hint_foliage_assets")}</div>
+                  <button type="button"
+                    onClick={() => {
+                      const cur = selected.terrain!;
+                      const half = cur.size / 2;
+                      const count = Math.min(4000, Math.round(cur.size * cur.size * 0.6));
+                      const next = (cur.foliage || []).filter(f => f.k === 'tree' || f.k === 'rock');
+                      for (let i = 0; i < count; i++) {
+                        const x = (Math.random() * 2 - 1) * half * 0.96;
+                        const z = (Math.random() * 2 - 1) * half * 0.96;
+                        const isFlower = Math.random() < 0.12;
+                        next.push({ k: isFlower ? 'flower' : 'grass', x, z, s: 0.7 + Math.random() * 0.6, r: Math.random() * Math.PI * 2 });
+                      }
+                      setObjects(prev => prev.map(o => o.id === selected.id && o.terrain ? { ...o, terrain: { ...o.terrain, foliage: next } } : o));
+                      pushHistory(objects);
+                    }}
+                    style={{ background: 'rgba(132,204,22,0.18)', border: '1px solid rgba(132,204,22,0.4)', color: '#d9f99d', borderRadius: 6, padding: '6px 10px', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
+                    {tCanvas("btn_terrain_autoscatter")}
+                  </button>
                 </div>
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ opacity: 0.7, fontSize: 11, fontWeight: 700 }}>{tCanvas("section_terrain_regenerate")}</div>
@@ -8938,11 +8964,12 @@ export default function StudioCanvas() {
           })()}
           {skyEnabled && !hdriBackground && (() => {
             const sdl = objects.find(o => o.kind === 'dirlight' && !o.hidden);
+            const sunPos = skySunPosition(sdl?.rotation);
             return (
               <>
-                <Sky sunPosition={skySunPosition(sdl?.rotation)} />
+                <Sky sunPosition={sunPos} />
                 <SkyClouds />
-                <SceneFog />
+                <SceneFog color={skyFogColor(sunPos)} />
               </>
             );
           })()}

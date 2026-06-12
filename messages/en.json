@@ -1290,6 +1290,7 @@
       "foliage_clear": "Clear",
       "label_foliage_scale": "Scale",
       "hint_foliage_assets": "※ The assigned model is instanced at each painted spot. Models are auto-normalized to 2m, then the scale factor is applied.",
+      "btn_terrain_autoscatter": "🌱 Scatter grass & flowers",
       "section_terrain_regenerate": "Regenerate Terrain",
       "btn_terrain_flatten": "🟰 Flatten (all 0)",
       "btn_terrain_noise": "🏔 Generate Natural Hills (random noise)",
