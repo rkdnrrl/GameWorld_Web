@@ -21,6 +21,8 @@ const SHADOW_OPTIONS = [
   { value: 4096, labelKey: 'shadowUltra' },
 ] as const;
 
+const FPS_OPTIONS = [0, 30, 60, 72, 120] as const;   // 0 = 무제한
+
 export default function GraphicsPanel({ settings, updateSettings, applyPreset, mode = 'standalone' }: Props) {
   const t = useTranslations('Graphics');
   const [open, setOpen] = useState(false);
@@ -99,6 +101,19 @@ export default function GraphicsPanel({ settings, updateSettings, applyPreset, m
                 </button>
               ))}
             </div>
+          </Section>
+
+          {/* 최대 FPS — 고주사율 기기 GPU/배터리 절감 (0=무제한) */}
+          <Section label={t('maxFps')}>
+            <select
+              value={settings.maxFps}
+              onChange={e => updateSettings({ maxFps: Number(e.target.value) })}
+              style={selectStyle}
+            >
+              {FPS_OPTIONS.map(v => (
+                <option key={v} value={v}>{v === 0 ? t('fpsUnlimited') : `${v} FPS`}</option>
+              ))}
+            </select>
           </Section>
 
           {/* 시야 거리 */}

@@ -1967,6 +1967,8 @@
     "shadowSize": "阴影质量",
     "antialias": "抗锯齿",
     "pixelRatio": "渲染分辨率",
+    "maxFps": "最大FPS (高刷新率设备省电)",
+    "fpsUnlimited": "无限制",
     "farClip": "视野距离",
     "cullDistance": "距离剔除 (远处不渲染)",
     "frustumCull": "视锥剔除 (屏幕外不渲染)",

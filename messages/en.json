@@ -1967,6 +1967,8 @@
     "shadowSize": "Shadow Quality",
     "antialias": "Antialiasing",
     "pixelRatio": "Render Resolution",
+    "maxFps": "Max FPS (saves power on high-refresh)",
+    "fpsUnlimited": "Unlimited",
     "farClip": "View Distance",
     "cullDistance": "Distance Culling (skip far)",
     "frustumCull": "Frustum Culling (skip off-screen)",

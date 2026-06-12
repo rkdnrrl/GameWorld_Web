@@ -1084,6 +1084,44 @@ function LuaUpdateLoop({
   return null;
 }
 
+/* ── 최대 FPS 캡 ──
+ * fps>0 일 때 Canvas frameloop='never' 로 두고 여기서 직접 렌더를 구동(상한 적용).
+ * R3F v9 never 모드는 advance(timestamp) 의 timestamp 를 '초'로 해석하므로 t/1000 을 넘긴다.
+ * XR 세션 중에는 마운트되지 않게(호출부에서 제외) — 헤드셋이 자체 주사율로 구동.
+ */
+function FpsLimiter({ fps }: { fps: number }) {
+  const advance = useThree((s) => s.advance);
+  const clock = useThree((s) => s.clock);
+  useEffect(() => {
+    if (!fps || fps <= 0) return;
+    const interval = 1000 / fps;
+    let raf = 0;
+    let prevMs = 0;                     // 직전 rAF 시각(ms)
+    let acc = 0;                        // 누적 경과(ms) — interval 넘으면 1회 렌더
+    let started = false;
+    // never 모드는 advance(t) 의 t 를 clock.elapsedTime(초)로 그대로 대입한다.
+    // 현재 elapsedTime 에서 이어가며 '실제 경과'만 더해 → dt 정확 + 시간 연속(켤 때 점프 없음).
+    let simSec = clock.elapsedTime;
+    const loop = (now: number) => {
+      raf = requestAnimationFrame(loop);
+      if (!started) { started = true; prevMs = now; return; }
+      acc += now - prevMs; prevMs = now;
+      if (acc < interval) return;
+      simSec += acc / 1000;            // 실제 경과(초)만큼 진행 (delta = acc/1000)
+      acc = 0;
+      advance(simSec);
+    };
+    raf = requestAnimationFrame(loop);
+    // 해제(캡 끄기/XR 진입) 시: always 모드의 THREE.Clock.getDelta 가 oldTime(ms 기준)을 쓰므로
+    // 복구해 첫 프레임 dt 폭주를 막는다(never 모드가 oldTime 을 초 단위로 덮어썼기 때문).
+    return () => {
+      cancelAnimationFrame(raf);
+      clock.oldTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    };
+  }, [fps, advance, clock]);
+  return null;
+}
+
 /* ── 그래픽 설정 변경 시 셰도우맵 강제 갱신 ── */
 /* 노출(toneMapping) + HDRI IBL 강도 라이브 업데이트
    gl prop / Environment prop 은 초기 마운트만 적용되므로 매 렌더마다 직접 세팅. */
@@ -4079,6 +4117,14 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     : postFX;
   // VR(WebXR) — 로컬 전용 모드. 비-VR(데스크탑/모바일) 유저는 영향 없음. 멀티는 기존 위치 동기화 그대로.
   const xrStore = useMemo(() => createXRStore(), []);
+  // FPS 캡 — XR 세션 중에는 헤드셋이 자체 프레임루프를 돌리므로 캡을 끈다.
+  const [xrActive, setXrActive] = useState(false);
+  useEffect(() => {
+    const sync = () => setXrActive(!!xrStore.getState().session);
+    sync();
+    return xrStore.subscribe(sync);
+  }, [xrStore]);
+  const fpsCapActive = graphics.maxFps > 0 && !xrActive;
   const [vrSupported, setVrSupported] = useState(false);
   useEffect(() => {
     const xr = (navigator as Navigator & { xr?: { isSessionSupported?: (m: string) => Promise<boolean> } }).xr;
@@ -5912,6 +5958,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         shadows={{ enabled: true, type: THREE.PCFShadowMap, autoUpdate: true }}
         camera={{ fov: 60, near: 0.3, far: graphics.farClip, position: [0, 8, 12] }}
         dpr={adaptiveDpr}
+        frameloop={fpsCapActive ? 'never' : 'always'}
         gl={{
           // alpha:true — Studio 와 동일. drei occlude="blending" 이 alpha 채널로 iframe 합성하므로
           //   alpha:false 면 안 그려진 영역에 불투명 sky 가 비침 (Studio 는 검정). 잔상은 preserveDrawingBuffer:false 로 이미 방지됨.
@@ -5926,6 +5973,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         style={{ width: '100vw', height: '100vh', display: 'block', transform: 'translateZ(0)', willChange: 'transform', zIndex: 16777271, position: 'fixed', inset: 0, background: '#000' }}
       >
         <XR store={xrStore}>
+        {fpsCapActive && <FpsLimiter fps={graphics.maxFps} />}
         <VRLocomotion localPoseRef={localPoseRef} />
         {/* 조명 — sceneSettings 기반 */}
         <ambientLight intensity={ambientIntensity} />
