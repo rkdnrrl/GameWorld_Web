@@ -19,6 +19,9 @@ import React, { useMemo, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { RigidBody, CapsuleCollider, CuboidCollider, ConvexHullCollider } from '@react-three/rapier';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — three 예제(번들 타입 없음). 모델당 1회 볼록껍질 선계산용.
+import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
 import { normalizeTerrain, sampleTerrainHeight, type TerrainData, type FoliageInstance } from './terrain';
 import { loadStaticModelCached } from './modelLoader';
 import { resolveMeshMaterial, type MaterialOverrides, type LoadTexFn } from './materialOverride';
@@ -382,6 +385,28 @@ function _collectHullPoints(model: THREE.Object3D, trunkOnly: boolean): Float32A
   });
   return new Float32Array(pts);
 }
+/** 점 구름 → 볼록껍질 정점만 추출(모델당 1회). 인스턴스마다 다시 hull 뜨는 비용 제거 — 수백 점 → ~수십 점.
+ *  퇴화(동일평면 등)로 실패하면 원본 그대로(Rapier 가 hull). */
+function _reduceToHull(raw: Float32Array): Float32Array {
+  if (raw.length < 12) return raw;
+  const pts: THREE.Vector3[] = [];
+  for (let i = 0; i < raw.length; i += 3) pts.push(new THREE.Vector3(raw[i], raw[i + 1], raw[i + 2]));
+  let faces: { edge: unknown }[];
+  try { faces = (new ConvexHull().setFromPoints(pts) as { faces: { edge: unknown }[] }).faces; } catch { return raw; }
+  const seen = new Set<string>(); const out: number[] = [];
+  for (const face of faces) {
+    let edge = face.edge as { vertex: { point: THREE.Vector3 }; next: unknown } | null;
+    const start = edge;
+    do {
+      if (!edge) break;
+      const p = edge.vertex.point;
+      const k = p.x.toFixed(3) + ',' + p.y.toFixed(3) + ',' + p.z.toFixed(3);
+      if (!seen.has(k)) { seen.add(k); out.push(p.x, p.y, p.z); }
+      edge = edge.next as typeof edge;
+    } while (edge && edge !== start);
+  }
+  return out.length >= 12 ? new Float32Array(out) : raw;
+}
 const _hullCache = new Map<string, Promise<Float32Array>>();
 function loadFoliageHull(url: string, trunkOnly: boolean): Promise<Float32Array> {
   const key = url + (trunkOnly ? '|t' : '|a');
@@ -390,7 +415,7 @@ function loadFoliageHull(url: string, trunkOnly: boolean): Promise<Float32Array>
     e = loadStaticModelCached(url).then((model) => {
       let pts = _collectHullPoints(model, trunkOnly);
       if (trunkOnly && pts.length < 12) pts = _collectHullPoints(model, false);  // 줄기 메시 없음(잎만) → 전체로 폴백
-      return pts;
+      return _reduceToHull(pts);  // 모델당 1회 선계산 → 인스턴스는 ~수십 점만 hull
     });
     _hullCache.set(key, e);
   }
