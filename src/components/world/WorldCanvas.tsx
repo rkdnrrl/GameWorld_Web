@@ -728,7 +728,7 @@ function CustomModel({ url, userScale, rotX, offsetY = 0, animStateRef, animName
  * 새 appearance v2: { modelUrl, scale, offsetY, manualBoneMap }
  * 운영자 등록 마스터 클립 url 은 GLOBAL_CLIP_URLS 에서 받음 (T9 에서 운영자 API 정리 예정).
  */
-function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneShotOverride, hideHead = false, getAnalyser, headBoneRef, handTargetRef }: {
+function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneShotOverride, hideHead = false, getAnalyser, headBoneRef, handTargetRef, enableFootIK = false }: {
   appearance: Record<string, unknown>;
   animStateRef?: React.RefObject<AnimState>;
   castShadow?: boolean;
@@ -739,6 +739,8 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneSh
   headBoneRef?: React.MutableRefObject<THREE.Object3D | null>;
   /** 손 IK 타깃 ref (등반 grip) — 본인 player 만 전달. */
   handTargetRef?: React.MutableRefObject<import('./HumanoidMesh').HandTargets>;
+  /** 발 IK — 경사면/바닥에 발 맞춤(Two-Bone IK). 본인 player 에 켬. */
+  enableFootIK?: boolean;
 }) {
   const modelUrl     = appearance.modelUrl as string | undefined;
   const userScale    = Number(appearance.scale ?? appearance.modelScale ?? 1.0) || 1.0;
@@ -760,6 +762,7 @@ function CharacterMesh({ appearance, animStateRef, castShadow = true, emoteOneSh
         castShadow={castShadow}
         userScale={userScale}
         offsetY={offsetY}
+        enableFootIK={enableFootIK}
         handTargetRef={handTargetRef}
         onLoaded={headBoneRef ? (char) => { headBoneRef.current = char.bones.head ?? null; } : undefined}
       />
@@ -2595,7 +2598,7 @@ export function Player({
       {/* 1인칭에서도 본인 메쉬 표시 — 아래 보면 다리/몸 보임.
           머리는 hideHead 로 본 스케일 0 / 블록 머리 미렌더 처리 */}
       <group ref={mesh} position={[0, PLAYER_MESH_Y, 0]}>
-        <CharacterMesh appearance={appearance} animStateRef={animStateRef} emoteOneShotOverride={emoteOneShotOverride} hideHead={hideHeadOverride ?? (cameraMode === 'first')} getAnalyser={getAnalyser} headBoneRef={headBoneRef} handTargetRef={handTargetRef} />
+        <CharacterMesh appearance={appearance} animStateRef={animStateRef} emoteOneShotOverride={emoteOneShotOverride} hideHead={hideHeadOverride ?? (cameraMode === 'first')} getAnalyser={getAnalyser} headBoneRef={headBoneRef} handTargetRef={handTargetRef} enableFootIK />
       </group>
       {bubble && (
         <Html position={[0, 1.95, 0]} center>
