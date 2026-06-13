@@ -321,7 +321,10 @@ function ComponentsSection({
       if (o.id !== selected.id) return o;
       const next = [...(o.components ?? [])];
       const cur = next[idx];
-      next[idx] = { ...cur, props: { ...(cur.props ?? {}), [key]: value } };
+      const patch: Record<string, number | string | boolean> = { [key]: value };
+      // PostProcess: 프리셋 적용 후 사용자가 수치를 직접 만지면 프리셋 해제(none) → 수동 값이 실제 렌더에 반영됨.
+      if (cur.type === 'postProcess' && key !== 'preset') patch.preset = 'none';
+      next[idx] = { ...cur, props: { ...(cur.props ?? {}), ...patch } };
       return { ...o, components: next };
     }));
   };
@@ -508,8 +511,9 @@ function ComponentsSection({
                         return (
                           <button key={opt} type="button"
                             onClick={() => {
-                              // PostProcess 프리셋: enum 값만 바꾸지 않고, 그 룩의 실제 수치(밝기·대비·채도 등)를
-                              //  props 에 채운 뒤 preset=none(수동) 으로 → 사용자가 값을 바로 보고 직접 수정 가능.
+                              // PostProcess 프리셋: 그 룩의 실제 수치(밝기·대비·채도 등)를 props 에 채우고
+                              //  preset 은 선택값으로 유지(어떤 프리셋인지 표시). 이후 사용자가 수치를 직접 수정하면
+                              //  updateProp 이 preset 을 none 으로 바꿔 커스텀 모드로 전환한다.
                               if (def.type === 'postProcess' && p.key === 'preset' && opt !== 'none') {
                                 const vals = presetPropValues(opt);
                                 if (vals) {
@@ -517,7 +521,7 @@ function ComponentsSection({
                                     if (o.id !== selected.id) return o;
                                     const next = [...(o.components ?? [])];
                                     const cur = next[idx];
-                                    next[idx] = { ...cur, props: { ...(cur.props ?? {}), ...vals, preset: 'none' } };
+                                    next[idx] = { ...cur, props: { ...(cur.props ?? {}), ...vals, preset: opt } };
                                     return { ...o, components: next };
                                   }));
                                   pushHistory(allObjects);
