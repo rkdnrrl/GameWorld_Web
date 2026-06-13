@@ -179,6 +179,9 @@ const _up = new THREE.Vector3(0, 1, 0);
 const _p = new THREE.Vector3();
 const _s = new THREE.Vector3();
 const _c = new THREE.Color();
+// 식생 InstancedMesh 는 클릭 레이캐스트 비대상(장식) — no-op raycast 로 교체해 수만 인스턴스 ray 테스트 스킵.
+// 나무·돌의 물리 차단은 Rapier 콜라이더(별도)가 담당하므로 클릭 레이에서 빠져도 무방.
+const NO_RAYCAST: THREE.Object3D['raycast'] = () => {};
 
 /** 위치 기반 결정적 해시(0~1) — 인스턴스별 안정적 색 변주(리렌더 깜빡임 없음). */
 function hashNoise(x: number, z: number): number {
@@ -235,6 +238,7 @@ function Instanced({ items, geo, mat, t, base, cast, receive, vary }: {
       castShadow={cast}
       receiveShadow={receive}
       frustumCulled={false}
+      raycast={NO_RAYCAST}   // 클릭 레이캐스트에서 제외 — 인스턴스 수만 개를 ray 테스트하면 클릭마다 프레임 드랍
     />
   );
 }
@@ -375,6 +379,7 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
           castShadow={cast}
           receiveShadow={false}
           frustumCulled={false}
+          raycast={NO_RAYCAST}   // 클릭 레이캐스트에서 제외 (인스턴스 수만 개 ray 테스트 방지)
         />
       ))}
     </>
