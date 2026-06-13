@@ -7803,6 +7803,31 @@ export default function StudioCanvas() {
           </button>
           {envPanelOpen && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+              {/* 🧚 동화풍 원클릭 — 밝은 소프트 조명 + 하늘 + 채도 높은 색감(Quaternius 스타일라이즈드 룩). */}
+              <button type="button"
+                onClick={() => {
+                  setSkyEnabled(true);
+                  setLightAmbient(0.35);   // 그늘 밝히기(소프트 GI 느낌) — 핵심
+                  setExposure(0.95);
+                  setSunSize(0.5);         // 작고 또렷한 태양
+                  setLightDir(2.0);
+                  setObjects(prev => prev.map(o => {
+                    let next = o;
+                    // 방향광 오브젝트 강도 ~2 (4.9 같은 과노출 방지)
+                    if (o.kind === 'dirlight' && !o.hidden) next = { ...next, lightIntensity: 2.0 };
+                    // 기존 PostProcess 볼륨 → 동화풍 색감(채도↑·살짝 웜·부드러운 블룸)
+                    if (next.components?.some(c => c.type === 'postProcess')) {
+                      next = { ...next, components: next.components.map(c => c.type === 'postProcess'
+                        ? { ...c, props: { ...c.props, enabled: true, preset: 'none', saturation: 0.25, temperature: 0.08, contrast: 0.05, filmic: 0.3, bloom: true, bloomIntensity: 0.45, bloomThreshold: 0.85, vignette: 0.2, toneMapping: true } }
+                        : c) };
+                    }
+                    return next;
+                  }));
+                  pushHistory(objects);
+                }}
+                style={{ width: '100%', background: 'linear-gradient(90deg,#34d399,#22d3ee)', border: 'none', borderRadius: 6, color: '#06281f', fontSize: 12, fontWeight: 800, padding: '7px 10px', cursor: 'pointer' }}>
+                {tCanvas("env_preset_fairytale")}
+              </button>
               {/* Sky 토글 */}
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, opacity: 0.8, cursor: 'pointer' }}>
                 <input type="checkbox" checked={skyEnabled}
