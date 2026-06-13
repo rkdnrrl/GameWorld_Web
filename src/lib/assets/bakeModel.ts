@@ -1,7 +1,7 @@
 /**
  * 클라이언트 모델 베이킹 — 업로드 전에 브라우저에서:
  *   1) FBX → GLB 변환 (assimpjs WASM — ASCII·바이너리 FBX 모두 견고. three FBXLoader 는 ASCII 못 읽음)
- *   2) 큰 텍스처(>2048px) 다운스케일 (GLTFLoader 로 열어 canvas 리사이즈 → GLTFExporter 재출력)
+ *   2) 큰 텍스처(>1024px) 다운스케일 (GLTFLoader 로 열어 canvas 리사이즈 → GLTFExporter 재출력)
  *
  * 왜 클라에서: 브라우저는 실행 중 FBX 를 매번 파싱(느림)·ASCII 는 못 읽음. GLB+작은텍스처는 빠름.
  * 유니티가 임포트 때 굽듯이 우리는 업로드 때 업로더 브라우저에서 굽는다 → 서버 부하 0.
@@ -10,7 +10,7 @@
 
 import { LoadingManager } from 'three';
 
-const MAX_TEXTURE = 2048;   // 텍스처 한 변 최대 px
+const MAX_TEXTURE = 1024;   // 텍스처 한 변 최대 px (로블록스와 동일 — 저사양·모바일 일괄 통제, 첫 렌더 업로드 비용 절감)
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AssimpModule = any;
