@@ -76,7 +76,7 @@ import SeatButton from '@/lib/world/SeatButton';
 import LadderButton from '@/lib/world/LadderButton';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
-import { SceneFog, SkyClouds, SkyMoon, SkyStars, skySunPosition, skyFogColor, nightFactor, EnvFxUpdater } from '@/lib/world/SkyEnv';
+import { SceneFog, SkyClouds, SkyMoon, SkyStars, skySunPosition, skyFogColor, nightFactor, sunGlowParams, EnvFxUpdater } from '@/lib/world/SkyEnv';
 import { makeWaterMaterial } from '@/lib/world/waterMaterial';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UI_SYNC_EVENT, DATA_SYNC_EVENT, type UiData } from '@/lib/world/uiObjects';
@@ -4110,6 +4110,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const hdriUrl          = typeof ss.hdriUrl === 'string' ? ss.hdriUrl as string : '';
   const hdriBackground   = typeof ss.hdriBackground === 'boolean' ? ss.hdriBackground : false;
   const exposure         = typeof ss.exposure === 'number' ? ss.exposure : 0.7;
+  const sunSize          = typeof ss.sunSize === 'number' ? ss.sunSize : 1;   // 태양 글로우 크기 (Sky mie)
   const hdriIntensity    = typeof ss.hdriIntensity === 'number' ? ss.hdriIntensity : 1.0;
   // 맵 물리 설정 — 중력 Y (기본 -22), 점프력 (기본 7). 무중력은 gravityY=0.
   const gravityY         = typeof ss.gravityY === 'number' ? ss.gravityY : -22;
@@ -6117,9 +6118,10 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           const dl = lightObjects.find(o => o.kind === 'dirlight' && !o.hidden);
           const sunPos = skySunPosition(dl?.rotation);
           const night = nightFactor(sunPos);
+          const sg = sunGlowParams(sunSize);
           return (
             <>
-              <Sky sunPosition={sunPos} />
+              <Sky sunPosition={sunPos} mieDirectionalG={sg.mieDirectionalG} mieCoefficient={sg.mieCoefficient} />
               <SkyClouds />
               <SceneFog color={skyFogColor(sunPos)} />
               {night > 0.3 && <SkyStars />}

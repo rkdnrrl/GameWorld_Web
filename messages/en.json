@@ -1367,6 +1367,8 @@
       "btn_add_light_2": "💡 Add Light {arrow}",
       "btn_add_ui_2": "🖼 Add UI {arrow}",
       "exposure_label": "Exposure: {exposure}",
+      "sun_size_label": "☀ Sun size: {sunSize}",
+      "hint_sun_size": "Smaller = tighter, crisper sun (when sky is on)",
       "hdri_intensity_label": "HDRI Intensity: {hdriIntensity}",
       "ambient_strength_label": "Ambient Intensity: {lightAmbient}",
       "sun_strength_label": "Sun Intensity: {lightDir}",

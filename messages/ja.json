@@ -1367,6 +1367,8 @@
       "btn_add_light_2": "💡 ライト追加 {arrow}",
       "btn_add_ui_2": "🖼 UI 追加 {arrow}",
       "exposure_label": "露出(exposure): {exposure}",
+      "sun_size_label": "☀ 太陽の大きさ: {sunSize}",
+      "hint_sun_size": "小さいほど太陽が小さく鮮明 (空オン時)",
       "hdri_intensity_label": "HDRI 強度: {hdriIntensity}",
       "ambient_strength_label": "Ambient 強度: {lightAmbient}",
       "sun_strength_label": "太陽光強度: {lightDir}",

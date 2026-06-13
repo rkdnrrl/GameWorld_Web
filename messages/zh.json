@@ -1367,6 +1367,8 @@
       "btn_add_light_2": "💡 添加灯光 {arrow}",
       "btn_add_ui_2": "🖼 添加 UI {arrow}",
       "exposure_label": "曝光 (exposure): {exposure}",
+      "sun_size_label": "☀ 太阳大小: {sunSize}",
+      "hint_sun_size": "越小太阳越小越清晰 (开启天空时)",
       "hdri_intensity_label": "HDRI 强度: {hdriIntensity}",
       "ambient_strength_label": "Ambient 强度: {lightAmbient}",
       "sun_strength_label": "太阳光强度: {lightDir}",

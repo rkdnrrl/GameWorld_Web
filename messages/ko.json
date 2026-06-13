@@ -1367,6 +1367,8 @@
       "btn_add_light_2": "💡 조명 추가 {arrow}",
       "btn_add_ui_2": "🖼 UI 추가 {arrow}",
       "exposure_label": "노출 (exposure): {exposure}",
+      "sun_size_label": "☀ 태양 크기: {sunSize}",
+      "hint_sun_size": "작을수록 해가 작고 또렷 (하늘 켜짐일 때)",
       "hdri_intensity_label": "HDRI 강도: {hdriIntensity}",
       "ambient_strength_label": "Ambient 강도: {lightAmbient}",
       "sun_strength_label": "태양광 강도: {lightDir}",

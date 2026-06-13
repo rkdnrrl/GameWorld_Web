@@ -20,7 +20,7 @@ import { FpsLimiter } from '@/lib/world/FpsLimiter';
 import { useGraphicsSettings } from '@/lib/world/graphicsSettings';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
-import { SceneFog, SkyClouds, SkyMoon, SkyStars, skySunPosition, skyFogColor, nightFactor, EnvFxUpdater } from '@/lib/world/SkyEnv';
+import { SceneFog, SkyClouds, SkyMoon, SkyStars, skySunPosition, skyFogColor, nightFactor, sunGlowParams, EnvFxUpdater } from '@/lib/world/SkyEnv';
 import { ART_PALETTE } from '@/lib/assets/material';
 import { makeWaterMaterial } from '@/lib/world/waterMaterial';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
@@ -5159,6 +5159,7 @@ export default function StudioCanvas() {
   const [hdriIntensity, setHdriIntensity] = useState(1.0);     // HDRI 환경광 (IBL) 강도 — scene.environmentIntensity
   const [hdriDragOver, setHdriDragOver] = useState(false);     // 에셋(.hdr/.exr) 드래그 오버 하이라이트
   const [exposure, setExposure] = useState(0.7);   // tone mapping exposure — 너무 밝으면 낮춤
+  const [sunSize, setSunSize] = useState(1);       // 태양 글로우 크기 (Sky mie) — 작을수록 해가 작고 또렷
   // 최대 FPS 캡 — World graphics 설정(localStorage 싱글톤)을 공유. Studio 는 자체 패널은 없고
   // World 에서 설정한 값을 그대로 따른다(고주사율 기기 에디터 절전). XR 없음 → XR 분기 불필요.
   const { settings: graphicsSettings } = useGraphicsSettings();
@@ -5381,6 +5382,7 @@ export default function StudioCanvas() {
         if (typeof ss.gravityY  === 'number') setGravityY(ss.gravityY);
         if (typeof ss.jumpPower === 'number') setJumpPower(ss.jumpPower);
         if (ss.exposure       !== undefined) setExposure(ss.exposure);
+        if (ss.sunSize        !== undefined) setSunSize(ss.sunSize);
         const objs = d.world.mapData?.objects || [];
         setObjects(objs);
         setHist({ stack: [clone(objs)], idx: 0 });
@@ -7247,7 +7249,7 @@ export default function StudioCanvas() {
       }
 
       // 중력/점프력은 World Physics 컴포넌트가 소스 — 저장 시 sceneSettings 에 반영해 월드 플레이에 적용
-      const sceneSettings = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, hdriIntensity, exposure, gravityY: worldPhysics.gravity, jumpPower: worldPhysics.jumpPower };
+      const sceneSettings = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, hdriIntensity, exposure, sunSize, gravityY: worldPhysics.gravity, jumpPower: worldPhysics.jumpPower };
       const payload: Record<string, unknown> = { name, description, mapData: { objects, sceneSettings }, isPublic, isGame, gameCharacter };
       if (thumbnailUrl) payload.thumbnailUrl = thumbnailUrl;
       const body = JSON.stringify(payload);
@@ -7291,11 +7293,11 @@ export default function StudioCanvas() {
   }, [selected, inspTab]);
 
   // dirty — 현재 상태가 저장된 상태와 다른가
-  const sceneSettingsForDirty = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, hdriIntensity, exposure, gravityY, jumpPower };
+  const sceneSettingsForDirty = { lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, hdriIntensity, exposure, sunSize, gravityY, jumpPower };
   const currentKey = useMemo(
     () => JSON.stringify({ name, objects, sceneSettings: sceneSettingsForDirty }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [name, objects, lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, exposure, gravityY, jumpPower],
+    [name, objects, lightAmbient, lightDir, skyEnabled, hdriPreset, hdriUrl, hdriBackground, exposure, sunSize, gravityY, jumpPower],
   );
   const dirty = (savedKey !== '' && currentKey !== savedKey) || thumbDirty;
 
@@ -7871,6 +7873,18 @@ export default function StudioCanvas() {
                   style={{ accentColor: '#fb923c' }} />
                 <span style={{ fontSize: 10, opacity: 0.55, marginTop: 1 }}>
                   {tCanvas("hint_exposure")}
+                </span>
+              </label>
+
+              {/* 태양 크기 — Sky 의 태양 글로우(mie) 크기. 작을수록 해가 작고 또렷. */}
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, opacity: 0.75 }}>
+                {tCanvas("sun_size_label", { sunSize: sunSize.toFixed(2) })}
+                <input type="range" min={0.2} max={2} step={0.05} value={sunSize}
+                  onChange={e => setSunSize(Number(e.target.value))}
+                  onMouseUp={() => pushHistory(objects)}
+                  style={{ accentColor: '#fbbf24' }} />
+                <span style={{ fontSize: 10, opacity: 0.55, marginTop: 1 }}>
+                  {tCanvas("hint_sun_size")}
                 </span>
               </label>
 
@@ -9092,9 +9106,10 @@ export default function StudioCanvas() {
             const sdl = objects.find(o => o.kind === 'dirlight' && !o.hidden);
             const sunPos = skySunPosition(sdl?.rotation);
             const night = nightFactor(sunPos);
+            const sg = sunGlowParams(sunSize);
             return (
               <>
-                <Sky sunPosition={sunPos} />
+                <Sky sunPosition={sunPos} mieDirectionalG={sg.mieDirectionalG} mieCoefficient={sg.mieCoefficient} />
                 <SkyClouds />
                 <SceneFog color={skyFogColor(sunPos)} />
                 {night > 0.3 && <SkyStars />}

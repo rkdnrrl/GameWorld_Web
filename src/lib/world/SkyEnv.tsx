@@ -25,6 +25,16 @@ export function skySunPosition(dirlightRotation?: [number, number, number]): [nu
   return [-d[0] * 100, -d[1] * 100, -d[2] * 100];
 }
 
+/** 태양 크기(글로우) → drei <Sky> mie 파라미터. 작을수록 태양이 작고 또렷·헤이즈 적음.
+ *  기본 1 = drei 기본 룩(mieDirectionalG 0.8 / mieCoefficient 0.005). 범위 0.2~2. */
+export function sunGlowParams(sunSize: number): { mieDirectionalG: number; mieCoefficient: number } {
+  const s = Math.max(0.2, Math.min(2, sunSize || 1));
+  return {
+    mieDirectionalG: Math.max(0.7, Math.min(0.999, 0.8 + (1 - s) * 0.2)),   // 1에 가까울수록 태양 작아짐
+    mieCoefficient: 0.005 * s,                                              // 작을수록 산란 헤이즈 적음
+  };
+}
+
 /** 밤 정도 — 0(낮) ~ 1(완전한 밤, 해가 지평선 아래). 달·별 게이팅/페이드용. */
 export function nightFactor(sunPos: [number, number, number]): number {
   const len = Math.hypot(sunPos[0], sunPos[1], sunPos[2]) || 1;
