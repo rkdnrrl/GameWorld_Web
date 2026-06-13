@@ -573,7 +573,7 @@ export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
         : <Instanced items={grass} geo={grassGeo} mat={grassMat} t={t} base={1} cast={false} receive={false} vary="grass" />}
       {flowerV.length ? assetCat(flowerV, flowers, false, 'bend')
         : <Instanced items={flowers} geo={flowerGeo} mat={flowerMat} t={t} base={1} cast={false} receive={false} vary="flower" />}
-      {treeV.length ? assetCat(treeV, trees, true, 'wind')
+      {treeV.length ? assetCat(treeV, trees, true, false)
         : (<>
             {/* 나무: 기둥 + 잎 — 같은 인스턴스 변환(지오메트리가 미리 y 오프셋됨) */}
             <Instanced items={trees} geo={trunkGeo} mat={trunkMat} t={t} base={1} cast receive={false} />
