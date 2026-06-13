@@ -3522,65 +3522,6 @@ const PrimitiveMesh = React.memo(function PrimitiveMeshImpl({ obj, shape }: { ob
   );
 });
 
-/** [임시 진단] 입장 후 매초 프레임 지표 + 긴 프레임(LoAF)의 원인 함수 자동 출력 — 초반 드랍 규명용.
- *  LoAF(long-animation-frames)는 80ms 넘는 프레임을 만든 스크립트/함수 이름·소요 ms 를 브라우저가 직접 보고. */
-function StartupPerfDiag() {
-  const { gl } = useThree();
-  const el = useRef(0);
-  const worst = useRef(0);
-  const count = useRef(0);
-  const bucket = useRef(0);
-  const done = useRef(false);
-  // 긴 프레임 자동 부검 — 수동으로 스파이크 순간을 못 집어도 원인 함수를 콘솔에 찍어줌.
-  useEffect(() => {
-    let obs: PerformanceObserver | null = null;
-    const handle = (list: PerformanceObserverEntryList) => {
-      for (const e of list.getEntries()) {
-        if (e.duration < 50) continue;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const ee = e as any;
-        const scripts = (ee.scripts || []).map((s: Record<string, unknown>) =>
-          `${s.sourceFunctionName || s.name || s.invoker || '?'} @${String(s.sourceURL || '').split('/').pop()} ${Math.round(Number(s.duration) || 0)}ms`);
-        console.log(`[LoAF] frame=${Math.round(e.duration)}ms block=${Math.round(Number(ee.blockingDuration) || 0)}ms`, scripts.length ? scripts : ee);
-      }
-    };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supported: string[] = ((PerformanceObserver as any).supportedEntryTypes) || [];
-    const useType = supported.includes('long-animation-frames') ? 'long-animation-frames'
-      : supported.includes('longtask') ? 'longtask' : null;
-    console.log(`[diag] LoAF 옵저버: ${useType ?? '미지원(둘 다 없음)'} (지원목록: ${supported.join(',')})`);
-    if (useType) {
-      try {
-        obs = new PerformanceObserver(handle);
-        obs.observe({ type: useType, buffered: true } as PerformanceObserverInit);
-      } catch (err) { console.log('[diag] 옵저버 observe 실패', err); }
-    }
-    // 탭 숨김/복귀 기록 — 거대 프리즈(10초+)가 진짜인지 탭 전환(rAF 정지)인지 구분.
-    const onVis = () => console.log(`[diag] 탭 ${document.hidden ? '숨김(rAF 정지)' : '복귀'}`);
-    document.addEventListener('visibilitychange', onVis);
-    const id = setTimeout(() => obs?.disconnect(), 45000);
-    return () => { clearTimeout(id); document.removeEventListener('visibilitychange', onVis); obs?.disconnect(); };
-  }, []);
-  useFrame((_, delta) => {
-    if (done.current) return;
-    el.current += delta;
-    if (el.current > 45) { done.current = true; console.log('[diag] 진단 종료(45s)'); return; }
-    const ms = delta * 1000;
-    if (ms > worst.current) worst.current = ms;
-    count.current++;
-    bucket.current += delta;
-    if (bucket.current >= 1) {
-      const info = gl.info;
-      const fps = Math.round(count.current / bucket.current);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const programs = (info as any).programs?.length ?? -1;
-      console.log(`[diag t=${el.current.toFixed(0)}s] fps=${fps} worst=${worst.current.toFixed(0)}ms dpr=${gl.getPixelRatio().toFixed(2)} calls=${info.render.calls} tris=${info.render.triangles} programs=${programs}`);
-      bucket.current = 0; count.current = 0; worst.current = 0;
-    }
-  });
-  return null;
-}
-
 function UserAsset({ url, matObj, anim }: { url: string; matObj: UserMapObject; anim?: { clip: string; autoplay: boolean; loop: boolean; speed: number } }) {
   const [obj, setObj] = useState<THREE.Object3D | null>(null);
   // 원본 머티리얼 백업 (Map<mesh, originalMaterial>)
@@ -4128,7 +4069,11 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // effectiveDpr 위에 곱셈으로 적용 → 최대값은 effectiveDpr 유지, 약한 GPU 에서만 자동 낮아짐.
   // 최소 0.5 (이전 1.0 강제는 effectiveDpr cap 무력화시킴 — fragment fill rate fps drop 원인).
   const [dprFactor, setDprFactor] = useState(1);
-  const adaptiveDpr = effectiveDpr * dprFactor;
+  // 고주사율(예:180Hz) 디스플레이에서 dpr 2.0(ultra)은 fill-rate로 fps가 묶여(~140) 자동조절이
+  // 40초나 뒤에야 dpr 을 낮춘다 → "입장 후 한참 지나야 180" 증상. 처음부터 상한을 씌워 즉시 목표 fps.
+  // (사용자 선택: 즉시 180·약간 덜 선명. 약한 GPU 는 dprFactor 로 1.25 아래까지 더 내려감.)
+  const SMOOTH_DPR_MAX = 1.25;
+  const adaptiveDpr = Math.min(effectiveDpr * dprFactor, SMOOTH_DPR_MAX);
   // PerformanceMonitor warmup — 입장/캐릭터 로드 초기 스파이크에 DPR 이 바뀌면
   // Canvas dpr prop 변경 → WebGL 재구성 → drei Html 영상 iframe teardown(영상 처음부터) + 맵 깜빡.
   // 6초 warmup 후에만 PerformanceMonitor 활성화 — 초기 로드 동안 DPR 고정.
@@ -6410,7 +6355,6 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           onValueChange={(_id, script, value) => execUiButtonScript(script, gameRuntime.api, value)}
         />
         <PostFX s={effectivePostFX} raining={raining} />
-        <StartupPerfDiag />
         <CameraWaterWatcher volsRef={waterPostFXRef} onChange={setActiveWaterFX} />
         </XR>
       </Canvas>
