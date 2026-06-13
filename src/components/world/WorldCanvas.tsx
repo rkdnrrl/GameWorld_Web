@@ -4118,7 +4118,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   const gravityY         = typeof ss.gravityY === 'number' ? ss.gravityY : -22;
   const jumpPower        = typeof ss.jumpPower === 'number' ? ss.jumpPower : 7;
   const lightObjects = (customObjects ?? []).filter(
-    (o: UserMapObject) => o.kind === 'pointlight' || o.kind === 'spotlight' || o.kind === 'dirlight'
+    (o: UserMapObject) => !o.hidden && (o.kind === 'pointlight' || o.kind === 'spotlight' || o.kind === 'dirlight')
   );
   // 조명도 부모(예: Manager) 변환을 반영해야 함 — 스튜디오는 월드 TRS 로 배치하는데
   // 월드가 로컬 위치만 쓰면 방향광 방향이 틀어져 어두워짐. 부모 합성용 byId.
