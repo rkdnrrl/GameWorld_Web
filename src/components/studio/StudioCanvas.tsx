@@ -7807,19 +7807,18 @@ export default function StudioCanvas() {
               <button type="button"
                 onClick={() => {
                   setSkyEnabled(true);
-                  setLightAmbient(0.6);    // ⭐ 그늘 강하게 밝히기 — ALP 는 채움광 없으면 캄캄해서 높게
-                  setExposure(1.05);
-                  setSunSize(0.5);         // 작고 또렷한 태양
-                  setLightDir(2.6);
-                  setHdriIntensity(1.4);   // IBL 도 올려 전반 밝힘
+                  setLightAmbient(0.45);   // 그늘 적당히 밝힘 (0.6 은 너무 떠서 뿌옇)
+                  setExposure(0.9);        // 살짝 낮춰 과노출/허연 끼 제거
+                  setSunSize(0.5);
+                  setLightDir(2.3);
+                  setHdriIntensity(1.0);   // IBL 과하게 안 올림(허옇게 씻기던 원인)
                   setObjects(prev => prev.map(o => {
                     let next = o;
-                    // 방향광 오브젝트 강도 ~2.6 (4.9 같은 과노출은 막되 충분히 밝게)
-                    if (o.kind === 'dirlight' && !o.hidden) next = { ...next, lightIntensity: 2.6 };
-                    // 기존 PostProcess 볼륨 → 동화풍 색감. filmic(그림자 깊게) 대신 lift/brightness 로 밝게.
+                    if (o.kind === 'dirlight' && !o.hidden) next = { ...next, lightIntensity: 2.3 };
+                    // lift/bloom 은 낮게(허연 끼 방지), filmic 은 약하게(그림자 안 죽을 만큼)로 균형.
                     if (next.components?.some(c => c.type === 'postProcess')) {
                       next = { ...next, components: next.components.map(c => c.type === 'postProcess'
-                        ? { ...c, props: { ...c.props, enabled: true, preset: 'none', saturation: 0.3, temperature: 0.06, brightness: 0.08, lift: 0.14, contrast: 0, filmic: 0.1, bloom: true, bloomIntensity: 0.4, bloomThreshold: 0.8, vignette: 0.12, toneMapping: true } }
+                        ? { ...c, props: { ...c.props, enabled: true, preset: 'none', saturation: 0.28, temperature: 0.05, brightness: 0, lift: 0.04, contrast: 0.05, filmic: 0.18, bloom: true, bloomIntensity: 0.25, bloomThreshold: 0.9, vignette: 0.12, toneMapping: true } }
                         : c) };
                     }
                     return next;
