@@ -9150,7 +9150,9 @@ export default function StudioCanvas() {
           shadows={{ enabled: true, type: THREE.PCFSoftShadowMap, autoUpdate: true }}
           camera={{ position: [8, 8, 8], fov: 50 }}
           frameloop={fpsCapActive ? 'never' : 'always'}
-          dpr={[1, 2]}
+          // DPR 2.0 은 고해상도 디스플레이에서 4배 픽셀(fill-rate 폭발) → 프레임 드랍. World 처럼 캡(1.5).
+          // 편집 정밀도 위해 World(1.25)보다 살짝 높게. 더 떨어지면 1.25 로 낮추면 됨.
+          dpr={[1, 1.5]}
           gl={{ alpha: true, antialias: true, powerPreference: 'high-performance', stencil: false, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: exposure }}
           onPointerMissed={() => {
             // 터레인 조각 도구 사용 중엔 빈 곳 클릭/브러시 드래그 해제로 선택이 풀리지 않게 (유니티식 — ESC 나 도구 버튼으로만 종료)
