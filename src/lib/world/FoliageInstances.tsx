@@ -342,6 +342,7 @@ function Instanced({ items, geo, mat, t, base, cast, receive, vary, cull = false
       receiveShadow={receive}
       frustumCulled={false}
       raycast={NO_RAYCAST}   // 클릭 레이캐스트에서 제외 — 인스턴스 수만 개를 ray 테스트하면 클릭마다 프레임 드랍
+      userData={{ alpNoCull: true }}   // World PerfManager 의 frustum/거리 컬링 제외 — 인스턴스 전체 바운딩이 원점 1개라 통째로 컬돼 "그림자만 남는" 버그. 자체 컬링만 사용.
     />
   );
 }
@@ -528,6 +529,7 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
           receiveShadow={false}
           frustumCulled={false}
           raycast={NO_RAYCAST}   // 클릭 레이캐스트에서 제외 (인스턴스 수만 개 ray 테스트 방지)
+          userData={{ alpNoCull: true }}   // World PerfManager 컬링 제외 — 인스턴스 바운딩이 원점 1개라 통째로 컬돼 "그림자만 남는" 버그. 자체 컬링만 사용.
         />
       ))}
     </>
