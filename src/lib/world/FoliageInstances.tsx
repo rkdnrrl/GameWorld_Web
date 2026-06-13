@@ -320,7 +320,9 @@ function loadFoliageParts(url: string, overrides?: MaterialOverrides, sway: Sway
             if (resolved) mat = resolved;
           }
           if (albedo) mat = applyFoliageAlbedo(mat, albedo);   // 사용자 텍스처 우선
-          parts.push({ geo: g, mat: prepFoliageMaterial(mat, sway, !!g.getAttribute('color')) });
+          // albedo(사용자 텍스처) 적용 시엔 hasVColor 를 false 로 — 안 그러면 prepFoliageMaterial 이
+          // 버텍스컬러를 다시 켜서 (흰색) 버텍스컬러가 텍스처를 덮어 흰색으로 보인다.
+          parts.push({ geo: g, mat: prepFoliageMaterial(mat, sway, !albedo && !!g.getAttribute('color')) });
         }
       });
       const box = new THREE.Box3();
