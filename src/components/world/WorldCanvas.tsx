@@ -4083,18 +4083,6 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // effectiveDpr 위에 곱셈으로 적용 → 최대값은 effectiveDpr 유지, 약한 GPU 에서만 자동 낮아짐.
   // 최소 0.5 (이전 1.0 강제는 effectiveDpr cap 무력화시킴 — fragment fill rate fps drop 원인).
   const [dprFactor, setDprFactor] = useState(1);
-  // dpr 변경 = Canvas drawing buffer resize = 한 프레임 전체 flash(어두운 배경이 비침).
-  // 입장/아바타 로드 중 fps 가 [45,60] 경계에서 출렁이면 PerformanceMonitor 의 onIncline/onDecline
-  // 이 연속 발화해 dpr 이 빠르게 오르내리며 "밝았다 어두웠다 ~5번" 깜빡임이 생긴다(=flipflops 횟수).
-  // → 콜백은 목표값만 ref 에 쌓고, fps 가 ~1.2초 안정된 뒤에만 실제 dpr 을 한 번 커밋(디바운스).
-  //   진동 구간에선 타이머가 계속 리셋돼 커밋이 안 일어나므로 플래시가 사라진다.
-  const dprTargetRef = useRef(1);
-  const dprCommitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scheduleDprCommit = useCallback(() => {
-    if (dprCommitTimerRef.current) clearTimeout(dprCommitTimerRef.current);
-    dprCommitTimerRef.current = setTimeout(() => setDprFactor(dprTargetRef.current), 1200);
-  }, []);
-  useEffect(() => () => { if (dprCommitTimerRef.current) clearTimeout(dprCommitTimerRef.current); }, []);
   // 고주사율(예:180Hz) 디스플레이에서 dpr 2.0(ultra)은 fill-rate로 fps가 묶여(~140) 자동조절이
   // 40초나 뒤에야 dpr 을 낮춘다 → "입장 후 한참 지나야 180" 증상. 처음부터 상한을 씌워 즉시 목표 fps.
   // (사용자 선택: 즉시 180·약간 덜 선명. 약한 GPU 는 dprFactor 로 1.25 아래까지 더 내려감.)
@@ -6018,7 +6006,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           stencil: false,
           preserveDrawingBuffer: false,
           toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 0.7,
+          // ⚠ toneMappingExposure 는 여기에 두지 않는다 — gl prop 객체가 매 렌더 새 리터럴이라
+          // R3F 가 ExposureUpdater 가 세팅한 사용자 노출값과 다름을 감지해 applyProps 로 매 렌더
+          // 0.7 로 한 프레임 되돌린다(밝기 플래시). 노출은 ExposureUpdater 가 단독 소유.
         }}
         style={{ width: '100vw', height: '100vh', display: 'block', transform: 'translateZ(0)', willChange: 'transform', zIndex: 16777271, position: 'fixed', inset: 0, background: '#000' }}
       >
@@ -6108,9 +6098,9 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               iterations(샘플 길이) 늘리고 flipflops 키워서 "지속적" 저fps 에만 반응. */}
         {perfMonitorReady && (
           <PerformanceMonitor bounds={() => [45, 60]} flipflops={6} iterations={12} ms={400}
-            onIncline={() => { dprTargetRef.current = 1; scheduleDprCommit(); }}
-            onDecline={() => { dprTargetRef.current = Math.max(0.5, dprTargetRef.current - 0.25); scheduleDprCommit(); }}
-            onFallback={() => { dprTargetRef.current = 0.5; scheduleDprCommit(); }}
+            onIncline={() => setDprFactor(1)}
+            onDecline={() => setDprFactor((f) => Math.max(0.5, f - 0.25))}
+            onFallback={() => setDprFactor(0.5)}
           />
         )}
         <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
