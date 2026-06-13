@@ -3086,6 +3086,15 @@ function disposeMaterial(mat: THREE.MeshStandardMaterial) {
 
 /** 외부 모델(GLB/FBX) 머티리얼 보정 — 스튜디오와 동일.
  *  정점색 켜기 + 알파 컷아웃(잎/풀이 투명하게 사라지는 것 방지) + 양면. */
+/** 로드 실패(404 등)로 이미지가 빈 텍스처인지 — 그대로 두면 검정으로 샘플됨. 로딩 중이면 false. */
+function isBrokenTexture(tex: THREE.Texture | null | undefined): boolean {
+  if (!tex) return false;
+  const img = tex.image as { width?: number; naturalWidth?: number; complete?: boolean } | undefined | null;
+  if (!img) return true;                       // ImageBitmap 실패 시 image 자체가 없음
+  if (img.complete === false) return false;     // HTMLImageElement 아직 로딩 중 → 폴백 보류
+  return (img.width ?? img.naturalWidth ?? 0) === 0;   // 로드 끝났는데 크기 0 = 실패
+}
+
 function fixModelMaterials(mesh: THREE.Mesh) {
   const hasVColor = !!mesh.geometry?.getAttribute?.('color');
   const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
@@ -3093,6 +3102,11 @@ function fixModelMaterials(mesh: THREE.Mesh) {
     const mat = m as THREE.MeshStandardMaterial;
     if (!mat) return;
     if (hasVColor && !mat.vertexColors) mat.vertexColors = true;
+    // 텍스처 로드 실패(외부 .png 404 등) 폴백 — map 을 떼고 무난한 회색으로. 안 그러면 검정으로 샘플돼 까맣게 나옴.
+    if (isBrokenTexture(mat.map)) {
+      mat.map = null;
+      if (!mat.color || mat.color.getHex() < 0x202020) mat.color.set('#9a9a9a');
+    }
     // colormap 텍스처가 linear 로 잡혀 어둡게 나오는 것 보정 → sRGB
     if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
     if (mat.emissiveMap) mat.emissiveMap.colorSpace = THREE.SRGBColorSpace;

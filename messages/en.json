@@ -1781,6 +1781,7 @@
     "confirmDelete": "Delete this asset?",
     "uploadFailed": "Upload failed",
     "networkError": "Network error",
+    "missingTexturesWarn": "⚠️ This model is missing {count} texture(s), so it will appear untextured (gray) even after upload. Please re-export as a GLB with embedded textures.",
     "sidebarCategory": "Category",
     "sidebarTag": "Tags",
     "sidebarFolder": "Folders",

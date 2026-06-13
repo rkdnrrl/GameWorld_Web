@@ -1781,6 +1781,7 @@
     "confirmDelete": "削除しますか？",
     "uploadFailed": "アップロード失敗",
     "networkError": "ネットワークエラー",
+    "missingTexturesWarn": "⚠️ このモデルはテクスチャ{count}個が含まれていないため、アップロードしてもテクスチャなし（グレー）で表示されます。テクスチャを埋め込んだGLBで再エクスポートしてアップロードしてください。",
     "sidebarCategory": "カテゴリ",
     "sidebarTag": "タグ",
     "sidebarFolder": "フォルダ",

@@ -309,7 +309,14 @@ export default function AssetsPage() {
 
       // 업로드 전 클라이언트 베이킹 — FBX → GLB (서버 부하 없이, 브라우저에서 빠른 포맷으로 구움). 실패 시 원본.
       let uploadFile = file;
-      try { uploadFile = await bakeModelToGlb(file); } catch { uploadFile = file; }
+      try {
+        const baked = await bakeModelToGlb(file);
+        uploadFile = baked.file;
+        // 모델이 외부 텍스처를 참조하는데 포함돼 있지 않으면 → 업로드돼도 그 텍스처는 404. 제작자에게 경고.
+        if (baked.missingTextures.length > 0) {
+          alert(t('missingTexturesWarn', { count: baked.missingTextures.length }));
+        }
+      } catch { uploadFile = file; }
 
       const form = new FormData();
       form.append('model', uploadFile);

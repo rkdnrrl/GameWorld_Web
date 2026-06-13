@@ -8,6 +8,8 @@
  * 어떤 단계든 실패하면 그 전 단계 결과(최소 원본)를 반환 — 업로드는 절대 막지 않음.
  */
 
+import { LoadingManager } from 'three';
+
 const MAX_TEXTURE = 2048;   // 텍스처 한 변 최대 px
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -121,37 +123,59 @@ function sceneStats(root: any): { tris: number; texDims: string[] } {
   return { tris: Math.round(tris), texDims };
 }
 
-/** GLB 의 큰 텍스처를 줄여 새 GLB 반환 + 통계. 줄일 게 없거나 실패하면 원본 GLB 그대로. */
-async function downscaleGlbTextures(glb: Uint8Array): Promise<{ buffer: Uint8Array; tris: number; texDims: string[] }> {
+/** GLB 의 큰 텍스처를 줄여 새 GLB 반환 + 통계 + 로드 실패(누락) 텍스처 URL. 줄일 게 없거나 실패하면 원본 GLB 그대로. */
+async function downscaleGlbTextures(glb: Uint8Array): Promise<{ buffer: Uint8Array; tris: number; texDims: string[]; missingTex: string[] }> {
+  const missingTex: string[] = [];
   try {
     const [{ GLTFLoader }, { GLTFExporter }] = await Promise.all([
       import('three/examples/jsm/loaders/GLTFLoader.js'),
       import('three/examples/jsm/exporters/GLTFExporter.js'),
     ]);
+    // LoadingManager.onError 가 텍스처(외부 .png 등) 로드 실패 URL 을 정확히 보고 → 누락 감지.
+    const manager = new LoadingManager();
+    manager.onError = (url) => { if (!missingTex.includes(url)) missingTex.push(url); };
     const ab = glb.buffer.slice(glb.byteOffset, glb.byteOffset + glb.byteLength) as ArrayBuffer;
-    const gltf = await new GLTFLoader().parseAsync(ab, '');
+    const gltf = await new GLTFLoader(manager).parseAsync(ab, '');
     const stats = sceneStats(gltf.scene);
-    if (!downscaleSceneTextures(gltf.scene)) return { buffer: glb, ...stats };   // 큰 텍스처 없음 → 원본 그대로
+    if (!downscaleSceneTextures(gltf.scene)) return { buffer: glb, ...stats, missingTex };   // 큰 텍스처 없음 → 원본 그대로
     const out = await new Promise<ArrayBuffer | null>((resolve) => {
       new GLTFExporter().parse(gltf.scene, (r) => resolve(r as ArrayBuffer), () => resolve(null), { binary: true });
     });
-    return { buffer: out && out.byteLength > 0 ? new Uint8Array(out) : glb, ...stats };
+    return { buffer: out && out.byteLength > 0 ? new Uint8Array(out) : glb, ...stats, missingTex };
   } catch (e) {
     console.warn('[bake] 텍스처 다운스케일 실패(원본 GLB 유지):', e);
-    return { buffer: glb, tris: -1, texDims: [] };
+    return { buffer: glb, tris: -1, texDims: [], missingTex };
   }
+}
+
+/** GLB(또는 gltf) 의 텍스처 로드 실패 URL 목록만 읽기 전용으로 수집 (모델 수정/재출력 없음). 실패 시 빈 배열. */
+async function collectMissingTextures(file: File): Promise<string[]> {
+  const missing: string[] = [];
+  try {
+    const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+    const manager = new LoadingManager();
+    manager.onError = (url) => { if (!missing.includes(url)) missing.push(url); };
+    const ab = await file.arrayBuffer();
+    await new GLTFLoader(manager).parseAsync(ab, '');
+  } catch { /* 파싱 실패 시 경고 생략 (업로드는 막지 않음) */ }
+  return missing;
 }
 
 /**
  * FBX 면 GLB 로 변환(+텍스처 다운스케일)해 새 File 반환. 그 외(GLB 등)는 원본 그대로. 실패 시 원본 File.
+ * missingTextures: 모델이 참조하지만 로드 실패한(=업로드돼도 404 날) 텍스처 URL 목록 — 업로드 UI 가 경고.
  */
-export async function bakeModelToGlb(file: File): Promise<File> {
+export async function bakeModelToGlb(file: File): Promise<{ file: File; missingTextures: string[] }> {
   const ext = file.name.split('.').pop()?.toLowerCase();
-  if (ext !== 'fbx') return file;   // GLB 등은 이미 빠른 포맷
+  if (ext !== 'fbx') {
+    // GLB/gltf — 변환 없이, 누락 텍스처만 읽기 전용으로 점검(외부 .png 참조가 없으면 빈 배열).
+    const missingTextures = (ext === 'glb' || ext === 'gltf') ? await collectMissingTextures(file) : [];
+    return { file, missingTextures };
+  }
 
   try {
     const rawGlb = await fbxToGlb(file);
-    const { buffer: glb, tris, texDims } = await downscaleGlbTextures(rawGlb);
+    const { buffer: glb, tris, texDims, missingTex } = await downscaleGlbTextures(rawGlb);
     // 진단 로그 — 무엇이 무거운지(잎=폴리 vs 텍스처) 한눈에. 다시 업로드 시 콘솔에서 확인.
     console.log(
       `[bake] "${file.name}": 삼각형 ${tris.toLocaleString()}개, 텍스처 [${texDims.join(', ') || '없음'}], ` +
@@ -159,9 +183,9 @@ export async function bakeModelToGlb(file: File): Promise<File> {
     );
     const glbName = file.name.replace(/\.fbx$/i, '.glb');
     const ab = glb.buffer.slice(glb.byteOffset, glb.byteOffset + glb.byteLength) as ArrayBuffer;
-    return new File([ab], glbName, { type: 'model/gltf-binary' });
+    return { file: new File([ab], glbName, { type: 'model/gltf-binary' }), missingTextures: missingTex };
   } catch (e) {
     console.warn('[bake] FBX→GLB 실패 — 원본 업로드:', e);
-    return file;
+    return { file, missingTextures: [] };
   }
 }

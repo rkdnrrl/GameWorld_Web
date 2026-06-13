@@ -1781,6 +1781,7 @@
     "confirmDelete": "确定删除？",
     "uploadFailed": "上传失败",
     "networkError": "网络错误",
+    "missingTexturesWarn": "⚠️ 此模型缺少 {count} 个贴图，即使上传也会以无贴图（灰色）显示。请重新导出为内嵌贴图的 GLB 后再上传。",
     "sidebarCategory": "类别",
     "sidebarTag": "标签",
     "sidebarFolder": "文件夹",

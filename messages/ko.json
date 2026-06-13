@@ -1801,6 +1801,7 @@
     "confirmDelete": "삭제하시겠습니까?",
     "uploadFailed": "업로드 실패",
     "networkError": "네트워크 오류",
+    "missingTexturesWarn": "⚠️ 이 모델은 텍스처 {count}개가 포함돼 있지 않아 업로드해도 텍스처 없이(회색) 표시됩니다. 텍스처를 포함(embed)한 GLB로 다시 내보내 올려주세요.",
     "sidebarCategory": "카테고리",
     "sidebarTag": "태그",
     "sidebarFolder": "폴더",
