@@ -3544,14 +3544,22 @@ function StartupPerfDiag() {
         console.log(`[LoAF] frame=${Math.round(e.duration)}ms block=${Math.round(Number(ee.blockingDuration) || 0)}ms`, scripts.length ? scripts : ee);
       }
     };
-    try {
-      obs = new PerformanceObserver(handle);
-      obs.observe({ type: 'long-animation-frames', buffered: true } as PerformanceObserverInit);
-    } catch {
-      try { obs = new PerformanceObserver(handle); obs.observe({ type: 'longtask', buffered: true } as PerformanceObserverInit); } catch { /* unsupported */ }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supported: string[] = ((PerformanceObserver as any).supportedEntryTypes) || [];
+    const useType = supported.includes('long-animation-frames') ? 'long-animation-frames'
+      : supported.includes('longtask') ? 'longtask' : null;
+    console.log(`[diag] LoAF 옵저버: ${useType ?? '미지원(둘 다 없음)'} (지원목록: ${supported.join(',')})`);
+    if (useType) {
+      try {
+        obs = new PerformanceObserver(handle);
+        obs.observe({ type: useType, buffered: true } as PerformanceObserverInit);
+      } catch (err) { console.log('[diag] 옵저버 observe 실패', err); }
     }
+    // 탭 숨김/복귀 기록 — 거대 프리즈(10초+)가 진짜인지 탭 전환(rAF 정지)인지 구분.
+    const onVis = () => console.log(`[diag] 탭 ${document.hidden ? '숨김(rAF 정지)' : '복귀'}`);
+    document.addEventListener('visibilitychange', onVis);
     const id = setTimeout(() => obs?.disconnect(), 45000);
-    return () => { clearTimeout(id); obs?.disconnect(); };
+    return () => { clearTimeout(id); document.removeEventListener('visibilitychange', onVis); obs?.disconnect(); };
   }, []);
   useFrame((_, delta) => {
     if (done.current) return;
