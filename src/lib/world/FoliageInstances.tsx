@@ -198,9 +198,43 @@ function colorFor(k: FoliageInstance['k'], it: FoliageInstance): THREE.Color | n
   return null;
 }
 
+// ── 화면 밖 컬링(frustum): 카메라 시야 밖 풀·꽃은 안 그림. 시야 안은 그대로 다 렌더 → "눈앞에서
+//   사라지는" pop 없음(거리 컬링과 다름). 그림자 던지는 나무·돌엔 미적용(시야 밖 나무 그림자가 화면에 들어올 수 있어서). ──
+const _frustum = new THREE.Frustum();
+const _projScreen = new THREE.Matrix4();
+const _camInv = new THREE.Matrix4();
+const _fv = new THREE.Vector3();
+const _fsphere = new THREE.Sphere(new THREE.Vector3(), 0);
+const FOLIAGE_CULL_MARGIN = 4;   // m — 시야 가장자리 여백(빠른 회전 시 edge pop 완화).
+
+/** 시야(frustum) 안 items 만 mesh(들)에 채움. heights=미리 계산된 표면 높이, meshWorld=인스턴스→월드 행렬. 반환=채운 수. */
+function fillVisible(meshes: THREE.InstancedMesh[], items: FoliageInstance[], heights: Float32Array, scaleBase: number, vary: FoliageInstance['k'] | undefined, meshWorld: THREE.Matrix4): number {
+  let n = 0;
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const hy = heights[i];
+    _fv.set(it.x, hy, it.z).applyMatrix4(meshWorld);
+    _fsphere.center.copy(_fv); _fsphere.radius = FOLIAGE_CULL_MARGIN;
+    if (!_frustum.intersectsSphere(_fsphere)) continue;
+    _p.set(it.x, hy, it.z);
+    _q.setFromAxisAngle(_up, it.r);
+    _s.setScalar(it.s * scaleBase);
+    _m.compose(_p, _q, _s);
+    for (const mesh of meshes) mesh.setMatrixAt(n, _m);
+    if (vary) { const col = colorFor(vary, it); if (col) for (const mesh of meshes) mesh.setColorAt(n, col); }
+    n++;
+  }
+  for (const mesh of meshes) {
+    mesh.count = n;
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }
+  return n;
+}
+
 /** 단일 종류 InstancedMesh — count 가 바뀌면 key 로 재생성(args 는 생성시 1회만 반영).
- *  풀·꽃·나무·돌 모두 식재된 전부를 한 번에 인스턴싱(종류당 1 draw call). 거리 컬링 없음 — 깜빡임 방지. */
-function Instanced({ items, geo, mat, t, base, cast, receive, vary }: {
+ *  cull=true(풀·꽃) 면 카메라 시야 안만 렌더(대량 식재 성능). cull=false(나무·돌) 면 전부 렌더. */
+function Instanced({ items, geo, mat, t, base, cast, receive, vary, cull = false }: {
   items: FoliageInstance[];
   geo: THREE.BufferGeometry;
   mat: THREE.Material;
@@ -209,15 +243,24 @@ function Instanced({ items, geo, mat, t, base, cast, receive, vary }: {
   cast: boolean;
   receive: boolean;
   vary?: FoliageInstance['k'];  // 지정 시 해당 종류 색 변주 적용
+  cull?: boolean;      // true=화면 밖 frustum 컬링
 }) {
   const ref = useRef<THREE.InstancedMesh>(null);
   const capacity = Math.max(256, Math.ceil((items.length + 1) / 256) * 256);
+  // 표면 높이 미리 계산 — 컬링 매 업데이트마다 sampleTerrainHeight 반복 방지.
+  const heights = useMemo(() => {
+    const a = new Float32Array(items.length);
+    for (let i = 0; i < items.length; i++) a[i] = sampleTerrainHeight(t, items[i].x, items[i].z);
+    return a;
+  }, [items, t]);
+  // 컬링 OFF — 1회 전부 세팅(나무·돌).
   useEffect(() => {
+    if (cull) return;
     const mesh = ref.current;
     if (!mesh) return;
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
-      _p.set(it.x, sampleTerrainHeight(t, it.x, it.z), it.z);
+      _p.set(it.x, heights[i], it.z);
       _q.setFromAxisAngle(_up, it.r);
       _s.setScalar(it.s * base);
       _m.compose(_p, _q, _s);
@@ -228,12 +271,38 @@ function Instanced({ items, geo, mat, t, base, cast, receive, vary }: {
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.computeBoundingSphere();
-  }, [items, t, base, vary]);
+  }, [items, base, vary, cull, heights]);
+  // 컬링 ON — 카메라 시야 안만, 이동/회전 시 갱신(스로틀). 멈추면 0.5s 마다만.
+  const itemsRef = useRef(items); itemsRef.current = items;
+  const heightsRef = useRef(heights); heightsRef.current = heights;
+  const acc = useRef(1);   // 1 로 시작 → 첫 프레임 즉시 채움(원점 뭉침 방지).
+  const lastPos = useRef(new THREE.Vector3(1e9, 1e9, 1e9));
+  const lastQuat = useRef(new THREE.Quaternion(0, 0, 0, 0));
+  useFrame((state, dt) => {
+    if (!cull) return;
+    const mesh = ref.current;
+    if (!mesh) return;
+    acc.current += dt;
+    const cam = state.camera;
+    const moved = cam.position.distanceToSquared(lastPos.current);
+    const rotated = 1 - Math.abs(cam.quaternion.dot(lastQuat.current));
+    if (acc.current < 0.5 && moved < 0.09 && rotated < 0.00002) return;  // 멈춤: 0.5s 하트비트
+    if (acc.current < 0.033) return;                                     // 이동: 최대 ~30fps 갱신
+    acc.current = 0;
+    lastPos.current.copy(cam.position);
+    lastQuat.current.copy(cam.quaternion);
+    mesh.updateWorldMatrix(true, false);
+    cam.updateMatrixWorld();
+    _camInv.copy(cam.matrixWorld).invert();
+    _projScreen.multiplyMatrices(cam.projectionMatrix, _camInv);
+    _frustum.setFromProjectionMatrix(_projScreen);
+    fillVisible([mesh], itemsRef.current, heightsRef.current, base, vary, mesh.matrixWorld);
+  });
   if (items.length === 0) return null;
   return (
     <instancedMesh
-      key={capacity}
-      ref={ref}
+      key={cull ? 'cull' : capacity}
+      ref={(m) => { ref.current = (m as THREE.InstancedMesh) ?? null; if (m && cull) (m as THREE.InstancedMesh).count = 0; }}
       args={[geo, mat, capacity]}
       castShadow={cast}
       receiveShadow={receive}
@@ -340,8 +409,8 @@ function loadFoliageParts(url: string, overrides?: MaterialOverrides, sway: Sway
   return entry;
 }
 
-function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = false, textureUrl }: {
-  url: string; scale: number; items: FoliageInstance[]; t: TerrainData; cast: boolean; overrides?: MaterialOverrides; sway?: SwayMode; textureUrl?: string;
+function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = false, textureUrl, cull = false }: {
+  url: string; scale: number; items: FoliageInstance[]; t: TerrainData; cast: boolean; overrides?: MaterialOverrides; sway?: SwayMode; textureUrl?: string; cull?: boolean;
 }) {
   const [parts, setParts] = useState<FoliageParts | null>(null);
   const ovKey = overrides ? Object.keys(overrides).sort().join(',') : '';
@@ -354,27 +423,60 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
   }, [url, ovKey, sway, textureUrl]);
   const refs = useRef<THREE.InstancedMesh[]>([]);
   const capacity = Math.max(256, Math.ceil((items.length + 1) / 256) * 256);
+  // 표면 높이 미리 계산 — 컬링 업데이트마다 반복 방지.
+  const heights = useMemo(() => {
+    const a = new Float32Array(items.length);
+    for (let i = 0; i < items.length; i++) a[i] = sampleTerrainHeight(t, items[i].x, items[i].z);
+    return a;
+  }, [items, t]);
+  // 컬링 OFF — 1회 전부 세팅.
   useEffect(() => {
-    if (!parts) return;
+    if (cull || !parts) return;
     const meshes = refs.current.slice(0, parts.parts.length);
     if (!meshes.length) return;
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
-      _p.set(it.x, sampleTerrainHeight(t, it.x, it.z), it.z);
+      _p.set(it.x, heights[i], it.z);
       _q.setFromAxisAngle(_up, it.r);
       _s.setScalar(it.s * scale);
       _m.compose(_p, _q, _s);
       for (const mesh of meshes) mesh.setMatrixAt(i, _m);
     }
     for (const mesh of meshes) { mesh.count = items.length; mesh.instanceMatrix.needsUpdate = true; mesh.computeBoundingSphere(); }
-  }, [items, t, scale, parts, capacity]);
+  }, [items, scale, parts, capacity, cull, heights]);
+  // 컬링 ON — 카메라 시야 안만, 이동/회전 시 갱신(스로틀).
+  const itemsRef = useRef(items); itemsRef.current = items;
+  const heightsRef = useRef(heights); heightsRef.current = heights;
+  const acc = useRef(1);
+  const lastPos = useRef(new THREE.Vector3(1e9, 1e9, 1e9));
+  const lastQuat = useRef(new THREE.Quaternion(0, 0, 0, 0));
+  useFrame((state, dt) => {
+    if (!cull || !parts) return;
+    const meshes = refs.current.slice(0, parts.parts.length).filter(Boolean);
+    if (!meshes.length) return;
+    acc.current += dt;
+    const cam = state.camera;
+    const moved = cam.position.distanceToSquared(lastPos.current);
+    const rotated = 1 - Math.abs(cam.quaternion.dot(lastQuat.current));
+    if (acc.current < 0.5 && moved < 0.09 && rotated < 0.00002) return;
+    if (acc.current < 0.033) return;
+    acc.current = 0;
+    lastPos.current.copy(cam.position);
+    lastQuat.current.copy(cam.quaternion);
+    meshes[0].updateWorldMatrix(true, false);
+    cam.updateMatrixWorld();
+    _camInv.copy(cam.matrixWorld).invert();
+    _projScreen.multiplyMatrices(cam.projectionMatrix, _camInv);
+    _frustum.setFromProjectionMatrix(_projScreen);
+    fillVisible(meshes, itemsRef.current, heightsRef.current, scale, undefined, meshes[0].matrixWorld);
+  });
   if (!parts || items.length === 0) return null;
   return (
     <>
       {parts.parts.map((p, i) => (
         <instancedMesh
-          key={i + '-' + capacity}
-          ref={(m) => { if (m) refs.current[i] = m as THREE.InstancedMesh; }}
+          key={i + '-' + (cull ? 'cull' : capacity)}
+          ref={(m) => { if (m) { refs.current[i] = m as THREE.InstancedMesh; if (cull) (m as THREE.InstancedMesh).count = 0; } }}
           args={[p.geo, p.mat, capacity]}
           castShadow={cast}
           receiveShadow={false}
@@ -566,19 +668,19 @@ export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
   const treeV = useMemo(() => foliageVariantsOf(fa, 'tree'), [fa]);
   const rockV = useMemo(() => foliageVariantsOf(fa, 'rock'), [fa]);
   // 개체를 variant 별로 나눠 각 모델로 인스턴싱. variant 는 위치 해시로 결정(안정적·렌더/콜라이더 일치).
-  const assetCat = (variants: FoliageVariant[], items: FoliageInstance[], cast: boolean, sway: SwayMode) =>
+  const assetCat = (variants: FoliageVariant[], items: FoliageInstance[], cast: boolean, sway: SwayMode, cull = false) =>
     variants.map((v, vi) => {
       const bucket = variants.length === 1 ? items : items.filter(it => resolveVariantIndex(it, variants.length) === vi);
       if (!bucket.length) return null;
-      return <AssetFoliageInstances key={vi + '|' + v.url} url={v.url} scale={v.scale ?? 1} overrides={v.overrides} textureUrl={v.textureUrl} items={bucket} t={t} cast={cast} sway={sway} />;
+      return <AssetFoliageInstances key={vi + '|' + v.url} url={v.url} scale={v.scale ?? 1} overrides={v.overrides} textureUrl={v.textureUrl} items={bucket} t={t} cast={cast} sway={sway} cull={cull} />;
     });
   return (
     <>
-      {/* 풀·꽃: 식재된 전부를 인스턴싱(종류당 1 draw call). 거리 컬링 없음 — 깜빡임 방지. */}
-      {grassV.length ? assetCat(grassV, grass, false, 'bend')
-        : <Instanced items={grass} geo={grassGeo} mat={grassMat} t={t} base={1} cast={false} receive={false} vary="grass" />}
-      {flowerV.length ? assetCat(flowerV, flowers, false, 'bend')
-        : <Instanced items={flowers} geo={flowerGeo} mat={flowerMat} t={t} base={1} cast={false} receive={false} vary="flower" />}
+      {/* 풀·꽃은 화면 밖 frustum 컬링 — 시야 안만 렌더(수만 개 심어도 성능). 나무·돌은 그림자 때문에 전부 렌더. */}
+      {grassV.length ? assetCat(grassV, grass, false, 'bend', true)
+        : <Instanced items={grass} geo={grassGeo} mat={grassMat} t={t} base={1} cast={false} receive={false} vary="grass" cull />}
+      {flowerV.length ? assetCat(flowerV, flowers, false, 'bend', true)
+        : <Instanced items={flowers} geo={flowerGeo} mat={flowerMat} t={t} base={1} cast={false} receive={false} vary="flower" cull />}
       {treeV.length ? assetCat(treeV, trees, true, false)
         : (<>
             {/* 나무: 기둥 + 잎 — 같은 인스턴스 변환(지오메트리가 미리 y 오프셋됨) */}

@@ -34,7 +34,7 @@ import { CarvedMesh, type CsgCut } from '@/lib/world/CarvedMesh';
 import { VoxelTerrainMesh } from '@/lib/world/VoxelTerrainMesh';
 import { ChunkedVoxelTerrain } from '@/lib/world/ChunkedVoxelTerrain';
 import { TerrainSculptMesh, type TerrainTool } from '@/lib/world/TerrainSculptMesh';
-import { makeFlatTerrain, generateNoiseTerrain, foliageVariantsOf, type TerrainData, type FoliageInstance, type FoliageVariant } from '@/lib/world/terrain';
+import { makeFlatTerrain, generateNoiseTerrain, foliageVariantsOf, foliageVariantIndex, type TerrainData, type FoliageInstance, type FoliageVariant } from '@/lib/world/terrain';
 import { makeDefaultUiData, parseAiUiRoot, AI_UI_PROMPT_GUIDE, type UiElementType, type UiData, type RectTransform, type AiUiRoot } from '@/lib/world/uiObjects';
 import { UiInspector } from './UiInspector';
 import { createGameRuntime } from '@/lib/world/gameRuntime';
@@ -8416,11 +8416,20 @@ export default function StudioCanvas() {
                     const variants = foliageVariantsOf(selected.terrain!.foliageAssets, fk);
                     // 종류별 variant 배열 통째 갱신(비면 키 삭제 → 절차적 기본 모양).
                     const writeVariants = (next: FoliageVariant[]) => {
+                      const oldLen = variants.length;
                       setObjects(prev => prev.map(o => {
                         if (o.id !== selected.id || !o.terrain) return o;
                         const faNext = { ...(o.terrain.foliageAssets || {}) };
                         if (next.length) faNext[fk] = next; else delete faNext[fk];
-                        return { ...o, terrain: { ...o.terrain, foliageAssets: faNext } };
+                        // variant 추가 시 — 해시로 자동배정되던 기존 이 종류 식생을 "현재 모습"으로 고정(명시 v).
+                        // 안 하면 개수가 늘면서 해시 재분배로 기존 꽃 일부가 새 모델로 바뀜. 새 모델은 직접 칠한 것만 나오게.
+                        let foliage = o.terrain.foliage;
+                        if (foliage && next.length > oldLen) {
+                          foliage = foliage.map(f =>
+                            f.k === fk && f.v == null ? { ...f, v: foliageVariantIndex(f.x, f.z, oldLen) } : f
+                          );
+                        }
+                        return { ...o, terrain: { ...o.terrain, foliageAssets: faNext, ...(foliage ? { foliage } : {}) } };
                       }));
                     };
                     return (
