@@ -8474,9 +8474,14 @@ export default function StudioCanvas() {
                             const a = myAssets.find(x => x.modelUrl === url);
                             const cfg = getAssetMaterialConfig(a) as { materialOverrides?: import('@/lib/world/materialOverride').MaterialOverrides } | null;
                             // 같은 폴더의 이미지 텍스처 자동 매칭 — 모델만 드롭해도 텍스처가 입혀짐(이름 일치 우선, 없으면 폴더 첫 이미지).
+                            // ⚠️ 부위별 텍스처(overrides)가 있으면 자동 albedo 안 함 — 플랫 텍스처가 부위별 설정/모델 내장 텍스처를 덮어 망침.
+                            //    또 노말·러프·메탈 등 "데이터맵"은 색이 아니므로 후보에서 제외(노말맵을 색으로 입히면 자주색으로 깨짐).
                             let texUrl: string | undefined;
-                            if (a) {
-                              const imgs = myAssets.filter(x => x.id !== a.id && x.folder === a.folder && /\.(png|jpe?g|webp)(\?|$)/i.test(x.modelUrl || ''));
+                            const isDataMap = (n: string) => /(normal|_norm|rough|metal|occlusion|_ao|emissi|specular|_spec|height|displac|bump|_orm|_rma)/i.test(n);
+                            if (a && !cfg?.materialOverrides) {
+                              const imgs = myAssets.filter(x => x.id !== a.id && x.folder === a.folder
+                                && /\.(png|jpe?g|webp)(\?|$)/i.test(x.modelUrl || '')
+                                && !isDataMap(x.name || '') && !isDataMap(x.modelUrl || ''));
                               if (imgs.length) {
                                 const base = (a.name || '').toLowerCase().split(/[_.\s]/)[0];
                                 const match = base ? imgs.find(x => (x.name || '').toLowerCase().startsWith(base)) : undefined;
