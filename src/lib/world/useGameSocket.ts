@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { session } from '@/lib/api';
 
 export type AnimState = string;
 
@@ -144,7 +145,10 @@ export function useGameSocket({ worldId, sessionId = 'main', isPrivate = false, 
       try { ws.current.close(); } catch {}
     }
 
-    const sock = new WebSocket(`${wsBase}/_alp/world-ws?worldId=${encodeURIComponent(worldId)}&sessionId=${encodeURIComponent(sessionId)}${isPrivate ? '&private=1' : ''}`);
+    // 토큰 동봉 — Worker 가 입장 전 차단(ban) 유저를 거른다. 비로그인(게스트)이면 토큰 없이 연결.
+    const token = session.getToken();
+    const tokenQs = token ? `&token=${encodeURIComponent(token)}` : '';
+    const sock = new WebSocket(`${wsBase}/_alp/world-ws?worldId=${encodeURIComponent(worldId)}&sessionId=${encodeURIComponent(sessionId)}${isPrivate ? '&private=1' : ''}${tokenQs}`);
     ws.current = sock;
 
     sock.onopen = () => {
