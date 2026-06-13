@@ -2473,9 +2473,9 @@ function FollowingStudioSun({ intensity, dir, color }: { intensity: number; dir:
       color={color}
       castShadow
       shadow-mapSize={[4096, 4096]}
-      shadow-camera-left={-50} shadow-camera-right={50}
-      shadow-camera-top={50} shadow-camera-bottom={-50}
-      shadow-camera-near={0.5} shadow-camera-far={200}
+      shadow-camera-left={-100} shadow-camera-right={100}
+      shadow-camera-top={100} shadow-camera-bottom={-100}
+      shadow-camera-near={0.5} shadow-camera-far={250}
       shadow-bias={-0.0004}
       shadow-normalBias={0.04}
     />

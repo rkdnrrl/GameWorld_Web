@@ -1203,10 +1203,10 @@ function FollowingSunLight({ intensity, castShadow, shadowMapSize, shadowFar, di
       color={color}
       castShadow={castShadow}
       shadow-mapSize={shadowMapSize}
-      shadow-camera-left={-60}
-      shadow-camera-right={60}
-      shadow-camera-top={60}
-      shadow-camera-bottom={-60}
+      shadow-camera-left={-100}
+      shadow-camera-right={100}
+      shadow-camera-top={100}
+      shadow-camera-bottom={-100}
       shadow-camera-near={0.5}
       shadow-camera-far={shadowFar}
     />
@@ -6037,7 +6037,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
               color={dl?.lightColor || '#ffffff'}
               castShadow={shadowsEnabled}
               shadowMapSize={shadowMapSize}
-              shadowFar={150}
+              shadowFar={250}
             />
           );
         })()}
