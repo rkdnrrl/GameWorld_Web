@@ -199,6 +199,7 @@ export function TerrainSculptMesh({ terrain, worldPos, tool, radius, strength, o
   };
 
   const handleDown = (e: ThreeEvent<PointerEvent>) => {
+    if (e.button !== 0) return;   // 왼쪽 버튼만 편집 — 휠(가운데)·우클릭은 카메라 조작으로 통과
     e.stopPropagation();
     dragging.current = true;
     onActiveChange?.(true);
