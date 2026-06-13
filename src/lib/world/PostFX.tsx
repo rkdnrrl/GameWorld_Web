@@ -70,8 +70,11 @@ class FilmicGradeImpl extends Effect {
          c.r += uTemp * 0.06; c.b -= uTemp * 0.06;       // 색온도: +웜(R↑B↓) / -쿨
          c = max(c, 0.0);
          c = c + uLift * (1.0 - c);                       // 섀도 리프트(어두운 영역 띄움 = 필름 느낌)
-         vec3 s = c * c * (3.0 - 2.0 * c);                // smoothstep S커브(토/숄더)
-         c = clamp(mix(c, s, uFilmic), 0.0, 1.0);         // filmic 대비 블렌딩
+         // filmic S커브는 [0,1] 표시 범위에서만 — HDR(>1, 예: 태양)에 적용하면 (3-2c)<0 으로
+         // 음수가 돼 밝은 영역이 검게 죽는다. [0,1] 부분만 S커브, HDR 초과분은 그대로 보존(블룸/톤매핑용).
+         vec3 cc = clamp(c, 0.0, 1.0);
+         vec3 s = cc * cc * (3.0 - 2.0 * cc);             // smoothstep S커브(토/숄더)
+         c = mix(cc, s, uFilmic) + (c - cc);              // filmic 대비 블렌딩 + HDR 보존
          outputColor = vec4(c, inputColor.a);
        }`,
       { uniforms: new Map<string, THREE.Uniform>([
