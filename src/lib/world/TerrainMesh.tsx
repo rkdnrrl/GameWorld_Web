@@ -154,18 +154,23 @@ export function TerrainMesh({ terrain, selected, castShadow = false, receiveShad
         diffuseColor.rgb *= mix(_flat, _lo, _lowF);` : '';
       shader.fragmentShader = shader.fragmentShader
         .replace('#include <map_fragment>', `#include <map_fragment>${blendBlock}
-          // ── 젖은 땅 하늘 반사(절차적) + 물웅덩이 마스크 ──
-          vec3 _N = normalize(vWNorm);
-          vec3 _V = normalize(cameraPosition - vWPos);
-          float _fres = pow(clamp(1.0 - max(dot(_N, _V), 0.0), 0.0, 1.0), 4.0);
-          vec3 _Rd = reflect(-_V, _N);
-          vec3 _sky = mix(uSkyHoriz, uSkyTop, smoothstep(0.0, 0.55, clamp(_Rd.y, 0.0, 1.0)));
-          float _glint = pow(max(dot(_Rd, normalize(uGlintDir)), 0.0), uGlintSharp);
-          vec3 _refl = _sky + uGlintColor * _glint;
-          // 웅덩이: uPuddle=0 → 전면 균일, 1 → 노이즈 영역만 거울
-          float _cov = mix(1.0, smoothstep(0.55, 0.8, _wNoise(vWPos.xz * 0.25)), clamp(uPuddle, 0.0, 1.0));
-          float _wetK = uWet * _cov;
-          float _reflK = clamp(_fres * _wetK, 0.0, 0.9);`)
+          // ── 젖은 땅 반사 — 젖었을 때(uWet>0)만 계산. 마른 평소엔 fresnel·reflect·glint pow·노이즈 전부 스킵.
+          //    uWet 은 유니폼이라 분기가 픽셀 간 균일(coherent) → GPU 비용 거의 없음. 풀스크린 지면 프래그먼트 절감. ──
+          vec3 _refl = vec3(0.0);
+          float _reflK = 0.0;
+          if (uWet > 0.001) {
+            vec3 _N = normalize(vWNorm);
+            vec3 _V = normalize(cameraPosition - vWPos);
+            float _fres = pow(clamp(1.0 - max(dot(_N, _V), 0.0), 0.0, 1.0), 4.0);
+            vec3 _Rd = reflect(-_V, _N);
+            vec3 _sky = mix(uSkyHoriz, uSkyTop, smoothstep(0.0, 0.55, clamp(_Rd.y, 0.0, 1.0)));
+            float _glint = pow(max(dot(_Rd, normalize(uGlintDir)), 0.0), uGlintSharp);
+            _refl = _sky + uGlintColor * _glint;
+            // 웅덩이: uPuddle=0 → 전면 균일, 1 → 노이즈 영역만 거울
+            float _cov = mix(1.0, smoothstep(0.55, 0.8, _wNoise(vWPos.xz * 0.25)), clamp(uPuddle, 0.0, 1.0));
+            float _wetK = uWet * _cov;
+            _reflK = clamp(_fres * _wetK, 0.0, 0.9);
+          }`)
         // 반사를 emissive 에 더해 적용 — 씬 톤매핑과 일관(water 와 동일 패턴, GLSL 버전 무관).
         .replace('#include <emissivemap_fragment>',
           '#include <emissivemap_fragment>\n totalEmissiveRadiance += _refl * _reflK;');
@@ -180,6 +185,8 @@ export function TerrainMesh({ terrain, selected, castShadow = false, receiveShad
     const manual = Math.max(0, Math.min(1, t.wetness ?? 0));
     // ignoreRainWet 면 비 자동연동 무시 — 수동 wetness 슬라이더만 반영(이 터레인만 안 젖음).
     const target = t.ignoreRainWet ? manual : Math.max(manual, envFx.rainWet);
+    // 완전히 마름 + 변화 없음 → 매 프레임 머티리얼/유니폼 갱신 스킵(젖음 셰이더가 분기로 꺼져 있어 무의미).
+    if (target < 0.001 && curWet.current < 0.001) return;
     const tau = target > curWet.current ? 2.5 : 9;        // 젖는 건 빠르게, 마르는 건 천천히
     curWet.current += (target - curWet.current) * (1 - Math.exp(-Math.min(dt, 0.1) / tau));
     const w = curWet.current;
