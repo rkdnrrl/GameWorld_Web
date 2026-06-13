@@ -58,14 +58,14 @@ function ModelThumbnail({ asset }: { asset: Asset }) {
   // 저장된 썸네일 이미지가 있으면 그대로 사용
   if (asset.thumbnailUrl) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={asset.thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />;
+    return <img draggable={false} src={asset.thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />;
   }
   // ref 컨테이너는 항상 렌더(IntersectionObserver 타깃 유지) — 썸네일 있으면 이미지, 없으면 아이콘
   return (
     <div ref={ref} style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       {thumb
         // eslint-disable-next-line @next/next/no-img-element
-        ? <img src={thumb} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+        ? <img draggable={false} src={thumb} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         : <span style={{ fontSize: 44, opacity: 0.4 }}>🎲</span>}
     </div>
   );

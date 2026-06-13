@@ -9,7 +9,7 @@ import AssetPreviewModal from '@/components/assets/AssetPreviewModal';
 function AudioThumbnail({ asset }: { asset: Asset }) {
   if (asset.thumbnailUrl) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={asset.thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />;
+    return <img draggable={false} src={asset.thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />;
   }
   return (
     <div style={{

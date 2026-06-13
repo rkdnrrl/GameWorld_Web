@@ -8,7 +8,7 @@ import AssetPreviewModal from '@/components/assets/AssetPreviewModal';
 
 function ImageThumbnail({ asset }: { asset: Asset }) {
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={asset.modelUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />;
+  return <img draggable={false} src={asset.modelUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />;
 }
 
 function ImagePreview({ asset, onClose }: { asset: Asset; onClose: () => void }) {
