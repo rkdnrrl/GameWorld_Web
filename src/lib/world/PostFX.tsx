@@ -283,16 +283,17 @@ const PRESETS: Record<string, Partial<PostFXSettings>> = {
   cinematic: { toneMapping: true, bloom: true, bloomIntensity: 0.5, bloomThreshold: 0.85,
     vignette: 0.4, grain: 0.03, contrast: 0.06, saturation: 0.1, temperature: 0.15, filmic: 0.5, lift: 0.03 },
   // 골든아워 — 강한 웜 + 부드러운 대비
-  warm: { toneMapping: true, bloom: true, bloomIntensity: 0.5, vignette: 0.3, grain: 0.02,
+  // bloomThreshold 필수 — 빼면 OFF(0)을 상속해 화면 전체가 블룸(영상·물이 통째로 발광).
+  warm: { toneMapping: true, bloom: true, bloomIntensity: 0.5, bloomThreshold: 0.85, vignette: 0.3, grain: 0.02,
     saturation: 0.12, temperature: 0.38, filmic: 0.4, lift: 0.02 },
   // 차갑고 청량 — 쿨 틴트 + 약간 쨍
-  cool: { toneMapping: true, bloom: true, bloomIntensity: 0.45, vignette: 0.3,
+  cool: { toneMapping: true, bloom: true, bloomIntensity: 0.45, bloomThreshold: 0.85, vignette: 0.3,
     saturation: 0.06, temperature: -0.32, filmic: 0.4, lift: 0.0 },
   // 생생하게 — 채도·대비 강조
-  vivid: { toneMapping: true, bloom: true, bloomIntensity: 0.6, vignette: 0.25,
+  vivid: { toneMapping: true, bloom: true, bloomIntensity: 0.6, bloomThreshold: 0.85, vignette: 0.25,
     saturation: 0.35, contrast: 0.1, filmic: 0.45 },
   // 누아르 흑백 — 강한 대비·비네팅·그레인
-  noir: { toneMapping: true, grayscale: true, bloom: true, bloomIntensity: 0.2,
+  noir: { toneMapping: true, grayscale: true, bloom: true, bloomIntensity: 0.2, bloomThreshold: 0.8,
     vignette: 0.55, grain: 0.05, contrast: 0.22, filmic: 0.6 },
   // 몽환 — 큰 블룸 + 옅은 색수차
   dream: { toneMapping: true, bloom: true, bloomIntensity: 1.0, bloomThreshold: 0.6,
