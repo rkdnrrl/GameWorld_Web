@@ -33,6 +33,10 @@ export interface TerrainData {
   baseColor: string;
   /** 알베도 텍스처 URL (선택). */
   textureUrl?: string;
+  /** 노말맵 URL (선택) — 지면 표면 요철. OpenGL(GL) 규약 노말맵. */
+  textureNormalUrl?: string;
+  /** 러프니스맵 URL (선택) — 흰=거침, 검=반들. material.roughness 에 곱해짐. */
+  textureRoughnessUrl?: string;
   /** 텍스처 반복 횟수 (UV 곱). */
   textureRepeat?: number;
   /** 슬로프/높이 블렌딩 — 가파른 경사면 텍스처(바위). 지정 시 textureUrl(평지)과 섞임. */

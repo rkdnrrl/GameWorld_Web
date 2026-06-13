@@ -8247,6 +8247,36 @@ export default function StudioCanvas() {
                       setObjects(prev => prev.map(o => o.id === selected.id && o.terrain
                         ? { ...o, terrain: { ...o.terrain, textureUrl: u } } : o));
                     }}
+                    // 내 에셋에서 텍스처 드롭 — 핸들러 없으면 브라우저 기본동작이 text/plain(=asset.id)을 넣어버림.
+                    onDragOver={e => { if (e.dataTransfer.types.includes('application/x-alp-asset-url')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }}
+                    onDrop={e => {
+                      const u = e.dataTransfer.getData('application/x-alp-asset-url');
+                      if (!u) return;
+                      e.preventDefault();
+                      setObjects(prev => prev.map(o => o.id === selected.id && o.terrain
+                        ? { ...o, terrain: { ...o.terrain, textureUrl: u } } : o));
+                      pushHistory(objects);
+                    }}
+                    onBlur={() => pushHistory(objects)}
+                    style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
+                </div>
+                <div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_terrain_texture_normal")}</div>
+                  <input type="text" value={selected.terrain.textureNormalUrl || ''}
+                    placeholder="https://... _normal.jpg/.png (GL)"
+                    onChange={e => { const u = e.target.value; setObjects(prev => prev.map(o => o.id === selected.id && o.terrain ? { ...o, terrain: { ...o.terrain, textureNormalUrl: u } } : o)); }}
+                    onDragOver={e => { if (e.dataTransfer.types.includes('application/x-alp-asset-url')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }}
+                    onDrop={e => { const u = e.dataTransfer.getData('application/x-alp-asset-url'); if (!u) return; e.preventDefault(); setObjects(prev => prev.map(o => o.id === selected.id && o.terrain ? { ...o, terrain: { ...o.terrain, textureNormalUrl: u } } : o)); pushHistory(objects); }}
+                    onBlur={() => pushHistory(objects)}
+                    style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
+                </div>
+                <div>
+                  <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_terrain_texture_roughness")}</div>
+                  <input type="text" value={selected.terrain.textureRoughnessUrl || ''}
+                    placeholder="https://... _roughness.jpg/.png"
+                    onChange={e => { const u = e.target.value; setObjects(prev => prev.map(o => o.id === selected.id && o.terrain ? { ...o, terrain: { ...o.terrain, textureRoughnessUrl: u } } : o)); }}
+                    onDragOver={e => { if (e.dataTransfer.types.includes('application/x-alp-asset-url')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }}
+                    onDrop={e => { const u = e.dataTransfer.getData('application/x-alp-asset-url'); if (!u) return; e.preventDefault(); setObjects(prev => prev.map(o => o.id === selected.id && o.terrain ? { ...o, terrain: { ...o.terrain, textureRoughnessUrl: u } } : o)); pushHistory(objects); }}
                     onBlur={() => pushHistory(objects)}
                     style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
                 </div>
@@ -8299,6 +8329,8 @@ export default function StudioCanvas() {
                     <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_terrain_texture_cliff")}</div>
                     <input type="text" value={selected.terrain.textureCliffUrl || ''} placeholder="https://... .jpg/.png"
                       onChange={e => { const u = e.target.value; setObjects(prev => prev.map(o => o.id === selected.id && o.terrain ? { ...o, terrain: { ...o.terrain, textureCliffUrl: u } } : o)); }}
+                      onDragOver={e => { if (e.dataTransfer.types.includes('application/x-alp-asset-url')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }}
+                      onDrop={e => { const u = e.dataTransfer.getData('application/x-alp-asset-url'); if (!u) return; e.preventDefault(); setObjects(prev => prev.map(o => o.id === selected.id && o.terrain ? { ...o, terrain: { ...o.terrain, textureCliffUrl: u } } : o)); pushHistory(objects); }}
                       onBlur={() => pushHistory(objects)}
                       style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
                   </div>
@@ -8306,6 +8338,8 @@ export default function StudioCanvas() {
                     <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_terrain_texture_low")}</div>
                     <input type="text" value={selected.terrain.textureLowUrl || ''} placeholder="https://... .jpg/.png"
                       onChange={e => { const u = e.target.value; setObjects(prev => prev.map(o => o.id === selected.id && o.terrain ? { ...o, terrain: { ...o.terrain, textureLowUrl: u } } : o)); }}
+                      onDragOver={e => { if (e.dataTransfer.types.includes('application/x-alp-asset-url')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }}
+                      onDrop={e => { const u = e.dataTransfer.getData('application/x-alp-asset-url'); if (!u) return; e.preventDefault(); setObjects(prev => prev.map(o => o.id === selected.id && o.terrain ? { ...o, terrain: { ...o.terrain, textureLowUrl: u } } : o)); pushHistory(objects); }}
                       onBlur={() => pushHistory(objects)}
                       style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 11, padding: '4px 7px', borderRadius: 4, outline: 'none' }} />
                   </div>

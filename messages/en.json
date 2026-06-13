@@ -1273,6 +1273,8 @@
       "hint_terrain_segments_reset": "※ Changing resolution resets the heightmap",
       "label_terrain_base_color": "Base Color",
       "label_terrain_texture_url": "Texture URL (optional)",
+      "label_terrain_texture_normal": "Normal map URL (optional, GL)",
+      "label_terrain_texture_roughness": "Roughness map URL (optional)",
       "label_terrain_texture_repeat": "Texture Repeat (UV)",
       "section_terrain_texture_blend": "🪨 Texture Blending (slope/height)",
       "label_terrain_texture_cliff": "Cliff Texture URL (rock)",

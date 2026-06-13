@@ -1273,6 +1273,8 @@
       "hint_terrain_segments_reset": "※ 해상도 변경 시 heightmap 초기화됨",
       "label_terrain_base_color": "베이스 색상",
       "label_terrain_texture_url": "텍스처 URL (선택)",
+      "label_terrain_texture_normal": "노말맵 URL (선택, GL)",
+      "label_terrain_texture_roughness": "러프니스맵 URL (선택)",
       "label_terrain_texture_repeat": "텍스처 반복 (UV)",
       "section_terrain_texture_blend": "🪨 텍스처 블렌딩 (경사/높이)",
       "label_terrain_texture_cliff": "경사면 텍스처 URL (바위)",

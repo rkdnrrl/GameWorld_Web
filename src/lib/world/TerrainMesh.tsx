@@ -23,13 +23,13 @@ interface Props {
   receiveShadow?: boolean;
 }
 
-/** URL → 반복 텍스처. url 없으면 null. */
-function makeRepeatTexture(url: string | undefined, repeat: number): THREE.Texture | null {
+/** URL → 반복 텍스처. url 없으면 null. 노말·러프니스 같은 데이터 텍스처는 colorSpace=NoColorSpace. */
+function makeRepeatTexture(url: string | undefined, repeat: number, colorSpace: THREE.ColorSpace = THREE.SRGBColorSpace): THREE.Texture | null {
   if (!url) return null;
   const tex = new THREE.TextureLoader().load(url);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(repeat, repeat);
-  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.colorSpace = colorSpace;
   tex.anisotropy = 8;   // 비스듬히 보는 지면 텍스처 선명도 ↑ (하드웨어 max 로 자동 클램프)
   return tex;
 }
@@ -56,7 +56,10 @@ export function TerrainMesh({ terrain, selected, castShadow = false, receiveShad
   // cliff/low 미지정 시 base 로 폴백 → 블렌딩이 시각적 no-op.
   const cliffTex = useMemo(() => makeRepeatTexture(t.textureCliffUrl || t.textureUrl, repeat), [t.textureCliffUrl, t.textureUrl, repeat]);
   const lowTex = useMemo(() => makeRepeatTexture(t.textureLowUrl || t.textureUrl, repeat), [t.textureLowUrl, t.textureUrl, repeat]);
-  useEffect(() => () => { baseTex?.dispose(); cliffTex?.dispose(); lowTex?.dispose(); }, [baseTex, cliffTex, lowTex]);
+  // 노말·러프니스 — 데이터 텍스처라 NoColorSpace(선형). 슬로프 블렌딩 없이 균일 적용.
+  const normalTex = useMemo(() => makeRepeatTexture(t.textureNormalUrl, repeat, THREE.NoColorSpace), [t.textureNormalUrl, repeat]);
+  const roughTex = useMemo(() => makeRepeatTexture(t.textureRoughnessUrl, repeat, THREE.NoColorSpace), [t.textureRoughnessUrl, repeat]);
+  useEffect(() => () => { baseTex?.dispose(); cliffTex?.dispose(); lowTex?.dispose(); normalTex?.dispose(); roughTex?.dispose(); }, [baseTex, cliffTex, lowTex, normalTex, roughTex]);
 
   // 비선택 시 기준색. 젖음에 의한 어둡게/거칠기/반사는 useFrame 에서 매 프레임 적용(비 자동연동 ramp).
   const baseCol = useMemo(
@@ -67,6 +70,8 @@ export function TerrainMesh({ terrain, selected, castShadow = false, receiveShad
   const mat = useMemo(() => {
     const m = new THREE.MeshStandardMaterial({
       map: baseTex ?? undefined,
+      normalMap: normalTex ?? undefined,
+      roughnessMap: roughTex ?? undefined,   // material.roughness(젖음 ramp 포함)에 곱해짐
       color: baseCol.clone(),
       roughness: 0.95,
       metalness: 0,
@@ -166,7 +171,7 @@ export function TerrainMesh({ terrain, selected, castShadow = false, receiveShad
           '#include <emissivemap_fragment>\n totalEmissiveRadiance += _refl * _reflK;');
     };
     return m;
-  }, [blend, baseTex, cliffTex, lowTex, baseCol, t.slopeThreshold, t.lowHeight, t.lowBlend]);
+  }, [blend, baseTex, cliffTex, lowTex, normalTex, roughTex, baseCol, t.slopeThreshold, t.lowHeight, t.lowBlend]);
   useEffect(() => () => { mat.dispose(); }, [mat]);
 
   // 매 프레임 — 비 자동연동(envFx.rainWet) + 수동 젖음 합쳐 부드럽게 ramp, 머티리얼/유니폼 갱신.

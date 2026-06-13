@@ -1273,6 +1273,8 @@
       "hint_terrain_segments_reset": "※ 分辨率变更时 heightmap 会被重置",
       "label_terrain_base_color": "基础颜色",
       "label_terrain_texture_url": "纹理 URL (可选)",
+      "label_terrain_texture_normal": "法线贴图 URL (可选, GL)",
+      "label_terrain_texture_roughness": "粗糙度贴图 URL (可选)",
       "label_terrain_texture_repeat": "纹理重复 (UV)",
       "section_terrain_texture_blend": "🪨 纹理混合（坡度/高度）",
       "label_terrain_texture_cliff": "陡坡纹理URL（岩石）",

@@ -1273,6 +1273,8 @@
       "hint_terrain_segments_reset": "※ 解像度変更で heightmap 初期化",
       "label_terrain_base_color": "ベースカラー",
       "label_terrain_texture_url": "テクスチャ URL(任意)",
+      "label_terrain_texture_normal": "ノーマルマップ URL(任意, GL)",
+      "label_terrain_texture_roughness": "ラフネスマップ URL(任意)",
       "label_terrain_texture_repeat": "テクスチャ繰り返し(UV)",
       "section_terrain_texture_blend": "🪨 テクスチャブレンド（傾斜/高さ）",
       "label_terrain_texture_cliff": "傾斜面テクスチャURL（岩）",
