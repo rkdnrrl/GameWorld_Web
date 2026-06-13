@@ -146,7 +146,9 @@ export function TerrainSculptMesh({ terrain, worldPos, tool, radius, strength, o
 
   // 식생 페인트 — 풀/꽃 흩뿌리기, 나무/돌 간격 배치, 지우개. hit 월드 지점 → terrain-local 변환 후 적용.
   // 종류별 상한 + 간격(드문드문 배치용) + 크기 변주 범위.
-  const FOL_CAP: Record<string, number> = { grass: 6000, flower: 2000, tree: 400, rock: 300 };
+  // 풀·꽃은 InstancedMesh(종류당 1 draw call)라 대량도 가벼움 → 브러시로 계속 심을 수 있게 상한 크게.
+  // 나무·돌은 콜라이더+그림자라 무거워 보수적으로 유지.
+  const FOL_CAP: Record<string, number> = { grass: 50000, flower: 30000, tree: 400, rock: 300 };
   const FOL_SPACING: Record<string, number> = { tree: 2.2, rock: 1.4 };
   const paintFoliage = (worldX: number, worldZ: number) => {
     const lx0 = worldX - worldPos[0], lz0 = worldZ - worldPos[2];
