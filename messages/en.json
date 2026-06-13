@@ -1240,7 +1240,7 @@
       "btn_ai_json_import": "🤖 Import AI JSON",
       "section_env_hdri": "🌐 Environment / HDRI",
       "label_sky_toggle": "☁ Sky",
-      "env_preset_fairytale": "🧚 Storybook look (one click)",
+      "env_preset_default": "🌿 ALP default look",
       "label_hdri_preset": "HDRI Preset",
       "opt_none": "None",
       "label_hdri_url": "HDRI URL (.hdr / .exr, optional)",

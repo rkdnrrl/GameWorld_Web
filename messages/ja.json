@@ -1240,7 +1240,7 @@
       "btn_ai_json_import": "🤖 AI JSON 取り込み",
       "section_env_hdri": "🌐 環境 / HDRI",
       "label_sky_toggle": "☁ 空(Sky)",
-      "env_preset_fairytale": "🧚 絵本風(ワンクリック設定)",
+      "env_preset_default": "🌿 ALP デフォルト設定",
       "label_hdri_preset": "HDRI プリセット",
       "opt_none": "なし",
       "label_hdri_url": "HDRI URL(.hdr / .exr、任意)",

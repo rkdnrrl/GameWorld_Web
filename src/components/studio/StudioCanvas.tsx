@@ -7803,7 +7803,7 @@ export default function StudioCanvas() {
           </button>
           {envPanelOpen && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
-              {/* 🧚 동화풍 원클릭 — 밝은 소프트 조명 + 하늘 + 채도 높은 색감(Quaternius 스타일라이즈드 룩). */}
+              {/* ALP 기본 세팅 원클릭 — 밝은 소프트 조명 + 하늘 + 채도 높은 색감(스타일라이즈드 기본 룩). */}
               <button type="button"
                 onClick={() => {
                   setSkyEnabled(true);
@@ -7826,7 +7826,7 @@ export default function StudioCanvas() {
                   pushHistory(objects);
                 }}
                 style={{ width: '100%', background: 'linear-gradient(90deg,#34d399,#22d3ee)', border: 'none', borderRadius: 6, color: '#06281f', fontSize: 12, fontWeight: 800, padding: '7px 10px', cursor: 'pointer' }}>
-                {tCanvas("env_preset_fairytale")}
+                {tCanvas("env_preset_default")}
               </button>
               {/* Sky 토글 */}
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, opacity: 0.8, cursor: 'pointer' }}>
