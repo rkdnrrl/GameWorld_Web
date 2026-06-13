@@ -12,7 +12,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useThree, useFrame } from '@react-three/fiber';
-import { Clouds, Cloud, Stars } from '@react-three/drei';
+import { Clouds, Cloud, Stars, Sky } from '@react-three/drei';
 import { computeSunDir } from './CsmSun';
 import { envFx, setRain } from './envFx';
 
@@ -33,6 +33,32 @@ export function sunGlowParams(sunSize: number): { mieDirectionalG: number; mieCo
     mieDirectionalG: Math.max(0.7, Math.min(0.999, 0.8 + (1 - s) * 0.2)),   // 1에 가까울수록 태양 작아짐
     mieCoefficient: 0.005 * s,                                              // 작을수록 산란 헤이즈 적음
   };
+}
+
+/** drei <Sky> + 태양 디스크 HDR 출력 클램프.
+ *  후처리(EffectComposer)는 씬을 float HDR 버퍼에 렌더하는데, drei Sky 의 태양은 거의 무한대로 밝아
+ *  블룸 mipmap 이 이 점광원을 다운샘플하며 동심원 "링" 아티팩트를 만든다. retColor 를 클램프해
+ *  블룸이 깔끔한 글로우로 번지게 한다. (후처리 없으면 어차피 디스플레이에서 [0,1] 클램프라 시각 차 없음.) */
+export function ClampedSky({ sunPosition, mieDirectionalG, mieCoefficient }: {
+  sunPosition: [number, number, number];
+  mieDirectionalG?: number;
+  mieCoefficient?: number;
+}) {
+  // drei Sky 의 ref 는 three-stdlib Sky(Mesh) — 라이브러리 타입과 정확히 안 맞아 느슨하게 받음.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ref = useRef<any>(null);
+  useEffect(() => {
+    const mat = ref.current?.material as THREE.ShaderMaterial | undefined;
+    if (!mat) return;
+    mat.onBeforeCompile = (shader) => {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        'gl_FragColor = vec4( retColor, 1.0 );',
+        'gl_FragColor = vec4( min( retColor, vec3( 5.0 ) ), 1.0 );',   // 태양 HDR 클램프 → 블룸 링 억제
+      );
+    };
+    mat.needsUpdate = true;
+  }, [mieDirectionalG, mieCoefficient]);
+  return <Sky ref={ref} sunPosition={sunPosition} mieDirectionalG={mieDirectionalG} mieCoefficient={mieCoefficient} />;
 }
 
 /** 밤 정도 — 0(낮) ~ 1(완전한 밤, 해가 지평선 아래). 달·별 게이팅/페이드용. */

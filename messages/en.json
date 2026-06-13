@@ -1295,6 +1295,7 @@
       "foliage_drop_hint": "Drop model",
       "foliage_clear": "Clear",
       "label_foliage_scale": "Scale",
+      "foliage_texture_hint": "Drop a texture (albedo) — colors the model when it's white. Click = remove",
       "hint_foliage_assets": "※ The assigned model is instanced at each painted spot. Models are auto-normalized to 2m, then the scale factor is applied.",
       "btn_terrain_autoscatter": "🌱 Scatter grass & flowers",
       "section_terrain_regenerate": "Regenerate Terrain",

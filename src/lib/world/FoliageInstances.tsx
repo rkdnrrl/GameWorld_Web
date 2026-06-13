@@ -247,6 +247,18 @@ const _foliagePartsCache = new Map<string, Promise<FoliageParts>>();
  *  - 원래 "투명(블렌딩)"이던 잎만 alphaTest 컷아웃으로 전환 — 인스턴싱은 블렌딩 정렬이 안 되므로.
  *    ⚠ 불투명(OPAQUE) 머티리얼엔 alphaTest 를 절대 걸지 않는다(알파 채널이 0/무의미해 통째로 사라짐). */
 type SwayMode = 'bend' | 'wind' | false;
+/** 사용자 지정 앨베도 텍스처를 머티리얼 map 으로 — 모델에 텍스처 없어 흰색일 때 직접 색 입히기. */
+function applyFoliageAlbedo(mat: THREE.Material | THREE.Material[], tex: THREE.Texture): THREE.Material | THREE.Material[] {
+  const apply = (m: THREE.Material): THREE.Material => {
+    const sm = m as THREE.MeshStandardMaterial;
+    sm.map = tex;
+    if (sm.color) sm.color.set('#ffffff');     // map 이 곱해지므로 베이스는 흰색
+    sm.vertexColors = false;                    // 텍스처 우선(버텍스컬러와 곱해 칙칙해지지 않게)
+    sm.needsUpdate = true;
+    return m;
+  };
+  return Array.isArray(mat) ? mat.map(apply) : apply(mat);
+}
 function prepFoliageMaterial(mat: THREE.Material | THREE.Material[], sway: SwayMode = false, hasVColor = false): THREE.Material | THREE.Material[] {
   const fix = (m: THREE.Material): THREE.Material => {
     m.side = THREE.DoubleSide;
@@ -281,13 +293,19 @@ const _foliageLoadTex: LoadTexFn = (url, colorSpace, tx, ty, onLoad) => {
 
 /** url 모델 1회 로드 → 메시별 (변환 베이크된)지오/머티리얼 추출. 베이스를 y=0·xz중심으로 재배치. 세션 캐시.
  *  overrides(부위별 텍스처)가 있으면 잎 등 머티리얼에 입힘 — 캐시 키에 overrides 유무 포함. */
-function loadFoliageParts(url: string, overrides?: MaterialOverrides, sway: SwayMode = false): Promise<FoliageParts> {
+function loadFoliageParts(url: string, overrides?: MaterialOverrides, sway: SwayMode = false, textureUrl?: string): Promise<FoliageParts> {
   const ovKeys = overrides ? Object.keys(overrides).sort().join(',') : '';
-  const key = url + '|' + ovKeys + (sway ? '|' + sway : '');
+  const key = url + '|' + ovKeys + (sway ? '|' + sway : '') + (textureUrl ? '|tex:' + textureUrl : '');
   let entry = _foliagePartsCache.get(key);
   if (!entry) {
     entry = loadStaticModelCached(url).then((model) => {
       model.updateMatrixWorld(true);
+      // 사용자 지정 앨베도 텍스처 — 모델에 텍스처 없을 때 직접 입힘. 모든 머티리얼 공유(1회 로드).
+      const albedo = textureUrl ? (() => {
+        const tx = new THREE.TextureLoader().load(textureUrl);
+        tx.colorSpace = THREE.SRGBColorSpace; tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
+        return tx;
+      })() : null;
       const parts: FoliageParts['parts'] = [];
       model.traverse((o) => {
         const m = o as THREE.Mesh;
@@ -301,6 +319,7 @@ function loadFoliageParts(url: string, overrides?: MaterialOverrides, sway: Sway
             const resolved = resolveMeshMaterial(m.material, overrides, null, _foliageLoadTex, undefined, made);
             if (resolved) mat = resolved;
           }
+          if (albedo) mat = applyFoliageAlbedo(mat, albedo);   // 사용자 텍스처 우선
           parts.push({ geo: g, mat: prepFoliageMaterial(mat, sway, !!g.getAttribute('color')) });
         }
       });
@@ -315,18 +334,18 @@ function loadFoliageParts(url: string, overrides?: MaterialOverrides, sway: Sway
   return entry;
 }
 
-function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = false }: {
-  url: string; scale: number; items: FoliageInstance[]; t: TerrainData; cast: boolean; overrides?: MaterialOverrides; sway?: SwayMode;
+function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = false, textureUrl }: {
+  url: string; scale: number; items: FoliageInstance[]; t: TerrainData; cast: boolean; overrides?: MaterialOverrides; sway?: SwayMode; textureUrl?: string;
 }) {
   const [parts, setParts] = useState<FoliageParts | null>(null);
   const ovKey = overrides ? Object.keys(overrides).sort().join(',') : '';
   useEffect(() => {
     let alive = true;
     // 로드 완료 시에만 교체 — 전환 중 이전 모델 유지(빈 깜빡임 방지). 스테일은 alive 로 차단.
-    loadFoliageParts(url, overrides, sway).then(p => { if (alive) setParts(p); }).catch(() => { if (alive) setParts(null); });
+    loadFoliageParts(url, overrides, sway, textureUrl).then(p => { if (alive) setParts(p); }).catch(() => { if (alive) setParts(null); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url, ovKey, sway]);
+  }, [url, ovKey, sway, textureUrl]);
   const refs = useRef<THREE.InstancedMesh[]>([]);
   const capacity = Math.max(256, Math.ceil((items.length + 1) / 256) * 256);
   useEffect(() => {
@@ -544,7 +563,7 @@ export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
     variants.map((v, vi) => {
       const bucket = variants.length === 1 ? items : items.filter(it => foliageVariantIndex(it.x, it.z, variants.length) === vi);
       if (!bucket.length) return null;
-      return <AssetFoliageInstances key={vi + '|' + v.url} url={v.url} scale={v.scale ?? 1} overrides={v.overrides} items={bucket} t={t} cast={cast} sway={sway} />;
+      return <AssetFoliageInstances key={vi + '|' + v.url} url={v.url} scale={v.scale ?? 1} overrides={v.overrides} textureUrl={v.textureUrl} items={bucket} t={t} cast={cast} sway={sway} />;
     });
   return (
     <>

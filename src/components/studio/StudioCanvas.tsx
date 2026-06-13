@@ -2,7 +2,7 @@
 import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { OrbitControls, TransformControls, Grid, Sky, Environment, Edges, MeshReflectorMaterial } from '@react-three/drei';
+import { OrbitControls, TransformControls, Grid, Environment, Edges, MeshReflectorMaterial } from '@react-three/drei';
 import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
 import * as THREE from 'three';
 import { buildFolderTree, normalizeFolder } from '@/lib/assets/folders';
@@ -20,7 +20,7 @@ import { FpsLimiter } from '@/lib/world/FpsLimiter';
 import { useGraphicsSettings } from '@/lib/world/graphicsSettings';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
-import { SceneFog, SkyClouds, SkyMoon, SkyStars, skySunPosition, skyFogColor, nightFactor, sunGlowParams, EnvFxUpdater } from '@/lib/world/SkyEnv';
+import { SceneFog, SkyClouds, SkyMoon, SkyStars, skySunPosition, skyFogColor, nightFactor, sunGlowParams, ClampedSky, EnvFxUpdater } from '@/lib/world/SkyEnv';
 import { ART_PALETTE } from '@/lib/assets/material';
 import { makeWaterMaterial } from '@/lib/world/waterMaterial';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
@@ -8422,6 +8422,13 @@ export default function StudioCanvas() {
                           return (
                             <div key={vi + '|' + v.url} style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 36 }}>
                               <div style={{ flex: 1, minWidth: 0, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#a7f3d0' }}>{name}</div>
+                              {/* 텍스처(앨베도) 드롭 칩 — 모델에 텍스처 없을 때 이미지 드롭으로 색 입힘. 클릭=제거. */}
+                              <div
+                                title={v.textureUrl ? (myAssets.find(a => a.modelUrl === v.textureUrl)?.name || tCanvas("foliage_texture_hint")) : tCanvas("foliage_texture_hint")}
+                                onClick={() => { if (v.textureUrl) { writeVariants(variants.map((x, i) => i === vi ? { ...x, textureUrl: undefined } : x)); pushHistory(objects); } }}
+                                onDragOver={e => { if (e.dataTransfer.types.includes('application/x-alp-asset-url')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }}
+                                onDrop={e => { const u = e.dataTransfer.getData('application/x-alp-asset-url'); if (!u) return; e.preventDefault(); writeVariants(variants.map((x, i) => i === vi ? { ...x, textureUrl: u } : x)); pushHistory(objects); }}
+                                style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 4, border: '1px dashed rgba(255,255,255,0.25)', background: v.textureUrl ? 'rgba(34,197,94,0.3)' : 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, cursor: v.textureUrl ? 'pointer' : 'default' }}>🎨</div>
                               <input type="number" min={0.05} max={20} step={0.05} value={v.scale ?? 1} title={tCanvas("label_foliage_scale")}
                                 onChange={e => { const sc = Math.max(0.05, Math.min(20, Number(e.target.value) || 1)); writeVariants(variants.map((x, i) => i === vi ? { ...x, scale: sc } : x)); }}
                                 onBlur={() => pushHistory(objects)}
@@ -9109,7 +9116,7 @@ export default function StudioCanvas() {
             const sg = sunGlowParams(sunSize);
             return (
               <>
-                <Sky sunPosition={sunPos} mieDirectionalG={sg.mieDirectionalG} mieCoefficient={sg.mieCoefficient} />
+                <ClampedSky sunPosition={sunPos} mieDirectionalG={sg.mieDirectionalG} mieCoefficient={sg.mieCoefficient} />
                 <SkyClouds />
                 <SceneFog color={skyFogColor(sunPos)} />
                 {night > 0.3 && <SkyStars />}

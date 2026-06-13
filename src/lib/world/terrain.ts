@@ -69,6 +69,8 @@ export interface FoliageVariant {
   url: string;
   scale?: number;
   overrides?: import('./materialOverride').MaterialOverrides;
+  /** 앨베도 텍스처 URL (선택) — 모델에 텍스처가 없을 때 직접 입힘. 모든 머티리얼 map 으로 적용. */
+  textureUrl?: string;
 }
 
 /** foliageAssets[k] 를 항상 배열로 정규화 — 구버전(단일 객체)·신버전(배열)·미지정 모두 처리. */

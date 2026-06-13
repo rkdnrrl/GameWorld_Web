@@ -1295,6 +1295,7 @@
       "foliage_drop_hint": "모델 드롭",
       "foliage_clear": "해제",
       "label_foliage_scale": "크기",
+      "foliage_texture_hint": "텍스처(앨베도) 드롭 — 모델이 흰색일 때 색 입힘. 클릭=제거",
       "hint_foliage_assets": "※ 지정한 모델이 칠한 자리마다 인스턴싱됩니다. 모델은 자동 2m 정규화 후 크기 배율 적용.",
       "btn_terrain_autoscatter": "🌱 풀·꽃 전체 깔기",
       "section_terrain_regenerate": "지형 재생성",

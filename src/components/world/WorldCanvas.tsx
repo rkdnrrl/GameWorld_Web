@@ -1,7 +1,7 @@
 'use client';
 import React, { Suspense, useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Billboard, Html, Sky, Text, Environment, useProgress, PerformanceMonitor, MeshReflectorMaterial } from '@react-three/drei';
+import { Billboard, Html, Text, Environment, useProgress, PerformanceMonitor, MeshReflectorMaterial } from '@react-three/drei';
 import { Physics, RigidBody, CapsuleCollider, CuboidCollider, useRapier, CoefficientCombineRule, type RapierCollider } from '@react-three/rapier';
 import { createXRStore, XR, XROrigin, useXRInputSourceState, useXR } from '@react-three/xr';
 import { devLog } from '@/lib/devLog';
@@ -76,7 +76,7 @@ import SeatButton from '@/lib/world/SeatButton';
 import LadderButton from '@/lib/world/LadderButton';
 import { FlashlightLight } from '@/lib/world/FlashlightLight';
 import { computeSunDir } from '@/lib/world/CsmSun';
-import { SceneFog, SkyClouds, SkyMoon, SkyStars, skySunPosition, skyFogColor, nightFactor, sunGlowParams, EnvFxUpdater } from '@/lib/world/SkyEnv';
+import { SceneFog, SkyClouds, SkyMoon, SkyStars, skySunPosition, skyFogColor, nightFactor, sunGlowParams, ClampedSky, EnvFxUpdater } from '@/lib/world/SkyEnv';
 import { makeWaterMaterial } from '@/lib/world/waterMaterial';
 import { SoundEmitter } from '@/lib/world/SoundEmitter';
 import { UI_SYNC_EVENT, DATA_SYNC_EVENT, type UiData } from '@/lib/world/uiObjects';
@@ -6121,7 +6121,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
           const sg = sunGlowParams(sunSize);
           return (
             <>
-              <Sky sunPosition={sunPos} mieDirectionalG={sg.mieDirectionalG} mieCoefficient={sg.mieCoefficient} />
+              <ClampedSky sunPosition={sunPos} mieDirectionalG={sg.mieDirectionalG} mieCoefficient={sg.mieCoefficient} />
               <SkyClouds />
               <SceneFog color={skyFogColor(sunPos)} />
               {night > 0.3 && <SkyStars />}

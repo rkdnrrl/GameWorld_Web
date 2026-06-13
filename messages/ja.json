@@ -1295,6 +1295,7 @@
       "foliage_drop_hint": "モデルをドロップ",
       "foliage_clear": "解除",
       "label_foliage_scale": "サイズ",
+      "foliage_texture_hint": "テクスチャ(アルベド)をドロップ — 白いモデルに色を付ける。クリック=削除",
       "hint_foliage_assets": "※ 指定したモデルが描いた位置ごとにインスタンス化されます。モデルは自動的に2mに正規化され、サイズ倍率が適用されます。",
       "btn_terrain_autoscatter": "🌱 草と花を全体に配置",
       "section_terrain_regenerate": "地形再生成",
