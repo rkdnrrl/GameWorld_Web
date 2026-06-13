@@ -11,7 +11,7 @@ import { getKind } from '@/lib/assets/registry';
 import '@/lib/assets/kinds'; // kind 핸들러(Thumbnail/Preview) 등록 — 사이드이펙트
 import AssetPreviewModal from '@/components/assets/AssetPreviewModal';
 import type { Asset as RegistryAsset } from '@/lib/assets/types';
-import PostFX, { derivePostFX, collectPostFXZones, collectWaterPostFX, type PostFXZone, type WaterPostFX } from '@/lib/world/PostFX';
+import PostFX, { derivePostFX, collectPostFXZones, collectWaterPostFX, presetPropValues, type PostFXZone, type WaterPostFX } from '@/lib/world/PostFX';
 import Particles, { deriveParticleSettings } from '@/lib/world/Particles';
 import SignText from '@/lib/world/SignText';
 import { devLog } from '@/lib/devLog';
@@ -507,7 +507,25 @@ function ComponentsSection({
                         const active = String(val) === opt;
                         return (
                           <button key={opt} type="button"
-                            onClick={() => { updateProp(idx, p.key, opt); pushHistory(allObjects); }}
+                            onClick={() => {
+                              // PostProcess 프리셋: enum 값만 바꾸지 않고, 그 룩의 실제 수치(밝기·대비·채도 등)를
+                              //  props 에 채운 뒤 preset=none(수동) 으로 → 사용자가 값을 바로 보고 직접 수정 가능.
+                              if (def.type === 'postProcess' && p.key === 'preset' && opt !== 'none') {
+                                const vals = presetPropValues(opt);
+                                if (vals) {
+                                  setObjects(prev => prev.map(o => {
+                                    if (o.id !== selected.id) return o;
+                                    const next = [...(o.components ?? [])];
+                                    const cur = next[idx];
+                                    next[idx] = { ...cur, props: { ...(cur.props ?? {}), ...vals, preset: 'none' } };
+                                    return { ...o, components: next };
+                                  }));
+                                  pushHistory(allObjects);
+                                  return;
+                                }
+                              }
+                              updateProp(idx, p.key, opt); pushHistory(allObjects);
+                            }}
                             style={{
                               flex: '1 0 auto', minWidth: 30,
                               background: active ? 'rgba(99,102,241,0.35)' : 'rgba(255,255,255,0.05)',

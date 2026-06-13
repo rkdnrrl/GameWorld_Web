@@ -306,6 +306,16 @@ function withPreset(s: PostFXSettings): PostFXSettings {
   return { ...OFF, ...PRESETS[s.preset], enabled: s.enabled };
 }
 
+/** 프리셋의 실제 효과 수치 — 스튜디오에서 프리셋 버튼 클릭 시 컴포넌트 props 에 채워넣기용(이후 직접 편집).
+ *  제어 키(enabled/preset) 제외, 효과 값만(OFF 기본 + 프리셋 덮어쓰기). 모르는 프리셋이면 null. */
+export function presetPropValues(presetKey: string): Record<string, number | string | boolean> | null {
+  const p = PRESETS[presetKey];
+  if (!p) return null;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { enabled: _e, preset: _p, ...rest } = { ...OFF, ...p };
+  return rest as Record<string, number | string | boolean>;
+}
+
 export default function PostFX({ s: raw, raining = false }: { s: PostFXSettings; raining?: boolean }) {
   // 비 올 때는 유저 postProcess 볼륨이 없어도(또는 꺼져 있어도) 빗방울만 위해 컴포저를 띄운다.
   if (!raw.enabled && !raining) return null;
