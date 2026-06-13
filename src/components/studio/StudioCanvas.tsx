@@ -8475,7 +8475,8 @@ export default function StudioCanvas() {
                     onClick={() => {
                       const cur = selected.terrain!;
                       const half = cur.size / 2;
-                      const count = Math.min(4000, Math.round(cur.size * cur.size * 0.6));
+                      // 거리 컬링(카메라 근처만 렌더)이 있어 많이 심어도 성능 고정 → 밀도·상한 크게.
+                      const count = Math.min(20000, Math.round(cur.size * cur.size * 1.2));
                       const next = (cur.foliage || []).filter(f => f.k === 'tree' || f.k === 'rock');
                       for (let i = 0; i < count; i++) {
                         const x = (Math.random() * 2 - 1) * half * 0.96;
