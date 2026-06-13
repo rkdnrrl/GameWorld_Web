@@ -173,7 +173,8 @@ export function TerrainMesh({ terrain, selected, castShadow = false, receiveShad
   const curWet = useRef(0);
   useFrame((_, dt) => {
     const manual = Math.max(0, Math.min(1, t.wetness ?? 0));
-    const target = Math.max(manual, envFx.rainWet);
+    // ignoreRainWet 면 비 자동연동 무시 — 수동 wetness 슬라이더만 반영(이 터레인만 안 젖음).
+    const target = t.ignoreRainWet ? manual : Math.max(manual, envFx.rainWet);
     const tau = target > curWet.current ? 2.5 : 9;        // 젖는 건 빠르게, 마르는 건 천천히
     curWet.current += (target - curWet.current) * (1 - Math.exp(-Math.min(dt, 0.1) / tau));
     const w = curWet.current;

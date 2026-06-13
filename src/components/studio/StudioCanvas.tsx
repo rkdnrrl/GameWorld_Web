@@ -8272,6 +8272,16 @@ export default function StudioCanvas() {
                     onMouseUp={() => pushHistory(objects)}
                     style={{ width: '100%' }} />
                 </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.85, cursor: 'pointer', fontSize: 11 }}>
+                  <input type="checkbox" checked={!selected.terrain.ignoreRainWet}
+                    onChange={e => {
+                      const wets = e.target.checked;
+                      setObjects(prev => prev.map(o => o.id === selected.id && o.terrain
+                        ? { ...o, terrain: { ...o.terrain, ignoreRainWet: !wets } } : o));
+                      pushHistory(objects);
+                    }} />
+                  {tCanvas("label_terrain_rain_wet")}
+                </label>
                 <div>
                   <div style={{ opacity: 0.65, marginBottom: 4 }}>{tCanvas("label_terrain_puddles")} — {(selected.terrain.puddles ?? 0).toFixed(2)}</div>
                   <input type="range" min={0} max={1} step={0.05} value={selected.terrain.puddles ?? 0}

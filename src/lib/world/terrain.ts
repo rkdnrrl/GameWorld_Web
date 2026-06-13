@@ -47,6 +47,8 @@ export interface TerrainData {
   lowBlend?: number;
   /** 젖음 정도 0~1 — 비로 축축해진 땅. 높을수록 거칠기↓(반들), 색 어둡게, 환경 반사↑. */
   wetness?: number;
+  /** true 면 비(envFx.rainWet)로 자동 젖지 않음 — 수동 wetness 슬라이더만 적용. 기본(undefined)=비에 젖음. */
+  ignoreRainWet?: boolean;
   /** 물웅덩이 정도 0~1 — 0이면 전면 균일 젖음, 클수록 노이즈 영역(웅덩이)에만 거울 반사 집중. */
   puddles?: number;
   /** 지형 위에 심은 풀/나무 (선택). */

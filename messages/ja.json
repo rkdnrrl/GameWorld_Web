@@ -1281,6 +1281,7 @@
       "label_terrain_low_height": "低地の高さ（Y）",
       "label_terrain_low_blend": "低地ブレンド幅（m）",
       "label_terrain_wetness": "💧 濡れ (雨/反射) 0~1",
+      "label_terrain_rain_wet": "🌧 雨で濡れる (オフ=雨でも濡れない)",
       "label_terrain_puddles": "🪞 水たまり (反射集中) 0~1",
       "hint_terrain_texture_blend": "※ 傾斜面/低地テクスチャを指定すると平地テクスチャと自動で混ざります。両方空なら単一テクスチャ。",
       "section_terrain_foliage_assets": "🌿 植生アセット（マイアセットからドラッグ）",
