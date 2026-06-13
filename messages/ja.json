@@ -1292,6 +1292,7 @@
       "foliage_flower": "花",
       "foliage_tree": "木",
       "foliage_rock": "岩",
+      "foliage_bush": "茂み",
       "foliage_default_shape": "デフォルト形状",
       "foliage_drop_hint": "モデルをドロップ",
       "foliage_clear": "解除",

@@ -1292,6 +1292,7 @@
       "foliage_flower": "꽃",
       "foliage_tree": "나무",
       "foliage_rock": "돌",
+      "foliage_bush": "덤불",
       "foliage_default_shape": "기본 모양",
       "foliage_drop_hint": "모델 드롭",
       "foliage_clear": "해제",

@@ -10,8 +10,8 @@
 
 /** 지형 위에 심은 식생(풀/나무) 1개. 좌표는 terrain-local (스케일/회전 적용 전). */
 export interface FoliageInstance {
-  /** 종류 — 풀 / 나무 / 꽃 / 돌. */
-  k: 'grass' | 'tree' | 'flower' | 'rock';
+  /** 종류 — 풀 / 나무 / 꽃 / 돌 / 덤불(통과 가능 + 그림자, 안 휘어짐). */
+  k: 'grass' | 'tree' | 'flower' | 'rock' | 'bush';
   /** terrain-local X (-size/2 ~ +size/2). */
   x: number;
   /** terrain-local Z (-size/2 ~ +size/2). */

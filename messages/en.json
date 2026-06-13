@@ -1292,6 +1292,7 @@
       "foliage_flower": "Flower",
       "foliage_tree": "Tree",
       "foliage_rock": "Rock",
+      "foliage_bush": "Bush",
       "foliage_default_shape": "Default shape",
       "foliage_drop_hint": "Drop model",
       "foliage_clear": "Clear",

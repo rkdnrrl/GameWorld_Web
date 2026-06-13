@@ -80,6 +80,13 @@ function buildRockGeo(): THREE.BufferGeometry {
   g.computeVertexNormals();
   return g;
 }
+function buildBushGeo(): THREE.BufferGeometry {
+  // 둥근 잎 덩어리(덤불) — 넓고 낮게. 바닥에 앉힘.
+  const g = new THREE.IcosahedronGeometry(0.45, 1);
+  g.scale(1.15, 0.78, 1.15);
+  g.translate(0, 0.34, 0);
+  return g;
+}
 
 // ── 바람 흔들림 + 플레이어 인터랙션 (풀/꽃 공용 셰이더 주입). 공유 유니폼을 매 프레임 갱신. ──
 // windUniform 은 '위상 누적'(시간×속도) — 속도를 바꿔도 점프 없이 부드럽게. 진폭은 windStrUniform(전역 바람 세기).
@@ -90,9 +97,15 @@ const playerPosUniform = { value: new THREE.Vector3() };
 const playerRUniform = { value: 0 };           // 반경(0=비활성)
 const bendStrUniform = { value: 0.6 };          // 수평 밀어내기 세기
 const bendDownUniform = { value: 0.35 };        // 눌림(아래로)
-/** 바람 흔들림 + 플레이어 밴드 셰이더를 임의 머티리얼에 주입. 기존 onBeforeCompile 은 보존(체인).
+const partStrUniform = { value: 0.55 };         // 덤불 '갈라짐' 세기(수평, 안 눕힘)
+/** 플레이어 인터랙션 모드:
+ *  'bend'  = 풀/꽃 — 밑동 기준 한 방향으로 눕기(+살짝 눌림).
+ *  'part'  = 덤불 — 정점별 수평으로 플레이어 반대 방향으로 벌어짐(밑동 고정, 안 눕음). 지나가면 닫힘.
+ *  false   = 인터랙션 없음(바람만). */
+type InteractMode = 'bend' | 'part' | false;
+/** 바람 흔들림 + 플레이어 인터랙션 셰이더를 임의 머티리얼에 주입. 기존 onBeforeCompile 은 보존(체인).
  *  Standard/Phong/Lambert 등 begin_vertex·project_vertex 청크를 쓰는 lit 머티리얼이면 동작(에셋 식생 포함). */
-function injectWindBend<T extends THREE.Material>(mat: T, amt: number, bend = true): T {
+function injectWindBend<T extends THREE.Material>(mat: T, amt: number, interact: InteractMode = 'bend'): T {
   const amtU = { value: amt };
   const prev = mat.onBeforeCompile;
   mat.onBeforeCompile = (shader, renderer) => {
@@ -101,12 +114,18 @@ function injectWindBend<T extends THREE.Material>(mat: T, amt: number, bend = tr
     shader.uniforms.uWindAmt = amtU;
     shader.uniforms.uWindStr = windStrUniform;
     let header = 'uniform float uWindTime;\nuniform float uWindAmt;\nuniform float uWindStr;\n';
-    if (bend) {
+    if (interact) {
       shader.uniforms.uPlayer = playerPosUniform;
       shader.uniforms.uPlayerR = playerRUniform;
-      shader.uniforms.uBendStr = bendStrUniform;
-      shader.uniforms.uBendDown = bendDownUniform;
-      header += 'uniform vec3 uPlayer;\nuniform float uPlayerR;\nuniform float uBendStr;\nuniform float uBendDown;\n';
+      header += 'uniform vec3 uPlayer;\nuniform float uPlayerR;\n';
+      if (interact === 'part') {
+        shader.uniforms.uPartStr = partStrUniform;
+        header += 'uniform float uPartStr;\n';
+      } else {
+        shader.uniforms.uBendStr = bendStrUniform;
+        shader.uniforms.uBendDown = bendDownUniform;
+        header += 'uniform float uBendStr;\nuniform float uBendDown;\n';
+      }
     }
     shader.vertexShader = header + shader.vertexShader
       .replace('#include <begin_vertex>',
@@ -119,10 +138,30 @@ function injectWindBend<T extends THREE.Material>(mat: T, amt: number, bend = tr
       float wsw = position.y * uWindAmt * uWindStr;
       transformed.x += sin(uWindTime * 1.6 + wph) * wsw;
       transformed.z += cos(uWindTime * 1.25 + wph) * wsw * 0.6;`);
-    if (!bend) return;
-    // project_vertex 를 확장 — instanceMatrix 적용 후 "월드공간"에서 플레이어 발 주변을 밀어냄/눌림.
-    // 휨 방향·세기는 정점이 아니라 "인스턴스 밑동"(_wb) 기준 — 전 정점이 같은 방향으로 기울어 밑동을 축으로 눕는다.
-    // (정점 기준으로 하면 플레이어가 식생 중앙에 서면 꽃잎이 사방으로 퍼져 풍선처럼 커짐.)
+    if (!interact) return;
+    // project_vertex 확장 — instanceMatrix 적용 후 "월드공간"에서 플레이어 발 주변 변형.
+    const partBlock = `
+        vec2 _toP = _wp.xz - uPlayer.xz;              // 정점(개별)→플레이어 반대 — 정점마다 달라 "갈라짐"
+        float _pd = length(_toP);
+        float _infl = 1.0 - smoothstep(0.0, uPlayerR, _pd);
+        if (_infl > 0.0) {
+          float _ph = max(0.0, _wp.y - _wb.y);        // 밑동 고정(0), 위로 갈수록 더 벌어짐
+          vec2 _pdir = _toP / max(_pd, 1e-3);
+          _wp.x += _pdir.x * _infl * uPartStr * (0.25 + _ph);  // 수평으로만 벌림(안 눕힘)
+          _wp.z += _pdir.y * _infl * uPartStr * (0.25 + _ph);
+        }`;
+    // 밴드(눕기): 휨 방향은 정점이 아니라 "인스턴스 밑동"(_wb) 기준 — 전 정점이 같은 방향으로 기울어 밑동 축으로 눕는다.
+    const bendBlock = `
+        vec2 _toP = _wb.xz - uPlayer.xz;              // 밑동→플레이어 반대 방향(인스턴스 공통)
+        float _pd = length(_toP);
+        float _infl = 1.0 - smoothstep(0.0, uPlayerR, _pd);
+        if (_infl > 0.0) {
+          float _ph = max(0.0, _wp.y - _wb.y);        // 밑동 기준 높이(위일수록 더 눕음)
+          vec2 _pdir = _toP / max(_pd, 1e-3);
+          _wp.x += _pdir.x * _infl * uBendStr * _ph;  // 식생 전체가 한 방향으로 눕음(풍선 X)
+          _wp.z += _pdir.y * _infl * uBendStr * _ph;
+          _wp.y -= _infl * uBendDown * _ph;           // 살짝 눌림
+        }`;
     shader.vertexShader = shader.vertexShader
       .replace('#include <project_vertex>',
       `vec4 mvPosition = vec4( transformed, 1.0 );
@@ -139,16 +178,7 @@ function injectWindBend<T extends THREE.Material>(mat: T, amt: number, bend = tr
         #else
           vec4 _wb = modelMatrix * vec4(0.0, 0.0, 0.0, 1.0);
         #endif
-        vec2 _toP = _wb.xz - uPlayer.xz;              // 밑동→플레이어 반대 방향(인스턴스 공통)
-        float _pd = length(_toP);
-        float _infl = 1.0 - smoothstep(0.0, uPlayerR, _pd);
-        if (_infl > 0.0) {
-          float _ph = max(0.0, _wp.y - _wb.y);        // 밑동 기준 높이(위일수록 더 눕음)
-          vec2 _pdir = _toP / max(_pd, 1e-3);
-          _wp.x += _pdir.x * _infl * uBendStr * _ph;  // 식생 전체가 한 방향으로 눕음(풍선 X)
-          _wp.z += _pdir.y * _infl * uBendStr * _ph;
-          _wp.y -= _infl * uBendDown * _ph;           // 살짝 눌림
-        }
+        ${interact === 'part' ? partBlock : bendBlock}
       }
       mvPosition = viewMatrix * _wp;
       gl_Position = projectionMatrix * mvPosition;`);
@@ -156,8 +186,8 @@ function injectWindBend<T extends THREE.Material>(mat: T, amt: number, bend = tr
   mat.needsUpdate = true;
   return mat;
 }
-function makeWindMaterial(amt: number, props: THREE.MeshStandardMaterialParameters): THREE.MeshStandardMaterial {
-  return injectWindBend(new THREE.MeshStandardMaterial(props), amt);
+function makeWindMaterial(amt: number, props: THREE.MeshStandardMaterialParameters, interact: InteractMode = 'bend'): THREE.MeshStandardMaterial {
+  return injectWindBend(new THREE.MeshStandardMaterial(props), amt, interact);
 }
 
 /** 로컬 플레이어 위치를 풀 셰이더로 — 매 프레임 envFx.playerPos 갱신(반경 활성). */
@@ -195,6 +225,7 @@ function colorFor(k: FoliageInstance['k'], it: FoliageInstance): THREE.Color | n
   if (k === 'grass') { const n2 = hashNoise(it.z * 2.1, it.x * 0.9); return _c.setRGB(0.78 + n * 0.34, 0.86 + n2 * 0.26, 0.72 + n * 0.3); }
   if (k === 'flower') return _c.set(FLOWER_PALETTE[Math.floor(n * FLOWER_PALETTE.length) % FLOWER_PALETTE.length]);
   if (k === 'rock') { const v = 0.45 + n * 0.32; return _c.setRGB(v, v * 0.98, v * 0.92); }
+  if (k === 'bush') { const n2 = hashNoise(it.z * 1.9, it.x * 1.1); return _c.setRGB(0.78 + n * 0.28, 0.9 + n2 * 0.18, 0.72 + n * 0.24); }   // 초록 밝기 변주
   return null;
 }
 
@@ -322,7 +353,7 @@ const _foliagePartsCache = new Map<string, Promise<FoliageParts>>();
  *  - 양면(DoubleSide): 단면 잎 카드가 backface 컬링돼 컬러에서 안 보이는 문제 해결(절대 가려지지 않음).
  *  - 원래 "투명(블렌딩)"이던 잎만 alphaTest 컷아웃으로 전환 — 인스턴싱은 블렌딩 정렬이 안 되므로.
  *    ⚠ 불투명(OPAQUE) 머티리얼엔 alphaTest 를 절대 걸지 않는다(알파 채널이 0/무의미해 통째로 사라짐). */
-type SwayMode = 'bend' | 'wind' | false;
+type SwayMode = 'bend' | 'wind' | 'part' | false;
 /** 사용자 지정 앨베도 텍스처를 머티리얼 map 으로 — 모델에 텍스처 없어 흰색일 때 직접 색 입히기. */
 function applyFoliageAlbedo(mat: THREE.Material | THREE.Material[], tex: THREE.Texture): THREE.Material | THREE.Material[] {
   const apply = (m: THREE.Material): THREE.Material => {
@@ -351,7 +382,8 @@ function prepFoliageMaterial(mat: THREE.Material | THREE.Material[], sway: SwayM
     }
     // 'bend' 풀/꽃 → 바람 흔들림 + 플레이어 밴드(밑동 고정, 위로 갈수록 눕음)
     // 'wind' 나무 → 약한 바람 흔들림만(밴드 X — 큰 나무가 플레이어 쪽으로 눕는 건 부자연스러움)
-    if (sway === 'bend') injectWindBend(m, 0.06, true);
+    if (sway === 'bend') injectWindBend(m, 0.06, 'bend');
+    else if (sway === 'part') injectWindBend(m, 0.04, 'part');   // 덤불 — 갈라짐(안 눕음)
     else if (sway === 'wind') injectWindBend(m, 0.025, false);
     m.needsUpdate = true;
     return m;
@@ -641,22 +673,25 @@ export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
   const trees = useMemo(() => foliage.filter(f => f.k === 'tree'), [foliage]);
   const flowers = useMemo(() => foliage.filter(f => f.k === 'flower'), [foliage]);
   const rocks = useMemo(() => foliage.filter(f => f.k === 'rock'), [foliage]);
+  const bushes = useMemo(() => foliage.filter(f => f.k === 'bush'), [foliage]);
 
   const grassGeo = useMemo(() => buildGrassGeo(), []);
   const flowerGeo = useMemo(() => buildFlowerGeo(), []);
   const trunkGeo = useMemo(() => buildTrunkGeo(), []);
   const canopyGeo = useMemo(() => buildCanopyGeo(), []);
   const rockGeo = useMemo(() => buildRockGeo(), []);
-  // 풀/꽃: 바람 흔들림 셰이더. 나무/돌: 정적.
+  const bushGeo = useMemo(() => buildBushGeo(), []);
+  // 풀/꽃: 바람+눕기. 덤불: 바람+갈라짐(안 눕음). 나무/돌: 정적.
   const grassMat = useMemo(() => makeWindMaterial(0.16, { vertexColors: true, side: THREE.DoubleSide, roughness: 1, metalness: 0 }), []);
   const flowerMat = useMemo(() => makeWindMaterial(0.12, { vertexColors: true, side: THREE.DoubleSide, roughness: 1, metalness: 0 }), []);
   const trunkMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#6b4a2b', roughness: 0.95, metalness: 0 }), []);
   const canopyMat = useMemo(() => injectWindBend(new THREE.MeshStandardMaterial({ color: '#2f6b25', roughness: 1, metalness: 0 }), 0.012, false), []);  // 잎만 약한 바람(밴드 X)
   const rockMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#9a9a96', roughness: 1, metalness: 0, flatShading: true }), []);
+  const bushMat = useMemo(() => makeWindMaterial(0.04, { color: '#3e7a30', roughness: 1, metalness: 0 }, 'part'), []);   // 덤불 — 갈라짐 인터랙션
   useEffect(() => () => {
-    grassGeo.dispose(); flowerGeo.dispose(); trunkGeo.dispose(); canopyGeo.dispose(); rockGeo.dispose();
-    grassMat.dispose(); flowerMat.dispose(); trunkMat.dispose(); canopyMat.dispose(); rockMat.dispose();
-  }, [grassGeo, flowerGeo, trunkGeo, canopyGeo, rockGeo, grassMat, flowerMat, trunkMat, canopyMat, rockMat]);
+    grassGeo.dispose(); flowerGeo.dispose(); trunkGeo.dispose(); canopyGeo.dispose(); rockGeo.dispose(); bushGeo.dispose();
+    grassMat.dispose(); flowerMat.dispose(); trunkMat.dispose(); canopyMat.dispose(); rockMat.dispose(); bushMat.dispose();
+  }, [grassGeo, flowerGeo, trunkGeo, canopyGeo, rockGeo, bushGeo, grassMat, flowerMat, trunkMat, canopyMat, rockMat, bushMat]);
 
   // 공유 바람 시계 + 플레이어 인터랙션 위치/반경 갱신 (공유 유니폼이라 1회 갱신으로 전 풀에 반영).
   // 바람 컴포넌트(G.active>0)가 있으면 그 세기/속도를 따르고, 없으면 기본 미풍(세기 1·속도 1)으로 폴백.
@@ -675,6 +710,7 @@ export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
   const flowerV = useMemo(() => foliageVariantsOf(fa, 'flower'), [fa]);
   const treeV = useMemo(() => foliageVariantsOf(fa, 'tree'), [fa]);
   const rockV = useMemo(() => foliageVariantsOf(fa, 'rock'), [fa]);
+  const bushV = useMemo(() => foliageVariantsOf(fa, 'bush'), [fa]);
   // 개체를 variant 별로 나눠 각 모델로 인스턴싱. variant 는 위치 해시로 결정(안정적·렌더/콜라이더 일치).
   const assetCat = (variants: FoliageVariant[], items: FoliageInstance[], cast: boolean, sway: SwayMode, cull = false, margin = FOLIAGE_CULL_MARGIN) =>
     variants.map((v, vi) => {
@@ -698,6 +734,9 @@ export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
           </>)}
       {rockV.length ? assetCat(rockV, rocks, true, false, true, 8)
         : <Instanced items={rocks} geo={rockGeo} mat={rockMat} t={t} base={1} cast receive={false} vary="rock" cull margin={8} />}
+      {/* 덤불: 그림자 던짐 + 콜라이더 없음(통과) + 'part'(지나가면 갈라짐, 안 눕음) + 컬링 margin 10 */}
+      {bushV.length ? assetCat(bushV, bushes, true, 'part', true, 10)
+        : <Instanced items={bushes} geo={bushGeo} mat={bushMat} t={t} base={1} cast receive={false} vary="bush" cull margin={10} />}
     </>
   );
 }

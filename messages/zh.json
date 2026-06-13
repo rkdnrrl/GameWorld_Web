@@ -1292,6 +1292,7 @@
       "foliage_flower": "花",
       "foliage_tree": "树",
       "foliage_rock": "石",
+      "foliage_bush": "灌木",
       "foliage_default_shape": "默认形状",
       "foliage_drop_hint": "拖入模型",
       "foliage_clear": "清除",

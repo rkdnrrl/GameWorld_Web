@@ -15,11 +15,11 @@ import { type ThreeEvent } from '@react-three/fiber';
 import { normalizeTerrain, type TerrainData, type FoliageInstance } from './terrain';
 import { FoliageInstances } from './FoliageInstances';
 
-export type TerrainTool = 'raise' | 'lower' | 'smooth' | 'flatten' | 'grass' | 'tree' | 'flower' | 'rock' | 'erase';
-const FOLIAGE_TOOLS = new Set<TerrainTool>(['grass', 'tree', 'flower', 'rock', 'erase']);
+export type TerrainTool = 'raise' | 'lower' | 'smooth' | 'flatten' | 'grass' | 'tree' | 'flower' | 'rock' | 'bush' | 'erase';
+const FOLIAGE_TOOLS = new Set<TerrainTool>(['grass', 'tree', 'flower', 'rock', 'bush', 'erase']);
 // 흩뿌리기(밀집) vs 간격 배치(드문드문).
 const SCATTER_TOOLS = new Set<TerrainTool>(['grass', 'flower']);
-const SPACED_TOOLS = new Set<TerrainTool>(['tree', 'rock']);
+const SPACED_TOOLS = new Set<TerrainTool>(['tree', 'rock', 'bush']);
 const TAU = Math.PI * 2;
 
 interface Props {
@@ -150,8 +150,9 @@ export function TerrainSculptMesh({ terrain, worldPos, tool, radius, strength, o
   // 종류별 상한 + 간격(드문드문 배치용) + 크기 변주 범위.
   // 풀·꽃은 InstancedMesh(종류당 1 draw call)라 대량도 가벼움 → 브러시로 계속 심을 수 있게 상한 크게.
   // 나무·돌은 콜라이더+그림자라 무거워 보수적으로 유지.
-  const FOL_CAP: Record<string, number> = { grass: 50000, flower: 30000, tree: 400, rock: 300 };
-  const FOL_SPACING: Record<string, number> = { tree: 2.2, rock: 1.4 };
+  // 덤불은 그림자 던지지만 frustum 컬링돼서 나무보단 넉넉히. 간격 0.9(덤불끼리 살짝 겹치게).
+  const FOL_CAP: Record<string, number> = { grass: 50000, flower: 30000, tree: 400, rock: 300, bush: 4000 };
+  const FOL_SPACING: Record<string, number> = { tree: 2.2, rock: 1.4, bush: 0.9 };
   const paintFoliage = (worldX: number, worldZ: number) => {
     const lx0 = worldX - worldPos[0], lz0 = worldZ - worldPos[2];
     const arr = foliageRef.current;
@@ -165,14 +166,14 @@ export function TerrainSculptMesh({ terrain, worldPos, tool, radius, strength, o
     const now = Date.now();
     if (now - lastPaintRef.current < 35) return;
     lastPaintRef.current = now;
-    const k = tool as 'grass' | 'flower' | 'tree' | 'rock';
+    const k = tool as 'grass' | 'flower' | 'tree' | 'rock' | 'bush';
     if (arr.filter(f => f.k === k).length >= (FOL_CAP[k] ?? 2000)) return;
     const spaced = SPACED_TOOLS.has(tool);
     const spacing = FOL_SPACING[k] ?? 0;
     // 흩뿌리기는 세기만큼 여러 개, 간격 배치는 한 번에 1개(밀도 게이트로 솎음).
     const count = spaced ? 1 : (k === 'flower' ? Math.max(1, Math.round(strength * 3)) : Math.max(1, Math.round(strength * 6)));
-    const sLo = k === 'tree' ? 0.8 : k === 'rock' ? 0.6 : 0.7;
-    const sRange = k === 'rock' ? 0.8 : k === 'flower' ? 0.5 : 0.6;
+    const sLo = k === 'tree' ? 0.8 : k === 'rock' ? 0.6 : k === 'bush' ? 0.6 : 0.7;
+    const sRange = k === 'rock' ? 0.8 : k === 'flower' ? 0.5 : k === 'bush' ? 0.6 : 0.6;
     const added: FoliageInstance[] = [];
     for (let i = 0; i < count; i++) {
       // 브러시 원 안 균일 분포.

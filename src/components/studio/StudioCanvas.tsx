@@ -8434,7 +8434,7 @@ export default function StudioCanvas() {
                 </div>
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ opacity: 0.7, fontSize: 11, fontWeight: 700 }}>{tCanvas("section_terrain_foliage_assets")}</div>
-                  {(['grass', 'flower', 'tree', 'rock'] as const).map(fk => {
+                  {(['grass', 'flower', 'bush', 'tree', 'rock'] as const).map(fk => {
                     const variants = foliageVariantsOf(selected.terrain!.foliageAssets, fk);
                     // 종류별 variant 배열 통째 갱신(비면 키 삭제 → 절차적 기본 모양).
                     const writeVariants = (next: FoliageVariant[]) => {
@@ -9574,7 +9574,7 @@ export default function StudioCanvas() {
             { id: 'smooth', label: '🌫️ 부드럽게' }, { id: 'flatten', label: '▭ 평탄화' },
           ];
           const foliageTools: { id: TerrainTool; label: string }[] = [
-            { id: 'grass', label: '🌿 풀' }, { id: 'flower', label: '🌸 꽃' }, { id: 'tree', label: '🌳 나무' }, { id: 'rock', label: '🪨 돌' }, { id: 'erase', label: '🧹 지우개' },
+            { id: 'grass', label: '🌿 풀' }, { id: 'flower', label: '🌸 꽃' }, { id: 'bush', label: '🪴 덤불' }, { id: 'tree', label: '🌳 나무' }, { id: 'rock', label: '🪨 돌' }, { id: 'erase', label: '🧹 지우개' },
           ];
           return (
             <div style={{ position: 'fixed', left: '50%', bottom: 16, transform: 'translateX(-50%)', zIndex: 51,
@@ -9594,7 +9594,7 @@ export default function StudioCanvas() {
                     background: terrainTool === tl.id ? '#22c55e' : 'rgba(255,255,255,0.08)', color: '#fff' }}>{tl.label}</button>
               ))}
               {/* 식생 페인트 도구 선택 시 — 등록된 에셋 중 무엇으로 칠할지 고르기. 랜덤=위치 해시로 자동 섞기. */}
-              {terrainTool && (['grass', 'flower', 'tree', 'rock'] as TerrainTool[]).includes(terrainTool) && (() => {
+              {terrainTool && (['grass', 'flower', 'bush', 'tree', 'rock'] as TerrainTool[]).includes(terrainTool) && (() => {
                 const fk = terrainTool as FoliageInstance['k'];
                 const vs = foliageVariantsOf(selObj.terrain?.foliageAssets, fk);
                 return (
