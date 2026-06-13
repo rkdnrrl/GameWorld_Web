@@ -9466,13 +9466,13 @@ export default function StudioCanvas() {
         {!simulating && (
           <>
             <button type="button" onClick={() => setGfxOpen(v => !v)} title="그래픽 설정"
-              style={{ position: 'fixed', top: 70, right: 16, zIndex: 52, width: 38, height: 38, borderRadius: '50%',
+              style={{ position: 'fixed', top: 70, right: 16, zIndex: 99998, width: 38, height: 38, borderRadius: '50%',
                 background: gfxOpen ? '#4f46e5' : 'rgba(20,20,28,0.9)', border: '1px solid #333', color: '#fff',
                 fontSize: 17, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}>
               ⚙️
             </button>
             {gfxOpen && (
-              <div style={{ position: 'fixed', top: 114, right: 16, zIndex: 52, width: 280, maxHeight: '70vh', overflowY: 'auto',
+              <div style={{ position: 'fixed', top: 114, right: 16, zIndex: 99998, width: 280, maxHeight: '70vh', overflowY: 'auto',
                 background: 'rgba(15,23,42,0.94)', backdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,0.1)',
                 borderRadius: 14, padding: 16, boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>
                 <GraphicsPanel mode="embedded" settings={graphicsSettings} updateSettings={updateGraphics} applyPreset={applyGraphicsPreset} />
