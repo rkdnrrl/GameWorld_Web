@@ -361,6 +361,12 @@ function applyFoliageAlbedo(mat: THREE.Material | THREE.Material[], tex: THREE.T
     sm.map = tex;
     if (sm.color) sm.color.set('#ffffff');     // map 이 곱해지므로 베이스는 흰색
     sm.vertexColors = false;                    // 텍스처 우선(버텍스컬러와 곱해 칙칙해지지 않게)
+    // 알파 컷아웃 — 잎/덤불 텍스처(투명 PNG)가 안 잘려 흰 카드로 폭발하는 것 방지(유니티 Alpha Clip).
+    // resolveMeshMaterial(부위별 경로)과 동일. 불투명 텍스처(알파=1)엔 무영향. instancing 은 블렌딩 정렬 안 돼 컷아웃 필수.
+    sm.alphaTest = Math.max(sm.alphaTest || 0, 0.5);
+    sm.transparent = false;
+    sm.depthWrite = true;
+    sm.side = THREE.DoubleSide;
     sm.needsUpdate = true;
     return m;
   };
