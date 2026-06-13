@@ -3536,7 +3536,7 @@ function StartupPerfDiag() {
     let obs: PerformanceObserver | null = null;
     const handle = (list: PerformanceObserverEntryList) => {
       for (const e of list.getEntries()) {
-        if (e.duration < 80) continue;
+        if (e.duration < 50) continue;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const ee = e as any;
         const scripts = (ee.scripts || []).map((s: Record<string, unknown>) =>
@@ -3550,13 +3550,13 @@ function StartupPerfDiag() {
     } catch {
       try { obs = new PerformanceObserver(handle); obs.observe({ type: 'longtask', buffered: true } as PerformanceObserverInit); } catch { /* unsupported */ }
     }
-    const id = setTimeout(() => obs?.disconnect(), 20000);
+    const id = setTimeout(() => obs?.disconnect(), 45000);
     return () => { clearTimeout(id); obs?.disconnect(); };
   }, []);
   useFrame((_, delta) => {
     if (done.current) return;
     el.current += delta;
-    if (el.current > 12) { done.current = true; console.log('[diag] 진단 종료(12s)'); return; }
+    if (el.current > 45) { done.current = true; console.log('[diag] 진단 종료(45s)'); return; }
     const ms = delta * 1000;
     if (ms > worst.current) worst.current = ms;
     count.current++;
