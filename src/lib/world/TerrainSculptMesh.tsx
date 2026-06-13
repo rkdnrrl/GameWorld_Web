@@ -35,11 +35,13 @@ interface Props {
   onCommit: (heights: number[]) => void;
   /** 풀/나무/지우개 도구 — 드래그 끝나면 수정된 foliage 배열 전달. */
   onFoliageCommit?: (foliage: FoliageInstance[]) => void;
+  /** 칠할 에셋 variant 인덱스 (foliageAssets[k] 기준). undefined = 위치 해시로 랜덤 선택. */
+  variant?: number;
   /** 드래그 시작/종료 알림 — OrbitControls 등 비활성화용. */
   onActiveChange?: (active: boolean) => void;
 }
 
-export function TerrainSculptMesh({ terrain, worldPos, tool, radius, strength, onCommit, onFoliageCommit, onActiveChange }: Props) {
+export function TerrainSculptMesh({ terrain, worldPos, tool, radius, strength, onCommit, onFoliageCommit, variant, onActiveChange }: Props) {
   const t = normalizeTerrain(terrain);
   // 작업용 높이 복사본 — geom 의 정점 index 와 1:1.
   const heightsRef = useRef<number[]>(t.heights.slice());
@@ -182,7 +184,7 @@ export function TerrainSculptMesh({ terrain, worldPos, tool, radius, strength, o
         const near = arr.concat(added).some(f => f.k === k && (f.x - lx) ** 2 + (f.z - lz) ** 2 < sp2);
         if (near) continue; // 최소 간격
       }
-      added.push({ k, x: lx, z: lz, s: sLo + Math.random() * sRange, r: Math.random() * TAU });
+      added.push({ k, x: lx, z: lz, s: sLo + Math.random() * sRange, r: Math.random() * TAU, ...(variant != null ? { v: variant } : {}) });
     }
     if (added.length) {
       foliageRef.current = arr.concat(added);

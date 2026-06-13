@@ -1645,7 +1645,7 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false, scul
   assetConfig?: any;
   noTransform?: boolean;
   /** 터레인 조각 설정 — 활성이고 이 터레인이 선택됐을 때 sculpt 메시로 교체. */
-  sculpt?: { tool: import('@/lib/world/TerrainSculptMesh').TerrainTool; radius: number; strength: number; onCommit: (heights: number[]) => void; onFoliageCommit?: (foliage: import('@/lib/world/terrain').FoliageInstance[]) => void; onActiveChange?: (a: boolean) => void };
+  sculpt?: { tool: import('@/lib/world/TerrainSculptMesh').TerrainTool; radius: number; strength: number; onCommit: (heights: number[]) => void; onFoliageCommit?: (foliage: import('@/lib/world/terrain').FoliageInstance[]) => void; variant?: number; onActiveChange?: (a: boolean) => void };
   /** 터레인 조각 좌표 변환용 월드 위치 (SceneNode wpos). */
   worldPos?: [number, number, number];
   /** 글로벌 바람 대상이면 true (AssetMesh 가 compileAsync 전에 바람 셰이더 미리 패치). */
@@ -1716,7 +1716,7 @@ function Mesh3D({ obj, selected, onClick, assetConfig, noTransform = false, scul
           userData={noTransform ? undefined : { id: obj.id }}>
           <TerrainSculptMesh terrain={obj.terrain} worldPos={worldPos ?? obj.position}
             tool={sculpt.tool} radius={sculpt.radius} strength={sculpt.strength}
-            onCommit={sculpt.onCommit} onFoliageCommit={sculpt.onFoliageCommit} onActiveChange={sculpt.onActiveChange} />
+            onCommit={sculpt.onCommit} onFoliageCommit={sculpt.onFoliageCommit} variant={sculpt.variant} onActiveChange={sculpt.onActiveChange} />
         </group>
       );
     }
@@ -2193,7 +2193,7 @@ function SceneNode({ obj, wpos, wrot, wscale, selectedId, multiSelectedIds, onOb
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   myAssets: any[];
   /** 터레인 조각 설정 (선택 터레인일 때만 전달). */
-  sculpt?: { tool: TerrainTool; radius: number; strength: number; onCommit: (heights: number[]) => void; onFoliageCommit?: (foliage: FoliageInstance[]) => void; onActiveChange?: (a: boolean) => void };
+  sculpt?: { tool: TerrainTool; radius: number; strength: number; onCommit: (heights: number[]) => void; onFoliageCommit?: (foliage: FoliageInstance[]) => void; variant?: number; onActiveChange?: (a: boolean) => void };
   /** 글로벌 바람 — 모든 asset 모델을 흔듦 (없으면 null). */
   globalWind?: WindSettings | null;
 }) {
@@ -4784,6 +4784,9 @@ export default function StudioCanvas() {
   const [brushSize, setBrushSize] = useState(5);
   const [brushStrength, setBrushStrength] = useState(0.3);
   const [sculptDragging, setSculptDragging] = useState(false);
+  // 식생 페인트 시 칠할 에셋 variant 인덱스 (null = 랜덤/기본 모양). 도구 바뀌면 초기화.
+  const [foliageVariant, setFoliageVariant] = useState<number | null>(null);
+  useEffect(() => { setFoliageVariant(null); }, [terrainTool]);
   // 선택이 터레인이 아니면 조각 도구 해제 (카메라 잠금 방지).
   useEffect(() => {
     const sel = objects.find(o => o.id === selectedId);
@@ -8475,7 +8478,7 @@ export default function StudioCanvas() {
                     onClick={() => {
                       const cur = selected.terrain!;
                       const half = cur.size / 2;
-                      // 거리 컬링(카메라 근처만 렌더)이 있어 많이 심어도 성능 고정 → 밀도·상한 크게.
+                      // 풀·꽃은 InstancedMesh(종류당 1 draw call)라 대량도 가벼움 → 밀도·상한 크게.
                       const count = Math.min(20000, Math.round(cur.size * cur.size * 1.2));
                       const next = (cur.foliage || []).filter(f => f.k === 'tree' || f.k === 'rock');
                       for (let i = 0; i < count; i++) {
@@ -9274,6 +9277,7 @@ export default function StudioCanvas() {
                         pushHistory(objects);
                         setObjects(prev => prev.map(o => o.id === obj.id && o.terrain ? { ...o, terrain: { ...o.terrain, foliage } } : o));
                       },
+                      variant: foliageVariant ?? undefined,
                       onActiveChange: setSculptDragging,
                     } : undefined}
                     onObjectClick={id => {
@@ -9558,6 +9562,28 @@ export default function StudioCanvas() {
                   style={{ padding: '5px 10px', borderRadius: 7, border: 'none', cursor: 'pointer', fontWeight: 700,
                     background: terrainTool === tl.id ? '#22c55e' : 'rgba(255,255,255,0.08)', color: '#fff' }}>{tl.label}</button>
               ))}
+              {/* 식생 페인트 도구 선택 시 — 등록된 에셋 중 무엇으로 칠할지 고르기. 랜덤=위치 해시로 자동 섞기. */}
+              {terrainTool && (['grass', 'flower', 'tree', 'rock'] as TerrainTool[]).includes(terrainTool) && (() => {
+                const fk = terrainTool as FoliageInstance['k'];
+                const vs = foliageVariantsOf(selObj.terrain?.foliageAssets, fk);
+                return (
+                  <div style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'center', borderTop: '1px solid #3a3a44', paddingTop: 6 }}>
+                    <span style={{ opacity: 0.7 }}>에셋</span>
+                    <button onClick={() => setFoliageVariant(null)}
+                      style={{ padding: '4px 9px', borderRadius: 6, border: 'none', cursor: 'pointer', fontWeight: 700,
+                        background: foliageVariant === null ? '#22c55e' : 'rgba(255,255,255,0.08)', color: '#fff' }}>🎲 랜덤</button>
+                    {vs.map((v, vi) => {
+                      const name = myAssets.find(a => a.modelUrl === v.url)?.name || '기본 모양';
+                      return (
+                        <button key={vi + '|' + v.url} onClick={() => setFoliageVariant(vi)} title={name}
+                          style={{ padding: '4px 9px', borderRadius: 6, border: 'none', cursor: 'pointer', fontWeight: 700, maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            background: foliageVariant === vi ? '#22c55e' : 'rgba(255,255,255,0.08)', color: '#fff' }}>{name}</button>
+                      );
+                    })}
+                    {vs.length === 0 && <span style={{ opacity: 0.5, fontSize: 11 }}>인스펙터 🌿 식생 에셋에 모델을 추가하면 선택할 수 있어요</span>}
+                  </div>
+                );
+              })()}
               <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>크기
                 <input type="range" min={1} max={20} step={0.5} value={brushSize} onChange={e => setBrushSize(Number(e.target.value))} style={{ width: 90 }} />{brushSize}m</label>
               <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>세기

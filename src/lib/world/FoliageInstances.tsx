@@ -22,7 +22,7 @@ import { RigidBody, CapsuleCollider, CuboidCollider, ConvexHullCollider } from '
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore — three 예제(번들 타입 없음). 모델당 1회 볼록껍질 선계산용.
 import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
-import { normalizeTerrain, sampleTerrainHeight, foliageVariantsOf, foliageVariantIndex, type TerrainData, type FoliageInstance, type FoliageVariant } from './terrain';
+import { normalizeTerrain, sampleTerrainHeight, foliageVariantsOf, resolveVariantIndex, type TerrainData, type FoliageInstance, type FoliageVariant } from './terrain';
 import { loadStaticModelCached } from './modelLoader';
 import { resolveMeshMaterial, type MaterialOverrides, type LoadTexFn } from './materialOverride';
 import { envFx } from './envFx';
@@ -482,12 +482,12 @@ export function TreeRockColliders({ terrain }: { terrain: TerrainData }) {
   const rockHulls = useHullMap(rockUrls, false);
 
   const items = useMemo(() => {
-    const trees: { x: number; y: number; z: number; r: number; s: number }[] = [];
-    const rocks: { x: number; y: number; z: number; r: number; s: number }[] = [];
+    const trees: { x: number; y: number; z: number; r: number; s: number; v?: number }[] = [];
+    const rocks: { x: number; y: number; z: number; r: number; s: number; v?: number }[] = [];
     for (const f of t.foliage || []) {
       const base = sampleTerrainHeight(t, f.x, f.z);
-      if (f.k === 'tree') trees.push({ x: f.x, y: base, z: f.z, r: f.r, s: f.s });
-      else if (f.k === 'rock') rocks.push({ x: f.x, y: base, z: f.z, r: f.r, s: f.s });
+      if (f.k === 'tree') trees.push({ x: f.x, y: base, z: f.z, r: f.r, s: f.s, v: f.v });
+      else if (f.k === 'rock') rocks.push({ x: f.x, y: base, z: f.z, r: f.r, s: f.s, v: f.v });
     }
     return { trees, rocks };
   }, [t]);
@@ -496,7 +496,7 @@ export function TreeRockColliders({ terrain }: { terrain: TerrainData }) {
     <RigidBody type="fixed" colliders={false}>
       {items.trees.map((f, i) => {
         if (treeVariants.length) {              // 에셋 나무 — variant 별 줄기 볼록 껍질
-          const v = treeVariants[foliageVariantIndex(f.x, f.z, treeVariants.length)];
+          const v = treeVariants[resolveVariantIndex({ k: 'tree', x: f.x, z: f.z, s: f.s, r: f.r, v: f.v }, treeVariants.length)];
           const pts = treeHulls.get(v.url);
           if (!pts) return null;
           const es = f.s * (v.scale ?? 1);
@@ -507,7 +507,7 @@ export function TreeRockColliders({ terrain }: { terrain: TerrainData }) {
       })}
       {items.rocks.map((f, i) => {
         if (rockVariants.length) {              // 에셋 돌 — variant 별 전체 볼록 껍질
-          const v = rockVariants[foliageVariantIndex(f.x, f.z, rockVariants.length)];
+          const v = rockVariants[resolveVariantIndex({ k: 'rock', x: f.x, z: f.z, s: f.s, r: f.r, v: f.v }, rockVariants.length)];
           const pts = rockHulls.get(v.url);
           if (!pts) return null;
           const es = f.s * (v.scale ?? 1);
@@ -563,7 +563,7 @@ export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
   // 개체를 variant 별로 나눠 각 모델로 인스턴싱. variant 는 위치 해시로 결정(안정적·렌더/콜라이더 일치).
   const assetCat = (variants: FoliageVariant[], items: FoliageInstance[], cast: boolean, sway: SwayMode) =>
     variants.map((v, vi) => {
-      const bucket = variants.length === 1 ? items : items.filter(it => foliageVariantIndex(it.x, it.z, variants.length) === vi);
+      const bucket = variants.length === 1 ? items : items.filter(it => resolveVariantIndex(it, variants.length) === vi);
       if (!bucket.length) return null;
       return <AssetFoliageInstances key={vi + '|' + v.url} url={v.url} scale={v.scale ?? 1} overrides={v.overrides} textureUrl={v.textureUrl} items={bucket} t={t} cast={cast} sway={sway} />;
     });

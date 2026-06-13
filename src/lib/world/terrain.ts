@@ -20,6 +20,8 @@ export interface FoliageInstance {
   s: number;
   /** Y축 회전 (rad). */
   r: number;
+  /** 사용할 에셋 variant 인덱스 (foliageAssets[k] 배열 기준). 없으면 위치 해시로 자동 선택. */
+  v?: number;
 }
 
 export interface TerrainData {
@@ -89,6 +91,13 @@ export function foliageVariantIndex(x: number, z: number, n: number): number {
   if (n <= 1) return 0;
   const h = Math.sin(x * 49.17 + z * 19.93) * 43758.5453;
   return Math.floor((h - Math.floor(h)) * n) % n;
+}
+
+/** 개체가 쓸 variant 인덱스 — 명시값(it.v)이 유효하면 그걸, 아니면 위치 해시. 렌더·콜라이더 공용. */
+export function resolveVariantIndex(it: FoliageInstance, n: number): number {
+  if (n <= 1) return 0;
+  if (it.v != null && it.v >= 0 && it.v < n) return it.v;
+  return foliageVariantIndex(it.x, it.z, n);
 }
 
 /** terrain-local (lx,lz) 에서 heightmap 을 bilinear 샘플 → Y 높이 (m).
