@@ -2,7 +2,7 @@
 import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { OrbitControls, TransformControls, Grid, Environment, Edges, MeshReflectorMaterial } from '@react-three/drei';
+import { OrbitControls, TransformControls, Grid, Environment, Edges, MeshReflectorMaterial, PerformanceMonitor } from '@react-three/drei';
 import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
 import * as THREE from 'three';
 import { buildFolderTree, normalizeFolder } from '@/lib/assets/folders';
@@ -5189,6 +5189,12 @@ export default function StudioCanvas() {
   // World 에서 설정한 값을 그대로 따른다(고주사율 기기 에디터 절전). XR 없음 → XR 분기 불필요.
   const { settings: graphicsSettings } = useGraphicsSettings();
   const fpsCapActive = graphicsSettings.maxFps > 0;
+  // 적응형 DPR — FPS 가 지속적으로 떨어지면 해상도(dpr)를 자동으로 낮춰 프레임을 지킴(World 와 동일 패턴).
+  // 빠를 땐 선명(1.5), 느릴 땐 자동 절감. dprFactor 1→0.5 로 내려가며 device dpr 에 곱함, 상한 1.5.
+  const [dprFactor, setDprFactor] = useState(1);
+  const [perfReady, setPerfReady] = useState(false);   // 초기 로드 스파이크엔 DPR 고정(4s warmup) — 로드 중 dpr 변경=캔버스 재구성 깜빡 방지.
+  useEffect(() => { const id = setTimeout(() => setPerfReady(true), 4000); return () => clearTimeout(id); }, []);
+  const studioDpr = Math.min((typeof window !== 'undefined' ? window.devicePixelRatio : 1) * dprFactor, 1.5);
   // 맵 물리 — 빈 오브젝트의 World Physics 컴포넌트가 소스. 아래 gravityY/jumpPower 는
   // 구버전 맵(sceneSettings) 로드용 fallback. UI 패널은 제거됨(컴포넌트로 관리).
   const [gravityY, setGravityY]   = useState(-22);
@@ -9150,15 +9156,22 @@ export default function StudioCanvas() {
           shadows={{ enabled: true, type: THREE.PCFSoftShadowMap, autoUpdate: true }}
           camera={{ position: [8, 8, 8], fov: 50 }}
           frameloop={fpsCapActive ? 'never' : 'always'}
-          // DPR 2.0 은 고해상도 디스플레이에서 4배 픽셀(fill-rate 폭발) → 프레임 드랍. World 처럼 캡(1.5).
-          // 편집 정밀도 위해 World(1.25)보다 살짝 높게. 더 떨어지면 1.25 로 낮추면 됨.
-          dpr={[1, 1.5]}
+          // 적응형 DPR — 상한 1.5(고해상도 fill-rate 폭발 방지) + FPS 떨어지면 자동으로 더 낮춤(아래 PerformanceMonitor).
+          dpr={studioDpr}
           gl={{ alpha: true, antialias: true, powerPreference: 'high-performance', stencil: false, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: exposure }}
           onPointerMissed={() => {
             // 터레인 조각 도구 사용 중엔 빈 곳 클릭/브러시 드래그 해제로 선택이 풀리지 않게 (유니티식 — ESC 나 도구 버튼으로만 종료)
             if (!isGizmoActive() && !terrainTool) { setSelectedId(null); setStudioMode('scene'); }
           }}
         >
+          {/* 적응형 DPR — FPS 가 [45,60] 아래로 지속 떨어지면 dprFactor 를 낮춰 해상도↓ → 프레임 회복. warmup 후 활성. */}
+          {perfReady && (
+            <PerformanceMonitor bounds={() => [45, 60]} flipflops={6} iterations={12} ms={400}
+              onIncline={() => setDprFactor(1)}
+              onDecline={() => setDprFactor((f) => Math.max(0.5, f - 0.25))}
+              onFallback={() => setDprFactor(0.5)}
+            />
+          )}
           <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
           {fpsCapActive && <FpsLimiter fps={graphicsSettings.maxFps} />}
           <WorldAudio volume={graphicsSettings.sfxVolume} />
