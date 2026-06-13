@@ -6301,6 +6301,10 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
                         <VideoRemotePanel
                           registry={videoRegistry} targetId={firstId} videoUrl={curUrl}
                           width={rW} height={rH} offsetY={rOy}
+                          // 월드는 항상 플레이(아바타 조작) → 1·3인칭 모두 크로스헤어(화면 중앙)로 리모컨 클릭.
+                          // (1인칭은 pointer lock 으로도 잡히지만 3인칭은 lock 이 없어 명시로 켠다.)
+                          crosshairAim
+
                           onSeekBy={(d) => targetIds.forEach(tid => runVideoControl({ seekBy: d }, tid))}
                           onSeekTo={(t) => targetIds.forEach(tid => runVideoControl({ seekTo: t }, tid))}
                           onTogglePlay={(p) => targetIds.forEach(tid => runVideoControl({ playing: p }, tid))}

@@ -666,7 +666,7 @@ function hitTest(px: number, py: number): keyof typeof HIT | null {
   return null;
 }
 
-export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, height = 0.8, offsetY = 1, interactive = true, firstPerson = false, onSeekBy, onSeekTo, onTogglePlay, onChangeUrl, onSetVolume, onToggleMute }: {
+export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, height = 0.8, offsetY = 1, interactive = true, crosshairAim = false, onSeekBy, onSeekTo, onTogglePlay, onChangeUrl, onSetVolume, onToggleMute }: {
   registry: VideoRegistry;
   /** 비어 있으면 미리보기 모드 (조작 없이 시각화만). */
   targetId: string;
@@ -677,8 +677,9 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, he
   /** false 면 onPointerDown 안 받음 (스튜디오 편집뷰 미리보기). */
   interactive?: boolean;
   /** true 면 마우스 hover 위치 무시하고 화면 중앙 크로스헤어로만 클릭 받음.
-   *  pointer lock 안 쓰는 모드(스튜디오 시뮬 1인칭) 대응. 월드는 pointer lock 으로 자동 감지. */
-  firstPerson?: boolean;
+   *  pointer lock 안 쓰는 모드(스튜디오 시뮬·월드 3인칭)에서도 크로스헤어 클릭을 강제.
+   *  (월드 1인칭은 pointer lock 으로도 자동 감지되지만, 양쪽 일관성 위해 명시로 켠다.) */
+  crosshairAim?: boolean;
   onSeekBy: (delta: number) => void;
   onSeekTo: (t: number) => void;
   onTogglePlay: (play: boolean) => void;
@@ -772,7 +773,7 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, he
     }
   };
 
-  // 1인칭 크로스헤어 클릭 — pointer lock(PC) 또는 firstPerson prop(스튜디오 시뮬) 또는
+  // 크로스헤어 클릭 — pointer lock(PC 1인칭) 또는 crosshairAim prop(스튜디오 시뮬·월드 3인칭) 또는
   // alp:fp-tap(모바일 1인칭 탭) 모두 화면 중앙 raycaster 로 처리. mesh hit 시 handleUv.
   // 주의: capture phase X / stopPropagation X — 다른 1인칭 처리(오브젝트 클릭 등) 와 공존.
   const meshRef = useRef<THREE.Mesh>(null);
@@ -799,7 +800,7 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, he
       }
     };
     const onClick = (e: PointerEvent) => {
-      if (!document.pointerLockElement && !firstPerson) return;   // 일반 모드면 R3F 클릭이 처리
+      if (!document.pointerLockElement && !crosshairAim) return;   // 일반 모드면 R3F 클릭이 처리
       if (e.button !== 0) return;
       tryCrosshairHit();
     };
@@ -812,15 +813,15 @@ export function VideoRemotePanel({ registry, targetId, videoUrl, width = 1.6, he
       document.removeEventListener('alp:fp-tap', onMobileTap);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interactive, firstPerson, camera, targetId]);
+  }, [interactive, crosshairAim, camera, targetId]);
 
   return (
     <mesh
       ref={meshRef}
       position={[0, offsetY, 0]}
       onPointerDown={interactive ? (e) => {
-        // 1인칭(pointer lock 또는 firstPerson) 모드에선 마우스 hover 클릭 무시 — 위 raycaster 가 처리
-        if (document.pointerLockElement || firstPerson) return;
+        // 크로스헤어 모드(pointer lock 또는 crosshairAim)에선 마우스 hover 클릭 무시 — 위 raycaster 가 처리
+        if (document.pointerLockElement || crosshairAim) return;
         // 손 닿을 거리 밖이면 무시 — 멀리서는 클릭 안 됨
         if (typeof e.distance === 'number' && e.distance > REMOTE_INTERACT_DISTANCE) return;
         e.stopPropagation();
