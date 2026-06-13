@@ -298,11 +298,13 @@ function Instanced({ items, geo, mat, t, base, cast, receive, vary, cull = false
     _frustum.setFromProjectionMatrix(_projScreen);
     fillVisible([mesh], itemsRef.current, heightsRef.current, base, vary, mesh.matrixWorld);
   });
+  // 첫 채움 전 원점 뭉침 방지 — 마운트 시 1회만 count=0. (ref 콜백에서 하면 매 렌더마다 0으로 비워져 깜빡임)
+  useEffect(() => { if (cull && ref.current) ref.current.count = 0; }, [cull]);
   if (items.length === 0) return null;
   return (
     <instancedMesh
       key={cull ? 'cull' : capacity}
-      ref={(m) => { ref.current = (m as THREE.InstancedMesh) ?? null; if (m && cull) (m as THREE.InstancedMesh).count = 0; }}
+      ref={ref}
       args={[geo, mat, capacity]}
       castShadow={cast}
       receiveShadow={receive}
@@ -470,13 +472,18 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
     _frustum.setFromProjectionMatrix(_projScreen);
     fillVisible(meshes, itemsRef.current, heightsRef.current, scale, undefined, meshes[0].matrixWorld);
   });
+  // 첫 채움 전 원점 뭉침 방지 — 마운트/로드 시 1회만 count=0. (ref 콜백에서 하면 매 렌더마다 0으로 비워져 깜빡임)
+  useEffect(() => {
+    if (!cull || !parts) return;
+    for (const m of refs.current.slice(0, parts.parts.length)) if (m) m.count = 0;
+  }, [cull, parts]);
   if (!parts || items.length === 0) return null;
   return (
     <>
       {parts.parts.map((p, i) => (
         <instancedMesh
           key={i + '-' + (cull ? 'cull' : capacity)}
-          ref={(m) => { if (m) { refs.current[i] = m as THREE.InstancedMesh; if (cull) (m as THREE.InstancedMesh).count = 0; } }}
+          ref={(m) => { if (m) refs.current[i] = m as THREE.InstancedMesh; }}
           args={[p.geo, p.mat, capacity]}
           castShadow={cast}
           receiveShadow={false}
