@@ -7807,18 +7807,19 @@ export default function StudioCanvas() {
               <button type="button"
                 onClick={() => {
                   setSkyEnabled(true);
-                  setLightAmbient(0.35);   // 그늘 밝히기(소프트 GI 느낌) — 핵심
-                  setExposure(0.95);
+                  setLightAmbient(0.6);    // ⭐ 그늘 강하게 밝히기 — ALP 는 채움광 없으면 캄캄해서 높게
+                  setExposure(1.05);
                   setSunSize(0.5);         // 작고 또렷한 태양
-                  setLightDir(2.0);
+                  setLightDir(2.6);
+                  setHdriIntensity(1.4);   // IBL 도 올려 전반 밝힘
                   setObjects(prev => prev.map(o => {
                     let next = o;
-                    // 방향광 오브젝트 강도 ~2 (4.9 같은 과노출 방지)
-                    if (o.kind === 'dirlight' && !o.hidden) next = { ...next, lightIntensity: 2.0 };
-                    // 기존 PostProcess 볼륨 → 동화풍 색감(채도↑·살짝 웜·부드러운 블룸)
+                    // 방향광 오브젝트 강도 ~2.6 (4.9 같은 과노출은 막되 충분히 밝게)
+                    if (o.kind === 'dirlight' && !o.hidden) next = { ...next, lightIntensity: 2.6 };
+                    // 기존 PostProcess 볼륨 → 동화풍 색감. filmic(그림자 깊게) 대신 lift/brightness 로 밝게.
                     if (next.components?.some(c => c.type === 'postProcess')) {
                       next = { ...next, components: next.components.map(c => c.type === 'postProcess'
-                        ? { ...c, props: { ...c.props, enabled: true, preset: 'none', saturation: 0.25, temperature: 0.08, contrast: 0.05, filmic: 0.3, bloom: true, bloomIntensity: 0.45, bloomThreshold: 0.85, vignette: 0.2, toneMapping: true } }
+                        ? { ...c, props: { ...c.props, enabled: true, preset: 'none', saturation: 0.3, temperature: 0.06, brightness: 0.08, lift: 0.14, contrast: 0, filmic: 0.1, bloom: true, bloomIntensity: 0.4, bloomThreshold: 0.8, vignette: 0.12, toneMapping: true } }
                         : c) };
                     }
                     return next;
