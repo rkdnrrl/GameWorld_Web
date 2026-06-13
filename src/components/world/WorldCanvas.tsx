@@ -4083,6 +4083,18 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // effectiveDpr 위에 곱셈으로 적용 → 최대값은 effectiveDpr 유지, 약한 GPU 에서만 자동 낮아짐.
   // 최소 0.5 (이전 1.0 강제는 effectiveDpr cap 무력화시킴 — fragment fill rate fps drop 원인).
   const [dprFactor, setDprFactor] = useState(1);
+  // dpr 변경 = Canvas drawing buffer resize = 한 프레임 전체 flash(어두운 배경이 비침).
+  // 입장/아바타 로드 중 fps 가 [45,60] 경계에서 출렁이면 PerformanceMonitor 의 onIncline/onDecline
+  // 이 연속 발화해 dpr 이 빠르게 오르내리며 "밝았다 어두웠다 ~5번" 깜빡임이 생긴다(=flipflops 횟수).
+  // → 콜백은 목표값만 ref 에 쌓고, fps 가 ~1.2초 안정된 뒤에만 실제 dpr 을 한 번 커밋(디바운스).
+  //   진동 구간에선 타이머가 계속 리셋돼 커밋이 안 일어나므로 플래시가 사라진다.
+  const dprTargetRef = useRef(1);
+  const dprCommitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleDprCommit = useCallback(() => {
+    if (dprCommitTimerRef.current) clearTimeout(dprCommitTimerRef.current);
+    dprCommitTimerRef.current = setTimeout(() => setDprFactor(dprTargetRef.current), 1200);
+  }, []);
+  useEffect(() => () => { if (dprCommitTimerRef.current) clearTimeout(dprCommitTimerRef.current); }, []);
   // 고주사율(예:180Hz) 디스플레이에서 dpr 2.0(ultra)은 fill-rate로 fps가 묶여(~140) 자동조절이
   // 40초나 뒤에야 dpr 을 낮춘다 → "입장 후 한참 지나야 180" 증상. 처음부터 상한을 씌워 즉시 목표 fps.
   // (사용자 선택: 즉시 180·약간 덜 선명. 약한 GPU 는 dprFactor 로 1.25 아래까지 더 내려감.)
@@ -4096,10 +4108,6 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
     const id = setTimeout(() => setPerfMonitorReady(true), 6000);
     return () => clearTimeout(id);
   }, []);
-  // 원격 플레이어가 들어오면 그 아바타 로드 스파이크에 PerformanceMonitor 가 반응해 dpr 을
-  // 낮추면(=Canvas drawing buffer resize = 화면 flash) 입장마다 깜빡인다. 입장 직후 잠깐
-  // dpr 자동조절을 멈춰, 로드 스파이크가 지나간 뒤 평상 fps 로만 판단하게 한다. (playerCount 는 아래서 선언)
-  const [joinSettling, setJoinSettling] = useState(false);
   const ss = sceneSettings ?? {};
   const ambientIntensity = typeof ss.lightAmbient === 'number' ? ss.lightAmbient : 0.04;
   const dirIntensity     = typeof ss.lightDir     === 'number' ? ss.lightDir     : 0.0;
@@ -4969,17 +4977,6 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
   // 새 플레이어 입장(또는 본인이 호스트가 됨) 시 다음 틱에 스냅샷 재전송 → 늦게 들어온 사람도 현재 HUD 받음.
   const playerCount = Object.keys(players).length;
   useEffect(() => { if (isHost) gameRuntime.markDirty(); }, [isHost, playerCount, gameRuntime]);
-  // 입장 직후 ~2.5초 dpr 자동조절 억제 (joinSettling) — 위 perfMonitorReady 옆에서 사용.
-  const prevPlayerCountRef = useRef(playerCount);
-  useEffect(() => {
-    if (playerCount > prevPlayerCountRef.current) {
-      setJoinSettling(true);
-      const id = setTimeout(() => setJoinSettling(false), 2500);
-      prevPlayerCountRef.current = playerCount;
-      return () => clearTimeout(id);
-    }
-    prevPlayerCountRef.current = playerCount;
-  }, [playerCount]);
   // 신규 유저 입장 시 즉시 video state broadcast — URL/볼륨/음소거 동기화 (2초 tick 대기 안 함).
   useEffect(() => { if (isHost) broadcastVideoState(); }, [isHost, playerCount, broadcastVideoState]);
 
@@ -6109,11 +6106,11 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             ⚠ DPR 변경 = WebGL drawing buffer resize = 한 프레임 전체 flash(맵 깜빡임).
               새 캐릭터 입장 시 순간 fps 하락에 과민 반응하면 입장마다 화면이 깜빡임 →
               iterations(샘플 길이) 늘리고 flipflops 키워서 "지속적" 저fps 에만 반응. */}
-        {perfMonitorReady && !joinSettling && (
+        {perfMonitorReady && (
           <PerformanceMonitor bounds={() => [45, 60]} flipflops={6} iterations={12} ms={400}
-            onIncline={() => setDprFactor(1)}
-            onDecline={() => setDprFactor((f) => Math.max(0.5, f - 0.25))}
-            onFallback={() => setDprFactor(0.5)}
+            onIncline={() => { dprTargetRef.current = 1; scheduleDprCommit(); }}
+            onDecline={() => { dprTargetRef.current = Math.max(0.5, dprTargetRef.current - 0.25); scheduleDprCommit(); }}
+            onFallback={() => { dprTargetRef.current = 0.5; scheduleDprCommit(); }}
           />
         )}
         <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
@@ -6354,19 +6351,15 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             {mapReady && <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} buoyancyRef={buoyancyVolsRef} postFXZonesRef={postFXZonesRef} onPostFXZone={setActivePostFXZone} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={handleObjectClick} playerCtlRef={playerCtlRef} spawnRef={spawnRef} getAnalyser={voice.getMyAnalyser} />}
             {placementGhost && <PlacementGhostMesh ghost={placementGhost} localPoseRef={localPoseRef} />}
             {Object.values(players).filter(p => !blockedSet.has((p.username || '').toLowerCase())).map((p) => (
-              // 각 원격 플레이어를 개별 Suspense 로 격리. 이름표(drei <Text>)가 처음 폰트를
-              // 비동기 로드할 때 바깥 씬 전체 Suspense(fallback=null)를 suspend 시켜 화면이
-              // 한 프레임 깜빡이던 문제 차단 — 이제 그 한 플레이어만 한 프레임 늦게 나타남.
-              <Suspense key={p.id} fallback={null}>
-                <RemotePlayerMesh
-                  player={p}
-                  posesRef={posesRef}
-                  bubble={chatBubbles[p.id]}
-                  castShadow={graphics.remoteShadows}
-                  onPlayerClick={handleRemoteClick}
-                  getAnalyser={() => voice.getRemoteAnalyser(p.id)}
-                />
-              </Suspense>
+              <RemotePlayerMesh
+                key={p.id}
+                player={p}
+                posesRef={posesRef}
+                bubble={chatBubbles[p.id]}
+                castShadow={graphics.remoteShadows}
+                onPlayerClick={handleRemoteClick}
+                getAnalyser={() => voice.getRemoteAnalyser(p.id)}
+              />
             ))}
             {portal && <WorldPortal portal={portal} />}
           </Physics>
