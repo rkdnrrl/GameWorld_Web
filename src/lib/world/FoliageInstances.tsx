@@ -22,7 +22,7 @@ import { RigidBody, CapsuleCollider, CuboidCollider, ConvexHullCollider } from '
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore — three 예제(번들 타입 없음). 모델당 1회 볼록껍질 선계산용.
 import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
-import { normalizeTerrain, sampleTerrainHeight, type TerrainData, type FoliageInstance } from './terrain';
+import { normalizeTerrain, sampleTerrainHeight, foliageVariantsOf, foliageVariantIndex, type TerrainData, type FoliageInstance, type FoliageVariant } from './terrain';
 import { loadStaticModelCached } from './modelLoader';
 import { resolveMeshMaterial, type MaterialOverrides, type LoadTexFn } from './materialOverride';
 import { envFx } from './envFx';
@@ -431,16 +431,29 @@ function loadFoliageHull(url: string, trunkOnly: boolean): Promise<Float32Array>
  *  하나의 fixed RigidBody 에 콜라이더만 여러 개(메시 X) — 가볍고 정적.
  *  ⚠ 반드시 <Physics> 안 + 지형 trimesh RigidBody 의 형제(같은 group 변환)로 렌더할 것.
  *  풀·꽃은 충돌 없음(걸어서 지나감). */
+/** 여러 url 의 볼록껍질을 한꺼번에 로드해 Map<url, Float32Array> 로. variant 별 콜라이더용. */
+function useHullMap(urls: string[], trunkOnly: boolean): Map<string, Float32Array> {
+  const [map, setMap] = useState<Map<string, Float32Array>>(new Map());
+  const key = urls.join('|');
+  useEffect(() => {
+    let alive = true;
+    const m = new Map<string, Float32Array>();
+    Promise.all(urls.map(u => loadFoliageHull(u, trunkOnly).then(pts => { m.set(u, pts); }).catch(() => {})))
+      .then(() => { if (alive) setMap(m); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, trunkOnly]);
+  return map;
+}
+
 export function TreeRockColliders({ terrain }: { terrain: TerrainData }) {
   const t = normalizeTerrain(terrain);
-  const treeUrl = t.foliageAssets?.tree?.url;
-  const rockUrl = t.foliageAssets?.rock?.url;
-  const treeScale = treeUrl ? (t.foliageAssets!.tree!.scale ?? 1) : 0;  // 0 = 절차적
-  const rockScale = rockUrl ? (t.foliageAssets!.rock!.scale ?? 1) : 0;
-  const [treePts, setTreePts] = useState<Float32Array | null>(null);
-  const [rockPts, setRockPts] = useState<Float32Array | null>(null);
-  useEffect(() => { let a = true; if (treeUrl) loadFoliageHull(treeUrl, true).then(p => { if (a) setTreePts(p); }).catch(() => {}); else setTreePts(null); return () => { a = false; }; }, [treeUrl]);
-  useEffect(() => { let a = true; if (rockUrl) loadFoliageHull(rockUrl, false).then(p => { if (a) setRockPts(p); }).catch(() => {}); else setRockPts(null); return () => { a = false; }; }, [rockUrl]);
+  const treeVariants = useMemo(() => foliageVariantsOf(t.foliageAssets, 'tree'), [t.foliageAssets]);
+  const rockVariants = useMemo(() => foliageVariantsOf(t.foliageAssets, 'rock'), [t.foliageAssets]);
+  const treeUrls = useMemo(() => treeVariants.map(v => v.url), [treeVariants]);
+  const rockUrls = useMemo(() => rockVariants.map(v => v.url), [rockVariants]);
+  const treeHulls = useHullMap(treeUrls, true);   // 줄기만 → 수관 아래 걸어다님
+  const rockHulls = useHullMap(rockUrls, false);
 
   const items = useMemo(() => {
     const trees: { x: number; y: number; z: number; r: number; s: number }[] = [];
@@ -456,19 +469,23 @@ export function TreeRockColliders({ terrain }: { terrain: TerrainData }) {
   return (
     <RigidBody type="fixed" colliders={false}>
       {items.trees.map((f, i) => {
-        if (treeScale > 0) {                    // 에셋 나무 — 줄기 볼록 껍질
-          if (!treePts) return null;
-          const es = f.s * treeScale;
-          return <ConvexHullCollider key={'t' + i} args={[treePts]} position={[f.x, f.y, f.z]} rotation={[0, f.r, 0]} scale={[es, es, es]} />;
+        if (treeVariants.length) {              // 에셋 나무 — variant 별 줄기 볼록 껍질
+          const v = treeVariants[foliageVariantIndex(f.x, f.z, treeVariants.length)];
+          const pts = treeHulls.get(v.url);
+          if (!pts) return null;
+          const es = f.s * (v.scale ?? 1);
+          return <ConvexHullCollider key={'t' + i} args={[pts]} position={[f.x, f.y, f.z]} rotation={[0, f.r, 0]} scale={[es, es, es]} />;
         }                                       // 절차적 기둥(반경 0.13·높이 1.2)
         const r = 0.13 * f.s, hh = 0.45 * f.s;
         return <CapsuleCollider key={'t' + i} args={[hh, r]} position={[f.x, f.y + hh + r, f.z]} />;
       })}
       {items.rocks.map((f, i) => {
-        if (rockScale > 0) {                    // 에셋 돌 — 전체 볼록 껍질
-          if (!rockPts) return null;
-          const es = f.s * rockScale;
-          return <ConvexHullCollider key={'r' + i} args={[rockPts]} position={[f.x, f.y, f.z]} rotation={[0, f.r, 0]} scale={[es, es, es]} />;
+        if (rockVariants.length) {              // 에셋 돌 — variant 별 전체 볼록 껍질
+          const v = rockVariants[foliageVariantIndex(f.x, f.z, rockVariants.length)];
+          const pts = rockHulls.get(v.url);
+          if (!pts) return null;
+          const es = f.s * (v.scale ?? 1);
+          return <ConvexHullCollider key={'r' + i} args={[pts]} position={[f.x, f.y, f.z]} rotation={[0, f.r, 0]} scale={[es, es, es]} />;
         }                                       // 절차적 바위(0.4 × 0.28 × 0.4, 중심 y 0.22)
         return <CuboidCollider key={'r' + i} args={[0.4 * f.s, 0.28 * f.s, 0.4 * f.s]} position={[f.x, f.y + 0.22 * f.s, f.z]} />;
       })}
@@ -511,25 +528,32 @@ export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
     playerRUniform.value = envFx.playerBend;
   });
 
-  // 종류별: 사용자 에셋 지정 시 그 모델 인스턴싱, 아니면 절차적 기본 모양.
-  const fa = t.foliageAssets || {};
+  // 종류별 variant 배열(에셋). 비어 있으면 절차적 기본 모양.
+  const fa = t.foliageAssets;
+  const grassV = useMemo(() => foliageVariantsOf(fa, 'grass'), [fa]);
+  const flowerV = useMemo(() => foliageVariantsOf(fa, 'flower'), [fa]);
+  const treeV = useMemo(() => foliageVariantsOf(fa, 'tree'), [fa]);
+  const rockV = useMemo(() => foliageVariantsOf(fa, 'rock'), [fa]);
+  // 개체를 variant 별로 나눠 각 모델로 인스턴싱. variant 는 위치 해시로 결정(안정적·렌더/콜라이더 일치).
+  const assetCat = (variants: FoliageVariant[], items: FoliageInstance[], cast: boolean, sway: SwayMode) =>
+    variants.map((v, vi) => {
+      const bucket = variants.length === 1 ? items : items.filter(it => foliageVariantIndex(it.x, it.z, variants.length) === vi);
+      if (!bucket.length) return null;
+      return <AssetFoliageInstances key={vi + '|' + v.url} url={v.url} scale={v.scale ?? 1} overrides={v.overrides} items={bucket} t={t} cast={cast} sway={sway} />;
+    });
   return (
     <>
-      {fa.grass?.url
-        ? <AssetFoliageInstances url={fa.grass.url} scale={fa.grass.scale ?? 1} overrides={fa.grass.overrides} items={grass} t={t} cast={false} sway="bend" />
+      {grassV.length ? assetCat(grassV, grass, false, 'bend')
         : <Instanced items={grass} geo={grassGeo} mat={grassMat} t={t} base={1} cast={false} receive={false} vary="grass" />}
-      {fa.flower?.url
-        ? <AssetFoliageInstances url={fa.flower.url} scale={fa.flower.scale ?? 1} overrides={fa.flower.overrides} items={flowers} t={t} cast={false} sway="bend" />
+      {flowerV.length ? assetCat(flowerV, flowers, false, 'bend')
         : <Instanced items={flowers} geo={flowerGeo} mat={flowerMat} t={t} base={1} cast={false} receive={false} vary="flower" />}
-      {fa.tree?.url
-        ? <AssetFoliageInstances url={fa.tree.url} scale={fa.tree.scale ?? 1} overrides={fa.tree.overrides} items={trees} t={t} cast sway="wind" />
+      {treeV.length ? assetCat(treeV, trees, true, 'wind')
         : (<>
             {/* 나무: 기둥 + 잎 — 같은 인스턴스 변환(지오메트리가 미리 y 오프셋됨) */}
             <Instanced items={trees} geo={trunkGeo} mat={trunkMat} t={t} base={1} cast receive={false} />
             <Instanced items={trees} geo={canopyGeo} mat={canopyMat} t={t} base={1} cast receive={false} />
           </>)}
-      {fa.rock?.url
-        ? <AssetFoliageInstances url={fa.rock.url} scale={fa.rock.scale ?? 1} overrides={fa.rock.overrides} items={rocks} t={t} cast />
+      {rockV.length ? assetCat(rockV, rocks, true, false)
         : <Instanced items={rocks} geo={rockGeo} mat={rockMat} t={t} base={1} cast receive={false} vary="rock" />}
     </>
   );

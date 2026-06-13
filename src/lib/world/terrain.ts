@@ -58,8 +58,35 @@ export interface TerrainData {
   /** 지형 위에 심은 풀/나무 (선택). */
   foliage?: FoliageInstance[];
   /** 식생 종류별 사용자 에셋(모델 URL). 지정 시 절차적 기본 모양 대신 그 모델을 인스턴싱.
+   *  종류별로 여러 개(배열) 지정 가능 — 개체는 위치 해시로 variant 를 골라 다양하게 흩뿌린다.
+   *  구버전 데이터(단일 객체)도 헬퍼(foliageVariantsOf)가 배열로 정규화해 호환.
    *  overrides = 그 에셋의 부위별 텍스처(materialConfig) — 잎 etc. 알파 텍스처를 머티리얼 이름별로 입힘. */
-  foliageAssets?: Partial<Record<FoliageInstance['k'], { url: string; scale?: number; overrides?: import('./materialOverride').MaterialOverrides }>>;
+  foliageAssets?: Partial<Record<FoliageInstance['k'], FoliageVariant | FoliageVariant[]>>;
+}
+
+/** 식생 에셋 1종(variant) — 모델 URL + 크기 배율 + 부위별 텍스처. */
+export interface FoliageVariant {
+  url: string;
+  scale?: number;
+  overrides?: import('./materialOverride').MaterialOverrides;
+}
+
+/** foliageAssets[k] 를 항상 배열로 정규화 — 구버전(단일 객체)·신버전(배열)·미지정 모두 처리. */
+export function foliageVariantsOf(
+  fa: TerrainData['foliageAssets'] | undefined,
+  k: FoliageInstance['k'],
+): FoliageVariant[] {
+  const v = fa?.[k];
+  if (!v) return [];
+  const arr = Array.isArray(v) ? v : [v];
+  return arr.filter((x): x is FoliageVariant => !!x && !!x.url);
+}
+
+/** 위치 기반 결정적 variant 인덱스 (0~n-1). 같은 좌표 = 항상 같은 모델 → 렌더·콜라이더 일치, 리렌더 안정. */
+export function foliageVariantIndex(x: number, z: number, n: number): number {
+  if (n <= 1) return 0;
+  const h = Math.sin(x * 49.17 + z * 19.93) * 43758.5453;
+  return Math.floor((h - Math.floor(h)) * n) % n;
 }
 
 /** terrain-local (lx,lz) 에서 heightmap 을 bilinear 샘플 → Y 높이 (m).

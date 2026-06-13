@@ -34,7 +34,7 @@ import { CarvedMesh, type CsgCut } from '@/lib/world/CarvedMesh';
 import { VoxelTerrainMesh } from '@/lib/world/VoxelTerrainMesh';
 import { ChunkedVoxelTerrain } from '@/lib/world/ChunkedVoxelTerrain';
 import { TerrainSculptMesh, type TerrainTool } from '@/lib/world/TerrainSculptMesh';
-import { makeFlatTerrain, generateNoiseTerrain, type TerrainData, type FoliageInstance } from '@/lib/world/terrain';
+import { makeFlatTerrain, generateNoiseTerrain, foliageVariantsOf, type TerrainData, type FoliageInstance, type FoliageVariant } from '@/lib/world/terrain';
 import { makeDefaultUiData, parseAiUiRoot, AI_UI_PROMPT_GUIDE, type UiElementType, type UiData, type RectTransform, type AiUiRoot } from '@/lib/world/uiObjects';
 import { UiInspector } from './UiInspector';
 import { createGameRuntime } from '@/lib/world/gameRuntime';
@@ -8371,50 +8371,53 @@ export default function StudioCanvas() {
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ opacity: 0.7, fontSize: 11, fontWeight: 700 }}>{tCanvas("section_terrain_foliage_assets")}</div>
                   {(['grass', 'flower', 'tree', 'rock'] as const).map(fk => {
-                    const cur = selected.terrain!.foliageAssets?.[fk];
-                    const assetName = cur?.url ? (myAssets.find(a => a.modelUrl === cur.url)?.name || tCanvas("foliage_default_shape")) : null;
+                    const variants = foliageVariantsOf(selected.terrain!.foliageAssets, fk);
+                    // 종류별 variant 배열 통째 갱신(비면 키 삭제 → 절차적 기본 모양).
+                    const writeVariants = (next: FoliageVariant[]) => {
+                      setObjects(prev => prev.map(o => {
+                        if (o.id !== selected.id || !o.terrain) return o;
+                        const faNext = { ...(o.terrain.foliageAssets || {}) };
+                        if (next.length) faNext[fk] = next; else delete faNext[fk];
+                        return { ...o, terrain: { ...o.terrain, foliageAssets: faNext } };
+                      }));
+                    };
                     return (
-                      <div key={fk} style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                        onDragOver={e => { if (e.dataTransfer.types.includes('application/x-alp-asset-url')) e.preventDefault(); }}
-                        onDrop={e => {
-                          const url = e.dataTransfer.getData('application/x-alp-asset-url');
-                          if (!url) return;
-                          e.preventDefault();
-                          // 에셋의 부위별 텍스처(materialConfig.materialOverrides)도 함께 저장 → 잎 알파 텍스처가 인스턴싱에 반영 (World 런타임 포함).
-                          const a = myAssets.find(x => x.modelUrl === url);
-                          const cfg = getAssetMaterialConfig(a) as { materialOverrides?: import('@/lib/world/materialOverride').MaterialOverrides } | null;
-                          const overrides = cfg?.materialOverrides;
-                          setObjects(prev => prev.map(o => o.id === selected.id && o.terrain
-                            ? { ...o, terrain: { ...o.terrain, foliageAssets: { ...(o.terrain.foliageAssets || {}), [fk]: { url, scale: o.terrain.foliageAssets?.[fk]?.scale ?? 1, overrides } } } } : o));
-                          pushHistory(objects);
-                        }}>
-                        <span style={{ width: 30, opacity: 0.7, flexShrink: 0 }}>{tCanvas(`foliage_${fk}`)}</span>
-                        <div style={{ flex: 1, minWidth: 0, padding: '4px 7px', borderRadius: 4, border: '1px dashed rgba(255,255,255,0.18)', background: 'rgba(0,0,0,0.25)', fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: assetName ? '#a7f3d0' : '#888' }}>
-                          {assetName || tCanvas("foliage_drop_hint")}
+                      <div key={fk} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {/* 드롭 = 배열에 추가 (여러 모델 흩뿌리기). */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                          onDragOver={e => { if (e.dataTransfer.types.includes('application/x-alp-asset-url')) e.preventDefault(); }}
+                          onDrop={e => {
+                            const url = e.dataTransfer.getData('application/x-alp-asset-url');
+                            if (!url) return;
+                            e.preventDefault();
+                            if (variants.some(v => v.url === url)) return;   // 중복 방지
+                            // 에셋의 부위별 텍스처(materialConfig.materialOverrides)도 함께 저장 → 잎 알파 텍스처가 인스턴싱에 반영 (World 런타임 포함).
+                            const a = myAssets.find(x => x.modelUrl === url);
+                            const cfg = getAssetMaterialConfig(a) as { materialOverrides?: import('@/lib/world/materialOverride').MaterialOverrides } | null;
+                            writeVariants([...variants, { url, scale: 1, overrides: cfg?.materialOverrides }]);
+                            pushHistory(objects);
+                          }}>
+                          <span style={{ width: 30, opacity: 0.7, flexShrink: 0 }}>{tCanvas(`foliage_${fk}`)}</span>
+                          <div style={{ flex: 1, minWidth: 0, padding: '4px 7px', borderRadius: 4, border: '1px dashed rgba(255,255,255,0.18)', background: 'rgba(0,0,0,0.25)', fontSize: 10, color: '#888' }}>
+                            {tCanvas("foliage_drop_hint")}
+                          </div>
                         </div>
-                        {cur?.url && (
-                          <>
-                            <input type="number" min={0.05} max={20} step={0.05} value={cur.scale ?? 1} title={tCanvas("label_foliage_scale")}
-                              onChange={e => {
-                                const sc = Math.max(0.05, Math.min(20, Number(e.target.value) || 1));
-                                setObjects(prev => prev.map(o => o.id === selected.id && o.terrain
-                                  ? { ...o, terrain: { ...o.terrain, foliageAssets: { ...(o.terrain.foliageAssets || {}), [fk]: { url: cur.url, scale: sc, overrides: cur.overrides } } } } : o));
-                              }}
-                              onBlur={() => pushHistory(objects)}
-                              style={{ width: 46, flexShrink: 0, background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 4px', borderRadius: 4, outline: 'none' }} />
-                            <button type="button" title={tCanvas("foliage_clear")}
-                              onClick={() => {
-                                setObjects(prev => prev.map(o => {
-                                  if (o.id !== selected.id || !o.terrain) return o;
-                                  const faNext = { ...(o.terrain.foliageAssets || {}) };
-                                  delete faNext[fk];
-                                  return { ...o, terrain: { ...o.terrain, foliageAssets: faNext } };
-                                }));
-                                pushHistory(objects);
-                              }}
-                              style={{ flexShrink: 0, background: 'rgba(255,80,80,0.15)', border: '1px solid rgba(255,80,80,0.35)', color: '#fca5a5', borderRadius: 4, padding: '3px 6px', fontSize: 10, cursor: 'pointer' }}>✕</button>
-                          </>
-                        )}
+                        {/* 추가된 모델들 — 이름·크기·삭제. 개체는 위치 해시로 이 중 하나를 자동 선택. */}
+                        {variants.map((v, vi) => {
+                          const name = myAssets.find(a => a.modelUrl === v.url)?.name || tCanvas("foliage_default_shape");
+                          return (
+                            <div key={vi + '|' + v.url} style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 36 }}>
+                              <div style={{ flex: 1, minWidth: 0, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#a7f3d0' }}>{name}</div>
+                              <input type="number" min={0.05} max={20} step={0.05} value={v.scale ?? 1} title={tCanvas("label_foliage_scale")}
+                                onChange={e => { const sc = Math.max(0.05, Math.min(20, Number(e.target.value) || 1)); writeVariants(variants.map((x, i) => i === vi ? { ...x, scale: sc } : x)); }}
+                                onBlur={() => pushHistory(objects)}
+                                style={{ width: 46, flexShrink: 0, background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 10, padding: '3px 4px', borderRadius: 4, outline: 'none' }} />
+                              <button type="button" title={tCanvas("foliage_clear")}
+                                onClick={() => { writeVariants(variants.filter((_, i) => i !== vi)); pushHistory(objects); }}
+                                style={{ flexShrink: 0, background: 'rgba(255,80,80,0.15)', border: '1px solid rgba(255,80,80,0.35)', color: '#fca5a5', borderRadius: 4, padding: '3px 6px', fontSize: 10, cursor: 'pointer' }}>✕</button>
+                            </div>
+                          );
+                        })}
                       </div>
                     );
                   })}
