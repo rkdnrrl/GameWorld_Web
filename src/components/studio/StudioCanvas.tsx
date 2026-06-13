@@ -2,7 +2,8 @@
 import { Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { OrbitControls, TransformControls, Grid, Environment, Edges, MeshReflectorMaterial, PerformanceMonitor } from '@react-three/drei';
+import { OrbitControls, TransformControls, Grid, Environment, Edges, MeshReflectorMaterial } from '@react-three/drei';
+import GraphicsPanel from '@/components/world/GraphicsPanel';
 import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
 import * as THREE from 'three';
 import { buildFolderTree, normalizeFolder } from '@/lib/assets/folders';
@@ -4806,6 +4807,7 @@ export default function StudioCanvas() {
   const [brushSize, setBrushSize] = useState(5);
   const [brushStrength, setBrushStrength] = useState(0.3);
   const [sculptDragging, setSculptDragging] = useState(false);
+  const [gfxOpen, setGfxOpen] = useState(false);   // 그래픽 설정 패널 열림
   // 식생 페인트 시 칠할 에셋 variant 인덱스 (null = 랜덤/기본 모양). 도구 바뀌면 초기화.
   const [foliageVariant, setFoliageVariant] = useState<number | null>(null);
   useEffect(() => { setFoliageVariant(null); }, [terrainTool]);
@@ -5187,14 +5189,11 @@ export default function StudioCanvas() {
   const [sunSize, setSunSize] = useState(1);       // 태양 글로우 크기 (Sky mie) — 작을수록 해가 작고 또렷
   // 최대 FPS 캡 — World graphics 설정(localStorage 싱글톤)을 공유. Studio 는 자체 패널은 없고
   // World 에서 설정한 값을 그대로 따른다(고주사율 기기 에디터 절전). XR 없음 → XR 분기 불필요.
-  const { settings: graphicsSettings } = useGraphicsSettings();
+  const { settings: graphicsSettings, updateSettings: updateGraphics, applyPreset: applyGraphicsPreset } = useGraphicsSettings();
   const fpsCapActive = graphicsSettings.maxFps > 0;
-  // 적응형 DPR — FPS 가 지속적으로 떨어지면 해상도(dpr)를 자동으로 낮춰 프레임을 지킴(World 와 동일 패턴).
-  // 빠를 땐 선명(1.5), 느릴 땐 자동 절감. dprFactor 1→0.5 로 내려가며 device dpr 에 곱함, 상한 1.5.
-  const [dprFactor, setDprFactor] = useState(1);
-  const [perfReady, setPerfReady] = useState(false);   // 초기 로드 스파이크엔 DPR 고정(4s warmup) — 로드 중 dpr 변경=캔버스 재구성 깜빡 방지.
-  useEffect(() => { const id = setTimeout(() => setPerfReady(true), 4000); return () => clearTimeout(id); }, []);
-  const studioDpr = Math.min((typeof window !== 'undefined' ? window.devicePixelRatio : 1) * dprFactor, 1.5);
+  // 스튜디오 DPR — 사용자가 고른 그래픽 설정(graphics.dpr)을 그대로 따름(편집은 화질 안정성 우선, 자동 하향 X).
+  // 디바이스 DPR 상한(그 이상 슈퍼샘플은 낭비). 흐리면 그래픽 설정에서 high/ultra 로 올리면 됨.
+  const studioDpr = Math.min(graphicsSettings.dpr, typeof window !== 'undefined' ? window.devicePixelRatio : 2);
   // 맵 물리 — 빈 오브젝트의 World Physics 컴포넌트가 소스. 아래 gravityY/jumpPower 는
   // 구버전 맵(sceneSettings) 로드용 fallback. UI 패널은 제거됨(컴포넌트로 관리).
   const [gravityY, setGravityY]   = useState(-22);
@@ -9169,14 +9168,6 @@ export default function StudioCanvas() {
             if (!isGizmoActive() && !terrainTool) { setSelectedId(null); setStudioMode('scene'); }
           }}
         >
-          {/* 적응형 DPR — FPS 가 [45,60] 아래로 지속 떨어지면 dprFactor 를 낮춰 해상도↓ → 프레임 회복. warmup 후 활성. */}
-          {perfReady && (
-            <PerformanceMonitor bounds={() => [45, 60]} flipflops={6} iterations={12} ms={400}
-              onIncline={() => setDprFactor(1)}
-              onDecline={() => setDprFactor((f) => Math.max(0.5, f - 0.25))}
-              onFallback={() => setDprFactor(0.5)}
-            />
-          )}
           <ExposureUpdater exposure={exposure} hdriIntensity={hdriIntensity} />
           {fpsCapActive && <FpsLimiter fps={graphicsSettings.maxFps} />}
           <WorldAudio volume={graphicsSettings.sfxVolume} />
@@ -9470,6 +9461,25 @@ export default function StudioCanvas() {
           />
           <PostFX s={effectivePostFX} raining={raining} />
         </Canvas>
+
+        {/* 그래픽 설정 — 편집 화질(DPR·그림자 등) 직접 선택. 흐리게 보이면 high/ultra 로. */}
+        {!simulating && (
+          <>
+            <button type="button" onClick={() => setGfxOpen(v => !v)} title="그래픽 설정"
+              style={{ position: 'fixed', top: 70, right: 16, zIndex: 52, width: 38, height: 38, borderRadius: '50%',
+                background: gfxOpen ? '#4f46e5' : 'rgba(20,20,28,0.9)', border: '1px solid #333', color: '#fff',
+                fontSize: 17, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}>
+              ⚙️
+            </button>
+            {gfxOpen && (
+              <div style={{ position: 'fixed', top: 114, right: 16, zIndex: 52, width: 280, maxHeight: '70vh', overflowY: 'auto',
+                background: 'rgba(15,23,42,0.94)', backdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 14, padding: 16, boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>
+                <GraphicsPanel mode="embedded" settings={graphicsSettings} updateSettings={updateGraphics} applyPreset={applyGraphicsPreset} />
+              </div>
+            )}
+          </>
+        )}
 
         {/* UI Renderer — Screen Space HTML overlay (Phase 1). 편집 모드에선 editMode=true.
             편집 모드에서 UI 요소 클릭 → 인스펙터 선택 연동 + 시각 outline. */}
