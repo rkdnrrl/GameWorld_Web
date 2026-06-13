@@ -2477,7 +2477,7 @@ function FollowingStudioSun({ intensity, dir, color }: { intensity: number; dir:
       shadow-camera-top={100} shadow-camera-bottom={-100}
       shadow-camera-near={0.5} shadow-camera-far={250}
       shadow-bias={-0.0004}
-      shadow-normalBias={0.04}
+      shadow-normalBias={0.08}   // 넓은 frustum(±100)으로 텍셀↑ → acne 방지 위해 법선 바이어스↑
     />
   );
 }
