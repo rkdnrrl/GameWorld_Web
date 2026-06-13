@@ -4808,6 +4808,38 @@ export default function StudioCanvas() {
   const [brushStrength, setBrushStrength] = useState(0.3);
   const [sculptDragging, setSculptDragging] = useState(false);
   const [gfxOpen, setGfxOpen] = useState(false);   // 그래픽 설정 패널 열림
+  // ⚙ 버튼 드래그 이동 (소셜 버튼과 동일 방식) — 위치 localStorage 저장. null = 기본(우상단).
+  const [gfxBtnPos, setGfxBtnPos] = useState<{ x: number; y: number } | null>(null);
+  const gfxDrag = useRef({ on: false, moved: false, ox: 0, oy: 0, sx: 0, sy: 0 });
+  const gfxJustDragged = useRef(false);
+  useEffect(() => { try { const raw = localStorage.getItem('alp_gfx_btn_pos'); if (raw) setGfxBtnPos(JSON.parse(raw)); } catch { /* noop */ } }, []);
+  const clampGfxPos = (x: number, y: number) => ({
+    x: Math.max(8, Math.min(x, (typeof window !== 'undefined' ? window.innerWidth : 1920) - 46)),
+    y: Math.max(8, Math.min(y, (typeof window !== 'undefined' ? window.innerHeight : 1080) - 46)),
+  });
+  const onGfxDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    gfxDrag.current = { on: true, moved: false, ox: e.clientX - r.left, oy: e.clientY - r.top, sx: e.clientX, sy: e.clientY };
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* noop */ }
+  };
+  const onGfxMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = gfxDrag.current; if (!d.on) return;
+    if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > 4) d.moved = true;
+    if (!d.moved) return;
+    setGfxBtnPos(clampGfxPos(e.clientX - d.ox, e.clientY - d.oy));
+  };
+  const onGfxUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = gfxDrag.current; if (!d.on) return;
+    d.on = false;
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* noop */ }
+    if (d.moved) {
+      const p = clampGfxPos(e.clientX - d.ox, e.clientY - d.oy);
+      setGfxBtnPos(p);
+      try { localStorage.setItem('alp_gfx_btn_pos', JSON.stringify(p)); } catch { /* noop */ }
+      gfxJustDragged.current = true;
+      setTimeout(() => { gfxJustDragged.current = false; }, 60);   // 드래그 직후 click(토글) 억제
+    }
+  };
   // 식생 페인트 시 칠할 에셋 variant 인덱스 (null = 랜덤/기본 모양). 도구 바뀌면 초기화.
   const [foliageVariant, setFoliageVariant] = useState<number | null>(null);
   useEffect(() => { setFoliageVariant(null); }, [terrainTool]);
@@ -5191,9 +5223,9 @@ export default function StudioCanvas() {
   // World 에서 설정한 값을 그대로 따른다(고주사율 기기 에디터 절전). XR 없음 → XR 분기 불필요.
   const { settings: graphicsSettings, updateSettings: updateGraphics, applyPreset: applyGraphicsPreset } = useGraphicsSettings();
   const fpsCapActive = graphicsSettings.maxFps > 0;
-  // 스튜디오 DPR — 사용자가 고른 그래픽 설정(graphics.dpr)을 그대로 따름(편집은 화질 안정성 우선, 자동 하향 X).
-  // 디바이스 DPR 상한(그 이상 슈퍼샘플은 낭비). 흐리면 그래픽 설정에서 high/ultra 로 올리면 됨.
-  const studioDpr = Math.min(graphicsSettings.dpr, typeof window !== 'undefined' ? window.devicePixelRatio : 2);
+  // 스튜디오 DPR — 사용자가 고른 그래픽 설정(graphics.dpr)을 그대로 적용. 디바이스 DPR 로 클램프하지 않음:
+  // 1.0 모니터에서도 dpr 2.0(ultra)=슈퍼샘플링으로 더 선명해야 프리셋이 의미 있음(자동 하향 X).
+  const studioDpr = Math.max(0.5, Math.min(graphicsSettings.dpr || 1, 2));
   // 맵 물리 — 빈 오브젝트의 World Physics 컴포넌트가 소스. 아래 gravityY/jumpPower 는
   // 구버전 맵(sceneSettings) 로드용 fallback. UI 패널은 제거됨(컴포넌트로 관리).
   const [gravityY, setGravityY]   = useState(-22);
@@ -9465,14 +9497,22 @@ export default function StudioCanvas() {
         {/* 그래픽 설정 — 편집 화질(DPR·그림자 등) 직접 선택. 흐리게 보이면 high/ultra 로. */}
         {!simulating && (
           <>
-            <button type="button" onClick={() => setGfxOpen(v => !v)} title="그래픽 설정"
-              style={{ position: 'fixed', top: 70, right: 16, zIndex: 99998, width: 38, height: 38, borderRadius: '50%',
+            <button type="button"
+              onClick={() => { if (gfxJustDragged.current) return; setGfxOpen(v => !v); }}
+              onPointerDown={onGfxDown} onPointerMove={onGfxMove} onPointerUp={onGfxUp}
+              title="그래픽 설정 (드래그로 이동)"
+              style={{ position: 'fixed', zIndex: 99998, ...(gfxBtnPos ? { left: gfxBtnPos.x, top: gfxBtnPos.y } : { top: 70, right: 16 }),
+                width: 38, height: 38, borderRadius: '50%', touchAction: 'none',
                 background: gfxOpen ? '#4f46e5' : 'rgba(20,20,28,0.9)', border: '1px solid #333', color: '#fff',
-                fontSize: 17, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}>
+                fontSize: 17, cursor: 'grab', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}>
               ⚙️
             </button>
             {gfxOpen && (
-              <div style={{ position: 'fixed', top: 114, right: 16, zIndex: 99998, width: 280, maxHeight: '70vh', overflowY: 'auto',
+              <div style={{ position: 'fixed', zIndex: 99998, width: 280, maxHeight: '70vh', overflowY: 'auto',
+                ...(gfxBtnPos
+                  ? { left: Math.min(gfxBtnPos.x, (typeof window !== 'undefined' ? window.innerWidth : 1920) - 296),
+                      top: Math.max(8, Math.min(gfxBtnPos.y + 46, (typeof window !== 'undefined' ? window.innerHeight : 1080) - 320)) }
+                  : { top: 114, right: 16 }),
                 background: 'rgba(15,23,42,0.94)', backdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,0.1)',
                 borderRadius: 14, padding: 16, boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>
                 <GraphicsPanel mode="embedded" settings={graphicsSettings} updateSettings={updateGraphics} applyPreset={applyGraphicsPreset} />
