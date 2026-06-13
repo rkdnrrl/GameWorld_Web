@@ -247,10 +247,15 @@ const _foliagePartsCache = new Map<string, Promise<FoliageParts>>();
  *  - 원래 "투명(블렌딩)"이던 잎만 alphaTest 컷아웃으로 전환 — 인스턴싱은 블렌딩 정렬이 안 되므로.
  *    ⚠ 불투명(OPAQUE) 머티리얼엔 alphaTest 를 절대 걸지 않는다(알파 채널이 0/무의미해 통째로 사라짐). */
 type SwayMode = 'bend' | 'wind' | false;
-function prepFoliageMaterial(mat: THREE.Material | THREE.Material[], sway: SwayMode = false): THREE.Material | THREE.Material[] {
+function prepFoliageMaterial(mat: THREE.Material | THREE.Material[], sway: SwayMode = false, hasVColor = false): THREE.Material | THREE.Material[] {
   const fix = (m: THREE.Material): THREE.Material => {
     m.side = THREE.DoubleSide;
     const sm = m as THREE.MeshStandardMaterial;
+    // 일반 에셋(fixModelMaterials)과 동일 보정 — 식생 경로도 적용해야 색/텍스처가 맞다.
+    if (hasVColor && !sm.vertexColors) sm.vertexColors = true;          // 버텍스 컬러 모델(예: Quaternius 풀) — 안 켜면 흰색
+    if (sm.map) sm.map.colorSpace = THREE.SRGBColorSpace;               // 텍스처 linear→sRGB (어둡게/탈색 방지)
+    if (sm.emissiveMap) sm.emissiveMap.colorSpace = THREE.SRGBColorSpace;
+    if (sm.map && sm.color && sm.color.getHex() < 0x202020) sm.color.set('#ffffff');   // 텍스처×검정 → 안 보임 방지
     if (sm.transparent && (sm.map || sm.alphaMap)) {
       sm.alphaTest = Math.max(sm.alphaTest || 0, 0.3);   // 블렌딩 잎 → 컷아웃(정렬 무관 렌더 + 잎모양 그림자)
       sm.transparent = false;
@@ -296,7 +301,7 @@ function loadFoliageParts(url: string, overrides?: MaterialOverrides, sway: Sway
             const resolved = resolveMeshMaterial(m.material, overrides, null, _foliageLoadTex, undefined, made);
             if (resolved) mat = resolved;
           }
-          parts.push({ geo: g, mat: prepFoliageMaterial(mat, sway) });
+          parts.push({ geo: g, mat: prepFoliageMaterial(mat, sway, !!g.getAttribute('color')) });
         }
       });
       const box = new THREE.Box3();
