@@ -5678,9 +5678,9 @@ export default function StudioCanvas() {
       if (o.parentId && copySet.has(o.parentId)) {
         c.parentId = idMap.get(o.parentId);            // 내부 계층 리맵 (자식 복제본 → 부모 복제본)
       } else {
-        // 최상위 복제본 — 부모는 원본과 동일, 위치 살짝 오프셋, 선택 대상
+        // 최상위 복제본 — 부모는 원본과 동일, 복사한 자리 그대로(오프셋 없음), 선택 대상
         c.parentId = o.parentId;
-        c.position = [o.position[0] + 1, o.position[1], o.position[2]];
+        c.position = [o.position[0], o.position[1], o.position[2]];
         newRootIds.push(c.id);
       }
       copies.push(c);
