@@ -2783,15 +2783,20 @@ function RemotePlayerMesh({ player, posesRef, bubble, castShadow, onPlayerClick,
           group 으로 감싸 거리 cutoff 적용 — 30m 밖이면 visible=false (useFrame 에서 매 frame 토글). */}
       <group ref={nameTagRef}>
         <Billboard position={[0, 1.8, 0]} follow={true} lockX={false} lockY={false} lockZ={false}>
-          <Text
-            fontSize={0.22}
-            color="white"
-            anchorX="center"
-            outlineWidth={0.03}
-            outlineColor="#000"
-          >
-            {player.username}
-          </Text>
+          {/* drei <Text> 는 폰트 첫 로드 시 suspend-react 로 suspend 한다. 이름표를 자체 Suspense 로
+              격리하지 않으면 첫 원격 입장 때 씬 전체 Suspense(fallback=null)가 한 프레임 비워져 깜빡임.
+              → 이름표만 한 프레임 늦게 떠 씬은 안 깜빡인다. (폰트는 1회 캐시되므로 이후 입장은 무관) */}
+          <Suspense fallback={null}>
+            <Text
+              fontSize={0.22}
+              color="white"
+              anchorX="center"
+              outlineWidth={0.03}
+              outlineColor="#000"
+            >
+              {player.username}
+            </Text>
+          </Suspense>
           {/* 말하는 중 링 — useFrame 에서 음성 레벨로 visible/scale 토글 (기본 숨김) */}
           <mesh ref={speakRingRef} position={[0, 0.3, 0]} visible={false} raycast={() => null}>
             <ringGeometry args={[0.05, 0.085, 24]} />
@@ -6341,15 +6346,20 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
             {mapReady && <Player character={character} bubble={chatBubbles[playerId]} onMove={onMove} inputLocked={chatInputActive} emoteSlot={emoteSlot} emoteOneShotOverride={emoteOneShotOverride} onObjCollide={onObjCollide} cameraMode={cameraMode} onToggleCameraMode={toggleCameraMode} scriptBodyRefs={scriptBodyRefs} luaScripts={luaScripts} componentScripts={componentScripts} ownersRef={ownersRef} playerId={playerId} grabbedStateRef={grabbedStateRef} grabbableIdsRef={grabbableIdsRef} onGrabUiChange={setCrosshairState} onGrabClaim={onGrabClaim} onGrabRelease={onGrabRelease} remoteGrabbedByRef={remoteGrabbedByRef} jumpPower={jumpPower} spawnPos={spawnPick.pos} spawnRotY={spawnPick.rotY} localPoseRef={localPoseRef} buoyancyRef={buoyancyVolsRef} postFXZonesRef={postFXZonesRef} onPostFXZone={setActivePostFXZone} portalRef={portalRef} onPortalEnter={onPortalEnter} firstPersonFov={firstPersonFov} onObjectClick={handleObjectClick} playerCtlRef={playerCtlRef} spawnRef={spawnRef} getAnalyser={voice.getMyAnalyser} />}
             {placementGhost && <PlacementGhostMesh ghost={placementGhost} localPoseRef={localPoseRef} />}
             {Object.values(players).filter(p => !blockedSet.has((p.username || '').toLowerCase())).map((p) => (
-              <RemotePlayerMesh
-                key={p.id}
-                player={p}
-                posesRef={posesRef}
-                bubble={chatBubbles[p.id]}
-                castShadow={graphics.remoteShadows}
-                onPlayerClick={handleRemoteClick}
-                getAnalyser={() => voice.getRemoteAnalyser(p.id)}
-              />
+              // 각 원격 플레이어를 개별 Suspense 로 격리. 이름표 drei <Text> 가 폰트 첫 로드 시
+              // suspend 하면, 격리 없이는 씬 전체 Suspense(fallback=null)가 unmount 돼 화면이 깜빡이고
+              // 그 안의 영상 iframe 까지 파괴돼 영상이 초기화된다. 격리하면 그 플레이어만 한 프레임
+              // 늦게 떠 씬·영상은 그대로 유지된다. (폰트는 1회 캐시되므로 둘째 입장부터는 무관)
+              <Suspense key={p.id} fallback={null}>
+                <RemotePlayerMesh
+                  player={p}
+                  posesRef={posesRef}
+                  bubble={chatBubbles[p.id]}
+                  castShadow={graphics.remoteShadows}
+                  onPlayerClick={handleRemoteClick}
+                  getAnalyser={() => voice.getRemoteAnalyser(p.id)}
+                />
+              </Suspense>
             ))}
             {portal && <WorldPortal portal={portal} />}
           </Physics>
