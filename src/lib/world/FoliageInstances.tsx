@@ -396,7 +396,7 @@ function makeLodGeo(geo: THREE.BufferGeometry, removeFrac: number): THREE.Buffer
 //  먼 에셋 식생을 "평면 1장(2삼각형/인스턴스)" 으로 대체 — 모델당 폴리와 무관하게 비용 고정.
 //  로드 시 모델 정면을 렌더타깃에 1회 베이크(캐시)해 텍스처로 만들고, 빌보드(항상 카메라 향함)로 그린다.
 //  근접은 원본 메시, lodDist 너머는 이 임포스터 → "멀리도 보이되 완전 최적화".
-const FOLIAGE_IMPOSTOR = true;   // false 면 원거리도 감폴 메시(임포스터 대신).
+const FOLIAGE_IMPOSTOR = false;   // 빌보드(임포스터) — 현재 렌더 이슈로 OFF. 원거리는 강하게 감폴한 lod2 메시(확실히 보임).
 interface Impostor { geo: THREE.BufferGeometry; mat: THREE.Material; }
 const _impostorCache = new Map<string, Impostor | null>();   // url → 임포스터(베이크 실패 시 null)
 
