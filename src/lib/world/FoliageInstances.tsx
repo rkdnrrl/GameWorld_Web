@@ -246,9 +246,10 @@ const FOLIAGE_CULL_MARGIN = 4;   // m — 시야 가장자리 여백(빠른 회�
 //   풀·꽃은 짧게(멀리선 안 보임), 나무·돌은 실루엣 풍경이라 길게. 0 = 거리컬링 끔.
 const FOLIAGE_MAX_DIST: Record<FoliageInstance['k'], number> = { grass: 60, flower: 55, bush: 95, tree: 400, rock: 160 };
 // ── 원거리 LOD 임계(m) — 이 거리 너머 에셋 식생은 감폴(lodGeo) 메시로 그림(근접은 원본). 0=LOD 끔. ──
-//   나무가 고폴리 주범이라 가장 효과 큼. 풀·꽃은 이미 짧게 거리컬링되고 저폴리라 LOD 불필요(0).
-//   tree 120 = 120m 까지 원본 풀디테일, 그 너머만 감폴 → 중경 나무도 또렷, 원경만 가볍게.
-const FOLIAGE_LOD_DIST: Record<FoliageInstance['k'], number> = { grass: 0, flower: 0, bush: 80, tree: 120, rock: 100 };
+//   나무가 고폴리 주범이라 가장 효과 큼. tree 120 = 120m 까지 원본 풀디테일, 그 너머만 감폴.
+//   ⚠ 값은 "에셋(GLB) 식생"에만 적용 — 절차적 풀/꽃(저폴리 cross-quad)은 Instanced 경로라 무시됨.
+//     에셋 풀/꽃은 디테일 모델이라 빽빽한 필드에서 삼각형 폭증 → 가까운 거리(25~30m)부터 감폴해 절감.
+const FOLIAGE_LOD_DIST: Record<FoliageInstance['k'], number> = { grass: 30, flower: 25, bush: 80, tree: 120, rock: 100 };
 const _fcam = new THREE.Vector3();   // fillVisible 거리 비교용 카메라 위치(재사용)
 
 /** 시야(frustum) 안 items 만 mesh(들)에 채움. heights=미리 계산된 표면 높이, meshWorld=인스턴스→월드 행렬. margin=시야밖 여백(큰 나무는 크게 줘 그림자 pop 완화). 반환=채운 수. */
