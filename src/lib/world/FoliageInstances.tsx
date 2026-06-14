@@ -252,8 +252,8 @@ const FOLIAGE_CULL_MARGIN = 4;   // m — 시야 가장자리 여백(빠른 회�
 //   감폴 메시가 잎-카드형 식생에서 안 보여서 제거 → 근접 원본 / 원거리 빌보드 2단계.
 //   2~3번째 값은 1번째와 같게 둬 중간 감폴 밴드를 없앰(빌보드가 1번째 값부터 시작).
 const FOLIAGE_LOD: Record<FoliageInstance['k'], [number, number, number, number]> = {
-  grass:  [50, 50, 50, 90],
-  flower: [55, 55, 55, 120],
+  grass:  [40, 40, 40, 90],
+  flower: [40, 40, 40, 120],
   // 덤불: 단색(텍스처 X) 모델이라 빌보드 베이크가 잘 안 잡혀 멀면 사라짐 → 원본 메시를 끝까지(빌보드 안 씀).
   //   d0 를 매우 크게 둬 모든 덤불이 원본 메시(L0)로 그려짐. 덤불은 보통 듬성해 부담 적음.
   bush:   [100000, 100000, 100000, 100000],
@@ -664,9 +664,7 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
     if (!tiered || !parts) return;
     const np = parts.parts.length;
     const L0 = refMesh.current[0].slice(0, np).filter(Boolean);
-    const L1 = refMesh.current[1].slice(0, np).filter(Boolean);
-    const L2 = refMesh.current[2].slice(0, np).filter(Boolean);
-    if (L0.length < np || L1.length < np || L2.length < np) return;
+    if (L0.length < np) return;
     acc.current += dt;
     const cam = state.camera;
     const moved = cam.position.distanceToSquared(lastPos.current);
@@ -682,10 +680,10 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
     _projScreen.multiplyMatrices(cam.projectionMatrix, _camInv);
     _frustum.setFromProjectionMatrix(_projScreen);
     _fcam.copy(cam.position);
-    // 단계: 원본(d0) → lod1(d1) → lod2 → [빌보드(d3) | 빌보드없으면 lod2 가 d3 까지].
+    // 2단계: 원본 메시(d0 까지) → 빌보드(그 너머 끝까지). 빌보드 없으면 원본이 전부 담당.
     const tiers: LodTier[] = impostor && refBill.current
-      ? [{ maxD2: d0 * d0, meshes: L0 }, { maxD2: d1 * d1, meshes: L1 }, { maxD2: d2 * d2, meshes: L2 }, { maxD2: d3 * d3, meshes: [refBill.current] }]
-      : [{ maxD2: d0 * d0, meshes: L0 }, { maxD2: d1 * d1, meshes: L1 }, { maxD2: d3 * d3, meshes: L2 }];
+      ? [{ maxD2: d0 * d0, meshes: L0 }, { maxD2: Infinity, meshes: [refBill.current] }]
+      : [{ maxD2: Infinity, meshes: L0 }];
     fillVisibleTiered(tiers, itemsRef.current, heightsRef.current, scale, L0[0].matrixWorld, margin);
   });
   // 첫 채움 전 원점 뭉침 방지 — 마운트/로드 시 1회만 count=0. (ref 콜백에서 하면 매 렌더마다 0으로 비워져 깜빡임)
@@ -695,22 +693,21 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
     if (refBill.current) refBill.current.count = 0;
   }, [tiered, parts, impostor]);
   if (!parts || items.length === 0) return null;
-  const LOD_GEO = (p: FoliageParts['parts'][number], level: number) => level === 0 ? p.geo : level === 1 ? p.lod1 : p.lod2;
   return (
     <>
-      {/* LOD 메시 3단계(0=원본·1=lod1·2=lod2). 비-tiered 면 level0 만 의미(나머지는 count 0). */}
-      {[0, 1, 2].map(level => (tiered || level === 0) && parts.parts.map((p, i) => (
+      {/* 원본 메시(근접). 그 너머는 빌보드. (중간 감폴 단계는 잎-카드 식생에서 망가져 제거함) */}
+      {parts.parts.map((p, i) => (
         <instancedMesh
-          key={'L' + level + '-' + i + '-' + (tiered ? 'cull' : capacity)}
-          ref={(m) => { if (m) refMesh.current[level][i] = m as THREE.InstancedMesh; }}
-          args={[LOD_GEO(p, level), p.mat, capacity]}
-          castShadow={cast && level < 2}    // 원거리(lod2)는 그림자 생략(비용↓, 멀어 티 안남)
+          key={'L0-' + i + '-' + (tiered ? 'cull' : capacity)}
+          ref={(m) => { if (m) refMesh.current[0][i] = m as THREE.InstancedMesh; }}
+          args={[p.geo, p.mat, capacity]}
+          castShadow={cast}
           receiveShadow={false}
           frustumCulled={false}
           raycast={NO_RAYCAST}   // 클릭 레이캐스트에서 제외 (인스턴스 수만 개 ray 테스트 방지)
           userData={{ alpNoCull: true }}   // World PerfManager 컬링 제외 — 인스턴스 바운딩이 원점 1개라 통째로 컬돼 "그림자만 남는" 버그. 자체 컬링만 사용.
         />
-      )))}
+      ))}
       {/* 최원거리 임포스터(빌보드 1개) — 베이크됐을 때만 마운트. */}
       {tiered && impostor && (
         <instancedMesh
