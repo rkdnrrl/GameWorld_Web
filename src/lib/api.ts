@@ -136,6 +136,25 @@ export type UgcGame = {
   featuredTextY: number | null;
 };
 
+/** 업로드 코드 정적 스캔 1건 */
+export interface GameSecurityFinding {
+  file: string;
+  line: number;
+  severity: "critical" | "warn" | "info";
+  id: string;
+  desc: string;
+  snippet: string;
+}
+
+/** 운영자 보안 스캔 결과 (GET /api/operator/games/:slug/security-scan) */
+export interface GameSecurityScan {
+  scannedFiles: number;
+  totalFindings: number;
+  counts: { critical: number; warn: number; info: number };
+  maxSeverity: "critical" | "warn" | "info" | "none";
+  findings: GameSecurityFinding[];
+}
+
 
 export class ApiError extends Error {
   status: number;
@@ -600,6 +619,14 @@ export const api = {
         headers: { ...authHeaders(token), "Content-Type": "application/json" },
         body: JSON.stringify({ reason }),
       },
+    );
+  },
+
+  /** 운영자: 게임 파일 보안 스캔 (R2 즉석 스캔, which=live|pending) */
+  operatorGameSecurityScan(token: string, slug: string, which: "live" | "pending" = "live") {
+    return request<{ slug: string; which: string; scan: GameSecurityScan }>(
+      `/api/operator/games/${encodeURIComponent(slug)}/security-scan?which=${which}`,
+      { headers: authHeaders(token) },
     );
   },
 

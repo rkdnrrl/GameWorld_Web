@@ -1,4 +1,27 @@
 {
+  "OperatorGames": {
+    "title": "ゲームモデレーション",
+    "scanNote": "アップロードされたゲームコードを自動スキャンします。ブロックはしないので、レポートを確認して承認・却下してください。",
+    "loading": "読み込み中…",
+    "notOperator": "運営者専用ページです。",
+    "backHome": "ホームへ",
+    "tabPending": "保留中のゲーム",
+    "tabUpdates": "保留中の更新",
+    "empty": "審査待ちのゲームはありません。",
+    "emptyUpdates": "保留中の更新はありません。",
+    "scanBtn": "セキュリティスキャン",
+    "scanning": "スキャン中…",
+    "scanError": "スキャン失敗",
+    "scanClean": "危険なパターンなし",
+    "rescan": "再スキャン",
+    "scannedFiles": "{n}件のファイルをスキャン",
+    "severityCritical": "重大",
+    "severityWarn": "警告",
+    "severityInfo": "情報",
+    "approve": "承認",
+    "reject": "却下",
+    "rejectPrompt": "却下理由を入力してください"
+  },
   "Common": {
     "loading": "読み込み中…",
     "home": "ホーム",

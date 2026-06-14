@@ -1,4 +1,27 @@
 {
+  "OperatorGames": {
+    "title": "游戏审核",
+    "scanNote": "自动扫描上传的游戏代码。不会拦截——请查看报告后批准或拒绝。",
+    "loading": "加载中…",
+    "notOperator": "仅限运营人员。",
+    "backHome": "返回首页",
+    "tabPending": "待审核游戏",
+    "tabUpdates": "待审核更新",
+    "empty": "没有待审核的游戏。",
+    "emptyUpdates": "没有待审核的更新。",
+    "scanBtn": "安全扫描",
+    "scanning": "扫描中…",
+    "scanError": "扫描失败",
+    "scanClean": "无风险模式",
+    "rescan": "重新扫描",
+    "scannedFiles": "已扫描 {n} 个文件",
+    "severityCritical": "严重",
+    "severityWarn": "警告",
+    "severityInfo": "提示",
+    "approve": "批准",
+    "reject": "拒绝",
+    "rejectPrompt": "请输入拒绝理由"
+  },
   "Common": {
     "loading": "加载中…",
     "home": "首页",

@@ -1,4 +1,27 @@
 {
+  "OperatorGames": {
+    "title": "Game Moderation",
+    "scanNote": "Uploaded game code is auto-scanned. Nothing is blocked — review the report and approve or reject.",
+    "loading": "Loading…",
+    "notOperator": "Operators only.",
+    "backHome": "Back to home",
+    "tabPending": "Pending games",
+    "tabUpdates": "Pending updates",
+    "empty": "No games awaiting review.",
+    "emptyUpdates": "No pending updates.",
+    "scanBtn": "Security scan",
+    "scanning": "Scanning…",
+    "scanError": "Scan failed",
+    "scanClean": "No risky patterns",
+    "rescan": "Rescan",
+    "scannedFiles": "{n} files scanned",
+    "severityCritical": "Critical",
+    "severityWarn": "Warning",
+    "severityInfo": "Info",
+    "approve": "Approve",
+    "reject": "Reject",
+    "rejectPrompt": "Enter rejection reason"
+  },
   "Common": {
     "loading": "Loading…",
     "home": "Home",

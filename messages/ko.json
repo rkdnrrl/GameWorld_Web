@@ -1,4 +1,27 @@
 {
+  "OperatorGames": {
+    "title": "게임 모더레이션",
+    "scanNote": "업로드된 게임 코드를 자동 스캔합니다. 차단하지 않으니 리포트를 보고 직접 승인/거절하세요.",
+    "loading": "불러오는 중…",
+    "notOperator": "운영자 전용 페이지입니다.",
+    "backHome": "홈으로",
+    "tabPending": "대기 게임",
+    "tabUpdates": "보류 업데이트",
+    "empty": "대기 중인 게임이 없습니다.",
+    "emptyUpdates": "보류 중인 업데이트가 없습니다.",
+    "scanBtn": "보안 스캔",
+    "scanning": "스캔 중…",
+    "scanError": "스캔 실패",
+    "scanClean": "위험 패턴 없음",
+    "rescan": "다시 스캔",
+    "scannedFiles": "{n}개 파일 스캔",
+    "severityCritical": "심각",
+    "severityWarn": "경고",
+    "severityInfo": "참고",
+    "approve": "승인",
+    "reject": "거절",
+    "rejectPrompt": "거절 사유를 입력하세요"
+  },
   "Common": {
     "loading": "불러오는 중…",
     "home": "홈",
