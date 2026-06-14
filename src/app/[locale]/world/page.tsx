@@ -14,6 +14,8 @@ import { EmoteWheel } from '@/components/world/EmoteWheel';
 import { MyObjectsModal } from '@/components/world/MyObjectsModal';
 import { UserApiKeysModal } from '@/components/world/UserApiKeysModal';
 import { ghostFromSpawnPayload, ghostFromPrefab, type PlacementGhost } from '@/lib/world/placementGhost';
+import AlphaGateModal from '@/components/AlphaGateModal';
+import { refreshCanPlay } from '@/lib/alphaGate';
 
 const WorldCanvas = dynamic(() => import('@/components/world/WorldCanvas'), { ssr: false });
 const GraphicsPanel = dynamic(() => import('@/components/world/GraphicsPanel'), { ssr: false });
@@ -97,6 +99,8 @@ export default function WorldPage() {
   const [userId, setUserId] = useState('');
   const [username, setUsername] = useState('');
   const [ready, setReady] = useState(false);
+  // 비공개 테스트 게이트 — 테스터/운영자가 아니면 월드 입장 차단
+  const [gateBlocked, setGateBlocked] = useState(false);
 
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
@@ -378,6 +382,10 @@ export default function WorldPage() {
         const { id, nickname } = await meRes.json();
         setUserId(id);
         setUsername(nickname || 'player');
+
+        // 비공개 테스트 — 테스터/운영자가 아니면 입장 차단하고 안내 게이트 표시
+        const allowed = await refreshCanPlay();
+        if (!allowed) { setGateBlocked(true); return; }
 
         if (!charRes.ok) { goCharacter(); return; }
         const charData = await charRes.json().catch(() => null);
@@ -941,6 +949,14 @@ export default function WorldPage() {
       chatInputRef.current?.blur();
     }
   };
+
+  if (gateBlocked) {
+    return (
+      <div style={{ width: '100vw', height: '100vh', background: '#0f172a' }}>
+        <AlphaGateModal onClose={() => { try { router.replace('/'); } catch { window.location.assign('/'); } }} />
+      </div>
+    );
+  }
 
   if (!ready) {
     return (

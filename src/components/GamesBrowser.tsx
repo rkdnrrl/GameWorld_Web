@@ -8,6 +8,7 @@ import FeaturedGamesCarousel from "@/components/FeaturedGamesCarousel";
 import { useLocale } from "next-intl";
 import { SESSION_CHANGE_EVENT, session, api, type GameCategory as ApiCategory } from "@/lib/api";
 import { loadLastGameId, saveLastGameId } from "@/lib/lastGame";
+import AlphaGateModal, { useCanPlay } from "@/components/AlphaGateModal";
 
 type Props = { games: Game[] };
 const DEFAULT_ICON = "🎮";
@@ -30,6 +31,8 @@ export default function GamesBrowser({ games }: Props) {
   const [lastGameId,  setLastGameId]  = useState<string | null>(null);
   const [token,       setToken]       = useState<string | null>(null);
   const [categories,  setCategories]  = useState<ApiCategory[]>([]);
+  const allowed = useCanPlay();
+  const [gateOpen, setGateOpen] = useState(false);
 
   useEffect(() => {
     setLastGameId(loadLastGameId());
@@ -105,24 +108,30 @@ export default function GamesBrowser({ games }: Props) {
       </div>
 
       {/* ── 이어하기 ────────────────────────────────────────────────── */}
-      {lastGame && (
-        <a href={lastGameHref} onClick={() => saveLastGameId(lastGame.id)}
-          className="group mb-5 flex items-center gap-4 rounded-lg border border-blue-100 bg-blue-50 p-4 transition-all hover:border-blue-200 hover:bg-blue-100"
-        >
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 text-2xl shadow">
-            {lastGame.emoji}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600">{t("continueLabel")}</p>
-            <p className="truncate text-sm font-semibold text-gray-900">
-              {(lastGame as Game & { titlesI18n?: Record<string,string> }).titlesI18n?.[locale] || (lastGame as Game & { titlesI18n?: Record<string,string> }).titlesI18n?.['en'] || lastGame.title}
-            </p>
-          </div>
-          <span className="shrink-0 rounded bg-[#0170bd] px-4 py-2 text-xs font-semibold text-white transition-colors group-hover:bg-blue-700">
-            {t("continueButton")}
-          </span>
-        </a>
-      )}
+      {lastGame && (() => {
+        const cardClass = "group mb-5 flex w-full items-center gap-4 rounded-lg border border-blue-100 bg-blue-50 p-4 text-left transition-all hover:border-blue-200 hover:bg-blue-100";
+        const inner = (
+          <>
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 text-2xl shadow">
+              {lastGame.emoji}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600">{t("continueLabel")}</p>
+              <p className="truncate text-sm font-semibold text-gray-900">
+                {(lastGame as Game & { titlesI18n?: Record<string,string> }).titlesI18n?.[locale] || (lastGame as Game & { titlesI18n?: Record<string,string> }).titlesI18n?.['en'] || lastGame.title}
+              </p>
+            </div>
+            <span className="shrink-0 rounded bg-[#0170bd] px-4 py-2 text-xs font-semibold text-white transition-colors group-hover:bg-blue-700">
+              {t("continueButton")}
+            </span>
+          </>
+        );
+        return allowed ? (
+          <a href={lastGameHref} onClick={() => saveLastGameId(lastGame.id)} className={cardClass}>{inner}</a>
+        ) : (
+          <button type="button" onClick={() => setGateOpen(true)} className={cardClass}>{inner}</button>
+        );
+      })()}
 
       {/* ── 카테고리 + 정렬 드롭다운 ───────────────────────────────── */}
       <div className="mb-5 flex items-center gap-2">
@@ -177,6 +186,8 @@ export default function GamesBrowser({ games }: Props) {
           {filtered.map((g) => <GameCard key={g.id} game={g} />)}
         </div>
       )}
+
+      {gateOpen && <AlphaGateModal onClose={() => setGateOpen(false)} />}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { useTranslations, useLocale } from "next-intl";
 import { SESSION_CHANGE_EVENT, session, api, type GameCategory as ApiCategory } from "@/lib/api";
 import { saveLastGameId } from "@/lib/lastGame";
 import type { Game } from "@/components/GameCard";
+import AlphaGateModal, { useCanPlay } from "@/components/AlphaGateModal";
 
 const CAT_GRADIENT: Record<string, string> = {
   earn:      "from-amber-500  to-orange-600",
@@ -33,6 +34,8 @@ export default function FeaturedGamesCarousel({ games }: { games: Game[] }) {
   const [paused,     setPaused]     = useState(false);
   const [token,      setToken]      = useState<string | null>(null);
   const [categories, setCategories] = useState<ApiCategory[]>([]);
+  const allowed = useCanPlay();
+  const [gateOpen, setGateOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -135,15 +138,25 @@ export default function FeaturedGamesCarousel({ games }: { games: Game[] }) {
                   </p>
                 )}
                 <div className="flex flex-wrap gap-3">
-                  <a
-                    href={playHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => saveLastGameId(game.id)}
-                    className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-bold text-gray-900 shadow-md transition hover:bg-gray-100 hover:shadow-lg active:scale-95"
-                  >
-                    {t("featuredPlay")}
-                  </a>
+                  {allowed ? (
+                    <a
+                      href={playHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => saveLastGameId(game.id)}
+                      className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-bold text-gray-900 shadow-md transition hover:bg-gray-100 hover:shadow-lg active:scale-95"
+                    >
+                      {t("featuredPlay")}
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setGateOpen(true)}
+                      className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-bold text-gray-900 shadow-md transition hover:bg-gray-100 hover:shadow-lg active:scale-95"
+                    >
+                      {t("featuredPlay")}
+                    </button>
+                  )}
                   <Link
                     href={`/games/${game.id}`}
                     className="inline-flex items-center gap-2 rounded-xl border border-white/40 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20"
@@ -213,6 +226,8 @@ export default function FeaturedGamesCarousel({ games }: { games: Game[] }) {
           to   { width: 100% }
         }
       `}</style>
+
+      {gateOpen && <AlphaGateModal onClose={() => setGateOpen(false)} />}
     </div>
   );
 }

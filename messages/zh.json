@@ -381,6 +381,13 @@
     "errNoProfile": "未找到个人资料，请重新登录。",
     "errGeneric": "处理过程中发生错误。"
   },
+  "AlphaGate": {
+    "title": "内测进行中",
+    "desc": "ALP 目前处于仅限测试员的内测阶段。如果你有测试码，输入后即可立即开始游玩。",
+    "redeemBtn": "输入测试码",
+    "closeBtn": "关闭",
+    "note": "正式上线后所有人都可以游玩。"
+  },
   "LanguageSwitcher": {
     "label": "语言"
   },

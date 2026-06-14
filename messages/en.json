@@ -381,6 +381,13 @@
     "errNoProfile": "Profile not found. Please sign in again.",
     "errGeneric": "An error occurred while processing your request."
   },
+  "AlphaGate": {
+    "title": "Private testing in progress",
+    "desc": "ALP is currently in a testers-only closed test. If you have a tester code, enter it to start playing right away.",
+    "redeemBtn": "Enter tester code",
+    "closeBtn": "Close",
+    "note": "Everyone will be able to play once we officially launch."
+  },
   "LanguageSwitcher": {
     "label": "Language"
   },
