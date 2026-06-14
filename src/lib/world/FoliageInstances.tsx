@@ -244,13 +244,13 @@ const FOLIAGE_CULL_MARGIN = 4;   // m — 시야 가장자리 여백(빠른 회�
 //   frustum 컬링만으론 풀밭/나무 라인을 마주 보면 시야 안 수십만 블레이드+수백 그루가 전부 풀폴리로 그려져
 //   삼각형이 폭증(예: 1.1M→13.9M) → GPU 버텍스 바운드 프레임 드랍. 거리 너머는 개별 식별이 안 되므로 잘라낸다.
 //   풀·꽃은 짧게(멀리선 안 보임), 나무·돌은 실루엣 풍경이라 길게. 0 = 거리컬링 끔.
-// ── 거리별 LOD 단계 [원본까지, 가볍게감폴까지, 강하게감폴까지, 빌보드까지(=최대거리, 너머는 컬링)] (m) ──
-//   가까움 = 원본 풀디테일 → 멀수록 단계적으로 폴리 뭉갬 → 가장 멀면 빌보드(2삼각형) → 컬링.
-//   에셋(GLB) 식생은 4단계 전부 사용. 절차적 풀/꽃(저폴리)은 Instanced 경로라 마지막 값(최대거리)만 거리컬링에 씀.
-//   원거리가 빌보드라 거의 공짜 → 최대거리를 넉넉히(멀리까지 보임).
+// ── 거리별 LOD 단계 [원본까지, 가볍게감폴까지, 강하게감폴까지, (절차적 최대거리)] (m) ──
+//   가까움 = 원본 풀디테일 → 멀수록 단계적으로 폴리 뭉갬 → 3번째 값 너머는 "빌보드(2삼각형)" 로 카메라 끝까지.
+//   ⚠ 에셋 식생은 거리 컬링 없음 — 멀어도 안 사라지고 빌보드로 보임(사용자 요청). 4번째 값은 안 씀.
+//   절차적 풀/꽃(저폴리, 빌보드 없음)만 Instanced 경로에서 4번째 값을 최대 거리컬링에 사용(무한 렌더 방지).
 const FOLIAGE_LOD: Record<FoliageInstance['k'], [number, number, number, number]> = {
-  grass:  [25, 45, 65, 80],
-  flower: [22, 45, 80, 150],
+  grass:  [25, 45, 65, 90],
+  flower: [22, 45, 80, 120],
   bush:   [45, 90, 140, 200],
   tree:   [90, 180, 320, 600],
   rock:   [55, 110, 175, 250],
@@ -574,21 +574,20 @@ function loadFoliageParts(url: string, overrides?: MaterialOverrides, sway: Sway
 }
 
 /** 시야 안 items 를 거리 단계(tier)별로 분배 — 각 tier = { maxD2, meshes }. 오름차순 정렬 가정.
- *  인스턴스는 d2 <= maxD2 인 첫 tier 에 들어감(가까운=낮은 tier=고품질). 마지막 tier maxD2 너머는 컬링.
+ *  인스턴스는 d2 <= maxD2 인 첫 tier 에 들어감(가까운=낮은 tier=고품질).
+ *  ⚠ 거리 컬링 없음 — 마지막 tier(빌보드)가 카메라 far plane 까지 전부 받음(멀어도 안 사라지고 완전 뭉갠 빌보드로 보임).
  *  색 변주 없음(asset 은 instanceColor 미사용). */
 interface LodTier { maxD2: number; meshes: THREE.InstancedMesh[] }
 function fillVisibleTiered(tiers: LodTier[], items: FoliageInstance[], heights: Float32Array, scaleBase: number, meshWorld: THREE.Matrix4, margin: number): void {
   const counts = new Array(tiers.length).fill(0);
-  const lastD2 = tiers.length ? tiers[tiers.length - 1].maxD2 : 0;
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
     const hy = heights[i];
     _fv.set(it.x, hy, it.z).applyMatrix4(meshWorld);
     const d2 = _fv.distanceToSquared(_fcam);
-    if (d2 > lastD2) continue;                                    // 최대거리 너머 → 컬링
     _fsphere.center.copy(_fv); _fsphere.radius = margin;
-    if (!_frustum.intersectsSphere(_fsphere)) continue;
-    let ti = 0; while (ti < tiers.length - 1 && d2 > tiers[ti].maxD2) ti++;   // d2 가 드는 첫 tier
+    if (!_frustum.intersectsSphere(_fsphere)) continue;          // 시야 밖만 제외(거리 컬링 X)
+    let ti = 0; while (ti < tiers.length - 1 && d2 > tiers[ti].maxD2) ti++;   // d2 가 드는 첫 tier(없으면 마지막=빌보드)
     _p.set(it.x, hy, it.z);
     _q.setFromAxisAngle(_up, it.r);
     _s.setScalar(it.s * scaleBase);
