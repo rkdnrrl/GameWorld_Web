@@ -237,14 +237,22 @@ const _camInv = new THREE.Matrix4();
 const _fv = new THREE.Vector3();
 const _fsphere = new THREE.Sphere(new THREE.Vector3(), 0);
 const FOLIAGE_CULL_MARGIN = 4;   // m — 시야 가장자리 여백(빠른 회전 시 edge pop 완화).
+// ── 거리 컬링 — 시야(frustum) 안이어도 이 거리(m) 너머 인스턴스는 안 그림. ──
+//   frustum 컬링만으론 풀밭/나무 라인을 마주 보면 시야 안 수십만 블레이드+수백 그루가 전부 풀폴리로 그려져
+//   삼각형이 폭증(예: 1.1M→13.9M) → GPU 버텍스 바운드 프레임 드랍. 거리 너머는 개별 식별이 안 되므로 잘라낸다.
+//   풀·꽃은 짧게(멀리선 안 보임), 나무·돌은 실루엣 풍경이라 길게. 0 = 거리컬링 끔.
+const FOLIAGE_MAX_DIST: Record<FoliageInstance['k'], number> = { grass: 60, flower: 55, bush: 95, tree: 220, rock: 120 };
+const _fcam = new THREE.Vector3();   // fillVisible 거리 비교용 카메라 위치(재사용)
 
 /** 시야(frustum) 안 items 만 mesh(들)에 채움. heights=미리 계산된 표면 높이, meshWorld=인스턴스→월드 행렬. margin=시야밖 여백(큰 나무는 크게 줘 그림자 pop 완화). 반환=채운 수. */
-function fillVisible(meshes: THREE.InstancedMesh[], items: FoliageInstance[], heights: Float32Array, scaleBase: number, vary: FoliageInstance['k'] | undefined, meshWorld: THREE.Matrix4, margin: number = FOLIAGE_CULL_MARGIN): number {
+function fillVisible(meshes: THREE.InstancedMesh[], items: FoliageInstance[], heights: Float32Array, scaleBase: number, vary: FoliageInstance['k'] | undefined, meshWorld: THREE.Matrix4, margin: number = FOLIAGE_CULL_MARGIN, maxDist2: number = 0): number {
   let n = 0;
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
     const hy = heights[i];
     _fv.set(it.x, hy, it.z).applyMatrix4(meshWorld);
+    // 거리 컬링 — 카메라(_fcam)에서 maxDist 너머면 스킵(frustum 안이어도). maxDist2=0 이면 끔.
+    if (maxDist2 > 0 && _fv.distanceToSquared(_fcam) > maxDist2) continue;
     _fsphere.center.copy(_fv); _fsphere.radius = margin;
     if (!_frustum.intersectsSphere(_fsphere)) continue;
     _p.set(it.x, hy, it.z);
@@ -265,7 +273,7 @@ function fillVisible(meshes: THREE.InstancedMesh[], items: FoliageInstance[], he
 
 /** 단일 종류 InstancedMesh — count 가 바뀌면 key 로 재생성(args 는 생성시 1회만 반영).
  *  cull=true(풀·꽃) 면 카메라 시야 안만 렌더(대량 식재 성능). cull=false(나무·돌) 면 전부 렌더. */
-function Instanced({ items, geo, mat, t, base, cast, receive, vary, cull = false, margin = FOLIAGE_CULL_MARGIN }: {
+function Instanced({ items, geo, mat, t, base, cast, receive, vary, cull = false, margin = FOLIAGE_CULL_MARGIN, maxDist = 0 }: {
   items: FoliageInstance[];
   geo: THREE.BufferGeometry;
   mat: THREE.Material;
@@ -276,6 +284,7 @@ function Instanced({ items, geo, mat, t, base, cast, receive, vary, cull = false
   vary?: FoliageInstance['k'];  // 지정 시 해당 종류 색 변주 적용
   cull?: boolean;      // true=화면 밖 frustum 컬링
   margin?: number;     // 컬링 여백(m) — 큰 나무는 크게
+  maxDist?: number;    // 거리 컬링 임계(m). 0=끔.
 }) {
   const ref = useRef<THREE.InstancedMesh>(null);
   const capacity = Math.max(256, Math.ceil((items.length + 1) / 256) * 256);
@@ -328,7 +337,8 @@ function Instanced({ items, geo, mat, t, base, cast, receive, vary, cull = false
     _camInv.copy(cam.matrixWorld).invert();
     _projScreen.multiplyMatrices(cam.projectionMatrix, _camInv);
     _frustum.setFromProjectionMatrix(_projScreen);
-    fillVisible([mesh], itemsRef.current, heightsRef.current, base, vary, mesh.matrixWorld, margin);
+    _fcam.copy(cam.position);
+    fillVisible([mesh], itemsRef.current, heightsRef.current, base, vary, mesh.matrixWorld, margin, maxDist > 0 ? maxDist * maxDist : 0);
   });
   // 첫 채움 전 원점 뭉침 방지 — 마운트 시 1회만 count=0. (ref 콜백에서 하면 매 렌더마다 0으로 비워져 깜빡임)
   useEffect(() => { if (cull && ref.current) ref.current.count = 0; }, [cull]);
@@ -451,8 +461,8 @@ function loadFoliageParts(url: string, overrides?: MaterialOverrides, sway: Sway
   return entry;
 }
 
-function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = false, textureUrl, cull = false, margin = FOLIAGE_CULL_MARGIN }: {
-  url: string; scale: number; items: FoliageInstance[]; t: TerrainData; cast: boolean; overrides?: MaterialOverrides; sway?: SwayMode; textureUrl?: string; cull?: boolean; margin?: number;
+function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = false, textureUrl, cull = false, margin = FOLIAGE_CULL_MARGIN, maxDist = 0 }: {
+  url: string; scale: number; items: FoliageInstance[]; t: TerrainData; cast: boolean; overrides?: MaterialOverrides; sway?: SwayMode; textureUrl?: string; cull?: boolean; margin?: number; maxDist?: number;
 }) {
   const [parts, setParts] = useState<FoliageParts | null>(null);
   const ovKey = overrides ? Object.keys(overrides).sort().join(',') : '';
@@ -510,7 +520,8 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
     _camInv.copy(cam.matrixWorld).invert();
     _projScreen.multiplyMatrices(cam.projectionMatrix, _camInv);
     _frustum.setFromProjectionMatrix(_projScreen);
-    fillVisible(meshes, itemsRef.current, heightsRef.current, scale, undefined, meshes[0].matrixWorld, margin);
+    _fcam.copy(cam.position);
+    fillVisible(meshes, itemsRef.current, heightsRef.current, scale, undefined, meshes[0].matrixWorld, margin, maxDist > 0 ? maxDist * maxDist : 0);
   });
   // 첫 채움 전 원점 뭉침 방지 — 마운트/로드 시 1회만 count=0. (ref 콜백에서 하면 매 렌더마다 0으로 비워져 깜빡임)
   useEffect(() => {
@@ -720,31 +731,31 @@ export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
   const rockV = useMemo(() => foliageVariantsOf(fa, 'rock'), [fa]);
   const bushV = useMemo(() => foliageVariantsOf(fa, 'bush'), [fa]);
   // 개체를 variant 별로 나눠 각 모델로 인스턴싱. variant 는 위치 해시로 결정(안정적·렌더/콜라이더 일치).
-  const assetCat = (variants: FoliageVariant[], items: FoliageInstance[], cast: boolean, sway: SwayMode, cull = false, margin = FOLIAGE_CULL_MARGIN) =>
+  const assetCat = (variants: FoliageVariant[], items: FoliageInstance[], cast: boolean, sway: SwayMode, cull = false, margin = FOLIAGE_CULL_MARGIN, maxDist = 0) =>
     variants.map((v, vi) => {
       const bucket = variants.length === 1 ? items : items.filter(it => resolveVariantIndex(it, variants.length) === vi);
       if (!bucket.length) return null;
-      return <AssetFoliageInstances key={vi + '|' + v.url} url={v.url} scale={v.scale ?? 1} overrides={v.overrides} textureUrl={v.textureUrl} items={bucket} t={t} cast={cast} sway={sway} cull={cull} margin={margin} />;
+      return <AssetFoliageInstances key={vi + '|' + v.url} url={v.url} scale={v.scale ?? 1} overrides={v.overrides} textureUrl={v.textureUrl} items={bucket} t={t} cast={cast} sway={sway} cull={cull} margin={margin} maxDist={maxDist} />;
     });
   return (
     <>
       {/* 전부 화면 밖 frustum 컬링 — 시야 안만 렌더(수천 그루 나무도 메인+그림자 패스에서 빠짐).
           나무·돌은 그림자 던지므로 마진을 크게(12/8m) 줘 시야 살짝 밖 나무 그림자가 사라지는 걸 완화. */}
-      {grassV.length ? assetCat(grassV, grass, false, 'bend', true)
-        : <Instanced items={grass} geo={grassGeo} mat={grassMat} t={t} base={1} cast={false} receive={false} vary="grass" cull />}
-      {flowerV.length ? assetCat(flowerV, flowers, false, 'bend', true)
-        : <Instanced items={flowers} geo={flowerGeo} mat={flowerMat} t={t} base={1} cast={false} receive={false} vary="flower" cull />}
-      {treeV.length ? assetCat(treeV, trees, true, false, true, 12)
+      {grassV.length ? assetCat(grassV, grass, false, 'bend', true, FOLIAGE_CULL_MARGIN, FOLIAGE_MAX_DIST.grass)
+        : <Instanced items={grass} geo={grassGeo} mat={grassMat} t={t} base={1} cast={false} receive={false} vary="grass" cull maxDist={FOLIAGE_MAX_DIST.grass} />}
+      {flowerV.length ? assetCat(flowerV, flowers, false, 'bend', true, FOLIAGE_CULL_MARGIN, FOLIAGE_MAX_DIST.flower)
+        : <Instanced items={flowers} geo={flowerGeo} mat={flowerMat} t={t} base={1} cast={false} receive={false} vary="flower" cull maxDist={FOLIAGE_MAX_DIST.flower} />}
+      {treeV.length ? assetCat(treeV, trees, true, false, true, 12, FOLIAGE_MAX_DIST.tree)
         : (<>
             {/* 나무: 기둥 + 잎 — 같은 인스턴스 변환(지오메트리가 미리 y 오프셋됨) */}
-            <Instanced items={trees} geo={trunkGeo} mat={trunkMat} t={t} base={1} cast receive={false} cull margin={12} />
-            <Instanced items={trees} geo={canopyGeo} mat={canopyMat} t={t} base={1} cast receive={false} cull margin={12} />
+            <Instanced items={trees} geo={trunkGeo} mat={trunkMat} t={t} base={1} cast receive={false} cull margin={12} maxDist={FOLIAGE_MAX_DIST.tree} />
+            <Instanced items={trees} geo={canopyGeo} mat={canopyMat} t={t} base={1} cast receive={false} cull margin={12} maxDist={FOLIAGE_MAX_DIST.tree} />
           </>)}
-      {rockV.length ? assetCat(rockV, rocks, true, false, true, 8)
-        : <Instanced items={rocks} geo={rockGeo} mat={rockMat} t={t} base={1} cast receive={false} vary="rock" cull margin={8} />}
+      {rockV.length ? assetCat(rockV, rocks, true, false, true, 8, FOLIAGE_MAX_DIST.rock)
+        : <Instanced items={rocks} geo={rockGeo} mat={rockMat} t={t} base={1} cast receive={false} vary="rock" cull margin={8} maxDist={FOLIAGE_MAX_DIST.rock} />}
       {/* 덤불: 그림자 던짐 + 콜라이더 없음(통과) + 'part'(지나가면 갈라짐, 안 눕음) + 컬링 margin 10 */}
-      {bushV.length ? assetCat(bushV, bushes, true, 'part', true, 10)
-        : <Instanced items={bushes} geo={bushGeo} mat={bushMat} t={t} base={1} cast receive={false} vary="bush" cull margin={10} />}
+      {bushV.length ? assetCat(bushV, bushes, true, 'part', true, 10, FOLIAGE_MAX_DIST.bush)
+        : <Instanced items={bushes} geo={bushGeo} mat={bushMat} t={t} base={1} cast receive={false} vary="bush" cull margin={10} maxDist={FOLIAGE_MAX_DIST.bush} />}
     </>
   );
 }
