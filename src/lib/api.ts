@@ -467,6 +467,14 @@ export const api = {
       body: JSON.stringify(input),
     });
   },
+  /** 비밀번호 변경 — 서버에서 현재 비번 검증 후 admin API 로 즉시 반영. */
+  changePassword(token: string, email: string, currentPassword: string, newPassword: string) {
+    return request<{ ok: true }>("/api/auth/change-password", {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({ email, currentPassword, newPassword }),
+    });
+  },
 
   // ─── 프로필 꾸미기 (Phase 17) ───
   /** 내 프로필 (bio/이미지/배너/아이콘/테마색 포함) 조회 */

@@ -97,7 +97,7 @@ export default function AccountPage() {
   }
 
   async function handleChangePassword() {
-    if (!user?.email || savingPw) return;
+    if (!user?.email || !token || savingPw) return;
     if (newPw.length < 8) {
       setPwMessage(t("pwTooShort"));
       return;
@@ -109,26 +109,20 @@ export default function AccountPage() {
     setSavingPw(true);
     setPwMessage(null);
     try {
-      // 현재 비밀번호 재확인 (supabase 세션 갱신 겸). 구글 로그인 계정은 비밀번호가 없어 여기서 실패함.
-      const { error: signInErr } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password: currentPw,
-      });
-      if (signInErr) {
-        setPwMessage(t("pwCurrentWrong"));
-        return;
-      }
-      const { error: updErr } = await supabase.auth.updateUser({ password: newPw });
-      if (updErr) {
-        setPwMessage(updErr.message || t("pwChangeFailed"));
-        return;
-      }
+      // 서버에서 현재 비번 검증 + admin API 로 즉시 변경.
+      // (client-side supabase.updateUser 는 세션 없음/이메일 확인 설정 시 성공만 뜨고 실제 변경이 안 됨)
+      await api.changePassword(token, user.email, currentPw, newPw);
       setPwMessage(t("pwChanged"));
       setCurrentPw("");
       setNewPw("");
       setConfirmPw("");
-    } catch {
-      setPwMessage(t("pwChangeFailed"));
+    } catch (err) {
+      // 403 = 현재 비밀번호 틀림 (구글 로그인 계정도 비번 없어 여기로 옴)
+      if (err instanceof ApiError && err.status === 403) {
+        setPwMessage(t("pwCurrentWrong"));
+      } else {
+        setPwMessage(err instanceof ApiError ? err.message : t("pwChangeFailed"));
+      }
     } finally {
       setSavingPw(false);
     }
