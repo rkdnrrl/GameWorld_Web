@@ -17,7 +17,7 @@
  */
 import React, { useMemo, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { RigidBody, CapsuleCollider, CuboidCollider, ConvexHullCollider } from '@react-three/rapier';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore — three 예제(번들 타입 없음). 모델당 1회 볼록껍질 선계산용.
@@ -244,7 +244,8 @@ const FOLIAGE_CULL_MARGIN = 4;   // m — 시야 가장자리 여백(빠른 회�
 //   frustum 컬링만으론 풀밭/나무 라인을 마주 보면 시야 안 수십만 블레이드+수백 그루가 전부 풀폴리로 그려져
 //   삼각형이 폭증(예: 1.1M→13.9M) → GPU 버텍스 바운드 프레임 드랍. 거리 너머는 개별 식별이 안 되므로 잘라낸다.
 //   풀·꽃은 짧게(멀리선 안 보임), 나무·돌은 실루엣 풍경이라 길게. 0 = 거리컬링 끔.
-const FOLIAGE_MAX_DIST: Record<FoliageInstance['k'], number> = { grass: 60, flower: 55, bush: 95, tree: 400, rock: 160 };
+// 원거리는 임포스터(빌보드 2삼각형)라 거의 공짜 → 그리기 거리를 넉넉히(멀리까지 보임). grass 는 절차적 흔해 보수적.
+const FOLIAGE_MAX_DIST: Record<FoliageInstance['k'], number> = { grass: 80, flower: 150, bush: 200, tree: 600, rock: 250 };
 // ── 원거리 LOD 임계(m) — 이 거리 너머 에셋 식생은 감폴(lodGeo) 메시로 그림(근접은 원본). 0=LOD 끔. ──
 //   나무가 고폴리 주범이라 가장 효과 큼. tree 120 = 120m 까지 원본 풀디테일, 그 너머만 감폴.
 //   ⚠ 값은 "에셋(GLB) 식생"에만 적용 — 절차적 풀/꽃(저폴리 cross-quad)은 Instanced 경로라 무시됨.
@@ -386,6 +387,81 @@ function makeLodGeo(geo: THREE.BufferGeometry): THREE.BufferGeometry {
     return lod;
   } catch { return geo; }                                 // 퇴화 등 실패 → 원본
 }
+
+// ── 원거리 임포스터(빌보드) ──────────────────────────────────────────────
+//  먼 에셋 식생을 "평면 1장(2삼각형/인스턴스)" 으로 대체 — 모델당 폴리와 무관하게 비용 고정.
+//  로드 시 모델 정면을 렌더타깃에 1회 베이크(캐시)해 텍스처로 만들고, 빌보드(항상 카메라 향함)로 그린다.
+//  근접은 원본 메시, lodDist 너머는 이 임포스터 → "멀리도 보이되 완전 최적화".
+const FOLIAGE_IMPOSTOR = true;   // false 면 원거리도 감폴 메시(임포스터 대신).
+interface Impostor { geo: THREE.BufferGeometry; mat: THREE.Material; }
+const _impostorCache = new Map<string, Impostor | null>();   // url → 임포스터(베이크 실패 시 null)
+
+/** 빌보드 쿼드 — x:-w/2..w/2, y:0..h(밑동 기준), uv 0..1. */
+function makeImpostorQuad(w: number, h: number): THREE.BufferGeometry {
+  const g = new THREE.BufferGeometry();
+  const hw = w / 2;
+  g.setAttribute('position', new THREE.Float32BufferAttribute([-hw, 0, 0, hw, 0, 0, hw, h, 0, -hw, h, 0], 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
+  g.setIndex([0, 1, 2, 0, 2, 3]);
+  return g;
+}
+/** 베이크 텍스처를 입힌 빌보드 머티리얼 — 인스턴스 위치/스케일만 쓰고 항상 카메라 쪽으로 펴짐(실린더 빌보드).
+ *  MeshBasicMaterial 기반(색공간/alphaTest 파이프라인 재사용) + project_vertex 치환. */
+function makeImpostorMaterial(tex: THREE.Texture): THREE.Material {
+  // toneMapped:false — 베이크 시 이미 렌더러 톤매핑이 적용된 텍스처라 재적용 금지(이중 톤매핑→탈색 방지).
+  const mat = new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5, transparent: false, side: THREE.DoubleSide, toneMapped: false });
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>',
+      `mat4 _mi = modelMatrix * instanceMatrix;
+       vec3 _ipos = _mi[3].xyz;                                  // 인스턴스 월드 위치(밑동)
+       float _sx = length(_mi[0].xyz);                           // 월드 스케일 x
+       float _sy = length(_mi[1].xyz);                           // 월드 스케일 y
+       vec3 _camR = normalize(vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]));  // 카메라 right(월드)
+       vec3 _wp = _ipos + _camR * (transformed.x * _sx) + vec3(0.0, 1.0, 0.0) * (transformed.y * _sy);
+       vec4 mvPosition = viewMatrix * vec4(_wp, 1.0);
+       gl_Position = projectionMatrix * mvPosition;`);
+  };
+  return mat;
+}
+const _bakeBox = new THREE.Box3();
+/** 모델(parts) 정면을 렌더타깃에 베이크 → 임포스터(쿼드+머티리얼). url 캐시. 실패 시 null. */
+function bakeImpostor(gl: THREE.WebGLRenderer, parts: FoliageParts['parts'], url: string): Impostor | null {
+  if (_impostorCache.has(url)) return _impostorCache.get(url) ?? null;
+  try {
+    _bakeBox.makeEmpty();
+    const meshes: THREE.Mesh[] = [];
+    for (const p of parts) {
+      p.geo.computeBoundingBox();
+      if (p.geo.boundingBox) _bakeBox.union(p.geo.boundingBox);
+      meshes.push(new THREE.Mesh(p.geo, p.mat));
+    }
+    if (_bakeBox.isEmpty()) { _impostorCache.set(url, null); return null; }
+    const wx = _bakeBox.max.x - _bakeBox.min.x, wz = _bakeBox.max.z - _bakeBox.min.z;
+    const W = Math.max(wx, wz, 0.01), H = Math.max(_bakeBox.max.y - _bakeBox.min.y, 0.01);
+    const texH = 256, texW = Math.max(16, Math.min(256, Math.round(256 * W / H)));
+    const rt = new THREE.WebGLRenderTarget(texW, texH, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: true });
+    rt.texture.colorSpace = THREE.SRGBColorSpace;
+    const scene = new THREE.Scene();
+    scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+    const dir = new THREE.DirectionalLight(0xffffff, 1.1); dir.position.set(0.4, 1, 0.8); scene.add(dir);
+    for (const m of meshes) scene.add(m);
+    const depth = Math.max(wx, wz) + 4;
+    const cam = new THREE.OrthographicCamera(-W / 2, W / 2, H / 2, -H / 2, 0.001, depth + 2);
+    cam.position.set(0, H / 2, depth / 2 + 1);   // 정면(-z), 밑동~정수리(y 0..H) 프레이밍
+    cam.updateMatrixWorld();
+    const prevRT = gl.getRenderTarget();
+    const prevClear = new THREE.Color(); gl.getClearColor(prevClear); const prevAlpha = gl.getClearAlpha();
+    gl.setRenderTarget(rt);
+    gl.setClearColor(0x000000, 0); gl.clear(true, true, true);
+    gl.render(scene, cam);
+    gl.setRenderTarget(prevRT);
+    gl.setClearColor(prevClear, prevAlpha);
+    const imp: Impostor = { geo: makeImpostorQuad(W, H), mat: makeImpostorMaterial(rt.texture) };
+    _impostorCache.set(url, imp);
+    return imp;
+  } catch { _impostorCache.set(url, null); return null; }
+}
+
 /** 잎/식생 머티리얼 보정.
  *  - 양면(DoubleSide): 단면 잎 카드가 backface 컬링돼 컬러에서 안 보이는 문제 해결(절대 가려지지 않음).
  *  - 원래 "투명(블렌딩)"이던 잎만 alphaTest 컷아웃으로 전환 — 인스턴싱은 블렌딩 정렬이 안 되므로.
@@ -481,8 +557,9 @@ function loadFoliageParts(url: string, overrides?: MaterialOverrides, sway: Sway
       const cx = (box.min.x + box.max.x) / 2, cz = (box.min.z + box.max.z) / 2, minY = box.min.y;
       for (const p of parts) {
         p.geo.translate(-cx, -minY, -cz); p.geo.computeBoundingSphere();   // 밑동 y=0, xz 중심
-        // 원거리 LOD 감폴 — 리베이스(translate) 후 생성해 위치 일치. 감폴 무의미하면 geo 와 동일 참조(추가 비용 0).
-        p.lodGeo = makeLodGeo(p.geo);
+        // 원거리 표현 — 임포스터(빌보드) 사용 시엔 감폴 메시 불필요 → 느린 SimplifyModifier 스킵(로드 절약).
+        // 임포스터 OFF 폴백일 때만 감폴 생성. 감폴 무의미하면 geo 와 동일 참조(추가 비용 0).
+        p.lodGeo = FOLIAGE_IMPOSTOR ? p.geo : makeLodGeo(p.geo);
       }
       return { parts };
     });
@@ -527,10 +604,19 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, ovKey, sway, textureUrl]);
+  const gl = useThree(s => s.gl);
   const refs = useRef<THREE.InstancedMesh[]>([]);       // near(원본 geo)
-  const refsFar = useRef<THREE.InstancedMesh[]>([]);    // far(감폴 lodGeo)
-  // 원거리 LOD 켜짐 — cull 모드 + lodDist>0 + 실제 감폴된 part 가 하나라도 있을 때만(아니면 near 만).
-  const lodOn = cull && lodDist > 0 && !!parts && parts.parts.some(p => p.lodGeo !== p.geo);
+  const refsFar = useRef<THREE.InstancedMesh[]>([]);    // far(감폴 lodGeo, 임포스터 OFF 일 때)
+  const refBill = useRef<THREE.InstancedMesh | null>(null);   // far 빌보드(임포스터 ON)
+  // 원거리 임포스터 베이크 — parts 로드 후 1회(url 캐시). gl 로 렌더타깃에 모델 정면 굽기.
+  const [impostor, setImpostor] = useState<Impostor | null>(null);
+  useEffect(() => {
+    if (!FOLIAGE_IMPOSTOR || !cull || lodDist <= 0 || !parts) { setImpostor(null); return; }
+    setImpostor(bakeImpostor(gl, parts.parts, url));
+  }, [parts, cull, lodDist, gl, url]);
+  // 원거리 LOD 켜짐 — cull + lodDist>0 + (임포스터 베이크됨 OR 감폴된 part 있음).
+  const lodOn = cull && lodDist > 0 && !!parts && (!!impostor || parts.parts.some(p => p.lodGeo !== p.geo));
+  const useBill = !!impostor;   // 원거리 표현: true=빌보드, false=감폴 메시
   const capacity = Math.max(256, Math.ceil((items.length + 1) / 256) * 256);
   // 표면 높이 미리 계산 — 컬링 업데이트마다 반복 방지.
   const heights = useMemo(() => {
@@ -581,7 +667,10 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
     _fcam.copy(cam.position);
     const maxD2 = maxDist > 0 ? maxDist * maxDist : 0;
     if (lodOn) {
-      const farMeshes = refsFar.current.slice(0, np).filter(Boolean);
+      // far 세트: 임포스터면 빌보드 1개, 아니면 감폴 메시들(part 별).
+      const farMeshes = useBill
+        ? (refBill.current ? [refBill.current] : [])
+        : refsFar.current.slice(0, np).filter(Boolean);
       fillVisibleLOD(nearMeshes, farMeshes, itemsRef.current, heightsRef.current, scale, nearMeshes[0].matrixWorld, margin, maxD2, lodDist * lodDist);
     } else {
       fillVisible(nearMeshes, itemsRef.current, heightsRef.current, scale, undefined, nearMeshes[0].matrixWorld, margin, maxD2);
@@ -592,7 +681,8 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
     if (!cull || !parts) return;
     for (const m of refs.current.slice(0, parts.parts.length)) if (m) m.count = 0;
     for (const m of refsFar.current.slice(0, parts.parts.length)) if (m) m.count = 0;
-  }, [cull, parts]);
+    if (refBill.current) refBill.current.count = 0;
+  }, [cull, parts, impostor]);
   if (!parts || items.length === 0) return null;
   return (
     <>
@@ -608,8 +698,20 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
           userData={{ alpNoCull: true }}   // World PerfManager 컬링 제외 — 인스턴스 바운딩이 원점 1개라 통째로 컬돼 "그림자만 남는" 버그. 자체 컬링만 사용.
         />
       ))}
-      {/* 원거리 LOD 세트 — 감폴 lodGeo, 같은 머티리얼. lodOn 일 때만 마운트(아니면 추가 드로우콜 0). */}
-      {lodOn && parts.parts.map((p, i) => (
+      {/* 원거리 표현 — 임포스터(빌보드 1개) 또는 감폴 메시(part 별). lodOn 일 때만 마운트. */}
+      {lodOn && useBill && impostor && (
+        <instancedMesh
+          key={'bill-' + capacity}
+          ref={(m) => { refBill.current = (m as THREE.InstancedMesh) || null; }}
+          args={[impostor.geo, impostor.mat, capacity]}
+          castShadow={false}
+          receiveShadow={false}
+          frustumCulled={false}
+          raycast={NO_RAYCAST}
+          userData={{ alpNoCull: true }}
+        />
+      )}
+      {lodOn && !useBill && parts.parts.map((p, i) => (
         <instancedMesh
           key={'lod-' + i + '-' + capacity}
           ref={(m) => { if (m) refsFar.current[i] = m as THREE.InstancedMesh; }}
