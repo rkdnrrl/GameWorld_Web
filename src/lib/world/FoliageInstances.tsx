@@ -244,10 +244,11 @@ const FOLIAGE_CULL_MARGIN = 4;   // m — 시야 가장자리 여백(빠른 회�
 //   frustum 컬링만으론 풀밭/나무 라인을 마주 보면 시야 안 수십만 블레이드+수백 그루가 전부 풀폴리로 그려져
 //   삼각형이 폭증(예: 1.1M→13.9M) → GPU 버텍스 바운드 프레임 드랍. 거리 너머는 개별 식별이 안 되므로 잘라낸다.
 //   풀·꽃은 짧게(멀리선 안 보임), 나무·돌은 실루엣 풍경이라 길게. 0 = 거리컬링 끔.
-const FOLIAGE_MAX_DIST: Record<FoliageInstance['k'], number> = { grass: 60, flower: 55, bush: 95, tree: 220, rock: 120 };
+const FOLIAGE_MAX_DIST: Record<FoliageInstance['k'], number> = { grass: 60, flower: 55, bush: 95, tree: 400, rock: 160 };
 // ── 원거리 LOD 임계(m) — 이 거리 너머 에셋 식생은 감폴(lodGeo) 메시로 그림(근접은 원본). 0=LOD 끔. ──
 //   나무가 고폴리 주범이라 가장 효과 큼. 풀·꽃은 이미 짧게 거리컬링되고 저폴리라 LOD 불필요(0).
-const FOLIAGE_LOD_DIST: Record<FoliageInstance['k'], number> = { grass: 0, flower: 0, bush: 55, tree: 70, rock: 65 };
+//   tree 120 = 120m 까지 원본 풀디테일, 그 너머만 감폴 → 중경 나무도 또렷, 원경만 가볍게.
+const FOLIAGE_LOD_DIST: Record<FoliageInstance['k'], number> = { grass: 0, flower: 0, bush: 80, tree: 120, rock: 100 };
 const _fcam = new THREE.Vector3();   // fillVisible 거리 비교용 카메라 위치(재사용)
 
 /** 시야(frustum) 안 items 만 mesh(들)에 채움. heights=미리 계산된 표면 높이, meshWorld=인스턴스→월드 행렬. margin=시야밖 여백(큰 나무는 크게 줘 그림자 pop 완화). 반환=채운 수. */
@@ -377,7 +378,7 @@ function makeLodGeo(geo: THREE.BufferGeometry): THREE.BufferGeometry {
   const vcount = pos ? pos.count : 0;
   if (vcount < 300 || vcount > 60000) return geo;        // 의미 없음/프리즈 위험 → 원본 사용
   try {
-    const remove = Math.floor(vcount * 0.55);
+    const remove = Math.floor(vcount * 0.40);             // 40% 제거 — 원경 잎이 듬성해 보이지 않게 완화
     const lod = _simplifier.modify(geo, remove) as THREE.BufferGeometry;
     lod.computeVertexNormals();                           // 콜랩스 후 노멀 매끄럽게
     lod.computeBoundingSphere();
