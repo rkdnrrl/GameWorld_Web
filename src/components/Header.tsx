@@ -21,6 +21,7 @@ export default function Header() {
   const t = useTranslations("Header");
 
   const [loggedIn, setLoggedIn] = useState(false);
+  const [isOperator, setIsOperator] = useState(false);
   const [coins, setCoins] = useState<number | null>(null);
   const [alpCoins, setAlpCoins] = useState<number | null>(null);
   // 만료 임박 경고 (분 단위, null=정상)
@@ -46,6 +47,7 @@ export default function Header() {
     const token = session.getToken();
     const isLoggedIn = !!token;
     setLoggedIn(isLoggedIn);
+    setIsOperator(isLoggedIn && !!session.getUser()?.isOperator);
     if (isLoggedIn && token) {
       fetchCoins(token);
     } else {
@@ -139,6 +141,11 @@ export default function Header() {
             {loggedIn && (
               <Link href="/account" className="shrink-0 whitespace-nowrap hover:text-blue-600">
                 {t("myInfo")}
+              </Link>
+            )}
+            {loggedIn && isOperator && (
+              <Link href="/operator/games" className="shrink-0 whitespace-nowrap font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400">
+                🛡 {t("operatorGames")}
               </Link>
             )}
             {loggedIn && <NotificationBell />}

@@ -58,6 +58,7 @@
     "operator": "管理",
     "develop": "开发",
     "myInfo": "我的信息",
+    "operatorGames": "审核",
     "inventory": "背包",
     "logout": "退出登录",
     "relogin": "重新登录",

@@ -58,6 +58,7 @@
     "operator": "Admin",
     "develop": "Develop",
     "myInfo": "My Info",
+    "operatorGames": "Moderation",
     "inventory": "Inventory",
     "logout": "Logout",
     "login": "Login",
