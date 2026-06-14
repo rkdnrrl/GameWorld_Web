@@ -248,12 +248,13 @@ const FOLIAGE_CULL_MARGIN = 4;   // m — 시야 가장자리 여백(빠른 회�
 //   가까움 = 원본 풀디테일 → 멀수록 단계적으로 폴리 뭉갬 → 3번째 값 너머는 "빌보드(2삼각형)" 로 카메라 끝까지.
 //   ⚠ 에셋 식생은 거리 컬링 없음 — 멀어도 안 사라지고 빌보드로 보임(사용자 요청). 4번째 값은 안 씀.
 //   절차적 풀/꽃(저폴리, 빌보드 없음)만 Instanced 경로에서 4번째 값을 최대 거리컬링에 사용(무한 렌더 방지).
+// [원본까지, 약감폴까지, 약감폴2까지, (절차적 최대거리)] — 3번째 값 너머는 빌보드(평면, 안 사라짐).
 const FOLIAGE_LOD: Record<FoliageInstance['k'], [number, number, number, number]> = {
-  grass:  [12, 28, 50, 90],
-  flower: [10, 24, 50, 120],
+  grass:  [12, 30, 55, 90],
+  flower: [12, 30, 55, 120],
   bush:   [25, 55, 100, 200],
-  tree:   [60, 130, 240, 600],
-  rock:   [40, 85, 150, 250],
+  tree:   [70, 150, 280, 600],
+  rock:   [40, 90, 150, 250],
 };
 const _fcam = new THREE.Vector3();   // fillVisible 거리 비교용 카메라 위치(재사용)
 
@@ -396,7 +397,7 @@ function makeLodGeo(geo: THREE.BufferGeometry, removeFrac: number): THREE.Buffer
 //  먼 에셋 식생을 "평면 1장(2삼각형/인스턴스)" 으로 대체 — 모델당 폴리와 무관하게 비용 고정.
 //  로드 시 모델 정면을 렌더타깃에 1회 베이크(캐시)해 텍스처로 만들고, 빌보드(항상 카메라 향함)로 그린다.
 //  근접은 원본 메시, lodDist 너머는 이 임포스터 → "멀리도 보이되 완전 최적화".
-const FOLIAGE_IMPOSTOR = false;   // 빌보드(임포스터) — 현재 렌더 이슈로 OFF. 원거리는 강하게 감폴한 lod2 메시(확실히 보임).
+const FOLIAGE_IMPOSTOR = true;   // 원거리 = 빌보드(평면 1장, 구운 텍스처). 감폴은 얇은 잎을 무너뜨려 소멸시키므로 먼 건 빌보드로.
 interface Impostor { geo: THREE.BufferGeometry; mat: THREE.Material; }
 const _impostorCache = new Map<string, Impostor | null>();   // url → 임포스터(베이크 실패 시 null)
 
@@ -563,8 +564,9 @@ function loadFoliageParts(url: string, overrides?: MaterialOverrides, sway: Sway
         p.geo.translate(-cx, -minY, -cz); p.geo.computeBoundingSphere();   // 밑동 y=0, xz 중심
         // 중간 거리 메시 LOD 2단계 — lod1(가볍게) → lod2(lod1 에서 한 번 더 = 원본의 ~25%).
         //  단계적으로 폴리를 뭉개 가까움→멈 품질 그라데이션. 감폴 무의미(저폴리)하면 원본과 동일 참조.
-        p.lod1 = makeLodGeo(p.geo, 0.55);              // 원본의 ~45%
-        p.lod2 = makeLodGeo(p.lod1, 0.65);             // lod1 의 ~35% = 원본의 ~16% (강하게 뭉갬)
+        // 약하게만 감폴 — 얇은 잎/꽃잎이 무너져 소멸하지 않게(강한 감폴은 식생을 0으로 뭉갬). 먼 건 빌보드가 담당.
+        p.lod1 = makeLodGeo(p.geo, 0.20);              // 원본의 ~80%
+        p.lod2 = makeLodGeo(p.lod1, 0.25);             // ~60% (살짝만 줄임, 형태 유지)
       }
       return { parts };
     });
