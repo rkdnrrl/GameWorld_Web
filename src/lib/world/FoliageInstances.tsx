@@ -254,7 +254,9 @@ const FOLIAGE_CULL_MARGIN = 4;   // m — 시야 가장자리 여백(빠른 회�
 const FOLIAGE_LOD: Record<FoliageInstance['k'], [number, number, number, number]> = {
   grass:  [22, 22, 22, 90],
   flower: [22, 22, 22, 120],
-  bush:   [45, 45, 45, 200],
+  // 덤불: 단색(텍스처 X) 모델이라 빌보드 베이크가 잘 안 잡혀 멀면 사라짐 → 원본 메시를 끝까지(빌보드 안 씀).
+  //   d0 를 매우 크게 둬 모든 덤불이 원본 메시(L0)로 그려짐. 덤불은 보통 듬성해 부담 적음.
+  bush:   [100000, 100000, 100000, 100000],
   tree:   [130, 130, 130, 600],
   rock:   [70, 70, 70, 250],
 };

@@ -31,11 +31,11 @@ export interface GraphicsSettings {
 export const PRESETS: Record<Exclude<GraphicsSettings['preset'], 'custom'>, GraphicsSettings> = {
   low:    { preset: 'low',    dpr: 1.0, shadowSize: 0,    antialias: false, farClip: 200, remoteShadows: false, shadowFilter: 'basic',   shadowRadius: 0, cullDistance: 120, frustumCull: true, occlusionCull: false, showStats: false, maxFps: 0, sfxVolume: 0.5 },
   medium: { preset: 'medium', dpr: 1.0, shadowSize: 1024, antialias: true,  farClip: 400, remoteShadows: false, shadowFilter: 'pcf',     shadowRadius: 1, cullDistance: 250, frustumCull: true, occlusionCull: false, showStats: false, maxFps: 0, sfxVolume: 0.5 },
-  high:   { preset: 'high',   dpr: 1.5, shadowSize: 2048, antialias: true,  farClip: 600, remoteShadows: true,  shadowFilter: 'pcfsoft', shadowRadius: 1, cullDistance: 500, frustumCull: true, occlusionCull: false, showStats: false, maxFps: 0, sfxVolume: 0.5 },
+  high:   { preset: 'high',   dpr: 1.5, shadowSize: 2048, antialias: true,  farClip: 600, remoteShadows: true,  shadowFilter: 'pcfsoft', shadowRadius: 1, cullDistance: 500, frustumCull: true, occlusionCull: true,  showStats: false, maxFps: 0, sfxVolume: 0.5 },
   // cullDistance 0(컬링 끔)이 아니라 farClip(800) 바로 아래 700 으로 둔다 — 거리 컬링을 완전히 끄면
   // 콘텐츠 많은 월드에서 화면 밖·먼 메시까지 전부 드로우+그림자 캐스트 → 프레임 드랍 주원인.
   // 700 이면 farClip 안쪽이라 팝핑 거의 없이 원거리 드로우/그림자 제거.
-  ultra:  { preset: 'ultra',  dpr: 2.0, shadowSize: 4096, antialias: true,  farClip: 800, remoteShadows: true,  shadowFilter: 'pcfsoft', shadowRadius: 2, cullDistance: 700, frustumCull: true, occlusionCull: false, showStats: false, maxFps: 0, sfxVolume: 0.5 },
+  ultra:  { preset: 'ultra',  dpr: 2.0, shadowSize: 4096, antialias: true,  farClip: 800, remoteShadows: true,  shadowFilter: 'pcfsoft', shadowRadius: 2, cullDistance: 700, frustumCull: true, occlusionCull: true,  showStats: false, maxFps: 0, sfxVolume: 0.5 },
 };
 
 // 기본 프리셋은 high — ultra(4096 그림자·800m 드로우)는 약·중급 GPU 에서 무거워 첫 진입부터 프레임 드랍.
