@@ -14,7 +14,10 @@ import {
   HueSaturation, Noise, Pixelation, Scanline, Sepia, ColorAverage, N8AO, DepthOfField, SMAA, wrapEffect,
 } from '@react-three/postprocessing';
 import { ToneMappingMode, Effect } from 'postprocessing';
+import { useState } from 'react';
+import { useFrame } from '@react-three/fiber';
 import { envFx } from './envFx';
+import { AQ } from './adaptiveQuality';
 
 /** 색상 틴트 — 화면 전체를 지정 색으로 물들임 (강도 0~1). 언리얼 Color Grading 의 간이판. */
 class TintEffectImpl extends Effect {
@@ -317,17 +320,22 @@ export function presetPropValues(presetKey: string): Record<string, number | str
 }
 
 export default function PostFX({ s: raw, raining = false }: { s: PostFXSettings; raining?: boolean }) {
+  // 적응형: FPS 가 버거우면(AQ.heavy) 가장 비싼 깊이 패스(SSAO·DoF)를 자동으로 끈다.
+  //  - 둘 다 별도 depth pre-pass + 풀해상도 블러라 약·중급 GPU 에서 프레임 드랍 주범.
+  //  - heavy 는 ~0.25s 마다만 바뀌므로 전환 시에만 setState → 컴포저 재구성 (매 프레임 비용 0).
+  const [heavy, setHeavy] = useState(false);
+  useFrame(() => { if (AQ.heavy !== heavy) setHeavy(AQ.heavy); });
   // 비 올 때는 유저 postProcess 볼륨이 없어도(또는 꺼져 있어도) 빗방울만 위해 컴포저를 띄운다.
   if (!raw.enabled && !raining) return null;
   const s = raw.enabled ? withPreset(raw) : OFF;
 
   const fx: React.ReactElement[] = [];
   // SSAO 는 가장 먼저 (씬 깊이 기반 접지 음영) — 색보정·블룸 전에 적용.
-  if (s.ao) fx.push(<N8AO key="ao" halfRes aoRadius={1.5} intensity={s.aoIntensity} distanceFalloff={1} />);
+  if (s.ao && !heavy) fx.push(<N8AO key="ao" halfRes aoRadius={1.5} intensity={s.aoIntensity} distanceFalloff={1} />);
   if (s.wobble > 0) fx.push(<Wobble key="wob" amount={s.wobble} speed={1.2} frequency={9} />);
   if (s.pixelate > 0) fx.push(<Pixelation key="px" granularity={s.pixelate} />);
   // 피사계심도(DoF) — 깊이 기반이라 색보정·블룸 전에 (보케 하이라이트가 블룸을 타게)
-  if (s.dof) fx.push(<DepthOfField key="dof" focusDistance={s.dofFocus} focalLength={s.dofFocalLength} bokehScale={s.dofBokeh} />);
+  if (s.dof && !heavy) fx.push(<DepthOfField key="dof" focusDistance={s.dofFocus} focalLength={s.dofFocalLength} bokehScale={s.dofBokeh} />);
   // 컬러그레이드 (웜/쿨·필름 S커브·섀도 리프트) — 톤 보정의 핵심
   if (s.temperature !== 0 || s.filmic > 0 || s.lift !== 0) fx.push(<FilmicGrade key="grade" temperature={s.temperature} filmic={s.filmic} lift={s.lift} />);
   // 색 보정
