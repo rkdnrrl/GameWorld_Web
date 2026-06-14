@@ -994,6 +994,10 @@ export const api = {
       { method: "POST", headers: authHeaders(token), body: JSON.stringify({ worldId }) },
     );
   },
+  /** 전체 접속 인원수 (공개 — 인증 불필요) */
+  presenceCount() {
+    return request<{ count: number }>("/api/presence/count");
+  },
   /** 명시적 offline — 월드 이탈 / 창 닫기 */
   presenceClear(token: string) {
     return request<{ ok: true }>(

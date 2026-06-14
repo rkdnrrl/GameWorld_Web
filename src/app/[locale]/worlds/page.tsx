@@ -7,6 +7,7 @@ import { getRecentWorlds, removeRecentWorld, syncRecentWorldsFromServer, type Re
 import { getFavoriteWorlds, toggleFavoriteWorld, isFavoriteWorld, syncFavoriteWorldsFromServer, type FavoriteWorldEntry } from '@/lib/world/favoriteWorlds';
 import WorldShareModal from '@/components/worlds/WorldShareModal';
 import { useFriendLocations } from '@/lib/world/useFriendLocations';
+import OnlineCount from '@/components/OnlineCount';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://airliveplay.com';
 
@@ -206,6 +207,7 @@ export default function WorldsPage() {
             <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>{t('title')}</h1>
             <p style={{ margin: '2px 0 0', fontSize: 13, opacity: 0.5 }}>{t('subtitle')}</p>
           </div>
+          <OnlineCount />
         </div>
         <a href={`/${locale}/studio`} style={{ padding: '10px 20px', borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', boxShadow: '0 4px 16px rgba(99,102,241,0.35)' }}>
           + {t('newWorld')}

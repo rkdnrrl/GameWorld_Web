@@ -33,6 +33,12 @@ const VOICE_CULL_DISTANCE = 25;
 const VOICE_CULL_HYSTERESIS = 5;     // pull 중인 peer 가 이 거리 더 멀어져야 cleanup
 const VOICE_CULL_INTERVAL_MS = 2000; // 거리 재평가 주기
 
+/** 게인 상한 — 1.0(100%) 초과 = 증폭. 하울링/클리핑 방지로 3.0(300%) 제한. */
+const MAX_GAIN = 3;
+/** 음성 거리 배수 — refDistance/maxDistance/컬링 거리를 함께 스케일. 클수록 멀리서도 들림. */
+const VOICE_RANGE_MIN = 0.5;
+const VOICE_RANGE_MAX = 2;
+
 function distance3D(
   a: { x: number; y: number; z: number },
   b: { x: number; y: number; z: number },
@@ -68,12 +74,15 @@ export interface VoiceChatState {
   error?: string;
   speakingIds: Set<string>;
   micOnIds: Set<string>;
-  /** 0~1 — 내 마이크 송신 게인 (다른 유저에게 들리는 내 목소리 크기) */
+  /** 0~3 — 내 마이크 송신 게인 (1 초과 = 증폭, 다른 유저에게 들리는 내 목소리 크기) */
   micGain: number;
   setMicGain: (v: number) => void;
-  /** 0~1 — 모든 원격 음성 마스터 게인 */
+  /** 0~3 — 모든 원격 음성 마스터 게인 (1 초과 = 증폭) */
   masterGain: number;
   setMasterGain: (v: number) => void;
+  /** 0.5~2 — 음성 거리 배수 (클수록 멀리서도 들림) */
+  voiceRange: number;
+  setVoiceRange: (v: number) => void;
   /** 0~1 — 특정 유저 음성 게인. 미설정 = 1.0 */
   getPeerGain: (peerId: string) => number;
   setPeerGain: (peerId: string, v: number) => void;
@@ -96,11 +105,12 @@ interface RemotePeerInfo {
 const LS_MIC_GAIN     = 'alp_voice_mic_gain';
 const LS_MASTER_GAIN  = 'alp_voice_master_gain';
 const LS_PEER_GAINS   = 'alp_voice_peer_gains';
+const LS_VOICE_RANGE  = 'alp_voice_range';
 
-function loadPersistedGain(key: string, fallback: number): number {
+function loadPersistedGain(key: string, fallback: number, max = MAX_GAIN): number {
   if (typeof window === 'undefined') return fallback;
   const v = parseFloat(window.localStorage.getItem(key) ?? '');
-  return Number.isFinite(v) && v >= 0 && v <= 1 ? v : fallback;
+  return Number.isFinite(v) && v >= 0 && v <= max ? v : fallback;
 }
 function loadPersistedPeerGains(): Record<string, number> {
   if (typeof window === 'undefined') return {};
@@ -143,21 +153,37 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
   const [micGain,    setMicGainState]    = useState<number>(() => loadPersistedGain(LS_MIC_GAIN, 1));
   const [masterGain, setMasterGainState] = useState<number>(() => loadPersistedGain(LS_MASTER_GAIN, 1));
   const [peerGains,  setPeerGains]       = useState<Record<string, number>>(() => loadPersistedPeerGains());
+  const [voiceRange, setVoiceRangeState] = useState<number>(() => loadPersistedGain(LS_VOICE_RANGE, 1, VOICE_RANGE_MAX));
+  // attachPanner(useCallback) 안에서 최신 값을 읽기 위한 ref — 재생성 없이 즉시 반영.
+  const voiceRangeRef = useRef(voiceRange);
 
   const setMicGain = useCallback((v: number) => {
-    const clamped = Math.max(0, Math.min(1, v));
+    const clamped = Math.max(0, Math.min(MAX_GAIN, v));
     setMicGainState(clamped);
     if (micGainNodeRef.current) micGainNodeRef.current.gain.value = clamped;
     try { window.localStorage.setItem(LS_MIC_GAIN, String(clamped)); } catch { /* noop */ }
   }, []);
   const setMasterGain = useCallback((v: number) => {
-    const clamped = Math.max(0, Math.min(1, v));
+    const clamped = Math.max(0, Math.min(MAX_GAIN, v));
     setMasterGainState(clamped);
     if (masterGainNodeRef.current) masterGainNodeRef.current.gain.value = clamped;
     try { window.localStorage.setItem(LS_MASTER_GAIN, String(clamped)); } catch { /* noop */ }
   }, []);
+  const setVoiceRange = useCallback((v: number) => {
+    const clamped = Math.max(VOICE_RANGE_MIN, Math.min(VOICE_RANGE_MAX, v));
+    setVoiceRangeState(clamped);
+    voiceRangeRef.current = clamped;
+    // 이미 연결된 panner 들 즉시 갱신 (거리 스케일)
+    remotesRef.current.forEach((info) => {
+      if (info.panner) {
+        info.panner.refDistance = PANNER_REF_DISTANCE * clamped;
+        info.panner.maxDistance = PANNER_MAX_DISTANCE * clamped;
+      }
+    });
+    try { window.localStorage.setItem(LS_VOICE_RANGE, String(clamped)); } catch { /* noop */ }
+  }, []);
   const setPeerGain = useCallback((peerId: string, v: number) => {
-    const clamped = Math.max(0, Math.min(1, v));
+    const clamped = Math.max(0, Math.min(MAX_GAIN, v));
     setPeerGains(prev => {
       const next = { ...prev, [peerId]: clamped };
       try { window.localStorage.setItem(LS_PEER_GAINS, JSON.stringify(next)); } catch { /* noop */ }
@@ -360,8 +386,8 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
       const panner = ctx.createPanner();
       panner.panningModel  = 'HRTF';
       panner.distanceModel = 'inverse';
-      panner.refDistance   = PANNER_REF_DISTANCE;
-      panner.maxDistance   = PANNER_MAX_DISTANCE;
+      panner.refDistance   = PANNER_REF_DISTANCE * voiceRangeRef.current;
+      panner.maxDistance   = PANNER_MAX_DISTANCE * voiceRangeRef.current;
       panner.rolloffFactor = PANNER_ROLLOFF;
 
       const pose = posesRef?.current?.get(peerId);
@@ -561,7 +587,7 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
           // 거리 컬링 — localPose 와 peerPose 둘 다 있고 거리 안에 있을 때만 즉시 pull
           const me = localPoseRef?.current;
           const peer = posesRef?.current?.get(m.fromId);
-          const inRange = !me || !peer || distance3D(me, peer) <= VOICE_CULL_DISTANCE;
+          const inRange = !me || !peer || distance3D(me, peer) <= VOICE_CULL_DISTANCE * voiceRangeRef.current;
           if (inRange) {
             pullRemoteTrack(m.fromId, m.sessionId, m.trackName);
           }
@@ -596,7 +622,7 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
     pendingTracksRef.current.forEach((info, peerId) => {
       if (remotesRef.current.has(peerId)) return;
       const peer = posesRef?.current?.get(peerId);
-      const inRange = !me || !peer || distance3D(me, peer) <= VOICE_CULL_DISTANCE;
+      const inRange = !me || !peer || distance3D(me, peer) <= VOICE_CULL_DISTANCE * voiceRangeRef.current;
       if (inRange) {
         pullRemoteTrack(peerId, info.sessionId, info.trackName);
       }
@@ -615,7 +641,7 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
       for (const peerId of [...remotesRef.current.keys()]) {
         const peer = poses.get(peerId);
         if (!peer) continue; // pose 없으면 손대지 않음
-        if (distance3D(me, peer) > VOICE_CULL_DISTANCE + VOICE_CULL_HYSTERESIS) {
+        if (distance3D(me, peer) > VOICE_CULL_DISTANCE * voiceRangeRef.current + VOICE_CULL_HYSTERESIS) {
           // pending 에 복원해서 다시 가까워지면 재pull 가능
           const info = remotesRef.current.get(peerId);
           if (info?.sessionId && info?.trackName) {
@@ -635,7 +661,7 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
           if (remotesRef.current.has(peerId)) return;
           const peer = poses.get(peerId);
           if (!peer) return;
-          if (distance3D(me, peer) <= VOICE_CULL_DISTANCE) {
+          if (distance3D(me, peer) <= VOICE_CULL_DISTANCE * voiceRangeRef.current) {
             pullRemoteTrack(peerId, info.sessionId, info.trackName);
           }
         });
@@ -726,6 +752,7 @@ export function useVoiceChat({ socket, myId, peerIds, enabled, micOn = false, po
     status, error, speakingIds, micOnIds,
     micGain, setMicGain,
     masterGain, setMasterGain,
+    voiceRange, setVoiceRange,
     getPeerGain, setPeerGain,
     getMyAnalyser, getRemoteAnalyser,
   };

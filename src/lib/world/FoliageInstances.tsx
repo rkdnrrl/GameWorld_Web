@@ -419,7 +419,9 @@ function makeImpostorQuad(w: number, h: number): THREE.BufferGeometry {
  *  MeshBasicMaterial 기반(색공간/alphaTest 파이프라인 재사용) + project_vertex 치환. */
 function makeImpostorMaterial(tex: THREE.Texture): THREE.Material {
   // toneMapped:false — 베이크 시 이미 렌더러 톤매핑이 적용된 텍스처라 재적용 금지(이중 톤매핑→탈색 방지).
-  const mat = new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5, transparent: false, side: THREE.DoubleSide, toneMapped: false });
+  // alphaTest 0.2 — 얇은 풀·꽃 카드는 정면 베이크 시 알파가 낮아 0.5 면 대부분 잘려 투명해진다(원거리 소멸).
+  // 낮게 잡아 뭉갠 형태라도 확실히 보이게(원거리는 어차피 작아 가장자리 헤일로 안 보임).
+  const mat = new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.2, transparent: false, side: THREE.DoubleSide, toneMapped: false });
   mat.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>',
       `mat4 _mi = modelMatrix * instanceMatrix;
@@ -682,8 +684,9 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
     _frustum.setFromProjectionMatrix(_projScreen);
     _fcam.copy(cam.position);
     // 2단계: 원본 메시(d0eff 까지) → 빌보드(그 너머 끝까지). 빌보드 없으면 원본이 전부 담당.
-    // d0eff = d0 × 적응형 배수 — FPS 낮으면 자동 축소(빌보드 더 가까이서 시작) → 삼각형↓ → 프레임 안정.
-    const d0eff = Math.max(8, d0 * AQ.foliageScale);
+    // d0eff = d0 × 적응형 배수 — FPS 낮으면 축소(빌보드 더 가까이) → 삼각형↓. 단 d0 의 60% 아래로는
+    // 안 줄여 중간거리 풀메시를 유지(너무 줄면 멀리가 전부 빌보드라 풀·꽃이 사라져 보임).
+    const d0eff = d0 * Math.max(0.6, AQ.foliageScale);
     const tiers: LodTier[] = impostor && refBill.current
       ? [{ maxD2: d0eff * d0eff, meshes: L0 }, { maxD2: Infinity, meshes: [refBill.current] }]
       : [{ maxD2: Infinity, meshes: L0 }];

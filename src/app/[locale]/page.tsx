@@ -4,6 +4,7 @@ import GameCard, { type Game } from "@/components/GameCard";
 import HeroVideoBackground from "@/components/HeroVideoBackground";
 import PlazaButton from "@/components/PlazaButton";
 import DailyCheckIn from "@/components/DailyCheckIn";
+import OnlineCount from "@/components/OnlineCount";
 
 /** 게임 목록에서 숨김 */
 const HIDDEN_GAME_IDS = new Set<string>(["rock-clicker", "alchemy"]);
@@ -55,9 +56,12 @@ export default async function Home() {
           <h1 className="mb-5 whitespace-pre-line text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-6xl">
             {t("heroTitle")}
           </h1>
-          <p className="mx-auto mb-10 max-w-2xl text-sm leading-relaxed text-white/70 sm:text-lg">
+          <p className="mx-auto mb-6 max-w-2xl text-sm leading-relaxed text-white/70 sm:text-lg">
             {t("heroSub")}
           </p>
+          <div className="mb-8 flex justify-center">
+            <OnlineCount variant="hero" />
+          </div>
           <div className="flex flex-wrap justify-center gap-3">
             <PlazaButton />
             <Link

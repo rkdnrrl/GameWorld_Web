@@ -20,6 +20,8 @@ interface Props {
   setMicGain: (v: number) => void;
   masterGain: number;
   setMasterGain: (v: number) => void;
+  voiceRange: number;
+  setVoiceRange: (v: number) => void;
   /** 음성 켠 (다른) 유저들 목록 — 표시·게인 조절 대상 */
   micOnPeers: PeerInfo[];
   speakingIds: Set<string>;
@@ -29,7 +31,7 @@ interface Props {
 }
 
 export default function VoiceSettingsPanel({
-  micGain, setMicGain, masterGain, setMasterGain,
+  micGain, setMicGain, masterGain, setMasterGain, voiceRange, setVoiceRange,
   micOnPeers, speakingIds, getPeerGain, setPeerGain, onClose,
 }: Props) {
   // ESC 키로 닫기
@@ -78,14 +80,21 @@ export default function VoiceSettingsPanel({
 
       <SliderRow
         icon="🎤" label="내 마이크"
-        value={micGain} onChange={setMicGain}
-        hint="다른 사람에게 들리는 내 목소리"
+        value={micGain} onChange={setMicGain} max={3}
+        hint="100% 기본 · 그 이상은 증폭 (작게 들리면 ↑)"
       />
 
       <SliderRow
         icon="🔊" label="전체 음성"
-        value={masterGain} onChange={setMasterGain}
-        hint="모든 원격 유저 마스터"
+        value={masterGain} onChange={setMasterGain} max={3}
+        hint="모든 원격 유저 마스터 · 100% 초과 = 증폭"
+      />
+
+      <SliderRow
+        icon="📏" label="음성 거리"
+        value={voiceRange} onChange={setVoiceRange}
+        min={0.5} max={2} format={(v) => `×${v.toFixed(1)}`}
+        hint="클수록 멀리 있는 사람 목소리도 들림"
       />
 
       <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '12px 0' }} />
@@ -116,24 +125,28 @@ export default function VoiceSettingsPanel({
 }
 
 function SliderRow({
-  icon, label, value, onChange, hint,
+  icon, label, value, onChange, hint, min = 0, max = 1, format,
 }: {
   icon: string; label: string; value: number; onChange: (v: number) => void; hint?: string;
+  min?: number; max?: number; format?: (v: number) => string;
 }) {
+  const display = format ? format(value) : `${Math.round(value * 100)}%`;
+  // 증폭 구간(>100%) 경고색 — 게인 슬라이더에서 1.0 초과 시 라벨 강조
+  const amplified = !format && value > 1;
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
         <span style={{ fontSize: 12, fontWeight: 600 }}>{icon} {label}</span>
-        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', minWidth: 36, textAlign: 'right' }}>
-          {Math.round(value * 100)}%
+        <span style={{ fontSize: 11, color: amplified ? '#fbbf24' : 'rgba(255,255,255,0.6)', minWidth: 36, textAlign: 'right' }}>
+          {display}
         </span>
       </div>
       <input
         type="range"
-        min={0} max={1} step={0.01}
+        min={min} max={max} step={0.01}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        style={{ width: '100%', accentColor: '#6366f1' }}
+        style={{ width: '100%', accentColor: amplified ? '#fbbf24' : '#6366f1' }}
       />
       {hint && (
         <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>{hint}</div>
@@ -164,12 +177,12 @@ function PeerRow({
       </span>
       <input
         type="range"
-        min={0} max={1} step={0.01}
+        min={0} max={3} step={0.01}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        style={{ width: 90, accentColor: '#6366f1' }}
+        style={{ width: 90, accentColor: value > 1 ? '#fbbf24' : '#6366f1' }}
       />
-      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', minWidth: 30, textAlign: 'right' }}>
+      <span style={{ fontSize: 10, color: value > 1 ? '#fbbf24' : 'rgba(255,255,255,0.5)', minWidth: 30, textAlign: 'right' }}>
         {Math.round(value * 100)}%
       </span>
     </div>

@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import Logo from "./Logo";
 import NotificationBell from "./notifications/NotificationBell";
 import { SESSION_CHANGE_EVENT, SESSION_EXPIRED_EVENT, session } from "@/lib/api";
+import { usePresenceHeartbeat } from "@/lib/world/usePresenceHeartbeat";
 
 const LOCALES = [
   { code: "ko", label: "한국어" },
@@ -26,6 +27,10 @@ export default function Header() {
   const [alpCoins, setAlpCoins] = useState<number | null>(null);
   // 만료 임박 경고 (분 단위, null=정상)
   const [expiryWarningMins, setExpiryWarningMins] = useState<number | null>(null);
+
+  // 사이트 전역 presence — 로그인 유저가 어느 페이지에 있든 'lobby'로 heartbeat.
+  // 3D 월드(/world)에선 월드 페이지가 실제 worldId로 직접 ping 하므로 여기선 제외(중복 방지).
+  usePresenceHeartbeat(loggedIn && pathname !== "/world" ? "lobby" : null);
 
   const fetchCoins = useCallback(async (token: string) => {
     try {

@@ -22,6 +22,10 @@
     "reject": "拒绝",
     "rejectPrompt": "请输入拒绝理由"
   },
+  "Presence": {
+    "online": "{n} 人在线",
+    "onlineHero": "现在有 {n} 人一起在线"
+  },
   "Common": {
     "loading": "加载中…",
     "home": "首页",

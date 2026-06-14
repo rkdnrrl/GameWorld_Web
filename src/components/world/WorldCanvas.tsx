@@ -5925,6 +5925,7 @@ export default function WorldCanvas({ character, playerId, players, posesRef, ch
         <VoiceSettingsPanel
           micGain={voice.micGain} setMicGain={voice.setMicGain}
           masterGain={voice.masterGain} setMasterGain={voice.setMasterGain}
+          voiceRange={voice.voiceRange} setVoiceRange={voice.setVoiceRange}
           micOnPeers={[...voice.micOnIds].map(id => ({ id, name: players[id]?.username || id.slice(0, 8) }))}
           speakingIds={voice.speakingIds}
           getPeerGain={voice.getPeerGain}

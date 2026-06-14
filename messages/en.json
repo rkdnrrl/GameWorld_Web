@@ -22,6 +22,10 @@
     "reject": "Reject",
     "rejectPrompt": "Enter rejection reason"
   },
+  "Presence": {
+    "online": "{n} online",
+    "onlineHero": "{n} people here right now"
+  },
   "Common": {
     "loading": "Loading…",
     "home": "Home",
