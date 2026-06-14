@@ -915,21 +915,23 @@ export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
     <>
       {/* 전부 화면 밖 frustum 컬링 — 시야 안만 렌더(수천 그루 나무도 메인+그림자 패스에서 빠짐).
           나무·돌은 그림자 던지므로 마진을 크게(12/8m) 줘 시야 살짝 밖 나무 그림자가 사라지는 걸 완화. */}
+      {/* 절차적(procedural) 식생도 거리 컬링 제거(maxDist=0) — 멀어도 안 사라짐(저폴리라 풀메시 유지).
+          frustum(시야 밖)·farClip(카메라 시야 거리)만 한계. */}
       {grassV.length ? assetCat(grassV, grass, false, 'bend', true, FOLIAGE_CULL_MARGIN, FOLIAGE_LOD.grass)
-        : <Instanced items={grass} geo={grassGeo} mat={grassMat} t={t} base={1} cast={false} receive={false} vary="grass" cull maxDist={FOLIAGE_LOD.grass[3]} />}
+        : <Instanced items={grass} geo={grassGeo} mat={grassMat} t={t} base={1} cast={false} receive={false} vary="grass" cull maxDist={0} />}
       {flowerV.length ? assetCat(flowerV, flowers, false, 'bend', true, FOLIAGE_CULL_MARGIN, FOLIAGE_LOD.flower)
-        : <Instanced items={flowers} geo={flowerGeo} mat={flowerMat} t={t} base={1} cast={false} receive={false} vary="flower" cull maxDist={FOLIAGE_LOD.flower[3]} />}
+        : <Instanced items={flowers} geo={flowerGeo} mat={flowerMat} t={t} base={1} cast={false} receive={false} vary="flower" cull maxDist={0} />}
       {treeV.length ? assetCat(treeV, trees, true, false, true, 12, FOLIAGE_LOD.tree)
         : (<>
             {/* 나무: 기둥 + 잎 — 같은 인스턴스 변환(지오메트리가 미리 y 오프셋됨) */}
-            <Instanced items={trees} geo={trunkGeo} mat={trunkMat} t={t} base={1} cast receive={false} cull margin={12} maxDist={FOLIAGE_LOD.tree[3]} />
-            <Instanced items={trees} geo={canopyGeo} mat={canopyMat} t={t} base={1} cast receive={false} cull margin={12} maxDist={FOLIAGE_LOD.tree[3]} />
+            <Instanced items={trees} geo={trunkGeo} mat={trunkMat} t={t} base={1} cast receive={false} cull margin={12} maxDist={0} />
+            <Instanced items={trees} geo={canopyGeo} mat={canopyMat} t={t} base={1} cast receive={false} cull margin={12} maxDist={0} />
           </>)}
       {rockV.length ? assetCat(rockV, rocks, true, false, true, 8, FOLIAGE_LOD.rock)
-        : <Instanced items={rocks} geo={rockGeo} mat={rockMat} t={t} base={1} cast receive={false} vary="rock" cull margin={8} maxDist={FOLIAGE_LOD.rock[3]} />}
+        : <Instanced items={rocks} geo={rockGeo} mat={rockMat} t={t} base={1} cast receive={false} vary="rock" cull margin={8} maxDist={0} />}
       {/* 덤불: 그림자 던짐 + 콜라이더 없음(통과) + 'part'(지나가면 갈라짐, 안 눕음) + 컬링 margin 10 */}
       {bushV.length ? assetCat(bushV, bushes, true, 'part', true, 10, FOLIAGE_LOD.bush)
-        : <Instanced items={bushes} geo={bushGeo} mat={bushMat} t={t} base={1} cast receive={false} vary="bush" cull margin={10} maxDist={FOLIAGE_LOD.bush[3]} />}
+        : <Instanced items={bushes} geo={bushGeo} mat={bushMat} t={t} base={1} cast receive={false} vary="bush" cull margin={10} maxDist={0} />}
     </>
   );
 }
