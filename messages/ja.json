@@ -26,6 +26,31 @@
     "online": "{n}人接続中",
     "onlineHero": "今 {n}人が一緒にいます"
   },
+  "ForgotPassword": {
+    "title": "パスワードの再設定",
+    "subtitle": "登録メールアドレスに再設定リンクを送ります。",
+    "email": "メール",
+    "submit": "再設定メールを送信",
+    "submitting": "送信中…",
+    "sent": "再設定メールを送信しました。メールをご確認ください（迷惑メールも）。",
+    "error": "送信に失敗しました。しばらくして再試行してください。",
+    "backToLogin": "ログインに戻る"
+  },
+  "ResetPassword": {
+    "title": "新しいパスワードの設定",
+    "verifying": "リンクを確認中…",
+    "invalidLink": "無効または期限切れのリンクです。再度リクエストしてください。",
+    "requestAgain": "再設定をもう一度リクエスト",
+    "newPassword": "新しいパスワード（8文字以上）",
+    "confirmPassword": "新しいパスワード確認",
+    "tooShort": "パスワードは8文字以上にしてください。",
+    "mismatch": "パスワードが一致しません。",
+    "submit": "パスワードを変更",
+    "submitting": "変更中…",
+    "success": "パスワードを変更しました。新しいパスワードでログインしてください。",
+    "error": "変更に失敗しました。再試行してください。",
+    "backToLogin": "ログインへ"
+  },
   "Common": {
     "loading": "読み込み中…",
     "home": "ホーム",
@@ -205,6 +230,7 @@
     "submitting": "処理中...",
     "noAccount": "アカウントをお持ちでないですか？",
     "signupLink": "新規登録",
+    "forgotPassword": "パスワードをお忘れですか？",
     "errorInvalidEmail": "正しいメールアドレスを入力してください。",
     "errorNoPassword": "パスワードを入力してください。",
     "errorInvalidCredentials": "メールアドレスまたはパスワードが正しくありません。",

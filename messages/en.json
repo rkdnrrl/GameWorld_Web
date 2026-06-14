@@ -26,6 +26,31 @@
     "online": "{n} online",
     "onlineHero": "{n} people here right now"
   },
+  "ForgotPassword": {
+    "title": "Reset password",
+    "subtitle": "We'll email a reset link to your registered address.",
+    "email": "Email",
+    "submit": "Send reset link",
+    "submitting": "Sending…",
+    "sent": "If that email exists, a reset link has been sent. Check your inbox (and spam).",
+    "error": "Failed to send. Please try again later.",
+    "backToLogin": "Back to login"
+  },
+  "ResetPassword": {
+    "title": "Set a new password",
+    "verifying": "Verifying link…",
+    "invalidLink": "This link is invalid or expired. Please request a new reset.",
+    "requestAgain": "Request a new reset",
+    "newPassword": "New password (8+ characters)",
+    "confirmPassword": "Confirm new password",
+    "tooShort": "Password must be at least 8 characters.",
+    "mismatch": "Passwords don't match.",
+    "submit": "Change password",
+    "submitting": "Changing…",
+    "success": "Your password has been changed. Please log in with your new password.",
+    "error": "Failed to change. Please try again.",
+    "backToLogin": "Go to login"
+  },
   "Common": {
     "loading": "Loading…",
     "home": "Home",
@@ -205,6 +230,7 @@
     "submitting": "Processing...",
     "noAccount": "Don't have an account?",
     "signupLink": "Sign Up",
+    "forgotPassword": "Forgot password?",
     "errorInvalidEmail": "Please enter a valid email address.",
     "errorNoPassword": "Please enter your password.",
     "errorInvalidCredentials": "Invalid email or password.",

@@ -26,6 +26,31 @@
     "online": "{n} 人在线",
     "onlineHero": "现在有 {n} 人一起在线"
   },
+  "ForgotPassword": {
+    "title": "找回密码",
+    "subtitle": "我们将向您的注册邮箱发送重置链接。",
+    "email": "邮箱",
+    "submit": "发送重置链接",
+    "submitting": "发送中…",
+    "sent": "如果该邮箱存在，重置链接已发送，请查收（也请检查垃圾邮件）。",
+    "error": "发送失败，请稍后重试。",
+    "backToLogin": "返回登录"
+  },
+  "ResetPassword": {
+    "title": "设置新密码",
+    "verifying": "正在验证链接…",
+    "invalidLink": "链接无效或已过期，请重新申请重置。",
+    "requestAgain": "重新申请重置",
+    "newPassword": "新密码（8位以上）",
+    "confirmPassword": "确认新密码",
+    "tooShort": "密码至少需要8位。",
+    "mismatch": "两次密码不一致。",
+    "submit": "修改密码",
+    "submitting": "修改中…",
+    "success": "密码已修改，请使用新密码登录。",
+    "error": "修改失败，请重试。",
+    "backToLogin": "前往登录"
+  },
   "Common": {
     "loading": "加载中…",
     "home": "首页",
@@ -205,6 +230,7 @@
     "submitting": "处理中...",
     "noAccount": "还没有账户？",
     "signupLink": "注册",
+    "forgotPassword": "忘记密码？",
     "errorInvalidEmail": "请输入正确的电子邮件地址。",
     "errorNoPassword": "请输入密码。",
     "errorInvalidCredentials": "电子邮件或密码不正确。",

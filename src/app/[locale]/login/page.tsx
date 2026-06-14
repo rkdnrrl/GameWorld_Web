@@ -155,6 +155,11 @@ export default function LoginPage() {
           {t("signupLink")}
         </Link>
       </p>
+      <p className="mt-2 text-sm">
+        <Link href="/forgot-password" className="text-blue-600 hover:underline">
+          {t("forgotPassword")}
+        </Link>
+      </p>
       </div>
     </section>
   );
