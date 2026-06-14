@@ -298,6 +298,17 @@ export default function AssetCard({
             >
               🔗 {t('referenced')}
             </span>
+          ) : (Array.isArray(asset.tags) ? asset.tags : []).includes('official-character') ? (
+            // 공식 캐릭터 자동 등록 에셋 — 공식인 동안 비공개 전환 불가(백엔드 가드). 잠긴 공개 배지로 표시.
+            <span
+              style={{
+                fontSize: 11, padding: '3px 8px', borderRadius: 5,
+                background: 'rgba(251,191,36,0.18)', color: '#fcd34d',
+                display: 'inline-flex', alignItems: 'center', gap: 3,
+              }}
+            >
+              ⭐ {t('publishing')}
+            </span>
           ) : (
             <button
               onClick={() => onTogglePublic(asset)}

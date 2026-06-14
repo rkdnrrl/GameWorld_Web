@@ -22,10 +22,6 @@
     "reject": "拒绝",
     "rejectPrompt": "请输入拒绝理由"
   },
-  "Presence": {
-    "online": "{n} 人在线",
-    "onlineHero": "现在有 {n} 人一起在线"
-  },
   "ForgotPassword": {
     "title": "找回密码",
     "subtitle": "我们将向您的注册邮箱发送重置链接。",
@@ -2190,6 +2186,8 @@
     "close": "关闭"
   },
   "Presence": {
+    "online": "{n} 人在线",
+    "onlineHero": "现在有 {n} 人一起在线",
     "title": "谁在线",
     "subtitle": "一眼看到好友现在在哪里，立即加入。",
     "onlineNow": "{count}人在线",

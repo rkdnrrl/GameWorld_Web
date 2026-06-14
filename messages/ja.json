@@ -22,10 +22,6 @@
     "reject": "却下",
     "rejectPrompt": "却下理由を入力してください"
   },
-  "Presence": {
-    "online": "{n}人接続中",
-    "onlineHero": "今 {n}人が一緒にいます"
-  },
   "ForgotPassword": {
     "title": "パスワードの再設定",
     "subtitle": "登録メールアドレスに再設定リンクを送ります。",
@@ -2190,6 +2186,8 @@
     "close": "閉じる"
   },
   "Presence": {
+    "online": "{n}人接続中",
+    "onlineHero": "今 {n}人が一緒にいます",
     "title": "オンラインの友達",
     "subtitle": "友達が今どこにいるか一目で見て、すぐ合流しましょう。",
     "onlineNow": "{count}人オンライン",

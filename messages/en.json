@@ -22,10 +22,6 @@
     "reject": "Reject",
     "rejectPrompt": "Enter rejection reason"
   },
-  "Presence": {
-    "online": "{n} online",
-    "onlineHero": "{n} people here right now"
-  },
   "ForgotPassword": {
     "title": "Reset password",
     "subtitle": "We'll email a reset link to your registered address.",
@@ -2190,6 +2186,8 @@
     "close": "Close"
   },
   "Presence": {
+    "online": "{n} online",
+    "onlineHero": "{n} people here right now",
     "title": "Who's Online",
     "subtitle": "See where your friends are right now and jump in.",
     "onlineNow": "{count} online",

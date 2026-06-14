@@ -22,10 +22,6 @@
     "reject": "거절",
     "rejectPrompt": "거절 사유를 입력하세요"
   },
-  "Presence": {
-    "online": "{n}명 접속 중",
-    "onlineHero": "지금 {n}명이 함께하고 있어요"
-  },
   "ForgotPassword": {
     "title": "비밀번호 찾기",
     "subtitle": "가입한 이메일로 재설정 링크를 보내드립니다.",
@@ -2210,6 +2206,8 @@
     "close": "닫기"
   },
   "Presence": {
+    "online": "{n}명 접속 중",
+    "onlineHero": "지금 {n}명이 함께하고 있어요",
     "title": "지금 접속 중",
     "subtitle": "친구들이 지금 어디 있는지 한눈에 보고 바로 합류하세요.",
     "onlineNow": "{count}명 접속 중",
