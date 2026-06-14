@@ -22,6 +22,9 @@ import { RigidBody, CapsuleCollider, CuboidCollider, ConvexHullCollider } from '
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore — three 예제(번들 타입 없음). 모델당 1회 볼록껍질 선계산용.
 import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — three 예제(번들 타입 없음). 원거리 LOD 감폴리용(position/uv/normal/color 보존).
+import { SimplifyModifier } from 'three/examples/jsm/modifiers/SimplifyModifier.js';
 import { normalizeTerrain, sampleTerrainHeight, foliageVariantsOf, resolveVariantIndex, type TerrainData, type FoliageInstance, type FoliageVariant } from './terrain';
 import { loadStaticModelCached } from './modelLoader';
 import { resolveMeshMaterial, type MaterialOverrides, type LoadTexFn } from './materialOverride';
@@ -242,6 +245,9 @@ const FOLIAGE_CULL_MARGIN = 4;   // m — 시야 가장자리 여백(빠른 회�
 //   삼각형이 폭증(예: 1.1M→13.9M) → GPU 버텍스 바운드 프레임 드랍. 거리 너머는 개별 식별이 안 되므로 잘라낸다.
 //   풀·꽃은 짧게(멀리선 안 보임), 나무·돌은 실루엣 풍경이라 길게. 0 = 거리컬링 끔.
 const FOLIAGE_MAX_DIST: Record<FoliageInstance['k'], number> = { grass: 60, flower: 55, bush: 95, tree: 220, rock: 120 };
+// ── 원거리 LOD 임계(m) — 이 거리 너머 에셋 식생은 감폴(lodGeo) 메시로 그림(근접은 원본). 0=LOD 끔. ──
+//   나무가 고폴리 주범이라 가장 효과 큼. 풀·꽃은 이미 짧게 거리컬링되고 저폴리라 LOD 불필요(0).
+const FOLIAGE_LOD_DIST: Record<FoliageInstance['k'], number> = { grass: 0, flower: 0, bush: 55, tree: 70, rock: 65 };
 const _fcam = new THREE.Vector3();   // fillVisible 거리 비교용 카메라 위치(재사용)
 
 /** 시야(frustum) 안 items 만 mesh(들)에 채움. heights=미리 계산된 표면 높이, meshWorld=인스턴스→월드 행렬. margin=시야밖 여백(큰 나무는 크게 줘 그림자 pop 완화). 반환=채운 수. */
@@ -358,8 +364,26 @@ function Instanced({ items, geo, mat, t, base, cast, receive, vary, cull = false
 }
 
 // ── 사용자 에셋(GLB 등) 식생 — 모델을 instanced 로 흩뿌림 ──
-interface FoliageParts { parts: { geo: THREE.BufferGeometry; mat: THREE.Material | THREE.Material[] }[]; }
+// lodGeo = 원거리용 감폴 지오메트리(없거나 감폴 무의미하면 geo 와 동일 참조).
+interface FoliageParts { parts: { geo: THREE.BufferGeometry; mat: THREE.Material | THREE.Material[]; lodGeo: THREE.BufferGeometry }[]; }
 const _foliagePartsCache = new Map<string, Promise<FoliageParts>>();
+
+// 원거리 LOD 감폴 — 로드 시 메시당 1회(캐시). 정점 ~45% 만 남김(55% 제거).
+//  - 정점 너무 적으면(<300) 효과 없어 원본 그대로(=geo). 너무 많으면(>60k) 로드 프리즈 방지로 스킵.
+//  - SimplifyModifier 는 position/uv/normal/color 보존(잎 텍스처·버텍스컬러 안전). 실패 시 원본 폴백.
+const _simplifier = new SimplifyModifier();
+function makeLodGeo(geo: THREE.BufferGeometry): THREE.BufferGeometry {
+  const pos = geo.getAttribute('position');
+  const vcount = pos ? pos.count : 0;
+  if (vcount < 300 || vcount > 60000) return geo;        // 의미 없음/프리즈 위험 → 원본 사용
+  try {
+    const remove = Math.floor(vcount * 0.55);
+    const lod = _simplifier.modify(geo, remove) as THREE.BufferGeometry;
+    lod.computeVertexNormals();                           // 콜랩스 후 노멀 매끄럽게
+    lod.computeBoundingSphere();
+    return lod;
+  } catch { return geo; }                                 // 퇴화 등 실패 → 원본
+}
 /** 잎/식생 머티리얼 보정.
  *  - 양면(DoubleSide): 단면 잎 카드가 backface 컬링돼 컬러에서 안 보이는 문제 해결(절대 가려지지 않음).
  *  - 원래 "투명(블렌딩)"이던 잎만 alphaTest 컷아웃으로 전환 — 인스턴싱은 블렌딩 정렬이 안 되므로.
@@ -447,13 +471,17 @@ function loadFoliageParts(url: string, overrides?: MaterialOverrides, sway: Sway
           if (albedo) mat = applyFoliageAlbedo(mat, albedo);   // 사용자 텍스처 우선
           // albedo(사용자 텍스처) 적용 시엔 hasVColor 를 false 로 — 안 그러면 prepFoliageMaterial 이
           // 버텍스컬러를 다시 켜서 (흰색) 버텍스컬러가 텍스처를 덮어 흰색으로 보인다.
-          parts.push({ geo: g, mat: prepFoliageMaterial(mat, sway, !albedo && !!g.getAttribute('color')) });
+          parts.push({ geo: g, mat: prepFoliageMaterial(mat, sway, !albedo && !!g.getAttribute('color')), lodGeo: g });
         }
       });
       const box = new THREE.Box3();
       for (const p of parts) { p.geo.computeBoundingBox(); if (p.geo.boundingBox) box.union(p.geo.boundingBox); }
       const cx = (box.min.x + box.max.x) / 2, cz = (box.min.z + box.max.z) / 2, minY = box.min.y;
-      for (const p of parts) { p.geo.translate(-cx, -minY, -cz); p.geo.computeBoundingSphere(); }  // 밑동 y=0, xz 중심
+      for (const p of parts) {
+        p.geo.translate(-cx, -minY, -cz); p.geo.computeBoundingSphere();   // 밑동 y=0, xz 중심
+        // 원거리 LOD 감폴 — 리베이스(translate) 후 생성해 위치 일치. 감폴 무의미하면 geo 와 동일 참조(추가 비용 0).
+        p.lodGeo = makeLodGeo(p.geo);
+      }
       return { parts };
     });
     _foliagePartsCache.set(key, entry);
@@ -461,8 +489,32 @@ function loadFoliageParts(url: string, overrides?: MaterialOverrides, sway: Sway
   return entry;
 }
 
-function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = false, textureUrl, cull = false, margin = FOLIAGE_CULL_MARGIN, maxDist = 0 }: {
-  url: string; scale: number; items: FoliageInstance[]; t: TerrainData; cast: boolean; overrides?: MaterialOverrides; sway?: SwayMode; textureUrl?: string; cull?: boolean; margin?: number; maxDist?: number;
+/** 시야 안 items 를 near/far 두 세트로 분배 — 거리 lodDist 안=원본 메시, 밖=감폴 메시. (asset 식생 LOD)
+ *  maxDist 너머는 스킵. lodDist2=0 이면 전부 near(=LOD 끔). 색 변주 없음(asset 은 instanceColor 미사용). */
+function fillVisibleLOD(nearMeshes: THREE.InstancedMesh[], farMeshes: THREE.InstancedMesh[], items: FoliageInstance[], heights: Float32Array, scaleBase: number, meshWorld: THREE.Matrix4, margin: number, maxDist2: number, lodDist2: number): number {
+  let nn = 0, nf = 0;
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const hy = heights[i];
+    _fv.set(it.x, hy, it.z).applyMatrix4(meshWorld);
+    const d2 = _fv.distanceToSquared(_fcam);
+    if (maxDist2 > 0 && d2 > maxDist2) continue;
+    _fsphere.center.copy(_fv); _fsphere.radius = margin;
+    if (!_frustum.intersectsSphere(_fsphere)) continue;
+    _p.set(it.x, hy, it.z);
+    _q.setFromAxisAngle(_up, it.r);
+    _s.setScalar(it.s * scaleBase);
+    _m.compose(_p, _q, _s);
+    if (lodDist2 > 0 && d2 > lodDist2) { for (const m of farMeshes) m.setMatrixAt(nf, _m); nf++; }
+    else { for (const m of nearMeshes) m.setMatrixAt(nn, _m); nn++; }
+  }
+  for (const m of nearMeshes) { m.count = nn; m.instanceMatrix.needsUpdate = true; }
+  for (const m of farMeshes)  { m.count = nf; m.instanceMatrix.needsUpdate = true; }
+  return nn + nf;
+}
+
+function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = false, textureUrl, cull = false, margin = FOLIAGE_CULL_MARGIN, maxDist = 0, lodDist = 0 }: {
+  url: string; scale: number; items: FoliageInstance[]; t: TerrainData; cast: boolean; overrides?: MaterialOverrides; sway?: SwayMode; textureUrl?: string; cull?: boolean; margin?: number; maxDist?: number; lodDist?: number;
 }) {
   const [parts, setParts] = useState<FoliageParts | null>(null);
   const ovKey = overrides ? Object.keys(overrides).sort().join(',') : '';
@@ -473,7 +525,10 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, ovKey, sway, textureUrl]);
-  const refs = useRef<THREE.InstancedMesh[]>([]);
+  const refs = useRef<THREE.InstancedMesh[]>([]);       // near(원본 geo)
+  const refsFar = useRef<THREE.InstancedMesh[]>([]);    // far(감폴 lodGeo)
+  // 원거리 LOD 켜짐 — cull 모드 + lodDist>0 + 실제 감폴된 part 가 하나라도 있을 때만(아니면 near 만).
+  const lodOn = cull && lodDist > 0 && !!parts && parts.parts.some(p => p.lodGeo !== p.geo);
   const capacity = Math.max(256, Math.ceil((items.length + 1) / 256) * 256);
   // 표면 높이 미리 계산 — 컬링 업데이트마다 반복 방지.
   const heights = useMemo(() => {
@@ -481,7 +536,7 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
     for (let i = 0; i < items.length; i++) a[i] = sampleTerrainHeight(t, items[i].x, items[i].z);
     return a;
   }, [items, t]);
-  // 컬링 OFF — 1회 전부 세팅.
+  // 컬링 OFF — 1회 전부 세팅(near 만).
   useEffect(() => {
     if (cull || !parts) return;
     const meshes = refs.current.slice(0, parts.parts.length);
@@ -504,8 +559,9 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
   const lastQuat = useRef(new THREE.Quaternion(0, 0, 0, 0));
   useFrame((state, dt) => {
     if (!cull || !parts) return;
-    const meshes = refs.current.slice(0, parts.parts.length).filter(Boolean);
-    if (!meshes.length) return;
+    const np = parts.parts.length;
+    const nearMeshes = refs.current.slice(0, np).filter(Boolean);
+    if (!nearMeshes.length) return;
     acc.current += dt;
     const cam = state.camera;
     const moved = cam.position.distanceToSquared(lastPos.current);
@@ -515,18 +571,25 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
     acc.current = 0;
     lastPos.current.copy(cam.position);
     lastQuat.current.copy(cam.quaternion);
-    meshes[0].updateWorldMatrix(true, false);
+    nearMeshes[0].updateWorldMatrix(true, false);
     cam.updateMatrixWorld();
     _camInv.copy(cam.matrixWorld).invert();
     _projScreen.multiplyMatrices(cam.projectionMatrix, _camInv);
     _frustum.setFromProjectionMatrix(_projScreen);
     _fcam.copy(cam.position);
-    fillVisible(meshes, itemsRef.current, heightsRef.current, scale, undefined, meshes[0].matrixWorld, margin, maxDist > 0 ? maxDist * maxDist : 0);
+    const maxD2 = maxDist > 0 ? maxDist * maxDist : 0;
+    if (lodOn) {
+      const farMeshes = refsFar.current.slice(0, np).filter(Boolean);
+      fillVisibleLOD(nearMeshes, farMeshes, itemsRef.current, heightsRef.current, scale, nearMeshes[0].matrixWorld, margin, maxD2, lodDist * lodDist);
+    } else {
+      fillVisible(nearMeshes, itemsRef.current, heightsRef.current, scale, undefined, nearMeshes[0].matrixWorld, margin, maxD2);
+    }
   });
   // 첫 채움 전 원점 뭉침 방지 — 마운트/로드 시 1회만 count=0. (ref 콜백에서 하면 매 렌더마다 0으로 비워져 깜빡임)
   useEffect(() => {
     if (!cull || !parts) return;
     for (const m of refs.current.slice(0, parts.parts.length)) if (m) m.count = 0;
+    for (const m of refsFar.current.slice(0, parts.parts.length)) if (m) m.count = 0;
   }, [cull, parts]);
   if (!parts || items.length === 0) return null;
   return (
@@ -541,6 +604,19 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
           frustumCulled={false}
           raycast={NO_RAYCAST}   // 클릭 레이캐스트에서 제외 (인스턴스 수만 개 ray 테스트 방지)
           userData={{ alpNoCull: true }}   // World PerfManager 컬링 제외 — 인스턴스 바운딩이 원점 1개라 통째로 컬돼 "그림자만 남는" 버그. 자체 컬링만 사용.
+        />
+      ))}
+      {/* 원거리 LOD 세트 — 감폴 lodGeo, 같은 머티리얼. lodOn 일 때만 마운트(아니면 추가 드로우콜 0). */}
+      {lodOn && parts.parts.map((p, i) => (
+        <instancedMesh
+          key={'lod-' + i + '-' + capacity}
+          ref={(m) => { if (m) refsFar.current[i] = m as THREE.InstancedMesh; }}
+          args={[p.lodGeo, p.mat, capacity]}
+          castShadow={cast}
+          receiveShadow={false}
+          frustumCulled={false}
+          raycast={NO_RAYCAST}
+          userData={{ alpNoCull: true }}
         />
       ))}
     </>
@@ -731,30 +807,30 @@ export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
   const rockV = useMemo(() => foliageVariantsOf(fa, 'rock'), [fa]);
   const bushV = useMemo(() => foliageVariantsOf(fa, 'bush'), [fa]);
   // 개체를 variant 별로 나눠 각 모델로 인스턴싱. variant 는 위치 해시로 결정(안정적·렌더/콜라이더 일치).
-  const assetCat = (variants: FoliageVariant[], items: FoliageInstance[], cast: boolean, sway: SwayMode, cull = false, margin = FOLIAGE_CULL_MARGIN, maxDist = 0) =>
+  const assetCat = (variants: FoliageVariant[], items: FoliageInstance[], cast: boolean, sway: SwayMode, cull = false, margin = FOLIAGE_CULL_MARGIN, maxDist = 0, lodDist = 0) =>
     variants.map((v, vi) => {
       const bucket = variants.length === 1 ? items : items.filter(it => resolveVariantIndex(it, variants.length) === vi);
       if (!bucket.length) return null;
-      return <AssetFoliageInstances key={vi + '|' + v.url} url={v.url} scale={v.scale ?? 1} overrides={v.overrides} textureUrl={v.textureUrl} items={bucket} t={t} cast={cast} sway={sway} cull={cull} margin={margin} maxDist={maxDist} />;
+      return <AssetFoliageInstances key={vi + '|' + v.url} url={v.url} scale={v.scale ?? 1} overrides={v.overrides} textureUrl={v.textureUrl} items={bucket} t={t} cast={cast} sway={sway} cull={cull} margin={margin} maxDist={maxDist} lodDist={lodDist} />;
     });
   return (
     <>
       {/* 전부 화면 밖 frustum 컬링 — 시야 안만 렌더(수천 그루 나무도 메인+그림자 패스에서 빠짐).
           나무·돌은 그림자 던지므로 마진을 크게(12/8m) 줘 시야 살짝 밖 나무 그림자가 사라지는 걸 완화. */}
-      {grassV.length ? assetCat(grassV, grass, false, 'bend', true, FOLIAGE_CULL_MARGIN, FOLIAGE_MAX_DIST.grass)
+      {grassV.length ? assetCat(grassV, grass, false, 'bend', true, FOLIAGE_CULL_MARGIN, FOLIAGE_MAX_DIST.grass, FOLIAGE_LOD_DIST.grass)
         : <Instanced items={grass} geo={grassGeo} mat={grassMat} t={t} base={1} cast={false} receive={false} vary="grass" cull maxDist={FOLIAGE_MAX_DIST.grass} />}
-      {flowerV.length ? assetCat(flowerV, flowers, false, 'bend', true, FOLIAGE_CULL_MARGIN, FOLIAGE_MAX_DIST.flower)
+      {flowerV.length ? assetCat(flowerV, flowers, false, 'bend', true, FOLIAGE_CULL_MARGIN, FOLIAGE_MAX_DIST.flower, FOLIAGE_LOD_DIST.flower)
         : <Instanced items={flowers} geo={flowerGeo} mat={flowerMat} t={t} base={1} cast={false} receive={false} vary="flower" cull maxDist={FOLIAGE_MAX_DIST.flower} />}
-      {treeV.length ? assetCat(treeV, trees, true, false, true, 12, FOLIAGE_MAX_DIST.tree)
+      {treeV.length ? assetCat(treeV, trees, true, false, true, 12, FOLIAGE_MAX_DIST.tree, FOLIAGE_LOD_DIST.tree)
         : (<>
             {/* 나무: 기둥 + 잎 — 같은 인스턴스 변환(지오메트리가 미리 y 오프셋됨) */}
             <Instanced items={trees} geo={trunkGeo} mat={trunkMat} t={t} base={1} cast receive={false} cull margin={12} maxDist={FOLIAGE_MAX_DIST.tree} />
             <Instanced items={trees} geo={canopyGeo} mat={canopyMat} t={t} base={1} cast receive={false} cull margin={12} maxDist={FOLIAGE_MAX_DIST.tree} />
           </>)}
-      {rockV.length ? assetCat(rockV, rocks, true, false, true, 8, FOLIAGE_MAX_DIST.rock)
+      {rockV.length ? assetCat(rockV, rocks, true, false, true, 8, FOLIAGE_MAX_DIST.rock, FOLIAGE_LOD_DIST.rock)
         : <Instanced items={rocks} geo={rockGeo} mat={rockMat} t={t} base={1} cast receive={false} vary="rock" cull margin={8} maxDist={FOLIAGE_MAX_DIST.rock} />}
       {/* 덤불: 그림자 던짐 + 콜라이더 없음(통과) + 'part'(지나가면 갈라짐, 안 눕음) + 컬링 margin 10 */}
-      {bushV.length ? assetCat(bushV, bushes, true, 'part', true, 10, FOLIAGE_MAX_DIST.bush)
+      {bushV.length ? assetCat(bushV, bushes, true, 'part', true, 10, FOLIAGE_MAX_DIST.bush, FOLIAGE_LOD_DIST.bush)
         : <Instanced items={bushes} geo={bushGeo} mat={bushMat} t={t} base={1} cast receive={false} vary="bush" cull margin={10} maxDist={FOLIAGE_MAX_DIST.bush} />}
     </>
   );
