@@ -48,6 +48,7 @@ import WindSway, { deriveWind, type WindSettings } from '@/lib/world/WindSway';
 import type { GraphicsSettings } from '@/lib/world/graphicsSettings';
 import { DEFAULT_SETTINGS } from '@/lib/world/graphicsSettings';
 import { PerfManager } from '@/lib/world/PerfManager';
+import { AQ } from '@/lib/world/adaptiveQuality';
 import { FpsLimiter } from '@/lib/world/FpsLimiter';
 import PerfHUD from '@/lib/world/PerfHUD';
 import { UIRenderer } from '@/lib/world/UIRenderer';
@@ -1274,7 +1275,8 @@ function GraphicsApplier({ shadowSize, shadowFilter, shadowRadius }: {
 
 /* ── 그림자맵 업데이트 throttle ──
    매 프레임 큰(예: 4096) 그림자맵을 다시 렌더하는 게 작은 뷰포트에선 화면 렌더보다 큰 부하.
-   autoUpdate 를 끄고 ~30Hz 로만 갱신 → 그림자 비용 절반, 체감 품질 차이 거의 없음. */
+   autoUpdate 를 끄고 ~30Hz 로만 갱신 → 그림자 비용 절반, 체감 품질 차이 거의 없음.
+   ⚠ 적응형: FPS 가 버거우면(AQ.heavy) 갱신율을 더 낮춘다(그림자 패스가 폴리지 지오메트리를 또 그려 비쌈). */
 function ShadowUpdateThrottle({ hz = 30 }: { hz?: number }) {
   const { gl } = useThree();
   const acc = useRef(0);
@@ -1285,7 +1287,8 @@ function ShadowUpdateThrottle({ hz = 30 }: { hz?: number }) {
   }, [gl]);
   useFrame((_, dt) => {
     acc.current += dt;
-    if (acc.current >= 1 / hz) { acc.current = 0; gl.shadowMap.needsUpdate = true; }
+    const hzEff = AQ.heavy ? 10 : hz;   // 버거우면 10Hz — 그림자 재렌더 비용↓ → 프레임 회복
+    if (acc.current >= 1 / hzEff) { acc.current = 0; gl.shadowMap.needsUpdate = true; }
   });
   return null;
 }

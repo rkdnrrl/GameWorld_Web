@@ -30,6 +30,7 @@ import { loadStaticModelCached } from './modelLoader';
 import { resolveMeshMaterial, type MaterialOverrides, type LoadTexFn } from './materialOverride';
 import { envFx } from './envFx';
 import { G } from './globalWind';
+import { AQ, updateAdaptive } from './adaptiveQuality';
 
 // ── 절차적 지오메트리 (모듈 1회 생성, 공유) ──
 function crossQuads(angles: number[], w: number, h: number, bottom: number[], top: number[]): THREE.BufferGeometry {
@@ -680,9 +681,11 @@ function AssetFoliageInstances({ url, scale, items, t, cast, overrides, sway = f
     _projScreen.multiplyMatrices(cam.projectionMatrix, _camInv);
     _frustum.setFromProjectionMatrix(_projScreen);
     _fcam.copy(cam.position);
-    // 2단계: 원본 메시(d0 까지) → 빌보드(그 너머 끝까지). 빌보드 없으면 원본이 전부 담당.
+    // 2단계: 원본 메시(d0eff 까지) → 빌보드(그 너머 끝까지). 빌보드 없으면 원본이 전부 담당.
+    // d0eff = d0 × 적응형 배수 — FPS 낮으면 자동 축소(빌보드 더 가까이서 시작) → 삼각형↓ → 프레임 안정.
+    const d0eff = Math.max(8, d0 * AQ.foliageScale);
     const tiers: LodTier[] = impostor && refBill.current
-      ? [{ maxD2: d0 * d0, meshes: L0 }, { maxD2: Infinity, meshes: [refBill.current] }]
+      ? [{ maxD2: d0eff * d0eff, meshes: L0 }, { maxD2: Infinity, meshes: [refBill.current] }]
       : [{ maxD2: Infinity, meshes: L0 }];
     fillVisibleTiered(tiers, itemsRef.current, heightsRef.current, scale, L0[0].matrixWorld, margin);
   });
@@ -893,6 +896,7 @@ export function FoliageInstances({ terrain }: { terrain: TerrainData }) {
   // 공유 바람 시계 + 플레이어 인터랙션 위치/반경 갱신 (공유 유니폼이라 1회 갱신으로 전 풀에 반영).
   // 바람 컴포넌트(G.active>0)가 있으면 그 세기/속도를 따르고, 없으면 기본 미풍(세기 1·속도 1)으로 폴백.
   useFrame((_, dt) => {
+    updateAdaptive(dt);   // 적응형 품질 단일 드라이버 — FPS 측정→foliageScale/heavy 갱신(폴리지 마운트된 월드에서만)
     const on = G.active > 0;
     const spd = on ? Math.max(0.05, G.uWindSpeed.value) : 1;
     windUniform.value += Math.min(dt, 0.05) * spd;          // 위상 누적 — 속도 바꿔도 점프 없음
