@@ -177,8 +177,22 @@ export function PerfManager({ cullDistance, frustumCull = false, occlusionCull =
 
       // ── (1) Distance culling ──
       obj.getWorldPosition(v);
-      const d2 = v.distanceToSquared(cam);
+      let d2 = v.distanceToSquared(cam);
       if (distOn) {
+        // 큰 메시(터레인 등)는 중심이 cullDistance 너머라도 가까운 가장자리가 시야 안일 수 있음.
+        // 중심거리에서 월드 바운딩 반경을 빼 '표면까지 거리'로 판정 → 큰 지형이 통째로 사라지는 것 방지.
+        const g = m.geometry as THREE.BufferGeometry;
+        if (g) {
+          if (!g.boundingSphere) g.computeBoundingSphere();
+          const bs = g.boundingSphere;
+          if (bs && bs.radius > 0) {
+            const sX = _toC.setFromMatrixColumn(m.matrixWorld, 0).length();
+            const sY = _toC.setFromMatrixColumn(m.matrixWorld, 1).length();
+            const sZ = _toC.setFromMatrixColumn(m.matrixWorld, 2).length();
+            const near = Math.max(0, Math.sqrt(d2) - bs.radius * Math.max(sX, sY, sZ));
+            d2 = near * near;
+          }
+        }
         const culled = obj.userData.alpCulled === true;
         if (!culled && d2 > offCutoff) {
           obj.userData.alpCulled = true;
