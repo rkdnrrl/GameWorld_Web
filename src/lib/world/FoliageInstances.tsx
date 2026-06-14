@@ -249,11 +249,11 @@ const FOLIAGE_CULL_MARGIN = 4;   // m — 시야 가장자리 여백(빠른 회�
 //   ⚠ 에셋 식생은 거리 컬링 없음 — 멀어도 안 사라지고 빌보드로 보임(사용자 요청). 4번째 값은 안 씀.
 //   절차적 풀/꽃(저폴리, 빌보드 없음)만 Instanced 경로에서 4번째 값을 최대 거리컬링에 사용(무한 렌더 방지).
 const FOLIAGE_LOD: Record<FoliageInstance['k'], [number, number, number, number]> = {
-  grass:  [25, 45, 65, 90],
-  flower: [22, 45, 80, 120],
-  bush:   [45, 90, 140, 200],
-  tree:   [90, 180, 320, 600],
-  rock:   [55, 110, 175, 250],
+  grass:  [12, 28, 50, 90],
+  flower: [10, 24, 50, 120],
+  bush:   [25, 55, 100, 200],
+  tree:   [60, 130, 240, 600],
+  rock:   [40, 85, 150, 250],
 };
 const _fcam = new THREE.Vector3();   // fillVisible 거리 비교용 카메라 위치(재사용)
 
@@ -563,8 +563,8 @@ function loadFoliageParts(url: string, overrides?: MaterialOverrides, sway: Sway
         p.geo.translate(-cx, -minY, -cz); p.geo.computeBoundingSphere();   // 밑동 y=0, xz 중심
         // 중간 거리 메시 LOD 2단계 — lod1(가볍게) → lod2(lod1 에서 한 번 더 = 원본의 ~25%).
         //  단계적으로 폴리를 뭉개 가까움→멈 품질 그라데이션. 감폴 무의미(저폴리)하면 원본과 동일 참조.
-        p.lod1 = makeLodGeo(p.geo, 0.45);
-        p.lod2 = makeLodGeo(p.lod1, 0.55);
+        p.lod1 = makeLodGeo(p.geo, 0.55);              // 원본의 ~45%
+        p.lod2 = makeLodGeo(p.lod1, 0.65);             // lod1 의 ~35% = 원본의 ~16% (강하게 뭉갬)
       }
       return { parts };
     });
